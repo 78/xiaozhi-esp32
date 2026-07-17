@@ -149,7 +149,7 @@ def _collect_variants(
     variants: list[dict[str, str]] = []
     errors: list[str] = []
 
-    for cfg_path in _BOARDS_DIR.rglob(config_filename):
+    for cfg_path in sorted(_BOARDS_DIR.rglob(config_filename)):
         board_dir = cfg_path.parent
         if board_dir.name == "common":
             continue
@@ -194,17 +194,68 @@ def _collect_variants(
                 })
 
         except Exception as e:
-            print(f"[ERROR] Failed to parse {cfg_path}: {e}", file=sys.stderr)
+            errors.append(f"{cfg_path}: {e}")
 
-    # Report all errors at once
+    seen_names: dict[str, str] = {}
+    for variant in variants:
+        previous_board = seen_names.get(variant["full_name"])
+        if previous_board is not None:
+            errors.append(
+                f"duplicate artifact name {variant['full_name']!r} in "
+                f"{previous_board} and {variant['board']}"
+            )
+        else:
+            seen_names[variant["full_name"]] = variant["board"]
+
     if errors:
-        print("\n[ERROR] Found manufacturer configuration issues:", file=sys.stderr)
-        for err in errors:
-            print(f"  - {err}", file=sys.stderr)
-        print(file=sys.stderr)
-        sys.exit(1)
+        details = "\n".join(f"  - {error}" for error in errors)
+        raise ValueError(f"Invalid board configuration:\n{details}")
 
-    return variants
+    return sorted(variants, key=lambda variant: (variant["board"], variant["name"]))
+
+
+def _select_variants_for_changes(
+    variants: list[dict[str, str]], changed_files: list[str]
+) -> list[dict[str, str]]:
+    """Select variants affected by a git diff.
+
+    Board ownership is resolved using the longest known board directory prefix,
+    so nested paths such as waveshare/esp32-c6-touch-amoled-2.06 are preserved.
+    """
+    known_boards = sorted({variant["board"] for variant in variants}, key=len, reverse=True)
+    affected: set[str] = set()
+    global_paths = {
+        ".github/workflows/build.yml",
+        "CMakeLists.txt",
+        "scripts/build_default_assets.py",
+        "scripts/gen_lang.py",
+        "scripts/release.py",
+        "scripts/versions.py",
+    }
+
+    for raw_path in changed_files:
+        path = raw_path.strip()
+        if not path:
+            continue
+        if (path in global_paths or path.startswith("components/") or
+                path.startswith("partitions/") or
+                path.startswith("sdkconfig.defaults") or
+                (path.startswith("main/") and not path.startswith("main/boards/")) or
+                path.startswith("main/boards/common/")):
+            return variants
+
+        prefix = "main/boards/"
+        if path.startswith(prefix):
+            relative = path[len(prefix):]
+            board = next(
+                (candidate for candidate in known_boards
+                 if relative == candidate or relative.startswith(f"{candidate}/")),
+                None,
+            )
+            if board is not None:
+                affected.add(board)
+
+    return [variant for variant in variants if variant["board"] in affected]
 
 
 
@@ -327,7 +378,6 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
         "CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y",
         "CONFIG_BT_BLE_50_FEATURES_SUPPORTED=n",
         "CONFIG_BT_BLE_BLUFI_ENABLE=y",
-        "CONFIG_MBEDTLS_DHM_C=y",
     ],
 }
 
@@ -477,9 +527,20 @@ if __name__ == "__main__":
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
     parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
     parser.add_argument("--name", help="Variant name to compile (original name without manufacturer prefix)")
+    parser.add_argument(
+        "--select-changed",
+        action="store_true",
+        help="Read changed paths from stdin and output the affected variants as JSON",
+    )
 
     args = parser.parse_args()
     idf_version = _detect_idf_version()
+
+    if args.select_changed:
+        variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
+        selected = _select_variants_for_changes(variants, sys.stdin.read().splitlines())
+        print(json.dumps(selected))
+        sys.exit(0)
 
     # List mode
     if args.list_boards:

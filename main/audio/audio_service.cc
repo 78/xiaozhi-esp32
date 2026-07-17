@@ -120,7 +120,7 @@ void AudioService::Initialize(AudioCodec* codec) {
 }
 
 void AudioService::Start() {
-    service_stopped_ = false;
+    service_stopped_.store(false);
     xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING |
         AS_EVENT_AUDIO_PROCESSOR_RUNNING | AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
 
@@ -166,20 +166,23 @@ void AudioService::Start() {
 
 void AudioService::Stop() {
     esp_timer_stop(audio_power_timer_);
-    service_stopped_ = true;
+    service_stopped_.store(true);
     xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
         AS_EVENT_WAKE_WORD_RUNNING |
         AS_EVENT_AUDIO_PROCESSOR_RUNNING);
 
+    bool notify_drained = false;
     {
         std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+        ++playback_generation_;
         audio_encode_queue_.clear();
         audio_decode_queue_.clear();
         audio_playback_queue_.clear();
         audio_testing_queue_.clear();
+        notify_drained = MarkPlaybackDrainedLocked();
         audio_queue_cv_.notify_all();
     }
-    if (callbacks_.on_playback_drained) {
+    if (notify_drained && callbacks_.on_playback_drained) {
         callbacks_.on_playback_drained();
     }
 }
@@ -239,7 +242,7 @@ void AudioService::AudioInputTask() {
             AS_EVENT_AUDIO_INPUT_STOP_REQUEST,
             pdFALSE, pdFALSE, portMAX_DELAY);
 
-        if (service_stopped_) {
+        if (service_stopped_.load()) {
             // ADC continuous mode keeps its hardware mutex from start until stop,
             // so the input task that started it must also stop it before exiting.
             if (codec_->input_enabled()) {
@@ -253,14 +256,17 @@ void AudioService::AudioInputTask() {
 
             // Recheck the active state in this task. Audio capture may have been
             // enabled after the timer posted the stop request.
-            if ((xEventGroupGetBits(event_group_) & kAudioInputActiveBits) == 0 &&
-                codec_->input_enabled()) {
-                codec_->EnableInput(false);
+            bits = xEventGroupGetBits(event_group_);
+            if ((bits & kAudioInputActiveBits) == 0) {
+                if (codec_->input_enabled()) {
+                    codec_->EnableInput(false);
+                }
+                // Do not process the stale active bits returned by waitBits().
+                continue;
             }
         }
 
-        if (audio_input_need_warmup_) {
-            audio_input_need_warmup_ = false;
+        if (audio_input_need_warmup_.exchange(false)) {
             vTaskDelay(pdMS_TO_TICKS(120));
             continue;
         }
@@ -308,14 +314,16 @@ void AudioService::AudioInputTask() {
 void AudioService::AudioOutputTask() {
     while (true) {
         std::unique_lock<std::mutex> lock(audio_queue_mutex_);
-        audio_queue_cv_.wait(lock, [this]() { return !audio_playback_queue_.empty() || service_stopped_; });
-        if (service_stopped_) {
+        audio_queue_cv_.wait(lock, [this]() {
+            return !audio_playback_queue_.empty() || service_stopped_.load();
+        });
+        if (service_stopped_.load()) {
             break;
         }
 
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
-        const bool playback_drained = audio_playback_queue_.empty() && audio_decode_queue_.empty();
+        output_in_flight_ = true;
         audio_queue_cv_.notify_all();
         lock.unlock();
 
@@ -331,17 +339,22 @@ void AudioService::AudioOutputTask() {
         last_output_time_ = std::chrono::steady_clock::now();
         debug_statistics_.playback_count++;
 
-        if (playback_drained && callbacks_.on_playback_drained) {
-            callbacks_.on_playback_drained();
-        }
-
+        bool notify_drained = false;
+        lock.lock();
 #if CONFIG_USE_SERVER_AEC
         /* Record the timestamp for server AEC */
         if (task->timestamp > 0) {
-            lock.lock();
             timestamp_queue_.push_back(task->timestamp);
         }
 #endif
+        output_in_flight_ = false;
+        notify_drained = MarkPlaybackDrainedLocked();
+        audio_queue_cv_.notify_all();
+        lock.unlock();
+
+        if (notify_drained && callbacks_.on_playback_drained) {
+            callbacks_.on_playback_drained();
+        }
     }
 
     ESP_LOGW(TAG, "Audio output task stopped");
@@ -351,11 +364,11 @@ void AudioService::OpusCodecTask() {
     while (true) {
         std::unique_lock<std::mutex> lock(audio_queue_mutex_);
         audio_queue_cv_.wait(lock, [this]() {
-            return service_stopped_ ||
+            return service_stopped_.load() ||
                 !audio_encode_queue_.empty() ||
                 (!audio_decode_queue_.empty() && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE);
         });
-        if (service_stopped_) {
+        if (service_stopped_.load()) {
             break;
         }
 
@@ -363,6 +376,8 @@ void AudioService::OpusCodecTask() {
         if (!audio_decode_queue_.empty() && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE) {
             auto packet = std::move(audio_decode_queue_.front());
             audio_decode_queue_.pop_front();
+            decode_in_flight_ = true;
+            const uint32_t generation = playback_generation_;
             audio_queue_cv_.notify_all();
             lock.unlock();
 
@@ -618,11 +633,18 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
     if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
         if (wait) {
-            audio_queue_cv_.wait(lock, [this]() { return audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE; });
+            audio_queue_cv_.wait(lock, [this]() {
+                return service_stopped_.load() ||
+                    audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE;
+            });
         } else {
             return false;
         }
     }
+    if (service_stopped_.load()) {
+        return false;
+    }
+    playback_drained_notified_ = false;
     audio_decode_queue_.push_back(std::move(packet));
     audio_queue_cv_.notify_all();
     return true;
@@ -715,6 +737,9 @@ void AudioService::EnableAudioTesting(bool enable) {
         /* Copy audio_testing_queue_ to audio_decode_queue_ */
         std::lock_guard<std::mutex> lock(audio_queue_mutex_);
         audio_decode_queue_ = std::move(audio_testing_queue_);
+        if (!audio_decode_queue_.empty()) {
+            playback_drained_notified_ = false;
+        }
         audio_queue_cv_.notify_all();
     }
 }
@@ -759,17 +784,19 @@ void AudioService::PlaySound(const std::string_view& ogg) {
 
 bool AudioService::IsIdle() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-    return audio_encode_queue_.empty() && audio_decode_queue_.empty() && audio_playback_queue_.empty() && audio_testing_queue_.empty();
+    return audio_encode_queue_.empty() && IsPlaybackDrainedLocked() && audio_testing_queue_.empty();
 }
 
 bool AudioService::IsPlaybackIdle() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-    return audio_decode_queue_.empty() && audio_playback_queue_.empty();
+    return IsPlaybackDrainedLocked();
 }
 
 void AudioService::ResetDecoder() {
+    bool notify_drained = false;
     {
         std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+        ++playback_generation_;
         std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
         if (opus_decoder_ != nullptr) {
             esp_opus_dec_reset(opus_decoder_);
@@ -779,11 +806,25 @@ void AudioService::ResetDecoder() {
         audio_decode_queue_.clear();
         audio_playback_queue_.clear();
         audio_testing_queue_.clear();
+        notify_drained = MarkPlaybackDrainedLocked();
         audio_queue_cv_.notify_all();
     }
-    if (callbacks_.on_playback_drained) {
+    if (notify_drained && callbacks_.on_playback_drained) {
         callbacks_.on_playback_drained();
     }
+}
+
+bool AudioService::IsPlaybackDrainedLocked() const {
+    return audio_decode_queue_.empty() && audio_playback_queue_.empty() &&
+        !decode_in_flight_ && !output_in_flight_;
+}
+
+bool AudioService::MarkPlaybackDrainedLocked() {
+    if (!IsPlaybackDrainedLocked() || playback_drained_notified_) {
+        return false;
+    }
+    playback_drained_notified_ = true;
+    return true;
 }
 
 void AudioService::CheckAndUpdateAudioPowerState() {

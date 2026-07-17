@@ -25,7 +25,9 @@ dependencies:
   espressif/esp_audio_codec: ~2.5.0
   78/esp-ml307: ~3.6.6
   78/uart-eth-modem:
-    version: ^0.6.1
+    # 0.6.1 requires ESP-IDF >= 6.0.1. Keep 0.6.0 so the shared
+    # NT26/4G implementation remains buildable with ESP-IDF 5.5.2.
+    version: ==0.6.0
     rules:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~1.6.0

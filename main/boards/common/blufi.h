@@ -1,16 +1,15 @@
 #pragma once
 
-#include <aes/esp_aes.h>
 #include <cassert>
 #include <cstring>
 #include <vector>
 #include "esp_blufi_api.h"
 #include "esp_err.h"
+#include "esp_idf_version.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "mbedtls/aes.h"
-#include "mbedtls/dhm.h"
+#include "psa/crypto.h"
 #include "wifi_manager.h"
 
 class Blufi {
@@ -112,18 +111,19 @@ private:
 
     // Security context, formerly blufi_sec struct
     struct BlufiSecurity {
-#define DH_SELF_PUB_KEY_LEN 128
+#define DH_PARAM_LEN_MAX 1024
+#define DH_SELF_PUB_KEY_LEN 384
         uint8_t self_public_key[DH_SELF_PUB_KEY_LEN];
-#define SHARE_KEY_LEN 128
+#define SHARE_KEY_LEN 384
         uint8_t share_key[SHARE_KEY_LEN];
         size_t share_len;
-#define PSK_LEN 16
+#define PSK_LEN 32
         uint8_t psk[PSK_LEN];
         uint8_t *dh_param;
         int dh_param_len;
-        uint8_t iv[16];
-        mbedtls_dhm_context *dhm;
-        esp_aes_context *aes;
+        psa_key_id_t aes_key;
+        psa_cipher_operation_t enc_operation;
+        psa_cipher_operation_t dec_operation;
     };
 
     BlufiSecurity *m_sec;

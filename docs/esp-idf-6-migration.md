@@ -1,16 +1,16 @@
 # ESP-IDF 6.0 Migration and Board Compatibility Status
 
-> Last updated: 2026-07-16
+> Last updated: 2026-07-17
 > Validated SDK: ESP-IDF v6.0.1
 > Scope: 137 board directories and 157 supported build variants defined by `main/boards/**/config.json`.
 
 ## Current Status
 
-The migration baseline is reproducible from committed project files and published Component Registry packages. All 157 IDF 6 variants are now build-compatible with ESP-IDF 6.0.1: 156 passed the last complete GitHub Actions matrix, and `esp-vocat` subsequently passed a local full build after rebasing onto upstream commit `467b96a` and fixing two IDF 6/C++26 ST77916 initialization errors. A new complete matrix is pending. Fourteen legacy ESP32-P4 Rev < 3 variants are excluded from the IDF 6 matrix but remain available when building with ESP-IDF < 6.
+All 157 IDF 6 variants are build-compatible with ESP-IDF 6.0.1 and passed the latest complete GitHub Actions matrix. Fourteen legacy ESP32-P4 Rev < 3 variants are excluded from the IDF 6 matrix but remain available when building with ESP-IDF < 6. Component versions that use ranges are resolved from the Component Registry at build time; until per-target lock snapshots are committed, this is a source-reproducible build rather than a bit-for-bit dependency-reproducible build.
 
 | Status | Variants | Meaning |
 |---|---:|---|
-| ✅ Build-compatible | 157 | 156 clean full builds completed in GitHub Actions and `esp-vocat` completed locally with ESP-IDF 6.0.1; this does not imply hardware or complete peripheral validation |
+| ✅ Build-compatible | 157 | All 157 full builds completed in GitHub Actions with ESP-IDF 6.0.1; this does not imply hardware or complete peripheral validation |
 | 🟡 Feature-degraded subset | 1 | `esp-vocat` builds on IDF 6, but its PCB capacitive slider/button support is disabled pending compatible touch-sensor components |
 | 🔴 Build-blocked | 0 | No supported release variant remains blocked at compile or link time |
 
@@ -38,11 +38,11 @@ Representative local full-build results are shown below. Firmware size and free 
 
 As a negative test, `esp-p4-function-ev-board` (legacy P4 Rev < 3) was rejected as expected by `esp-sr 2.4.6` during IDF 6.0.1 configuration. Legacy P4 variants are therefore version-gated to ESP-IDF < 6 instead of being carried as permanent IDF 6 blockers.
 
-For backward-compatibility regression coverage, `xmini-c3` also completed a full build with ESP-IDF 5.5.4 (application size `0x234920`, 44% free in the smallest app partition). This confirms that the compatibility changes for I2S port numbering, LCD I2C configuration, and the UHCI DMA dependency did not break the existing 5.5 build chain.
+For backward-compatibility regression coverage, `xmini-c3` also completed a full build with ESP-IDF 5.5.4 (application size `0x234920`, 44% free in the smallest app partition). The legacy `esp-p4-function-ev-board` release variant subsequently completed the same 5.5.4 release flow (application size `0x38a130`, 10% free), including merged-binary packaging. This confirms that the compatibility changes for I2S port numbering, LCD I2C configuration, the UHCI DMA dependency, and the pre-v3 P4 selection did not break the existing 5.5 build chain.
 
 ## Full-Matrix CI Validation
 
-GitHub Actions run [29477593880](https://github.com/78/xiaozhi-esp32/actions/runs/29477593880) built the complete matrix with the `espressif/idf:v6.0.1` container and only committed files plus published registry components. The matrix-generation job and 156 board jobs passed; exactly 1 board job failed at the then-current configure-time guard for unsupported touch-sensor components. The table below records that historical run; `esp-vocat` has since passed locally and the replacement full-matrix run is pending.
+GitHub Actions run [29534954031](https://github.com/78/xiaozhi-esp32/actions/runs/29534954031) built the complete matrix with the `espressif/idf:v6.0.1` container. The matrix-generation job and all 157 board builds passed.
 
 Results by chip target:
 
@@ -52,15 +52,11 @@ Results by chip target:
 | ESP32-C3 | 9 | 9 | 0 |
 | ESP32-C5 | 4 | 4 | 0 |
 | ESP32-C6 | 9 | 9 | 0 |
-| ESP32-S3 | 114 | 113 | 1 |
+| ESP32-S3 | 114 | 114 | 0 |
 | ESP32-P4 v3.x | 14 | 14 | 0 |
-| **Total** | **157** | **156** | **1** |
+| **Total** | **157** | **157** | **0** |
 
-The failure in that run and its current resolution are:
-
-| Build variant | Failure in run 29477593880 | Current resolution |
-|---|---|---|
-| `esp-vocat` | `touch_slider_sensor` and `touch_button_sensor` require IDF < 6.0 | IDF 6 builds omit the PCB capacitive slider/button path; CST816 display touch remains enabled. A local full build passed after the mainline change and ST77916 compatibility fixes |
+`esp-vocat` remains feature-degraded because IDF 6 builds omit the PCB capacitive slider/button path; its CST816 display touch remains enabled.
 
 ## ESP32-P4 Silicon Scope and Naming
 
@@ -80,7 +76,7 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | Component/module | Version or approach for IDF 6 | Status | Notes |
 |---|---|---|---|
 | `78/uart-uhci` | `0.3.2` | ✅ Upstream support | The registry release compiles under IDF 6.0.1 in GitHub Actions |
-| `78/uart-eth-modem` | `0.6.1` | ✅ Upstream support | Updated for the new event callback and depends on `uart-uhci 0.3.x` |
+| `78/uart-eth-modem` | `0.6.0` | ✅ Upstream support | Pinned because it has the required RF-test event API while supporting both ESP-IDF 5.5.2+ and 6.0.1; version 0.6.1 requires IDF 6.0.1+ |
 | `espressif/mqtt` | `1.0.0` | ✅ Upstream support | MQTT moved from a built-in SDK component to a Component Manager dependency in IDF 6 |
 | `78/esp-ml307` | `3.6.6` + project-level `espressif/mqtt` | ✅ Builds in CI | The upstream source compiles under IDF 6.0.1 when the project supplies the MQTT component moved out of IDF |
 | `espressif/esp_hosted` / `esp_wifi_remote` | `2.12.11` / `1.6.2` | ✅ Upstream support | Used for ESP32-P4 Hosted Wi-Fi |
@@ -95,7 +91,7 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | `78/esp_lcd_nv3023` | [`1.0.1`](https://components.espressif.com/components/78/esp_lcd_nv3023/versions/1.0.1) | ✅ Upstream-based registry release | Mirrors MakerM0 upstream commit `15dae953`; adds IDF 6 color-order and GPIO compatibility while retaining older IDF branches; validated through the registry in a clean `magiclick-c3` full build |
 | `llgok/cpp_bus_driver` | Excluded from the IDF 6 baseline | ⚪ Waiting for upstream | Version `2.1.0` still requires local patches for IDF 6. It is used only by the `LILYGO T-Display-P4` source, and that board has no release `config.json`, so the component has been removed until upstream support is available |
 | MQTT protocol AES-CTR | PSA Crypto | ✅ Ported | Replaces the legacy AES context API removed by IDF 6 / Mbed TLS 4 |
-| BluFi security negotiation (conditional path) | Legacy Mbed TLS DHM/AES API | ⚪ Not yet migrated | None of the 157 supported release variants enables it. IDF 6 removed `mbedtls/dhm.h`; compatibility of the official PSA FFDH + AES-CTR approach with the existing mobile-client protocol must be evaluated |
+| BluFi security negotiation (conditional path) | PSA FFDH + SHA-256 + AES-CTR | ✅ Ported | Uses the ESP-IDF 6 security scheme with ffdhe3072 and passed local full ESP32-S3 builds with BluFi enabled on IDF 5.5.4 and 6.0.1. Legacy 1024-bit BluFi clients are not compatible and must be upgraded |
 | `espressif/bmi270_sensor` | [`0.1.2`](https://components.espressif.com/components/espressif/bmi270_sensor/versions/0.1.2/readme?language=en) | ✅ Upstream support | Provides IDF 6.0 prebuilt libraries for ESP32-C5 and ESP32-S3; validated by a full `esp-spot-c5` build |
 | `touch_slider_sensor` / `touch_button_sensor` | Disabled for IDF 6 | 🟡 Feature gap | Their manifests require IDF < 6.0, so ESP Vocat omits its PCB capacitive slider/button path on IDF 6. CST816 display touch is unaffected |
 | ESP32-P4 Rev < 3 / `espressif/esp-sr` | Version-gated to IDF < 6 | 🟡 Legacy SDK path | The 14 legacy variants are restored for IDF 5.5 builds. They remain excluded from IDF 6 because `esp-sr 2.4.6` rejects the old-silicon configuration; ESP32-P4 v3.x is unaffected |
@@ -139,8 +135,8 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `atk-dnesp32s3` | `atk-dnesp32s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atk-dnesp32s3-box` | `atk-dnesp32s3-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atk-dnesp32s3-box0` | `atk-dnesp32s3-box0` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3-box2-4g` | `atk-dnesp32s3-box2-4g` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3-box2-wifi` | `atk-dnesp32s3-box2-wifi` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `atk-dnesp32s3-box2-4g` | `atk-dnesp32s3-box2-4g` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
+| `esp32s3` | `atk-dnesp32s3-box2-wifi` | `atk-dnesp32s3-box2-wifi` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
 | `esp32s3` | `atk-dnesp32s3-box3` | `atk-dnesp32s3-box3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atom-echos3r` | `atom-echos3r` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atoms3-echo-base` | `atoms3-echo-base` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -181,7 +177,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `lilygo-t-circle-s3` | `lilygo-t-circle-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lilygo-t-display-s3-pro-mvsrlora` | `lilygo-t-display-s3-pro-mvsrlora` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `m5stack-cardputer-adv` | `m5stack-cardputer-adv` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `m5stack-core-s3` | `m5stack-core-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `m5stack-core-s3` | `m5stack-core-s3` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
 | `esp32s3` | `m5stack-stick-s3` | `m5stack-stick-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `m5stack-stopwatch` | `m5stack-stopwatch` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `magiclick-2p4` | `magiclick-2p4` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -247,7 +243,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 
 ## Next Steps and Acceptance Criteria
 
-1. Run the complete 157-variant IDF 6 GitHub Actions matrix on the rebased branch, and add an IDF 5.5 legacy job to build and hardware-test at least one P4 v1.3 device. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
+1. Run the new IDF 5.5 compatibility and IDF 6 BluFi CI jobs, then hardware-test at least one P4 v1.3 device on the legacy SDK path. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
 2. For every green variant, complete a minimal hardware smoke test covering boot, networking, audio input/output, display/touch when present, camera when present, and 4G/Ethernet when present.
 3. Perform a physical negative test for the `xmini-c3`/`xmini-c3-v3` firmware guard. CI proves that both images compile; it does not prove that a wrong image is safely rejected. Acceptance requires flashing each wrong image to a sacrificial or recoverable board and verifying that startup stops before any board-specific power or peripheral initialization can cause damage.
 4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1` and `wvirgil123/sscma_client 1.0.3` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
