@@ -89,6 +89,9 @@ void Application::Initialize() {
     callbacks.on_vad_change = [this](bool speaking) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
+    callbacks.on_playback_drained = [this]() {
+        xEventGroupSetBits(event_group_, MAIN_EVENT_PLAYBACK_DRAINED);
+    };
     audio_service_.SetCallbacks(callbacks);
 
     // Add state change listeners
@@ -185,7 +188,8 @@ void Application::Run() {
         MAIN_EVENT_START_LISTENING |
         MAIN_EVENT_STOP_LISTENING |
         MAIN_EVENT_ACTIVATION_DONE |
-        MAIN_EVENT_STATE_CHANGED;
+        MAIN_EVENT_STATE_CHANGED |
+        MAIN_EVENT_PLAYBACK_DRAINED;
 
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, ALL_EVENTS, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -211,6 +215,16 @@ void Application::Run() {
             HandleStateChangedEvent();
         }
 
+        if (bits & MAIN_EVENT_PLAYBACK_DRAINED) {
+            // Deferred listening start (auto mode): the playback queue has
+            // drained, so it is now safe to enable voice processing.
+            if (pending_listening_start_ && GetDeviceState() == kDeviceStateListening &&
+                audio_service_.IsPlaybackIdle()) {
+                pending_listening_start_ = false;
+                StartListeningAudio();
+            }
+        }
+
         if (bits & MAIN_EVENT_TOGGLE_CHAT) {
             HandleToggleChatEvent();
         }
@@ -226,6 +240,11 @@ void Application::Run() {
         if (bits & MAIN_EVENT_SEND_AUDIO) {
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
                 if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
+                    // Drop the remaining packets. Leaving them in the queue would
+                    // stall the Opus codec task (it waits for queue space), which in
+                    // turn deadlocks the whole audio input pipeline, as no new
+                    // MAIN_EVENT_SEND_AUDIO event would ever be triggered again.
+                    while (audio_service_.PopPacketFromSendQueue());
                     break;
                 }
             }
@@ -257,12 +276,11 @@ void Application::Run() {
             display->UpdateStatusBar();
         
             // Print debug info every 10 seconds
-            // if (clock_ticks_ % 10 == 0) {
-            //     SystemInfo::PrintHeapStats();
-            // }
-            // if (clock_ticks_ % 5 == 0) {
-            //     SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(500));
-            // }
+            if (clock_ticks_ % 10 == 0) {
+                SystemInfo::PrintHeapStats();
+                // SystemInfo::PrintTaskList();
+                // SystemInfo::PrintTaskCpuUsage(pdMS_TO_TICKS(1000));
+            }
         }
     }
 }
@@ -1116,6 +1134,9 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
 void Application::HandleStateChangedEvent() {
     DeviceState new_state = state_machine_.GetState();
     clock_ticks_ = 0;
+    // Any state change invalidates a pending deferred listening start;
+    // the Listening case below re-arms it when needed.
+    pending_listening_start_ = false;
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
@@ -1142,29 +1163,17 @@ void Application::HandleStateChangedEvent() {
 
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
-                // For auto mode, wait for playback queue to be empty before enabling voice processing
-                // This prevents audio truncation when STOP arrives late due to network jitter
-                if (listening_mode_ == kListeningModeAutoStop) {
-                    audio_service_.WaitForPlaybackQueueEmpty();
+                // For auto mode, wait for the playback queue to drain before enabling
+                // voice processing. This prevents audio truncation when STOP arrives
+                // late due to network jitter. Instead of blocking the main loop here,
+                // defer the start until MAIN_EVENT_PLAYBACK_DRAINED arrives.
+                if (listening_mode_ == kListeningModeAutoStop && !audio_service_.IsPlaybackIdle()) {
+                    pending_listening_start_ = true;
+                } else {
+                    StartListeningAudio();
                 }
-                
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
-                audio_service_.EnableVoiceProcessing(true);
-            }
-
-#ifdef CONFIG_WAKE_WORD_DETECTION_IN_LISTENING
-            // Enable wake word detection in listening mode (configured via Kconfig)
-            audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
-#else
-            // Disable wake word detection in listening mode
-            audio_service_.EnableWakeWordDetection(false);
-#endif
-            
-            // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
-            if (play_popup_on_listening_) {
-                play_popup_on_listening_ = false;
-                audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+            } else {
+                ConfigureWakeWordForListening();
             }
             break;
         case kDeviceStateSpeaking:
@@ -1185,6 +1194,36 @@ void Application::HandleStateChangedEvent() {
             // Do nothing
             break;
     }
+}
+
+void Application::StartListeningAudio() {
+    // Runs in the main loop, either directly from HandleStateChangedEvent or
+    // deferred via MAIN_EVENT_PLAYBACK_DRAINED once the playback queue drains.
+    if (GetDeviceState() != kDeviceStateListening) {
+        return;
+    }
+
+    // Send the start listening command
+    protocol_->SendStartListening(listening_mode_);
+    audio_service_.EnableVoiceProcessing(true);
+
+    ConfigureWakeWordForListening();
+
+    // Play popup sound after ResetDecoder (in EnableVoiceProcessing) has been called
+    if (play_popup_on_listening_) {
+        play_popup_on_listening_ = false;
+        audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    }
+}
+
+void Application::ConfigureWakeWordForListening() {
+#ifdef CONFIG_WAKE_WORD_DETECTION_IN_LISTENING
+    // Enable wake word detection in listening mode (configured via Kconfig)
+    audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
+#else
+    // Disable wake word detection in listening mode
+    audio_service_.EnableWakeWordDetection(false);
+#endif
 }
 
 void Application::Schedule(std::function<void()>&& callback) {

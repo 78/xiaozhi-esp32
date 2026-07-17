@@ -217,18 +217,16 @@ void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
         return;
     }
 
+    // WakeNet enable/disable on the AFE instance is applied by ProcessingTask
+    // (see ApplyAfeControls), driven by the kWakeWordEnabled bit.
     if (enable) {
-        if (wake_detector_ == WakeDetector::kWakeNet) {
-            afe_iface_->enable_wakenet(afe_data_);
-        } else {
+        if (wake_detector_ == WakeDetector::kMultiNet) {
             custom_wake_word_->Start();
         }
         xEventGroupSetBits(event_group_, kWakeWordEnabled);
     } else {
         xEventGroupClearBits(event_group_, kWakeWordEnabled);
-        if (wake_detector_ == WakeDetector::kWakeNet) {
-            afe_iface_->disable_wakenet(afe_data_);
-        } else {
+        if (wake_detector_ == WakeDetector::kMultiNet) {
             custom_wake_word_->Stop();
         }
     }
@@ -293,32 +291,65 @@ void AfeAudioEngine::UpdateActiveState() {
         std::lock_guard<std::mutex> lock(input_buffer_mutex_);
         input_buffer_.clear();
         if (afe_data_ != nullptr) {
-            afe_iface_->reset_buffer(afe_data_);
+            // Don't call reset_buffer() here: this runs in the main task while
+            // ProcessingTask may be inside fetch_with_delay() on the same AFE
+            // instance, and a concurrent reset corrupts the ring buffer state.
+            // Defer the reset to ProcessingTask, which owns the fetch side.
+            reset_pending_ = true;
         }
     }
     if ((bits & kVoiceProcessingEnabled) == 0) {
-        output_buffer_.clear();
+        // output_buffer_ is owned by the task that produces output frames,
+        // so let that task clear it instead of racing with it here.
+        output_reset_pending_ = true;
     }
-    UpdateAecState();
+    afe_control_dirty_ = true;
 }
 
 void AfeAudioEngine::UpdateAecState() {
     if (afe_data_ == nullptr || codec_ == nullptr || !codec_->input_reference()) {
         return;
     }
+    afe_control_dirty_ = true;
+}
+
+void AfeAudioEngine::ApplyAfeControls() {
     EventBits_t bits = xEventGroupGetBits(event_group_);
-    const bool enable = (bits & kWakeWordEnabled) ||
-        (device_aec_enabled_ && (bits & kVoiceProcessingEnabled));
-    if (enable) {
-        afe_iface_->enable_aec(afe_data_);
-    } else {
-        afe_iface_->disable_aec(afe_data_);
+    if (wake_detector_ == WakeDetector::kWakeNet) {
+        if (bits & kWakeWordEnabled) {
+            afe_iface_->enable_wakenet(afe_data_);
+        } else {
+            afe_iface_->disable_wakenet(afe_data_);
+        }
+    }
+    if (codec_->input_reference()) {
+        const bool enable_aec = (bits & kWakeWordEnabled) ||
+            (device_aec_enabled_ && (bits & kVoiceProcessingEnabled));
+        if (enable_aec) {
+            afe_iface_->enable_aec(afe_data_);
+        } else {
+            afe_iface_->disable_aec(afe_data_);
+        }
     }
 }
 
 void AfeAudioEngine::ProcessingTask() {
     while (true) {
         xEventGroupWaitBits(event_group_, kAfeActive, pdFALSE, pdTRUE, portMAX_DELAY);
+        if (reset_pending_.exchange(false)) {
+            // Discard audio recorded before (re)activation. Holding
+            // input_buffer_mutex_ serializes the reset against Feed(); the
+            // fetch side cannot race as it only runs in this task.
+            std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+            input_buffer_.clear();
+            afe_iface_->reset_buffer(afe_data_);
+            continue;
+        }
+        if (afe_control_dirty_.exchange(false)) {
+            // WakeNet/AEC toggles are not safe against a concurrent fetch,
+            // so they are applied here, in the task that owns the fetch side.
+            ApplyAfeControls();
+        }
         auto* result = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
         if ((xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
             continue;
@@ -362,7 +393,8 @@ void AfeAudioEngine::HandleWakeWordResult(const afe_fetch_result_t* result) {
 
     last_detected_wake_word_ = wake_words_[model_index];
     xEventGroupClearBits(event_group_, kWakeWordEnabled);
-    afe_iface_->disable_wakenet(afe_data_);
+    // UpdateActiveState marks the AFE controls dirty; the next loop iteration
+    // of ProcessingTask disables WakeNet via ApplyAfeControls.
     UpdateActiveState();
     if (wake_word_detected_callback_) {
         wake_word_detected_callback_(last_detected_wake_word_);
@@ -370,6 +402,9 @@ void AfeAudioEngine::HandleWakeWordResult(const afe_fetch_result_t* result) {
 }
 
 void AfeAudioEngine::HandleVoiceResult(const afe_fetch_result_t* result) {
+    if (output_reset_pending_.exchange(false)) {
+        output_buffer_.clear();
+    }
     if (vad_state_change_callback_) {
         if (result->vad_state == VAD_SPEECH && !is_speaking_) {
             is_speaking_ = true;
@@ -401,6 +436,9 @@ void AfeAudioEngine::HandleVoiceResult(const afe_fetch_result_t* result) {
 void AfeAudioEngine::OutputRawAudio(const std::vector<int16_t>& data) {
     if (!output_callback_ || codec_ == nullptr) {
         return;
+    }
+    if (output_reset_pending_.exchange(false)) {
+        output_buffer_.clear();
     }
     const size_t channels = codec_->input_channels();
     if (channels <= 1) {

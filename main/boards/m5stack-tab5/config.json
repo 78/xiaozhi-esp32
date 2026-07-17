@@ -3,6 +3,7 @@
     "builds": [
         {
             "name": "m5stack-tab5",
+            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_BOARD_TYPE_M5STACK_CORE_TAB5=y",
                 "CONFIG_CAMERA_SC202CS=y",

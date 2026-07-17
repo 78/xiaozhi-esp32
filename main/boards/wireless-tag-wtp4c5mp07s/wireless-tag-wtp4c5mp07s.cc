@@ -84,7 +84,8 @@ private:
         esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 52,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = 1024,
@@ -96,9 +97,6 @@ private:
                 .vsync_back_porch = 23,
                 .vsync_front_porch = 12,
             },
-            .flags = {
-                .use_dma2d = true,
-            },
         };
         ek79007_vendor_config_t vendor_config = {
             .mipi_config = {
@@ -108,13 +106,13 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
+            .vendor_config = &vendor_config,
             .flags = {
                 .reset_active_high = true,
             },
-            .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_ek79007(io, &lcd_dev_config, &disp_panel);
         esp_lcd_panel_reset(disp_panel);

@@ -5,6 +5,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
+#include <esp_idf_version.h>
 
 #include "application.h"
 #include "codecs/no_audio_codec.h"
@@ -59,7 +60,11 @@ private:
         esp_lcd_panel_handle_t panel_handle = NULL;
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;  // Set to -1 if not use
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;         // LCD_RGB_ENDIAN_RGB;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+#else
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+#endif
         panel_config.bits_per_pixel = 16;  // Implemented by LCD command `3Ah` (16/18)
 
         ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle, &panel_config, &panel_handle));
