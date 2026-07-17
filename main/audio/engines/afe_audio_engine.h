@@ -66,13 +66,16 @@ private:
     TaskHandle_t processing_task_ = nullptr;
     int frame_samples_ = 0;
     bool is_speaking_ = false;
-    bool device_aec_enabled_ = false;
+    std::atomic<bool> device_aec_enabled_{false};
     // Deferred AFE buffer reset, performed by ProcessingTask (see UpdateActiveState)
     std::atomic<bool> reset_pending_{false};
     // Deferred WakeNet/AEC toggles, applied by ProcessingTask (see ApplyAfeControls)
     std::atomic<bool> afe_control_dirty_{false};
     // Deferred output_buffer_ clear, performed by the output-producing task
     std::atomic<bool> output_reset_pending_{false};
+    // Incremented whenever an active AFE session is invalidated. ProcessingTask
+    // uses it to reject a fetch result produced before a disable/re-enable cycle.
+    std::atomic<uint32_t> control_generation_{0};
     WakeDetector wake_detector_ = WakeDetector::kNone;
 
     std::unique_ptr<CustomWakeWord> custom_wake_word_;
@@ -98,6 +101,7 @@ private:
     void UpdateActiveState();
     void UpdateAecState();
     void ApplyAfeControls();
+    void ApplyPendingReset();
     void OutputRawAudio(const std::vector<int16_t>& data);
     void HandleWakeWordResult(const afe_fetch_result_t* result);
     void HandleVoiceResult(const afe_fetch_result_t* result);

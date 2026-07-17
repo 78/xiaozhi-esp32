@@ -26,8 +26,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install jq
-        run: apt-get update && apt-get install -y jq
+      - name: Test release tooling
+        run: python -m unittest discover -s scripts/tests -v
 
       - id: list
         name: Get all variant list
@@ -53,37 +53,11 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           echo "Base: $BASE_SHA, Head: $HEAD_SHA"
 
-          CHANGED=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           echo -e "Changed files:\n$CHANGED"
 
-          NEED_ALL=0
-          declare -A AFFECTED
-          while IFS= read -r file; do
-            if [[ "$file" == main/* && "$file" != main/boards/* ]]; then
-              NEED_ALL=1
-            fi
-
-            if [[ "$file" == main/boards/common/* ]]; then
-              NEED_ALL=1
-            fi
-
-            if [[ "$file" == main/boards/* ]]; then
-              board=$(echo "$file" | cut -d '/' -f3)
-              AFFECTED[$board]=1
-            fi
-          done <<< "$CHANGED"
-
-          if [[ "$NEED_ALL" -eq 1 ]]; then
-            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
-          else
-            if [[ ${#AFFECTED[@]} -eq 0 ]]; then
-              echo "variants=[]" >> $GITHUB_OUTPUT
-            else
-              BOARDS_JSON=$(printf '%s\n' "${!AFFECTED[@]}" | sort -u | jq -R -s -c 'split("\n")[:-1]')
-              FILTERED=$(echo "$ALL_VARIANTS" | jq -c --argjson boards "$BOARDS_JSON" 'map(select(.board as $b | $boards | index($b)))')
-              echo "variants=$FILTERED" >> $GITHUB_OUTPUT
-            fi
-          fi
+          SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/release.py --select-changed)
+          echo "variants=$SELECTED" >> $GITHUB_OUTPUT
 
   build:
     name: Build ${{ matrix.full_name }}
@@ -112,3 +86,48 @@ jobs:
           name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
+
+  compatibility-idf5:
+    name: IDF 5.5 compatibility - ${{ matrix.name }}
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: xmini-c3
+            name: xmini-c3
+          - board: esp-p4-function-ev-board
+            name: esp-p4-function-ev-board
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.5.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build compatibility variant
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py ${{ matrix.board }} --name ${{ matrix.name }}
+
+  blufi-idf6:
+    name: IDF 6 BluFi option
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build BluFi-enabled firmware
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          idf.py -B build-blufi \
+            -DSDKCONFIG=build-blufi/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;scripts/ci/blufi.sdkconfig.defaults" \
+            -DIDF_TARGET=esp32s3 \
+            -DBOARD_NAME=bread-compact-wifi \
+            -DBOARD_TYPE=bread-compact-wifi \
+            build

@@ -2,6 +2,7 @@
 #define AUDIO_SERVICE_H
 
 #include <memory>
+#include <atomic>
 #include <deque>
 #include <condition_variable>
 #include <chrono>
@@ -49,7 +50,6 @@
 #define AS_EVENT_AUDIO_TESTING_RUNNING      (1 << 0)
 #define AS_EVENT_WAKE_WORD_RUNNING          (1 << 1)
 #define AS_EVENT_AUDIO_PROCESSOR_RUNNING    (1 << 2)
-#define AS_EVENT_PLAYBACK_NOT_EMPTY         (1 << 3)
 #define AS_EVENT_AUDIO_INPUT_STOP_REQUEST   (1 << 4)
 
 #define AS_OPUS_GET_FRAME_DRU_ENUM(duration_ms)                   \
@@ -80,7 +80,7 @@ struct AudioServiceCallbacks {
     std::function<void(const std::string&)> on_wake_word_detected;
     std::function<void(bool)> on_vad_change;
     std::function<void(void)> on_audio_testing_queue_full;
-    // Fired when both the decode and playback queues become empty
+    // Fired when the decode/playback queues and their in-flight work are drained.
     std::function<void(void)> on_playback_drained;
 };
 
@@ -94,7 +94,7 @@ enum AudioTaskType {
 struct AudioTask {
     AudioTaskType type;
     std::vector<int16_t> pcm;
-    uint32_t timestamp;
+    uint32_t timestamp = 0;
 };
 
 struct DebugStatistics {
@@ -174,6 +174,10 @@ private:
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_testing_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_encode_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_playback_queue_;
+    bool decode_in_flight_ = false;
+    bool output_in_flight_ = false;
+    bool playback_drained_notified_ = true;
+    uint32_t playback_generation_ = 0;
     // For server AEC
     std::deque<uint32_t> timestamp_queue_;
 
@@ -184,8 +188,8 @@ private:
 #else
     bool device_aec_enabled_ = false;
 #endif
-    bool service_stopped_ = true;
-    bool audio_input_need_warmup_ = false;
+    std::atomic<bool> service_stopped_{true};
+    std::atomic<bool> audio_input_need_warmup_{false};
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;
@@ -198,6 +202,8 @@ private:
     bool InitializeAudioEngine();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckAndUpdateAudioPowerState();
+    bool IsPlaybackDrainedLocked() const;
+    bool MarkPlaybackDrainedLocked();
 };
 
 #endif

@@ -42,7 +42,8 @@ private:
 
     std::string publish_topic_;
 
-    std::mutex channel_mutex_;
+    mutable std::mutex channel_mutex_;
+    std::mutex crypto_mutex_;
     std::unique_ptr<Mqtt> mqtt_;
     std::unique_ptr<Udp> udp_;
     psa_key_id_t aes_key_id_ = PSA_KEY_ID_NULL;
@@ -55,7 +56,7 @@ private:
 
     bool StartMqttClient(bool report_error=false);
     void ParseServerHello(const cJSON* root);
-    std::string DecodeHexString(const std::string& hex_string);
+    bool DecodeHexString(const std::string& hex_string, std::string& decoded);
     bool CryptAesCtr(const uint8_t* input, size_t input_size, const uint8_t* nonce, uint8_t* output);
 
     bool SendText(const std::string& text) override;

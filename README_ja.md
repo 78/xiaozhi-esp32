@@ -12,26 +12,25 @@
 
 <img src="docs/mcp-based-graph.jpg" alt="MCPであらゆるものを制御" width="320">
 
-## バージョンノート
+## 最近の更新
 
-現在のv2バージョンはv1パーティションテーブルと互換性がないため、v1からv2へOTAでアップグレードすることはできません。パーティションテーブルの詳細については、[partitions/v2/README.md](partitions/v2/README.md)をご参照ください。
-
-v1を実行しているすべてのハードウェアは、ファームウェアを手動で書き込むことでv2にアップグレードできます。
-
-v1の安定版は1.9.2です。`git checkout v1`でv1に切り替えることができます。v1ブランチは2026年2月まで継続的にメンテナンスされます。
+- メインラインはESP-IDF v6.0以降へ移行し、推奨安定版はv6.0.2です。全157リリースバリアントはESP-IDF v6.0.1でビルド検証済みです。
+- MQTTとBluFiの暗号処理をPSA Cryptoへ移行し、IDF 6のコンポーネント分割およびサードパーティ依存関係にも対応しました。
+- オーディオパイプラインの並行処理、MQTT/UDPパケット検証、リリースマトリクス選択処理を強化しました。
+- ESP-IDF v5.5は、ESP32-P4 v3より前のシリコンを含む旧ハードウェア互換用途にのみ残しています。詳細な互換性とボード検証状況は、[ESP-IDF 6.0移行ガイド](docs/esp-idf-6-migration.md)を参照してください。
 
 ### 実装済み機能
 
-- Wi-Fi / ML307 Cat.1 4G
-- オフライン音声ウェイクアップ [ESP-SR](https://github.com/espressif/esp-sr)
-- 2種類の通信プロトコルに対応（[Websocket](docs/websocket.md) または MQTT+UDP）
-- OPUSオーディオコーデックを採用
-- ストリーミングASR + LLM + TTSアーキテクチャに基づく音声インタラクション
+- Wi-Fi、有線Ethernet、USB RNDIS、およびML307/EC801EまたはNT26 Cat.1 4Gに対応し、一部のボードではWi-Fiと4Gを切り替え可能
+- [ESP-SR](https://github.com/espressif/esp-sr)によるオフライン音声ウェイクアップとカスタムウェイクワード
+- 2種類の通信方式：[WebSocket](docs/websocket.md)と[MQTT + UDP](docs/mqtt-udp.md)
+- Opusオーディオストリーミングにより、従来のストリーミングASR + LLM + TTS構成とRealtimeエンドツーエンド音声モデルの両方に対応。AEC対応ハードウェアではリアルタイム全二重対話が可能
 - 話者認識、現在話している人を識別 [3D Speaker](https://github.com/modelscope/3D-Speaker)
-- OLED / LCDディスプレイ、表情表示対応
+- OLED / LCDディスプレイで絵文字や豊かな感情表現を表示し、一部のボードではカメラによる視覚入力にも対応
 - バッテリー表示と電源管理
-- 多言語対応（中国語、英語、日本語）
-- ESP32-C3、ESP32-S3、ESP32-P4チッププラットフォーム対応
+- 38言語の画面表示に対応し、音声プロンプトはローカライズ済みリソースを優先して、未収録時は英語へフォールバック
+- ESP32、ESP32-C3、ESP32-C5、ESP32-C6、ESP32-S3、ESP32-P4チッププラットフォーム
+- ホットスポット、音響信号、BluFiによるWi-Fiプロビジョニング
 - デバイス側MCPによるデバイス制御（音量・明るさ調整、アクション制御など）
 - クラウド側MCPで大規模モデル能力を拡張（スマートホーム制御、PCデスクトップ操作、知識検索、メール送受信など）
 - カスタマイズ可能なウェイクワード、フォント、絵文字、チャット背景、オンラインWeb編集に対応 ([カスタムアセットジェネレーター](https://github.com/78/xiaozhi-assets-generator))
@@ -48,7 +47,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 ![ブレッドボードデモ](docs/v1/wiring2.jpg)
 
-### 70種類以上のオープンソースハードウェアに対応（一部のみ表示）
+### 137のボードディレクトリと157のリリースバリアントに対応（一部のみ表示）
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立創・実戦派 ESP32-S3 開発ボード">立創・実戦派 ESP32-S3 開発ボード</a>
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="楽鑫 ESP32-S3-BOX3">楽鑫 ESP32-S3-BOX3</a>
@@ -115,12 +114,13 @@ Feishuドキュメントチュートリアルをご覧ください：
 ### 開発環境
 
 - Cursor または VSCode
-- ESP-IDFプラグインをインストールし、SDKバージョン5.4以上を選択
+- ESP-IDFプラグインをインストールし、[ESP-IDF v6.0.2](https://github.com/espressif/esp-idf/releases/tag/v6.0.2)を優先して使用してください。v6.0以降の安定版を推奨し、ESP-IDF v5.5.2は旧ハードウェアとの互換性維持にのみ使用します
 - LinuxはWindowsよりも優れており、コンパイルが速く、ドライバの問題も少ない
 - 本プロジェクトはGoogle C++コードスタイルを採用、コード提出時は準拠を確認してください
 
 ### 開発者ドキュメント
 
+- [ESP-IDF 6.0移行ガイド](docs/esp-idf-6-migration.md) - SDK互換性、コンポーネント変更、旧ハードウェア対応、ボード検証状況
 - [カスタム開発ボードガイド](docs/custom-board.md) - シャオジーAI用のカスタム開発ボード作成方法
 - [MCPプロトコルIoT制御使用法](docs/mcp-usage.md) - MCPプロトコルでIoTデバイスを制御する方法
 - [MCPプロトコルインタラクションフロー](docs/mcp-protocol.md) - デバイス側MCPプロトコルの実装方法
