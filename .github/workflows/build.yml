@@ -53,6 +53,7 @@ jobs:
           # first and second parents are the exact base and head commits used
           # for this run, even when the event SHAs are not exposed as refs in
           # the job container.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           BASE_SHA="HEAD^1"
           HEAD_SHA="HEAD^2"
           echo "Base: $(git rev-parse "$BASE_SHA"), Head: $(git rev-parse "$HEAD_SHA")"
