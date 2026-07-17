@@ -49,9 +49,13 @@ jobs:
           fi
 
           # pull_request 场景
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          echo "Base: $BASE_SHA, Head: $HEAD_SHA"
+          # actions/checkout checks out GitHub's synthetic PR merge commit. Its
+          # first and second parents are the exact base and head commits used
+          # for this run, even when the event SHAs are not exposed as refs in
+          # the job container.
+          BASE_SHA="HEAD^1"
+          HEAD_SHA="HEAD^2"
+          echo "Base: $(git rev-parse "$BASE_SHA"), Head: $(git rev-parse "$HEAD_SHA")"
 
           CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           echo -e "Changed files:\n$CHANGED"
