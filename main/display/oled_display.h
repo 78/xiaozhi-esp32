@@ -27,6 +27,7 @@ private:
 
     void SetupUI_128x64();
     void SetupUI_128x32();
+    void SetStatus(const char* status) override;
 
 public:
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, bool mirror_x, bool mirror_y);
