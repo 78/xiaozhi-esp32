@@ -13,7 +13,7 @@
 namespace TextGlyphPayload {
 
 bool Parse(const cJSON* root, std::vector<TextGlyph>& result, uint8_t& bpp) {
-    auto payload = cJSON_GetObjectItem(root, "glyphs");
+    auto payload = cJSON_GetObjectItem(root, "glyph_push");
     if (!cJSON_IsObject(payload)) {
         return true;
     }
@@ -21,22 +21,22 @@ bool Parse(const cJSON* root, std::vector<TextGlyph>& result, uint8_t& bpp) {
     auto bundle = cJSON_GetObjectItem(payload, "bundle");
     auto size = cJSON_GetObjectItem(payload, "size");
     auto wire_bpp = cJSON_GetObjectItem(payload, "bpp");
-    auto items = cJSON_GetObjectItem(payload, "items");
+    auto glyphs = cJSON_GetObjectItem(payload, "glyphs");
     if (!cJSON_IsNumber(version) || version->valueint != 1 || !cJSON_IsString(bundle) ||
         strcmp(bundle->valuestring, NOTO_FONT_BUNDLE_ID) != 0 || !cJSON_IsNumber(size) ||
         size->valuedouble != TEXT_FONT_SIZE || !cJSON_IsNumber(wire_bpp) ||
-        wire_bpp->valuedouble != TEXT_FONT_BPP || !cJSON_IsArray(items) ||
-        cJSON_GetArraySize(items) > 64) {
+        wire_bpp->valuedouble != TEXT_FONT_BPP || !cJSON_IsArray(glyphs) ||
+        cJSON_GetArraySize(glyphs) > 64) {
         ESP_LOGW(TAG, "Rejected incompatible glyph payload");
         return false;
     }
 
     const uint8_t parsed_bpp = static_cast<uint8_t>(wire_bpp->valueint);
     std::vector<TextGlyph> parsed;
-    parsed.reserve(cJSON_GetArraySize(items));
+    parsed.reserve(cJSON_GetArraySize(glyphs));
     size_t total_bitmap_bytes = 0;
     cJSON* item = nullptr;
-    cJSON_ArrayForEach (item, items) {
+    cJSON_ArrayForEach (item, glyphs) {
         auto codepoint = cJSON_GetObjectItem(item, "codepoint");
         auto adv_w = cJSON_GetObjectItem(item, "adv_w");
         auto box_w = cJSON_GetObjectItem(item, "box_w");

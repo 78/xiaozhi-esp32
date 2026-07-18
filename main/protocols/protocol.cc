@@ -10,7 +10,7 @@ void Protocol::AddTextFontCapabilities(cJSON* root) {
     auto charset = Assets::GetInstance().text_font_charset();
     cJSON* features = cJSON_GetObjectItem(root, "features");
     if (cJSON_IsObject(features)) {
-        cJSON_AddNumberToObject(features, "glyph_push", 1);
+        cJSON_AddBoolToObject(features, "glyph_push", true);
     }
 
     cJSON* font = cJSON_CreateObject();
