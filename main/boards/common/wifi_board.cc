@@ -13,7 +13,7 @@
 #include <esp_mac.h>
 #include <utility>
 
-#include <font_awesome.h>
+#include <material_symbols.h>
 #include <wifi_manager.h>
 #include <wifi_station.h>
 #include <ssid_manager.h>
@@ -259,19 +259,19 @@ const char* WifiBoard::GetNetworkStateIcon() {
     auto& wifi = WifiManager::GetInstance();
 
     if (wifi.IsConfigMode()) {
-        return FONT_AWESOME_WIFI;
+        return MATERIAL_SYMBOLS_WIFI;
     }
     if (!wifi.IsConnected()) {
-        return FONT_AWESOME_WIFI_SLASH;
+        return MATERIAL_SYMBOLS_WIFI_OFF;
     }
 
     int rssi = wifi.GetRssi();
     if (rssi >= -65) {
-        return FONT_AWESOME_WIFI;
+        return MATERIAL_SYMBOLS_WIFI;
     } else if (rssi >= -75) {
-        return FONT_AWESOME_WIFI_FAIR;
+        return MATERIAL_SYMBOLS_WIFI_2_BAR;
     }
-    return FONT_AWESOME_WIFI_WEAK;
+    return MATERIAL_SYMBOLS_WIFI_1_BAR;
 }
 
 std::string WifiBoard::GetBoardJson() {

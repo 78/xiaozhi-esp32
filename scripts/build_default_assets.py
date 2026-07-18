@@ -13,6 +13,7 @@ Usage:
 import argparse
 import io
 import os
+import re
 import shutil
 import sys
 import json
@@ -273,7 +274,8 @@ def process_extra_files(extra_files_dir, assets_dir):
     return extra_files_list
 
 
-def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None, multinet_model_info=None):
+def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None,
+                        multinet_model_info=None, font_bundle_id=None):
     """Generate index.json file"""
     index_data = {
         "version": 1
@@ -283,7 +285,22 @@ def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra
         index_data["srmodels"] = srmodels
     
     if text_font:
+        if not font_bundle_id:
+            raise ValueError("font_bundle_id is required when packaging a text font")
         index_data["text_font"] = text_font
+        stem = os.path.splitext(text_font)[0]
+        marker = '_common_'
+        if marker in stem:
+            match = re.fullmatch(r"(\d+)_(\d+)", stem.split(marker, 1)[1])
+            if not match:
+                raise ValueError(f"invalid Noto text font name: {text_font}")
+            text_font_meta = {
+                "charset": "common",
+                "size": int(match.group(1)),
+                "bpp": int(match.group(2)),
+                "bundle": font_bundle_id,
+            }
+            index_data["text_font_meta"] = text_font_meta
     
     if emoji_collection:
         index_data["emoji_collection"] = emoji_collection
@@ -663,7 +680,7 @@ def get_multinet_model_paths(model_names, esp_sr_model_path):
     return valid_paths
 
 
-def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
+def get_text_font_path(builtin_text_font, noto_fonts_path):
     """
     Get the text font path if needed
     Returns the font file path or None if no font is needed
@@ -671,13 +688,9 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
     if not builtin_text_font or 'basic' not in builtin_text_font:
         return None
     
-    # Convert from basic to common font name
-    # e.g., font_puhui_basic_16_4 -> font_puhui_common_16_4.bin
-    if builtin_text_font.startswith('font_noto_'):
-        font_name = builtin_text_font.replace('basic', 'qwen') + '.bin'
-    else:
-        font_name = builtin_text_font.replace('basic', 'common') + '.bin'
-    font_path = os.path.join(xiaozhi_fonts_path, 'cbin', font_name)
+    # basic is linked into firmware; common is loaded from the assets partition.
+    font_name = builtin_text_font.replace('_basic_', '_common_') + '.bin'
+    font_path = os.path.join(noto_fonts_path, 'cbin', font_name)
     
     if os.path.exists(font_path):
         return font_path
@@ -686,14 +699,13 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
         return None
 
 
-def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, project_root=None):
+def get_emoji_collection_path(default_emoji_collection, noto_fonts_path, project_root=None):
     """
     Get the emoji collection path if needed
     Returns the emoji directory path or None if no emoji collection is needed
     
     Supports:
-    - PNG emoji collections from xiaozhi-fonts (e.g., emojis_32, twemoji_64)
-    - GIF emoji collections from xiaozhi-fonts (e.g., noto-emoji_128, noto-emoji_64)
+    - PNG emoji collections from noto-fonts (e.g., noto-color-emoji_32)
     - Otto GIF emoji collection (otto-gif)
     """
     if not default_emoji_collection:
@@ -713,13 +725,13 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
             print("Warning: project_root not provided, cannot locate otto-gif collection")
             return None
     
-    # Try PNG emoji collections first (e.g., emojis_32, twemoji_64)
-    emoji_path = os.path.join(xiaozhi_fonts_path, 'png', default_emoji_collection)
+    # Try PNG emoji collections first.
+    emoji_path = os.path.join(noto_fonts_path, 'png', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
     
     # Try GIF emoji collections (e.g., noto-emoji_128, noto-emoji_64, noto-emoji_32)
-    emoji_path = os.path.join(xiaozhi_fonts_path, 'gif', default_emoji_collection)
+    emoji_path = os.path.join(noto_fonts_path, 'gif', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
     
@@ -727,7 +739,9 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
     return None
 
 
-def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None):
+def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path,
+                            emoji_collection_path, extra_files_path, output_path,
+                            multinet_model_info=None, font_bundle_id=None):
     """
     Build assets using integrated functions (no external dependencies)
     """
@@ -751,7 +765,8 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
         extra_files = process_extra_files(extra_files_path, assets_dir) if extra_files_path else None
         
         # Generate index.json
-        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files, multinet_model_info)
+        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files,
+                            multinet_model_info, font_bundle_id)
         
         # Generate config.json for packing
         config_path = generate_config_json(temp_build_dir, assets_dir)
@@ -791,17 +806,17 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
 def main():
     parser = argparse.ArgumentParser(description='Build default assets based on configuration')
     parser.add_argument('--sdkconfig', required=True, help='Path to sdkconfig file')
-    parser.add_argument('--builtin_text_font', help='Builtin text font name (e.g., font_puhui_basic_16_4)')
-    parser.add_argument('--emoji_collection', help='Default emoji collection name (e.g., emojis_32)')
+    parser.add_argument('--builtin_text_font', help='Builtin text font name (e.g., font_noto_sans_basic_16_4)')
+    parser.add_argument('--emoji_collection', help='Default emoji collection name (e.g., noto-color-emoji_32)')
     parser.add_argument('--output', required=True, help='Output path for assets.bin')
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
-    parser.add_argument('--xiaozhi_fonts_path', help='Path to xiaozhi-fonts component directory')
+    parser.add_argument('--noto_fonts_path', help='Path to noto-fonts component directory')
     parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
     
     args = parser.parse_args()
     
     # Set default paths if not provided
-    if not args.esp_sr_model_path or not args.xiaozhi_fonts_path:
+    if not args.esp_sr_model_path or not args.noto_fonts_path:
         # Calculate project root from script location
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(script_dir)
@@ -809,8 +824,8 @@ def main():
         if not args.esp_sr_model_path:
             args.esp_sr_model_path = os.path.join(project_root, "managed_components", "espressif__esp-sr", "model")
         
-        if not args.xiaozhi_fonts_path:
-            args.xiaozhi_fonts_path = os.path.join(project_root, "components", "xiaozhi-fonts")
+        if not args.noto_fonts_path:
+            args.noto_fonts_path = os.path.join(project_root, "components", "noto-fonts")
     
     print("Building default assets...")
     print(f"  sdkconfig: {args.sdkconfig}")
@@ -854,13 +869,20 @@ def main():
         print(f"  multinet models: {', '.join(multinet_model_names)} (will be packaged)")
     
     # Get text font path if needed
-    text_font_path = get_text_font_path(args.builtin_text_font, args.xiaozhi_fonts_path)
+    text_font_path = get_text_font_path(args.builtin_text_font, args.noto_fonts_path)
+    font_bundle_id = None
+    if text_font_path:
+        manifest_path = os.path.join(args.noto_fonts_path, "manifest.json")
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            font_bundle_id = json.load(f).get("bundle_id")
+        if not isinstance(font_bundle_id, str) or not font_bundle_id:
+            raise ValueError("noto-fonts manifest.json must define bundle_id")
     
     # Get emoji collection path if needed
     # Calculate project root from script location for otto-gif support
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
-    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.xiaozhi_fonts_path, project_root)
+    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.noto_fonts_path, project_root)
     
     # Get extra files path if provided
     extra_files_path = args.extra_files
@@ -901,8 +923,9 @@ def main():
         return
     
     # Build the assets
-    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, 
-                                     extra_files_path, args.output, multinet_model_info)
+    success = build_assets_integrated(
+        wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path,
+        extra_files_path, args.output, multinet_model_info, font_bundle_id)
     
     if not success:
         sys.exit(1)

@@ -16,7 +16,7 @@
 | 板载 LED | 无 | GPIO48 单色 |
 | MCP 外设示例 | 无 | `LampController`（GPIO18） |
 | 背光 | PWM on GPIO45 | OLED 无背光 |
-| 字体 / emoji 资源 | `font_noto_basic_20_4` + `font_awesome_20_4` + `twemoji_64` | `font_puhui_basic_14_1` + `font_awesome_14_1`（无 emoji） |
+| 字体 / emoji 资源 | `font_noto_sans_basic_20_4` + `font_material_symbols_20_4` + `noto-color-emoji_64` | `font_noto_sans_basic_14_1` + `font_material_symbols_14_1`（无 emoji） |
 
 ---
 
@@ -144,8 +144,8 @@ InitializeTools()           // 注册 LampController（MCP 外设）
 
 | 板子 | text font | icon font | emoji collection |
 |---|---|---|---|
-| quandong-s3-dev | `font_noto_basic_20_4` | `font_awesome_20_4` | `twemoji_64` |
-| bread-compact-wifi | `font_puhui_basic_14_1` | `font_awesome_14_1` | （无） |
+| quandong-s3-dev | `font_noto_sans_basic_20_4` | `font_material_symbols_20_4` | `noto-color-emoji_64` |
+| bread-compact-wifi | `font_noto_sans_basic_14_1` | `font_material_symbols_14_1` | （无） |
 
 → quandong 走的是和 `lichuang-dev`、`esp-box-3` 等 240×320 LCD 板同档资源；OLED 板因为像素少，用 14 像素位图字体即可，emoji 也加载不动。
 
