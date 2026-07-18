@@ -29,8 +29,8 @@
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_noto_sans_basic_16_4);
+LV_FONT_DECLARE(font_material_symbols_16_4);
 
 
 class Cst816d : public I2cDevice {

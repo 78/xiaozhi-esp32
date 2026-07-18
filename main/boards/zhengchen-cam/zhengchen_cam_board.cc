@@ -28,8 +28,8 @@
 //控制器初始化函数声明
 void InitializeMCPController();
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_noto_sans_basic_20_4);
+LV_FONT_DECLARE(font_material_symbols_20_4);
 
 class Pca9557 : public I2cDevice {
 public:

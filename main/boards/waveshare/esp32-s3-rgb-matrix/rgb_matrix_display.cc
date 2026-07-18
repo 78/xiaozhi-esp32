@@ -2,11 +2,12 @@
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
-#include <font_awesome.h>
+#include <material_symbols.h>
 #include <stdio.h>
 #include <time.h>
 #include <cstring>
 #include <string>
+#include <utility>
 #include "application.h"
 #include "assets/lang_config.h"
 #include "board.h"
@@ -15,12 +16,9 @@
 #include "hub75.h"
 
 // 声明中文字体
-LV_FONT_DECLARE(font_puhui_14_1);
+LV_FONT_DECLARE(font_noto_sans_basic_14_1);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
-LV_FONT_DECLARE(font_awesome_30_4);
-
-// 声明32x32 Emoji集合
-class Twemoji32;
+LV_FONT_DECLARE(font_material_symbols_30_4);
 
 struct Hub75Context {
     Hub75Driver driver;
@@ -41,7 +39,7 @@ bool UseBuiltInEmotionIcon(const char* emotion) {
     if (emotion == nullptr) {
         return false;
     }
-    if (strcmp(emotion, "microchip_ai") == 0) {
+    if (strcmp(emotion, "robot_2") == 0) {
         return true;
     }
     if (strcmp(emotion, "link") == 0) {
@@ -270,9 +268,6 @@ void CustomMatrixDisplay::SetupUI() {
     }
     Display::SetupUI();
 
-    // 初始化 Emoji 资源（用于 SetEmotion）
-    emoji_collection_ = std::make_shared<Twemoji32>();
-
     const int ui_width_px = width_;
     const int ui_height_px = height_;
 
@@ -301,7 +296,7 @@ void CustomMatrixDisplay::SetupUI() {
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_text_color(status_label_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(status_label_, &font_puhui_14_1, 0);
+    lv_obj_set_style_text_font(status_label_, &font_noto_sans_basic_14_1, 0);
     lv_obj_align(status_label_, LV_ALIGN_TOP_RIGHT, 0, -1);
     status_text_ = "初始化";
     RefreshStatusLabelLocked();
@@ -312,7 +307,7 @@ void CustomMatrixDisplay::SetupUI() {
     lv_label_set_long_mode(message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(message_label_, lv_color_white(), 0);
-    lv_obj_set_style_text_font(message_label_, &font_puhui_14_1, 0);
+    lv_obj_set_style_text_font(message_label_, &font_noto_sans_basic_14_1, 0);
     lv_obj_align(message_label_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_label_set_text(message_label_, "hi 小智");
 
@@ -322,11 +317,16 @@ void CustomMatrixDisplay::SetupUI() {
     lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
 
     emotion_icon_label_ = lv_label_create(main_container_);
-    lv_label_set_text(emotion_icon_label_, FONT_AWESOME_MICROCHIP_AI);
-    lv_obj_set_style_text_font(emotion_icon_label_, &font_awesome_30_4, 0);
+    lv_label_set_text(emotion_icon_label_, MATERIAL_SYMBOLS_ROBOT_2);
+    lv_obj_set_style_text_font(emotion_icon_label_, &font_material_symbols_30_4, 0);
     lv_obj_set_style_text_color(emotion_icon_label_, lv_color_white(), 0);
     lv_obj_align(emotion_icon_label_, LV_ALIGN_CENTER, 0, -1);
     lv_obj_remove_flag(emotion_icon_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void CustomMatrixDisplay::SetEmojiCollection(std::shared_ptr<EmojiCollection> collection) {
+    DisplayLockGuard lock(this);
+    emoji_collection_ = std::move(collection);
 }
 
 void CustomMatrixDisplay::SetEmotion(const char* emotion) {
@@ -358,7 +358,7 @@ void CustomMatrixDisplay::SetEmotion(const char* emotion) {
     if (emotion_icon_label_ == nullptr) {
         return;
     }
-    lv_label_set_text(emotion_icon_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_label_set_text(emotion_icon_label_, MATERIAL_SYMBOLS_ROBOT_2);
     SetObjectVisible(emotion_icon_label_, true);
 }
 
