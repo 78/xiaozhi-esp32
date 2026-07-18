@@ -1,6 +1,5 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-// #include "font_awesome_symbols.h"
 
 #include "codecs/box_audio_codec.h"
 #include "waveshare_audio_codec.h"

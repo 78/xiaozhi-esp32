@@ -199,7 +199,7 @@ private:
         display_->SetupUI();
         
         display_->SetStatus(Lang::Strings::ERROR);
-        display_->SetEmotion("triangle_exclamation");
+        display_->SetEmotion("warning");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {

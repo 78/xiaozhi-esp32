@@ -3,7 +3,6 @@
 #include "display/lcd_display.h"
 #include "esp_lcd_ili9881c.h"
 #include "esp_lcd_st7123.h"
-#include "font_emoji.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"

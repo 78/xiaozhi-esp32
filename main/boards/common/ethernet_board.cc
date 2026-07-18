@@ -12,7 +12,7 @@
 #include <esp_mac.h>
 #include <esp_network.h>
 #include <esp_netif.h>
-#include <font_awesome.h>
+#include <material_symbols.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <soc/soc_caps.h>
@@ -221,7 +221,7 @@ NetworkInterface* EthernetBoard::GetNetwork() {
 }
 
 const char* EthernetBoard::GetNetworkStateIcon() {
-    return connected_ ? FONT_AWESOME_SIGNAL_STRONG : FONT_AWESOME_SIGNAL_OFF;
+    return connected_ ? MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR : MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
 }
 
 std::string EthernetBoard::GetEthernetMacAddress() {
