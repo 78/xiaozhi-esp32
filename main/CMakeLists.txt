@@ -1075,7 +1075,7 @@ idf_component_register(SRCS ${SOURCES}
                         efuse
                         bt
                         fatfs
-                        noto-fonts
+                        xiaozhi-fonts
                         ${MAIN_PRIV_REQUIRES_EXTRA}
                     )
 
@@ -1119,8 +1119,8 @@ if(ESP_SR_COMPONENT_PATH)
     set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
 endif()
 
-# Find noto-fonts component dynamically
-find_component_by_pattern("noto-fonts" NOTO_FONTS_COMPONENT NOTO_FONTS_COMPONENT_PATH)
+# Find xiaozhi-fonts component dynamically
+find_component_by_pattern("xiaozhi-fonts" NOTO_FONTS_COMPONENT NOTO_FONTS_COMPONENT_PATH)
 if(NOTO_FONTS_COMPONENT_PATH)
     set(NOTO_FONTS_PATH "${NOTO_FONTS_COMPONENT_PATH}")
 endif()
