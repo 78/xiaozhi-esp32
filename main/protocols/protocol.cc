@@ -1,5 +1,4 @@
 #include "protocol.h"
-#include <noto_font_bundle.h>
 #include "assets.h"
 
 #include <esp_log.h>
@@ -7,17 +6,20 @@
 #define TAG "Protocol"
 
 void Protocol::AddTextFontCapabilities(cJSON* root) {
-    auto charset = Assets::GetInstance().text_font_charset();
+    auto capability = Assets::GetInstance().text_font_capability();
     cJSON* features = cJSON_GetObjectItem(root, "features");
     if (cJSON_IsObject(features)) {
-        cJSON_AddBoolToObject(features, "glyph_push", true);
+        cJSON_AddBoolToObject(features, "glyph_push", capability.glyph_push);
     }
 
+    if (!capability.glyph_push) {
+        return;
+    }
     cJSON* font = cJSON_CreateObject();
-    cJSON_AddStringToObject(font, "bundle", NOTO_FONT_BUNDLE_ID);
-    cJSON_AddStringToObject(font, "charset", charset.c_str());
-    cJSON_AddNumberToObject(font, "size", TEXT_FONT_SIZE);
-    cJSON_AddNumberToObject(font, "bpp", TEXT_FONT_BPP);
+    cJSON_AddStringToObject(font, "bundle", capability.bundle.c_str());
+    cJSON_AddStringToObject(font, "charset", capability.charset.c_str());
+    cJSON_AddNumberToObject(font, "size", capability.size);
+    cJSON_AddNumberToObject(font, "bpp", capability.bpp);
     cJSON_AddItemToObject(root, "text_font", font);
 }
 

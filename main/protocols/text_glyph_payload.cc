@@ -1,6 +1,5 @@
 #include "text_glyph_payload.h"
-
-#include <noto_font_bundle.h>
+#include "assets.h"
 
 #include <esp_log.h>
 #include <mbedtls/base64.h>
@@ -22,11 +21,12 @@ bool Parse(const cJSON* root, std::vector<TextGlyph>& result, uint8_t& bpp) {
     auto size = cJSON_GetObjectItem(payload, "size");
     auto wire_bpp = cJSON_GetObjectItem(payload, "bpp");
     auto glyphs = cJSON_GetObjectItem(payload, "glyphs");
-    if (!cJSON_IsNumber(version) || version->valueint != 1 || !cJSON_IsString(bundle) ||
-        strcmp(bundle->valuestring, NOTO_FONT_BUNDLE_ID) != 0 || !cJSON_IsNumber(size) ||
-        size->valuedouble != TEXT_FONT_SIZE || !cJSON_IsNumber(wire_bpp) ||
-        wire_bpp->valuedouble != TEXT_FONT_BPP || !cJSON_IsArray(glyphs) ||
-        cJSON_GetArraySize(glyphs) > 64) {
+    auto capability = Assets::GetInstance().text_font_capability();
+    if (!capability.glyph_push || !cJSON_IsNumber(version) || version->valueint != 1 ||
+        !cJSON_IsString(bundle) || capability.bundle != bundle->valuestring ||
+        !cJSON_IsNumber(size) || size->valuedouble != capability.size ||
+        !cJSON_IsNumber(wire_bpp) || wire_bpp->valuedouble != capability.bpp ||
+        !cJSON_IsArray(glyphs) || cJSON_GetArraySize(glyphs) > 64) {
         ESP_LOGW(TAG, "Rejected incompatible glyph payload");
         return false;
     }

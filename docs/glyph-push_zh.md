@@ -39,8 +39,14 @@ MQTT/UDP 使用完全相同的扩展格式。
 | `size` | number | 固件使用的文字字体像素规格。 |
 | `bpp` | number | 字体位图的每像素位数，目前为 `1` 或 `4`。 |
 
-`basic` 是链接进固件的字库。只有从 assets 分区成功加载兼容的 common 字库后，设备才会
-报告 `common`。服务器必须使用每个连接在 hello 中报告的实际值，不能根据板型推测。
+`basic` 是链接进固件的字库。标准小智 assets 从分区加载 common 字库后会报告 `common`。
+服务器必须使用每个连接在 hello 中报告的实际值，不能根据板型推测。
+
+OTA assets 可以把文字字体替换为不同字号、bpp、字符集或字体家族的 CBIN 字体。固件仍会
+加载任何结构有效的 CBIN 字体；如果 assets 同时提供完整的 `text_font_meta`，设备会声明当前
+实际使用的运行时字体参数，并据此校验 glyph push。旧版或自定义 assets 缺少兼容的 glyph
+metadata 时，自定义字体、表情、颜色和背景仍然正常使用，但设备会声明 `glyph_push: false`
+并省略 `text_font`，从而只禁止不兼容的 fallback glyph，不限制主题定制能力。
 
 ## 2. 服务器下发格式
 

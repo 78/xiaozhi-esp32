@@ -25,6 +25,12 @@ public:
     LvglCBinFont(void* data);
     virtual ~LvglCBinFont();
     virtual const lv_font_t* font() const override { return font_; }
+    uint8_t bpp() const {
+        if (font_ == nullptr || font_->dsc == nullptr) {
+            return 0;
+        }
+        return static_cast<const lv_font_fmt_txt_dsc_t*>(font_->dsc)->bpp;
+    }
     virtual void SetFallback(const lv_font_t* fallback) override {
         if (font_ != nullptr) {
             font_->fallback = fallback;

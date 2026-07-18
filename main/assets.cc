@@ -17,6 +17,8 @@
 #include <cbin_font.h>
 #include <noto_font_bundle.h>
 
+#include <cstring>
+
 #define TAG "Assets"
 #define PARTITION_LABEL "assets"
 
@@ -29,6 +31,7 @@ struct mmap_assets_table {
 };
 
 Assets::Assets() {
+    UseBuiltInTextFontCapability();
 #if HAVE_LVGL
     strategy_ = std::make_unique<Assets::LvglStrategy>();
 #else
@@ -59,11 +62,23 @@ bool Assets::InitializePartition() {
 }
 
 void Assets::UnApplyPartition() {
-    text_font_charset_ = "basic";
+    UseBuiltInTextFontCapability();
     if (strategy_) {
         strategy_->UnApplyPartition(this);
     }
 }
+
+void Assets::UseBuiltInTextFontCapability() {
+    text_font_capability_ = {
+        .glyph_push = true,
+        .bundle = NOTO_FONT_BUNDLE_ID,
+        .charset = "basic",
+        .size = TEXT_FONT_SIZE,
+        .bpp = TEXT_FONT_BPP,
+    };
+}
+
+void Assets::DisableTextFontGlyphPush() { text_font_capability_ = {}; }
 
 bool Assets::GetAssetData(const std::string& name, void*& ptr, size_t& size) {
     return strategy_ ? strategy_->GetAssetData(this, name, ptr, size) : false;
@@ -249,35 +264,45 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
 
     cJSON* font = cJSON_GetObjectItem(root, "text_font");
     if (cJSON_IsString(font)) {
-        cJSON* metadata = cJSON_GetObjectItem(root, "text_font_meta");
-        cJSON* charset = cJSON_GetObjectItem(metadata, "charset");
-        cJSON* font_size = cJSON_GetObjectItem(metadata, "size");
-        cJSON* font_bpp = cJSON_GetObjectItem(metadata, "bpp");
-        cJSON* bundle = cJSON_GetObjectItem(metadata, "bundle");
-        bool compatible = cJSON_IsString(charset) && strcmp(charset->valuestring, "common") == 0 &&
-                          cJSON_IsNumber(font_size) && font_size->valuedouble == TEXT_FONT_SIZE &&
-                          cJSON_IsNumber(font_bpp) && font_bpp->valuedouble == TEXT_FONT_BPP &&
-                          cJSON_IsString(bundle) &&
-                          strcmp(bundle->valuestring, NOTO_FONT_BUNDLE_ID) == 0;
-        if (!compatible) {
-            ESP_LOGW(TAG, "Ignoring incompatible text font asset; using built-in Noto basic");
-        } else {
-            std::string fonts_text_file = font->valuestring;
-            if (assets->GetAssetData(fonts_text_file, ptr, size)) {
-                auto text_font = std::make_shared<LvglCBinFont>(ptr);
-                if (text_font->font() == nullptr) {
-                    ESP_LOGE(TAG, "Failed to load fonts.bin");
-                    return false;
-                }
-                auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
-                if (display == nullptr || !display->SetTextFont(text_font)) {
-                    ESP_LOGE(TAG, "Failed to apply fonts.bin");
-                    return false;
-                }
-                assets->text_font_charset_ = "common";
+        std::string fonts_text_file = font->valuestring;
+        if (assets->GetAssetData(fonts_text_file, ptr, size)) {
+            auto text_font = std::make_shared<LvglCBinFont>(ptr);
+            auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
+            if (text_font->font() == nullptr || display == nullptr ||
+                !display->SetTextFont(text_font)) {
+                ESP_LOGW(TAG, "Ignoring invalid text font asset %s", fonts_text_file.c_str());
             } else {
-                ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
+                assets->DisableTextFontGlyphPush();
+
+                cJSON* metadata = cJSON_GetObjectItem(root, "text_font_meta");
+                cJSON* charset = cJSON_GetObjectItem(metadata, "charset");
+                cJSON* font_size = cJSON_GetObjectItem(metadata, "size");
+                cJSON* font_bpp = cJSON_GetObjectItem(metadata, "bpp");
+                cJSON* bundle = cJSON_GetObjectItem(metadata, "bundle");
+                bool supports_glyph_push =
+                    cJSON_IsString(charset) &&
+                    (std::strcmp(charset->valuestring, "basic") == 0 ||
+                     std::strcmp(charset->valuestring, "common") == 0) &&
+                    cJSON_IsNumber(font_size) && font_size->valueint > 0 &&
+                    font_size->valuedouble == font_size->valueint && cJSON_IsNumber(font_bpp) &&
+                    font_bpp->valuedouble == font_bpp->valueint &&
+                    (font_bpp->valueint == 1 || font_bpp->valueint == 4) &&
+                    font_bpp->valueint == text_font->bpp() && cJSON_IsString(bundle) &&
+                    bundle->valuestring[0] != '\0' && std::strlen(bundle->valuestring) <= 64;
+                if (supports_glyph_push) {
+                    assets->text_font_capability_ = {
+                        .glyph_push = true,
+                        .bundle = bundle->valuestring,
+                        .charset = charset->valuestring,
+                        .size = font_size->valueint,
+                        .bpp = font_bpp->valueint,
+                    };
+                } else {
+                    ESP_LOGW(TAG, "Loaded custom text font without compatible glyph push metadata");
+                }
             }
+        } else {
+            ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
         }
     }
 

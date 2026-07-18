@@ -41,9 +41,16 @@ The `text_font` object describes the exact font data installed on the device:
 | `size` | number | Text font pixel profile used by the firmware. |
 | `bpp` | number | Bits per pixel of the text font bitmap, currently `1` or `4`. |
 
-`basic` is the font linked into the firmware. A device reports `common` only after it has loaded a
-compatible common font from its assets partition. The server must use the values from each device's
-hello message rather than inferring them from the board model.
+`basic` is the font linked into the firmware. The standard XiaoZhi assets report `common` after
+loading their common font from the assets partition. The server must use the values from each
+device's hello message rather than inferring them from the board model.
+
+An OTA assets package may replace the text font with a different size, bpp, character set, or font
+family. The firmware still loads any structurally valid CBIN font. When the package also provides
+complete `text_font_meta` fields, the device advertises those active runtime values and validates
+glyph pushes against them. A legacy or custom package without compatible glyph metadata continues
+to use its custom font, emoji, colors, and background, but advertises `glyph_push: false` and omits
+`text_font`. This prevents incompatible fallback glyphs without restricting theme customization.
 
 ## 2. Server glyph payload
 
