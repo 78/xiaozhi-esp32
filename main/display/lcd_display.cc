@@ -1066,6 +1066,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         }
         return;
     }
+    lv_anim_delete(chat_message_label_, nullptr);
     lv_label_set_text(chat_message_label_, content);
     // Show bottom_bar_ only when there is content (and subtitle is not globally hidden)
     if (bottom_bar_ != nullptr) {

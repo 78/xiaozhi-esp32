@@ -155,6 +155,7 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
     std::string content_str = content;
     std::replace(content_str.begin(), content_str.end(), '\n', ' ');
 
+    lv_anim_delete(chat_message_label_, nullptr);
     if (content_right_ == nullptr) {
         lv_label_set_text(chat_message_label_, content_str.c_str());
     } else {
