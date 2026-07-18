@@ -752,6 +752,9 @@ void Application::ContinueOpenAudioChannel(ListeningMode mode) {
 
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
+            // Return to idle so the device is not stuck in the connecting
+            // state (not every failure path reports a network error)
+            SetDeviceState(kDeviceStateIdle);
             return;
         }
     }
@@ -815,18 +818,7 @@ void Application::HandleWakeWordDetectedEvent() {
     ESP_LOGI(TAG, "Wake word detected: %s (state: %d)", wake_word.c_str(), (int)state);
 
     if (state == kDeviceStateIdle) {
-        audio_service_.EncodeWakeWord();
-        auto wake_word = audio_service_.GetLastWakeWord();
-
-        if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
-            // Schedule to let the state change be processed first (UI update),
-            // then continue with OpenAudioChannel which may block for ~1 second
-            Schedule([this, wake_word]() { ContinueWakeWordInvoke(wake_word); });
-            return;
-        }
-        // Channel already opened, continue directly
-        ContinueWakeWordInvoke(wake_word);
+        BeginWakeWordInvoke(wake_word);
     } else if (state == kDeviceStateSpeaking || state == kDeviceStateListening) {
         AbortSpeaking(kAbortReasonWakeWordDetected);
         // Clear send queue to avoid sending residues to server
@@ -850,6 +842,30 @@ void Application::HandleWakeWordDetectedEvent() {
     }
 }
 
+void Application::BeginWakeWordInvoke(const std::string& wake_word) {
+    // Must run in the main task with the device in idle state
+    audio_service_.EncodeWakeWord();
+
+    // Always pass through the connecting state, even if the audio channel is
+    // already opened. ContinueWakeWordInvoke() rejects any other state, so
+    // skipping this transition would silently drop the wake word invocation.
+    if (!SetDeviceState(kDeviceStateConnecting)) {
+        // Wake word detection was stopped by the detection itself; restore it
+        // so the device does not become unresponsive to wake words.
+        audio_service_.EnableWakeWordDetection(true);
+        return;
+    }
+
+    if (!protocol_->IsAudioChannelOpened()) {
+        // Schedule to let the state change be processed first (UI update),
+        // then continue with OpenAudioChannel which may block for ~1 second
+        Schedule([this, wake_word]() { ContinueWakeWordInvoke(wake_word); });
+        return;
+    }
+    // Channel already opened, continue directly
+    ContinueWakeWordInvoke(wake_word);
+}
+
 void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     // Check state again in case it was changed during scheduling
     if (GetDeviceState() != kDeviceStateConnecting) {
@@ -862,7 +878,10 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
 
     if (!protocol_->IsAudioChannelOpened()) {
         if (!protocol_->OpenAudioChannel()) {
-            audio_service_.EnableWakeWordDetection(true);
+            // Return to idle so the device is not stuck in the connecting
+            // state (not every failure path reports a network error), and
+            // wake word detection is re-enabled by the idle state handler.
+            SetDeviceState(kDeviceStateIdle);
             return;
         }
     }
@@ -1080,16 +1099,13 @@ void Application::WakeWordInvoke(const std::string& wake_word) {
     auto state = GetDeviceState();
 
     if (state == kDeviceStateIdle) {
-        audio_service_.EncodeWakeWord();
-
-        if (!protocol_->IsAudioChannelOpened()) {
-            SetDeviceState(kDeviceStateConnecting);
-            // Schedule to let the state change be processed first (UI update)
-            Schedule([this, wake_word]() { ContinueWakeWordInvoke(wake_word); });
-            return;
-        }
-        // Channel already opened, continue directly
-        ContinueWakeWordInvoke(wake_word);
+        // May be called from outside the main task (e.g. board button
+        // callbacks), so schedule the invocation instead of running it here
+        Schedule([this, wake_word]() {
+            if (GetDeviceState() == kDeviceStateIdle) {
+                BeginWakeWordInvoke(wake_word);
+            }
+        });
     } else if (state == kDeviceStateSpeaking) {
         Schedule([this]() { AbortSpeaking(kAbortReasonNone); });
     } else if (state == kDeviceStateListening) {
