@@ -218,10 +218,18 @@ void Application::Run() {
         }
 
         if (bits & MAIN_EVENT_SEND_AUDIO) {
+            bool sent = false;
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
                 if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
                     break;
                 }
+                sent = true;
+            }
+            // Auto 模式下记录最后一个上行音频包的发出时间；tts.start 到达后上行
+            // 停止，该时间戳即"发送完音频"，用于测量 TTS 首包延迟
+            if (sent && listening_mode_ != kListeningModeManualStop &&
+                GetDeviceState() == kDeviceStateListening) {
+                last_uplink_audio_time_us_.store(esp_timer_get_time());
             }
         }
 
@@ -251,9 +259,9 @@ void Application::Run() {
             display->UpdateStatusBar();
         
             // Print debug info every 10 seconds
-            if (clock_ticks_ % 10 == 0) {
-                SystemInfo::PrintHeapStats();
-            }
+            // if (clock_ticks_ % 10 == 0) {
+            //     SystemInfo::PrintHeapStats();
+            // }
         }
     }
 }
@@ -500,6 +508,11 @@ void Application::InitializeProtocol() {
         if (start_us != 0) {
             int64_t delay_ms = (esp_timer_get_time() - start_us) / 1000;
             ESP_LOGI(TAG, "=============== TTS first audio packet latency (manual): %d ms", (int)delay_ms);
+        }
+        start_us = last_uplink_audio_time_us_.exchange(0);
+        if (start_us != 0) {
+            int64_t delay_ms = (esp_timer_get_time() - start_us) / 1000;
+            ESP_LOGI(TAG, "=============== TTS first audio packet latency (auto, since last uplink): %d ms", (int)delay_ms);
         }
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
