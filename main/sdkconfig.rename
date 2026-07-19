@@ -1,0 +1,5 @@
+# The Ethernet implementation originally used a second board-type choice for
+# the same physical board. Keep existing sdkconfig files selecting P4-NANO when
+# they are loaded after the board-first menu migration.
+CONFIG_ETH_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO
+CONFIG_XIAOZHI_USE_ETHERNET CONFIG_XIAOZHI_NETWORK_ETHERNET

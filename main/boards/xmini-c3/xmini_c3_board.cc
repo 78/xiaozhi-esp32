@@ -55,37 +55,64 @@ private:
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
 
-        // Print I2C bus info
-        if (i2c_master_probe(codec_i2c_bus_, 0x18, 1000) != ESP_OK) {
+        // This board burns ESP_EFUSE_VDD_SPI_AS_GPIO which permanently damages
+        // incompatible boards, so we must be certain the ES8311 codec is really
+        // present before continuing. i2c_master_probe() only checks for an ACK,
+        // which can be a false positive on a wrong board (floating / weakly
+        // pulled SDA). Instead, verify the ES8311 chip ID registers.
+        if (!IsEs8311Present()) {
             while (true) {
-                ESP_LOGE(TAG, "Failed to probe I2C bus, please check if you have installed the correct firmware");
+                ESP_LOGE(TAG, "ES8311 not detected, please check if you have installed the correct firmware");
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
         }
     }
 
+    // Read the ES8311 chip ID registers (0xFD/0xFE should return 0x83/0x11).
+    bool IsEs8311Present() {
+        i2c_master_dev_handle_t dev = nullptr;
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = 0x18,
+            .scl_speed_hz = 100 * 1000,
+        };
+        if (i2c_master_bus_add_device(codec_i2c_bus_, &dev_cfg, &dev) != ESP_OK) {
+            return false;
+        }
+
+        uint8_t reg = 0xFD;
+        uint8_t id1 = 0, id2 = 0;
+        esp_err_t err1 = i2c_master_transmit_receive(dev, &reg, 1, &id1, 1, 100);
+        reg = 0xFE;
+        esp_err_t err2 = i2c_master_transmit_receive(dev, &reg, 1, &id2, 1, 100);
+        i2c_master_bus_rm_device(dev);
+
+        ESP_LOGI(TAG, "ES8311 chip id: err=(%s,%s) id=0x%02X 0x%02X",
+            esp_err_to_name(err1), esp_err_to_name(err2), id1, id2);
+        return err1 == ESP_OK && err2 == ESP_OK && id1 == 0x83 && id2 == 0x11;
+    }
+
     void InitializeSsd1306Display() {
         // SSD1306 config
-        esp_lcd_panel_io_i2c_config_t io_config = {
-            .dev_addr = 0x3C,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 6,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-            .flags = {
-                .dc_low_on_data = 0,
-                .disable_control_phase = 0,
-            },
-            .scl_speed_hz = 400 * 1000,
-        };
+        // IDF 5.5 and 6.0 declare these fields in a different order. Assign
+        // them individually so C++ designated-initializer ordering is irrelevant.
+        esp_lcd_panel_io_i2c_config_t io_config = {};
+        io_config.dev_addr = 0x3C;
+        io_config.scl_speed_hz = 400 * 1000;
+        io_config.control_phase_bytes = 1;
+        io_config.dc_bit_offset = 6;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        io_config.on_color_trans_done = nullptr;
+        io_config.user_ctx = nullptr;
+        io_config.flags.dc_low_on_data = 0;
+        io_config.flags.disable_control_phase = 0;
 
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(codec_i2c_bus_, &io_config, &panel_io_));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(codec_i2c_bus_, &io_config, &panel_io_));
 
         ESP_LOGI(TAG, "Install SSD1306 driver");
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = -1;
+        panel_config.reset_gpio_num = GPIO_NUM_NC;
         panel_config.bits_per_pixel = 1;
 
         esp_lcd_panel_ssd1306_config_t ssd1306_config = {

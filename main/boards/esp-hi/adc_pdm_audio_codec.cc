@@ -236,7 +236,8 @@ void AdcPdmAudioCodec::Start() {
         output_volume_ = 10;
     }
 
-    EnableInput(true);
+    // Input is opened lazily by AudioService::AudioInputTask. ESP-IDF's ADC
+    // continuous driver requires start and stop to run in the same task.
     EnableOutput(true);
     ESP_LOGI(TAG, "Audio codec started");
 }

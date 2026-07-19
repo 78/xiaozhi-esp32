@@ -180,8 +180,8 @@ private:
 
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_CS;
-        io_config.dc_gpio_num = DISPLAY_DC;
+        io_config.cs_gpio_num = static_cast<gpio_num_t>(DISPLAY_CS);
+        io_config.dc_gpio_num = static_cast<gpio_num_t>(DISPLAY_DC);
         io_config.spi_mode = 0;
         io_config.pclk_hz = 40 * 1000 * 1000;
         io_config.trans_queue_depth = 10;
@@ -191,7 +191,7 @@ private:
 
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_RST;
+        panel_config.reset_gpio_num = static_cast<gpio_num_t>(DISPLAY_RST);
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7796(panel_io, &panel_config, &panel));
