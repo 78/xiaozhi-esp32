@@ -7,6 +7,8 @@
 #include <esp_log.h>
 #include <esp_sleep.h>
 #include <esp_lvgl_port.h>
+#include <esp_idf_version.h>
+#include <inttypes.h>
 
 #define TAG "SleepTimer"
 
@@ -99,11 +101,21 @@ void SleepTimer::CheckTimer() {
                     esp_light_sleep_start();
                     lvgl_port_resume();
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+                    // IDF 6 deprecates esp_sleep_get_wakeup_cause() in favor of
+                    // the bitmap-based API that can report simultaneous sources.
+                    auto wakeup_causes = esp_sleep_get_wakeup_causes();
+                    ESP_LOGI(TAG, "Wake up from light sleep, wakeup_causes: 0x%" PRIx32, wakeup_causes);
+                    if (!(wakeup_causes & (1UL << ESP_SLEEP_WAKEUP_TIMER))) {
+                        break;
+                    }
+#else
                     auto wakeup_reason = esp_sleep_get_wakeup_cause();
                     ESP_LOGI(TAG, "Wake up from light sleep, wakeup_reason: %d", wakeup_reason);
                     if (wakeup_reason != ESP_SLEEP_WAKEUP_TIMER) {
                         break;
                     }
+#endif
                 }
                 WakeUp();
             });

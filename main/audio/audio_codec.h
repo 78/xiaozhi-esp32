@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <driver/i2s_std.h>
+#include <esp_idf_version.h>
 
 #include <vector>
 #include <string>
@@ -13,6 +14,15 @@
 
 #define AUDIO_CODEC_DMA_DESC_NUM 6
 #define AUDIO_CODEC_DMA_FRAME_NUM 240
+
+// ESP-IDF 6 removed i2s_port_t and changed i2s_chan_config_t::id to an integer.
+// Keep numeric I2S controller IDs usable on targets where IDF 5 does not expose
+// every value through the target-specific i2s_port_t enum (for example ESP32-C3).
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#define XIAOZHI_I2S_PORT(port) (port)
+#else
+#define XIAOZHI_I2S_PORT(port) static_cast<i2s_port_t>(port)
+#endif
 
 class AudioCodec {
 public:

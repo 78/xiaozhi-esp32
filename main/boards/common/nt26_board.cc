@@ -3,7 +3,7 @@
 #include "application.h"
 #include "audio_codec.h"
 #include <esp_log.h>
-#include <font_awesome.h>
+#include <material_symbols.h>
 #include <cJSON.h>
 
 #define TAG "Nt26Board"
@@ -79,7 +79,7 @@ void Nt26Board::StartNetwork() {
     modem_ = std::make_unique<UartEthModem>(config);
     modem_->SetDebug(false);
     
-    modem_->SetNetworkEventCallback([this](UartEthModem::UartEthModemEvent event) {
+    modem_->SetNetworkEventCallback([this](UartEthModem::UartEthModemEvent event, const std::string& detail) {
         switch (event) {
             case UartEthModem::UartEthModemEvent::Connected:
                 esp_timer_stop(network_ready_timer_);
@@ -105,10 +105,13 @@ void Nt26Board::StartNetwork() {
             case UartEthModem::UartEthModemEvent::ErrorNoCarrier:
                 esp_timer_stop(network_ready_timer_);
                 ScheduleAsyncStop();
-                OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
+                OnNetworkEvent(NetworkEvent::ModemErrorInitFailed, detail);
                 break;
             case UartEthModem::UartEthModemEvent::InFlightMode:
                 ESP_LOGW(TAG, "Modem in flight mode");
+                break;
+            case UartEthModem::UartEthModemEvent::RfTestReady:
+                ESP_LOGI(TAG, "Modem RF test mode ready");
                 break;
             case UartEthModem::UartEthModemEvent::RequestingPdpContext:
                 break;
@@ -143,21 +146,21 @@ NetworkInterface* Nt26Board::GetNetwork() {
 
 const char* Nt26Board::GetNetworkStateIcon() {
     if (modem_ == nullptr || !modem_->IsInitialized()) {
-        return FONT_AWESOME_SIGNAL_OFF;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     }
     int csq = modem_->GetSignalStrength();
     if (csq == 99 || csq == -1) {
-        return FONT_AWESOME_SIGNAL_OFF;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     } else if (csq >= 0 && csq <= 9) {
-        return FONT_AWESOME_SIGNAL_WEAK;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT_1_BAR;
     } else if (csq >= 10 && csq <= 14) {
-        return FONT_AWESOME_SIGNAL_FAIR;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT_2_BAR;
     } else if (csq >= 15 && csq <= 19) {
-        return FONT_AWESOME_SIGNAL_GOOD;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT;
     } else if (csq >= 20 && csq <= 31) {
-        return FONT_AWESOME_SIGNAL_STRONG;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR;
     }
-    return FONT_AWESOME_SIGNAL_OFF;
+    return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
 }
 
 void Nt26Board::SetPowerSaveLevel(PowerSaveLevel level) {

@@ -49,6 +49,9 @@ ESP-VoCat 支持多种不同的 UI 显示风格，通过 menuconfig 配置选择
    https://dl.espressif.com/AE/wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-echoear.bin
    ```
 
+   这是保留表情动画和模型的历史资源包；新版固件会忽略其中没有 Noto 元数据的旧 Puhui
+   字体，并使用内置 Noto basic 字体。待新的 Noto 资源包上传后可直接替换此 URL。
+
 ##### 默认消息风格 (Enable default message style)
 - **配置选项**: `USE_DEFAULT_MESSAGE_STYLE` (默认)
 - **特点**: 使用标准的消息显示界面
