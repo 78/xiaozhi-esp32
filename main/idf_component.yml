@@ -53,6 +53,7 @@ dependencies:
     version: ^1.0.1
     rules:
     - if: target not in [esp32]
+  espressif/esp_lcd_st77922: ^2.0.2
   espressif/esp_lcd_touch_ft5x06: ~1
   espressif/esp_lcd_touch_gt911: ^1
   espressif/esp_lcd_touch_gt1151: ^1
