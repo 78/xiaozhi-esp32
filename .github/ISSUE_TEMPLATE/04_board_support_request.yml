@@ -1,0 +1,67 @@
+name: Board support request
+description: Request support for a new board, product, hardware revision, or SKU
+title: "[Board Support] "
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Similar-looking products may use different pins and components. Please identify the exact hardware rather than only naming the closest supported board.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched the repository and existing issues for this exact model and hardware revision.
+          required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Exact hardware
+      description: Provide the manufacturer, model, revision/SKU, main chip and memory, and an official product or hardware documentation link.
+      placeholder: |
+        Manufacturer and model:
+        Revision or SKU:
+        Chip, flash, and PSRAM:
+        Official link:
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: Requested support
+      description: Describe what should work and any known differences from the closest supported board.
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What have you tried?
+      description: Include the closest board target or firmware, its version, and the result. Enter "None" if no existing target is appropriate.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: testing
+    attributes:
+      label: Testing available
+      options:
+        - I can build, flash, collect logs, and test changes
+        - I can flash binaries and test changes
+        - I can provide hardware information only
+        - I cannot test changes
+    validations:
+      required: true
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Optional hardware files, photos, or logs
+      description: Attach public schematics, board photos, pinouts, or serial logs. Do not upload confidential material or secrets.
+    validations:
+      required: false
+      accept: ".png,.jpg,.jpeg,.pdf,.log,.txt,.json,.zip"

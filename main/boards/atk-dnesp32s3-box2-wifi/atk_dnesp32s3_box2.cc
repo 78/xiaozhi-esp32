@@ -327,8 +327,7 @@ private:
             },
             .bus_width = 8,
             .max_transfer_bytes = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t),
-            .psram_trans_align = 64,
-            .sram_trans_align = 4,
+            .dma_burst_size = 64,
         };
         ESP_ERROR_CHECK(esp_lcd_new_i80_bus(&bus_config, &i80_bus));
 
@@ -354,11 +353,10 @@ private:
         };
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i80(i80_bus, &io_config, &panel_io));
 
-        esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = LCD_PIN_RST,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            .bits_per_pixel = 16,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        panel_config.reset_gpio_num = LCD_PIN_RST;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
@@ -417,7 +415,7 @@ public:
             AUDIO_I2S_GPIO_DIN,
             GPIO_NUM_NC, 
             AUDIO_CODEC_ES8389_ADDR,
-            false);
+            AUDIO_CODEC_USE_MCLK);
         return &audio_codec;
     }
 

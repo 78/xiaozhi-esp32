@@ -8,6 +8,7 @@
 #include "i2c_device.h"
 #include "esp32_camera.h"
 #include "mcp_server.h"
+#include "press_to_talk_mcp_tool.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -72,6 +73,7 @@ private:
     Display* display_;
     Pca9557* pca9557_;
     Esp32Camera* camera_;
+    PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -112,7 +114,21 @@ private:
                 EnterWifiConfigMode();
                 return;
             }
-            app.ToggleChatState();
+            // In press-to-talk mode the click event is handled by press down/up
+            if (!press_to_talk_tool_ || !press_to_talk_tool_->IsPressToTalkEnabled()) {
+                app.ToggleChatState();
+            }
+        });
+
+        boot_button_.OnPressDown([this]() {
+            if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+                Application::GetInstance().StartListening();
+            }
+        });
+        boot_button_.OnPressUp([this]() {
+            if (press_to_talk_tool_ && press_to_talk_tool_->IsPressToTalkEnabled()) {
+                Application::GetInstance().StopListening();
+            }
         });
 
 #if CONFIG_USE_DEVICE_AEC
@@ -257,6 +273,10 @@ private:
                 EnterWifiConfigMode();
                 return true;
             });
+
+        // Allow switching between press-to-talk (长按说话) and click-to-talk (单击唤醒)
+        press_to_talk_tool_ = new PressToTalkMcpTool();
+        press_to_talk_tool_->Initialize();
     }
 
 public:

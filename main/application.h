@@ -32,6 +32,7 @@
 #define MAIN_EVENT_START_LISTENING      (1 << 10)
 #define MAIN_EVENT_STOP_LISTENING       (1 << 11)
 #define MAIN_EVENT_STATE_CHANGED        (1 << 12)
+#define MAIN_EVENT_PLAYBACK_DRAINED     (1 << 13)
 
 
 enum AecMode {
@@ -145,6 +146,7 @@ private:
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     bool server_initiated_session_ = false; // Flag: current session was started by server TTS (not wake word)
+    bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
     int clock_ticks_ = 0;
     int listening_silence_seconds_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
@@ -160,7 +162,10 @@ private:
     void HandleActivationDoneEvent();
     void HandleWakeWordDetectedEvent();
     void ContinueOpenAudioChannel(ListeningMode mode);
+    void BeginWakeWordInvoke(const std::string& wake_word);
     void ContinueWakeWordInvoke(const std::string& wake_word);
+    void StartListeningAudio();
+    void ConfigureWakeWordForListening();
 
     // Activation task (runs in background)
     void ActivationTask();

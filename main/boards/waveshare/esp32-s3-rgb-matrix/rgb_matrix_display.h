@@ -16,6 +16,7 @@ public:
     void SetBrightness(uint8_t brightness_0_100);
 
     virtual void SetEmotion(const char* emotion) override;
+    virtual void SetEmojiCollection(std::shared_ptr<EmojiCollection> collection) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetStatus(const char* status) override;
     virtual void ShowNotification(const char* notification, int duration_ms = 3000) override;

@@ -1,36 +1,40 @@
 #include "oled_display.h"
 #include "assets/lang_config.h"
-#include "lvgl_theme.h"
 #include "lvgl_font.h"
+#include "lvgl_theme.h"
 
-#include <string>
 #include <algorithm>
+#include <string>
 
-#include <esp_log.h>
 #include <esp_err.h>
+#include <esp_log.h>
 #include <esp_lvgl_port.h>
-#include <font_awesome.h>
+#include <material_symbols.h>
+#include <noto_emoji.h>
 
 #define TAG "OledDisplay"
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
-LV_FONT_DECLARE(font_awesome_30_1);
+LV_FONT_DECLARE(font_material_symbols_30_1);
+LV_FONT_DECLARE(font_noto_emoji_30_1);
 
 OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
-    int width, int height, bool mirror_x, bool mirror_y)
+                         int width, int height, bool mirror_x, bool mirror_y)
     : panel_io_(panel_io), panel_(panel) {
     width_ = width;
     height_ = height;
 
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
-    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_1);
-    
+    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_material_symbols_30_1);
+    auto emoji_font = std::make_shared<LvglBuiltInFont>(&font_noto_emoji_30_1);
+
     auto dark_theme = new LvglTheme("dark");
     dark_theme->set_text_font(text_font);
     dark_theme->set_icon_font(icon_font);
     dark_theme->set_large_icon_font(large_icon_font);
+    dark_theme->set_emoji_font(emoji_font);
 
     auto& theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("dark", dark_theme);
@@ -56,18 +60,20 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .monochrome = true,
-        .rotation = {
-            .swap_xy = false,
-            .mirror_x = mirror_x,
-            .mirror_y = mirror_y,
-        },
-        .flags = {
-            .buff_dma = 1,
-            .buff_spiram = 0,
-            .sw_rotate = 0,
-            .full_refresh = 0,
-            .direct_mode = 0,
-        },
+        .rotation =
+            {
+                .swap_xy = false,
+                .mirror_x = mirror_x,
+                .mirror_y = mirror_y,
+            },
+        .flags =
+            {
+                .buff_dma = 1,
+                .buff_spiram = 0,
+                .sw_rotate = 0,
+                .full_refresh = 0,
+                .direct_mode = 0,
+            },
     };
 
     display_ = lvgl_port_add_disp(&display_cfg);
@@ -86,7 +92,7 @@ void OledDisplay::SetupUI() {
         ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
         return;
     }
-    
+
     Display::SetupUI();  // Mark SetupUI as called
     if (height_ == 64) {
         SetupUI_128x64();
@@ -135,13 +141,9 @@ OledDisplay::~OledDisplay() {
     lvgl_port_deinit();
 }
 
-bool OledDisplay::Lock(int timeout_ms) {
-    return lvgl_port_lock(timeout_ms);
-}
+bool OledDisplay::Lock(int timeout_ms) { return lvgl_port_lock(timeout_ms); }
 
-void OledDisplay::Unlock() {
-    lvgl_port_unlock();
-}
+void OledDisplay::Unlock() { lvgl_port_unlock(); }
 
 void OledDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
@@ -153,6 +155,7 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
     std::string content_str = content;
     std::replace(content_str.begin(), content_str.end(), '\n', ' ');
 
+    lv_anim_delete(chat_message_label_, nullptr);
     if (content_right_ == nullptr) {
         lv_label_set_text(chat_message_label_, content_str.c_str());
     } else {
@@ -193,7 +196,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_border_width(top_bar_, 0, 0);
     lv_obj_set_style_pad_all(top_bar_, 0, 0);
     lv_obj_set_flex_flow(top_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(top_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(top_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollbar_mode(top_bar_, LV_SCROLLBAR_MODE_OFF);
 
     network_label_ = lv_label_create(top_bar_);
@@ -206,7 +210,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_border_width(right_icons, 0, 0);
     lv_obj_set_style_pad_all(right_icons, 0, 0);
     lv_obj_set_flex_flow(right_icons, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(right_icons, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(right_icons, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
 
     mute_label_ = lv_label_create(right_icons);
     lv_label_set_text(mute_label_, "");
@@ -225,7 +230,7 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);  // Use absolute positioning
-    lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);  // Overlap with top_bar_
+    lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);        // Overlap with top_bar_
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_width(notification_label_, LV_HOR_RES);
@@ -258,7 +263,7 @@ void OledDisplay::SetupUI_128x64() {
 
     emotion_label_ = lv_label_create(content_left_);
     lv_obj_set_style_text_font(emotion_label_, large_icon_font, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_label_set_text(emotion_label_, MATERIAL_SYMBOLS_ROBOT_2);
     lv_obj_center(emotion_label_);
     lv_obj_set_style_pad_top(emotion_label_, 8, 0);
 
@@ -282,7 +287,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_anim_set_delay(&a, 1000);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
-    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
+    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000),
+                                   LV_PART_MAIN);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -325,7 +331,7 @@ void OledDisplay::SetupUI_128x32() {
 
     emotion_label_ = lv_label_create(content_);
     lv_obj_set_style_text_font(emotion_label_, large_icon_font, 0);
-    lv_label_set_text(emotion_label_, FONT_AWESOME_MICROCHIP_AI);
+    lv_label_set_text(emotion_label_, MATERIAL_SYMBOLS_ROBOT_2);
     lv_obj_center(emotion_label_);
 
     /* Right side */
@@ -381,19 +387,28 @@ void OledDisplay::SetupUI_128x32() {
     lv_anim_set_delay(&a, 1000);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
-    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
+    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000),
+                                   LV_PART_MAIN);
 }
 
 void OledDisplay::SetEmotion(const char* emotion) {
-    const char* utf8 = font_awesome_get_utf8(emotion);
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    const char* utf8 = noto_emoji_get_utf8(emotion);
+    const lv_font_t* emotion_font = lvgl_theme->emoji_font()->font();
+    if (utf8 == nullptr) {
+        utf8 = material_symbols_get_utf8(emotion);
+        emotion_font = lvgl_theme->large_icon_font()->font();
+    }
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
     if (utf8 != nullptr) {
+        lv_obj_set_style_text_font(emotion_label_, emotion_font, 0);
         lv_label_set_text(emotion_label_, utf8);
     } else {
-        lv_label_set_text(emotion_label_, FONT_AWESOME_NEUTRAL);
+        lv_obj_set_style_text_font(emotion_label_, lvgl_theme->emoji_font()->font(), 0);
+        lv_label_set_text(emotion_label_, NOTO_EMOJI_NEUTRAL);
     }
 }
 

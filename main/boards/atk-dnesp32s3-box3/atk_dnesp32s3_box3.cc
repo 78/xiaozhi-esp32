@@ -30,8 +30,8 @@
 
 #define TAG "atk_dnesp32s3_box3"
 
-LV_FONT_DECLARE(font_puhui_20_4);
-LV_FONT_DECLARE(font_awesome_20_4);
+LV_FONT_DECLARE(font_noto_sans_basic_20_4);
+LV_FONT_DECLARE(font_material_symbols_20_4);
 
 class atk_dnesp32s3_box3 : public WifiBoard {
 private:

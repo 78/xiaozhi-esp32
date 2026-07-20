@@ -1,33 +1,37 @@
 #include "assets.h"
+#include "application.h"
 #include "board.h"
 #include "display.h"
-#include "application.h"
-#include "lvgl_theme.h"
 #include "emote_display.h"
 #include "expression_emote.h"
+#include "lvgl_theme.h"
 #if HAVE_LVGL
-#include "display/lcd_display.h"
 #include <spi_flash_mmap.h>
+#include "display/lcd_display.h"
+#include "display/lvgl_display/lvgl_display.h"
 #endif
 
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_timer.h>
-#include <esp_heap_caps.h>
 #include <cbin_font.h>
+#include <noto_font_bundle.h>
 
+#include <cstring>
 
 #define TAG "Assets"
 #define PARTITION_LABEL "assets"
 
 struct mmap_assets_table {
-    char asset_name[32];          /*!< Name of the asset */
-    uint32_t asset_size;          /*!< Size of the asset */
-    uint32_t asset_offset;        /*!< Offset of the asset */
-    uint16_t asset_width;         /*!< Width of the asset */
-    uint16_t asset_height;        /*!< Height of the asset */
+    char asset_name[32];   /*!< Name of the asset */
+    uint32_t asset_size;   /*!< Size of the asset */
+    uint32_t asset_offset; /*!< Offset of the asset */
+    uint16_t asset_width;  /*!< Width of the asset */
+    uint16_t asset_height; /*!< Height of the asset */
 };
 
 Assets::Assets() {
+    UseBuiltInTextFontCapability();
 #if HAVE_LVGL
     strategy_ = std::make_unique<Assets::LvglStrategy>();
 #else
@@ -37,12 +41,11 @@ Assets::Assets() {
     InitializePartition();
 }
 
-Assets::~Assets() {
-    UnApplyPartition();
-}
+Assets::~Assets() { UnApplyPartition(); }
 
 bool Assets::FindPartition(Assets* assets) {
-    assets->partition_ = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, PARTITION_LABEL);
+    assets->partition_ = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY,
+                                                  PARTITION_LABEL);
     if (assets->partition_ == nullptr) {
         ESP_LOGI(TAG, "No assets partition found");
         return false;
@@ -59,10 +62,23 @@ bool Assets::InitializePartition() {
 }
 
 void Assets::UnApplyPartition() {
+    UseBuiltInTextFontCapability();
     if (strategy_) {
         strategy_->UnApplyPartition(this);
     }
 }
+
+void Assets::UseBuiltInTextFontCapability() {
+    text_font_capability_ = {
+        .glyph_push = true,
+        .bundle = NOTO_FONT_BUNDLE_ID,
+        .charset = "basic",
+        .size = TEXT_FONT_SIZE,
+        .bpp = TEXT_FONT_BPP,
+    };
+}
+
+void Assets::DisableTextFontGlyphPush() { text_font_capability_ = {}; }
 
 bool Assets::GetAssetData(const std::string& name, void*& ptr, size_t& size) {
     return strategy_ ? strategy_->GetAssetData(this, name, ptr, size) : false;
@@ -140,11 +156,14 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
     ESP_LOGI(TAG, "The storage free size is %ld KB", storage_size / 1024);
     ESP_LOGI(TAG, "The partition size is %ld KB", assets->partition_->size / 1024);
     if (storage_size < assets->partition_->size) {
-        ESP_LOGE(TAG, "The free size %ld KB is less than assets partition required %ld KB", storage_size / 1024, assets->partition_->size / 1024);
+        ESP_LOGE(TAG, "The free size %ld KB is less than assets partition required %ld KB",
+                 storage_size / 1024, assets->partition_->size / 1024);
         return false;
     }
 
-    esp_err_t err = esp_partition_mmap(assets->partition_, 0, assets->partition_->size, ESP_PARTITION_MMAP_DATA, (const void**)&mmap_root_, &mmap_handle_);
+    esp_err_t err =
+        esp_partition_mmap(assets->partition_, 0, assets->partition_->size, ESP_PARTITION_MMAP_DATA,
+                           (const void**)&mmap_root_, &mmap_handle_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mmap assets partition: %s", esp_err_to_name(err));
         return false;
@@ -157,7 +176,8 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
     uint32_t stored_len = *(uint32_t*)(mmap_root_ + 8);
 
     if (stored_len > assets->partition_->size - 12) {
-        ESP_LOGD(TAG, "The stored_len (0x%lx) is greater than the partition size (0x%lx) - 12", stored_len, assets->partition_->size);
+        ESP_LOGD(TAG, "The stored_len (0x%lx) is greater than the partition size (0x%lx) - 12",
+                 stored_len, assets->partition_->size);
         return false;
     }
 
@@ -167,7 +187,8 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
     ESP_LOGI(TAG, "The checksum calculation time is %d ms", int((end_time - start_time) / 1000));
 
     if (calculated_checksum != stored_chksum) {
-        ESP_LOGE(TAG, "The calculated checksum (0x%lx) does not match the stored checksum (0x%lx)", calculated_checksum, stored_chksum);
+        ESP_LOGE(TAG, "The calculated checksum (0x%lx) does not match the stored checksum (0x%lx)",
+                 calculated_checksum, stored_chksum);
         return false;
     }
 
@@ -175,10 +196,9 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
 
     for (uint32_t i = 0; i < stored_files; i++) {
         auto item = (const mmap_assets_table*)(mmap_root_ + 12 + i * sizeof(mmap_assets_table));
-        auto asset = Asset{
-            .size = static_cast<size_t>(item->asset_size),
-            .offset = static_cast<size_t>(12 + sizeof(mmap_assets_table) * stored_files + item->asset_offset)
-        };
+        auto asset = Asset{.size = static_cast<size_t>(item->asset_size),
+                           .offset = static_cast<size_t>(
+                               12 + sizeof(mmap_assets_table) * stored_files + item->asset_offset)};
         assets_[item->asset_name] = asset;
     }
     return checksum_valid_;
@@ -192,17 +212,19 @@ void Assets::LvglStrategy::UnApplyPartition(Assets* assets) {
     }
     checksum_valid_ = false;
     assets_.clear();
-    (void)assets; // Unused parameter
+    (void)assets;  // Unused parameter
 }
 
-bool Assets::LvglStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) {
+bool Assets::LvglStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr,
+                                        size_t& size) {
     auto asset = assets_.find(name);
     if (asset == assets_.end()) {
         return false;
     }
     auto data = (const char*)(mmap_root_ + asset->second.offset);
     if (data[0] != 'Z' || data[1] != 'Z') {
-        ESP_LOGE(TAG, "The asset %s is not valid with magic %02x%02x", name.c_str(), data[0], data[1]);
+        ESP_LOGE(TAG, "The asset %s is not valid with magic %02x%02x", name.c_str(), data[0],
+                 data[1]);
         return false;
     }
 
@@ -228,7 +250,8 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
     cJSON* version = cJSON_GetObjectItem(root, "version");
     if (cJSON_IsNumber(version)) {
         if (version->valuedouble > 1) {
-            ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware", version->valueint);
+            ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware",
+                     version->valueint);
             return false;
         }
     }
@@ -244,15 +267,39 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         std::string fonts_text_file = font->valuestring;
         if (assets->GetAssetData(fonts_text_file, ptr, size)) {
             auto text_font = std::make_shared<LvglCBinFont>(ptr);
-            if (text_font->font() == nullptr) {
-                ESP_LOGE(TAG, "Failed to load fonts.bin");
-                return false;
-            }
-            if (light_theme != nullptr) {
-                light_theme->set_text_font(text_font);
-            }
-            if (dark_theme != nullptr) {
-                dark_theme->set_text_font(text_font);
+            auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
+            if (text_font->font() == nullptr || display == nullptr ||
+                !display->SetTextFont(text_font)) {
+                ESP_LOGW(TAG, "Ignoring invalid text font asset %s", fonts_text_file.c_str());
+            } else {
+                assets->DisableTextFontGlyphPush();
+
+                cJSON* metadata = cJSON_GetObjectItem(root, "text_font_meta");
+                cJSON* charset = cJSON_GetObjectItem(metadata, "charset");
+                cJSON* font_size = cJSON_GetObjectItem(metadata, "size");
+                cJSON* font_bpp = cJSON_GetObjectItem(metadata, "bpp");
+                cJSON* bundle = cJSON_GetObjectItem(metadata, "bundle");
+                bool supports_glyph_push =
+                    cJSON_IsString(charset) &&
+                    (std::strcmp(charset->valuestring, "basic") == 0 ||
+                     std::strcmp(charset->valuestring, "common") == 0) &&
+                    cJSON_IsNumber(font_size) && font_size->valueint > 0 &&
+                    font_size->valuedouble == font_size->valueint && cJSON_IsNumber(font_bpp) &&
+                    font_bpp->valuedouble == font_bpp->valueint &&
+                    (font_bpp->valueint == 1 || font_bpp->valueint == 4) &&
+                    font_bpp->valueint == text_font->bpp() && cJSON_IsString(bundle) &&
+                    bundle->valuestring[0] != '\0' && std::strlen(bundle->valuestring) <= 64;
+                if (supports_glyph_push) {
+                    assets->text_font_capability_ = {
+                        .glyph_push = true,
+                        .bundle = bundle->valuestring,
+                        .charset = charset->valuestring,
+                        .size = font_size->valueint,
+                        .bpp = font_bpp->valueint,
+                    };
+                } else {
+                    ESP_LOGW(TAG, "Loaded custom text font without compatible glyph push metadata");
+                }
             }
         } else {
             ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
@@ -269,12 +316,14 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
                 cJSON* name = cJSON_GetObjectItem(emoji, "name");
                 cJSON* file = cJSON_GetObjectItem(emoji, "file");
                 cJSON* eaf = cJSON_GetObjectItem(emoji, "eaf");
-                if (cJSON_IsString(name) && cJSON_IsString(file) && (NULL== eaf)) {
+                if (cJSON_IsString(name) && cJSON_IsString(file) && (NULL == eaf)) {
                     if (!assets->GetAssetData(file->valuestring, ptr, size)) {
-                        ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring, file->valuestring);
+                        ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring,
+                                 file->valuestring);
                         continue;
                     }
-                    custom_emoji_collection->AddEmoji(name->valuestring, new LvglRawImage(ptr, size));
+                    custom_emoji_collection->AddEmoji(name->valuestring,
+                                                      new LvglRawImage(ptr, size));
                 }
             }
         }
@@ -284,6 +333,7 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         if (dark_theme != nullptr) {
             dark_theme->set_emoji_collection(custom_emoji_collection);
         }
+        Board::GetInstance().GetDisplay()->SetEmojiCollection(custom_emoji_collection);
     }
 
     cJSON* skin = cJSON_GetObjectItem(root, "skin");
@@ -297,12 +347,15 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
                 light_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
             }
             if (cJSON_IsString(background_color)) {
-                light_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
-                light_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
+                light_theme->set_background_color(
+                    LvglTheme::ParseColor(background_color->valuestring));
+                light_theme->set_chat_background_color(
+                    LvglTheme::ParseColor(background_color->valuestring));
             }
             if (cJSON_IsString(background_image)) {
                 if (!assets->GetAssetData(background_image->valuestring, ptr, size)) {
-                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
+                    ESP_LOGE(TAG, "The background image file %s is not found",
+                             background_image->valuestring);
                     return false;
                 }
                 auto background_image = std::make_shared<LvglCBinImage>(ptr);
@@ -318,12 +371,15 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
                 dark_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
             }
             if (cJSON_IsString(background_color)) {
-                dark_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
-                dark_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
+                dark_theme->set_background_color(
+                    LvglTheme::ParseColor(background_color->valuestring));
+                dark_theme->set_chat_background_color(
+                    LvglTheme::ParseColor(background_color->valuestring));
             }
             if (cJSON_IsString(background_image)) {
                 if (!assets->GetAssetData(background_image->valuestring, ptr, size)) {
-                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
+                    ESP_LOGE(TAG, "The background image file %s is not found",
+                             background_image->valuestring);
                     return false;
                 }
                 auto background_image = std::make_shared<LvglCBinImage>(ptr);
@@ -352,11 +408,11 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
             }
         }
     }
-    
+
     cJSON_Delete(root);
     return true;
 }
-#endif // HAVE_LVGL
+#endif  // HAVE_LVGL
 
 bool Assets::EmoteStrategy::InitializePartition(Assets* assets) {
     assets->partition_valid_ = false;
@@ -371,12 +427,14 @@ bool Assets::EmoteStrategy::InitializePartition(Assets* assets) {
     if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
         const emote_data_t data = {
             .type = EMOTE_SOURCE_PARTITION,
-            .source = {
-                .partition_label = PARTITION_LABEL,
-            },
-            .flags = {
-                .mmap_enable = true, //must be true here!!!
-            },
+            .source =
+                {
+                    .partition_label = PARTITION_LABEL,
+                },
+            .flags =
+                {
+                    .mmap_enable = true,  // must be true here!!!
+                },
         };
         ret = emote_mount_assets(emote_display->GetEmoteHandle(), &data);
     } else {
@@ -392,16 +450,18 @@ void Assets::EmoteStrategy::UnApplyPartition(Assets* assets) {
     if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
         emote_unmount_assets(emote_display->GetEmoteHandle());
     }
-    (void)assets; // Unused parameter
+    (void)assets;  // Unused parameter
 }
 
-bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) {
+bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr,
+                                         size_t& size) {
     auto display = Board::GetInstance().GetDisplay();
     auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
     if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
         const uint8_t* data = nullptr;
         size_t data_size = 0;
-        if (ESP_OK == emote_get_asset_data_by_name(emote_display->GetEmoteHandle(), name.c_str(), &data, &data_size)) {
+        if (ESP_OK == emote_get_asset_data_by_name(emote_display->GetEmoteHandle(), name.c_str(),
+                                                   &data, &data_size)) {
             ptr = const_cast<void*>(static_cast<const void*>(data));
             size = data_size;
             return true;
@@ -409,7 +469,7 @@ bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name
         ESP_LOGE(TAG, "Failed to get asset data by name: %s", name.c_str());
         return false;
     }
-    (void)assets; // Unused parameter
+    (void)assets;  // Unused parameter
     return false;
 }
 
@@ -425,7 +485,8 @@ bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
     return true;
 }
 
-bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
+bool Assets::Download(std::string url,
+                      std::function<void(int progress, size_t speed)> progress_callback) {
     ESP_LOGI(TAG, "Downloading new version of assets from %s", url.c_str());
 
     auto network = Board::GetInstance().GetNetwork();
@@ -449,25 +510,24 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     }
 
     if (content_length > partition_->size) {
-        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)",
-                 content_length, partition_->size);
+        ESP_LOGE(TAG, "Assets file size (%u) is larger than partition size (%lu)", content_length,
+                 partition_->size);
         return false;
     }
 
     constexpr size_t HEADER_SIZE = 12;
 
     if (content_length < HEADER_SIZE) {
-        ESP_LOGE(TAG, "Content length (%u) is smaller than header size (%u)",
-                 content_length, HEADER_SIZE);
+        ESP_LOGE(TAG, "Content length (%u) is smaller than header size (%u)", content_length,
+                 HEADER_SIZE);
         return false;
     }
 
     const size_t SECTOR_SIZE = esp_partition_get_main_flash_sector_size();
     using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
 
-    BufferPtr buffer(
-        static_cast<char *>(heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL)),
-        &heap_caps_free);
+    BufferPtr buffer(static_cast<char*>(heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL)),
+                     &heap_caps_free);
 
     if (!buffer) {
         ESP_LOGE(TAG, "Failed to allocate buffer");
@@ -482,8 +542,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     ESP_LOGI(TAG,
              "Sector size: %u, content length: %u, "
              "sectors to erase: %u, total erase size: %u",
-             SECTOR_SIZE, content_length,
-             sectors_to_erase, total_erase_size);
+             SECTOR_SIZE, content_length, sectors_to_erase, total_erase_size);
 
     size_t total_written = 0;
     size_t recent_written = 0;
@@ -529,17 +588,17 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
                 size_t sector_start = current_sector * SECTOR_SIZE;
                 size_t sector_end = sector_start + SECTOR_SIZE;
                 if (sector_end > partition_->size) {
-                    ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)",
-                             sector_end, partition_->size);
+                    ESP_LOGE(TAG, "Sector end (%u) exceeds partition size (%lu)", sector_end,
+                             partition_->size);
                     erase_failed = true;
                     break;
                 }
-                ESP_LOGD(TAG, "Erasing sector %u (offset: %u, size: %u)",
-                         current_sector, sector_start, SECTOR_SIZE);
+                ESP_LOGD(TAG, "Erasing sector %u (offset: %u, size: %u)", current_sector,
+                         sector_start, SECTOR_SIZE);
                 esp_err_t err = esp_partition_erase_range(partition_, sector_start, SECTOR_SIZE);
                 if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s",
-                             current_sector, sector_start, esp_err_to_name(err));
+                    ESP_LOGE(TAG, "Failed to erase sector %u at offset %u: %s", current_sector,
+                             sector_start, esp_err_to_name(err));
                     erase_failed = true;
                     break;
                 }
@@ -563,15 +622,13 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         }
 
         // Calculate progress
-        if (esp_timer_get_time() - last_calc_time >= 1000000 || (header_collected + total_written) == content_length) {
+        if (esp_timer_get_time() - last_calc_time >= 1000000 ||
+            (header_collected + total_written) == content_length) {
             size_t progress = (header_collected + total_written) * 100 / content_length;
             size_t speed = recent_written;
-            ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %u B/s, Sectors erased: %u",
-                     progress,
-                     (unsigned int)(header_collected + total_written),
-                     (unsigned int)content_length,
-                     (unsigned int)speed,
-                     (unsigned int)current_sector);
+            ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %u B/s, Sectors erased: %u", progress,
+                     (unsigned int)(header_collected + total_written), (unsigned int)content_length,
+                     (unsigned int)speed, (unsigned int)current_sector);
 
             if (progress_callback) {
                 progress_callback(progress, speed);
@@ -602,7 +659,9 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
         return false;
     }
 
-    ESP_LOGI(TAG, "Header written, assets download completed, total written: %u bytes, total sectors erased: %u",
+    ESP_LOGI(TAG,
+             "Header written, assets download completed, total written: %u bytes, total sectors "
+             "erased: %u",
              (unsigned int)(header_collected + total_written), (unsigned int)current_sector);
 
     // Re-initialize the assets partition

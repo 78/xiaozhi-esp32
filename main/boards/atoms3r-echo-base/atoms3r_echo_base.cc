@@ -199,7 +199,7 @@ private:
         display_->SetupUI();
         
         display_->SetStatus(Lang::Strings::ERROR);
-        display_->SetEmotion("triangle_exclamation");
+        display_->SetEmotion("warning");
         display_->SetChatMessage("system", "Echo Base\nnot connected");
         
         while (1) {
@@ -370,7 +370,7 @@ private:
         esp_lcd_panel_handle_t panel_handle = nullptr;
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = LCD_RST_GPIO; // Set to -1 if not use
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16; // Implemented by LCD command `3Ah` (16/18)
 
         if (config.type == LcdPanelType::kGc9107) {

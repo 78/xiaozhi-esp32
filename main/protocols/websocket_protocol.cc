@@ -1,21 +1,18 @@
 #include "websocket_protocol.h"
-#include "board.h"
-#include "system_info.h"
 #include "application.h"
+#include "board.h"
 #include "settings.h"
+#include "system_info.h"
 
-#include <cstring>
-#include <algorithm>
-#include <cJSON.h>
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include <cJSON.h>
+#include <cstring>
 #include "assets/lang_config.h"
 
 #define TAG "WS"
 
-WebsocketProtocol::WebsocketProtocol() {
-    event_group_handle_ = xEventGroupCreate();
-}
+WebsocketProtocol::WebsocketProtocol() { event_group_handle_ = xEventGroupCreate(); }
 
 WebsocketProtocol::~WebsocketProtocol() {
     DisconnectControlChannel();
@@ -265,22 +262,22 @@ void WebsocketProtocol::SetupCallbacks() {
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = bp2->timestamp,
-                        .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)
-                    }));
+                        .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)}));
                 } else if (version_ == 3) {
+                    BinaryProtocol3* bp3 = (BinaryProtocol3*)data;
+                    bp3->payload_size = ntohs(bp3->payload_size);
+                    auto payload = (uint8_t*)bp3->payload;
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
-                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)
-                    }));
+                        .payload = std::vector<uint8_t>(payload, payload + bp3->payload_size)}));
                 } else {
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
-                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)
-                    }));
+                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)}));
                 }
             }
         } else {
@@ -375,6 +372,7 @@ void WebsocketProtocol::CancelReconnect() {
         esp_timer_delete(reconnect_timer_);
         reconnect_timer_ = nullptr;
     }
+
 }
 
 std::string WebsocketProtocol::GetHelloMessage() {
@@ -383,6 +381,7 @@ std::string WebsocketProtocol::GetHelloMessage() {
     cJSON_AddNumberToObject(root, "version", version_);
     cJSON* features = cJSON_CreateObject();
     cJSON_AddItemToObject(root, "features", features);
+    AddTextFontCapabilities(root);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");

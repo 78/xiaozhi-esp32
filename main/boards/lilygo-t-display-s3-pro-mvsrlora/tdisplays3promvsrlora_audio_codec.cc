@@ -60,9 +60,9 @@ Tdisplays3promvsrloraAudioCodec::~Tdisplays3promvsrloraAudioCodec() {
 void Tdisplays3promvsrloraAudioCodec::CreateVoiceHardware(gpio_num_t mic_bclk, gpio_num_t mic_ws, gpio_num_t mic_data,
     gpio_num_t spkr_bclk, gpio_num_t spkr_lrclk, gpio_num_t spkr_data) {
     
-    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(0), I2S_ROLE_MASTER);
+    i2s_chan_config_t mic_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(XIAOZHI_I2S_PORT(0), I2S_ROLE_MASTER);
     mic_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
-    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(i2s_port_t(1), I2S_ROLE_MASTER);
+    i2s_chan_config_t spkr_chan_config = I2S_CHANNEL_DEFAULT_CONFIG(XIAOZHI_I2S_PORT(1), I2S_ROLE_MASTER);
     spkr_chan_config.auto_clear = true; // Auto clear the legacy data in the DMA buffer
 
     ESP_ERROR_CHECK(i2s_new_channel(&mic_chan_config, NULL, &rx_handle_));

@@ -1,147 +1,126 @@
-# xiaozhi-esp32 — Agent Guide
+# AGENTS.md
 
 ## Project
 
-ESP-IDF (v5.5.2) firmware for the XiaoZhi AI voice assistant. C++ (`.cc`/`.h`), Google style with clang-format. Runs on ESP32, ESP32-C3, ESP32-S3, ESP32-C5, ESP32-C6, ESP32-P4.
+XiaoZhi is an ESP-IDF C/C++ voice-assistant firmware supporting many chips, boards, displays, audio devices, and network transports. A build selects exactly one board implementation.
 
-## Build & Flash
-
-```bash
-# Per-board build (recommended, uses config.json):
-python scripts/release.py <board-dir-name>   # e.g. python scripts/release.py bread-compact-wifi
-
-# Manual:
-idf.py set-target esp32s3   # target: esp32, esp32s3, esp32c3, esp32c6, esp32p4
-idf.py menuconfig           # Xiaozhi Assistant > Board Type
-idf.py build
-idf.py flash monitor
-
-# Build with OTA upload (auto-pushes firmware to voice_gateway):
-python scripts/release.py <board-dir-name> --upload   # e.g. python scripts/release.py freenove-esp32s3-display-2.8-lcd --upload
-
-# Or upload manually after build:
-scripts/ota-upload.sh   # uploads build/xiaozhi.bin to OTA server
-
-# List all board variants:
-python scripts/release.py --list-boards
-
-# Build all boards:
-python scripts/release.py all
-```
-
-`idf.py -DBOARD_NAME=<name> -DBOARD_TYPE=<board> build` for override at build time.
-
-## Board System
-
-- Each board lives in `main/boards/<board-dir>/` or `main/boards/<manufacturer>/<board-dir>/`
-- Requires: `config.h` (pins), `xxx_board.cc` (class), `config.json` (build metadata)
-- Board class extends `WifiBoard` / `Ml307Board` / `DualNetworkBoard` / `Nt26Board` / `RndisBoard`
-- Registered via `DECLARE_BOARD(ClassName)` at end of board `.cc` file
-- See `docs/custom-board.md` for adding new boards
-
-## Key Directories
-
-| Path | Purpose |
-|------|---------|
-| `main/` | Application core, entrypoint `main.cc:app_main()` |
-| `main/boards/` | All board definitions (70+) |
-| `main/boards/common/` | Shared board components (button, backlight, battery, etc.) |
-| `main/audio/engines/afe_audio_engine.cc` | AFE config: `AFE_TYPE_FD`/`AFE_MODE_LOW_COST` + `agc_init=true` |
-| `main/display/` | Display drivers (OLED, LCD, LVGL) |
-| `main/protocols/` | WebSocket + MQTT+UDP communication |
-| `partitions/v2/` | Partition tables — **v2 only** (4m, 8m, 16m, 16m_c3, 32m) |
-| `scripts/` | Build/release helpers |
-| `sdkconfig.defaults` | Global SDK config |
-| `sdkconfig.defaults.esp32*` | Per-chip overrides |
+Use ESP-IDF v6.0.2 when possible. IDF 5.5.x is retained only for documented legacy boards.
 
 ## Architecture
 
+- `main/application.*`: main event loop, protocol lifecycle, and high-level behavior.
+- `main/device_state_machine.*`: legal runtime state transitions.
+- `main/boards/common/`: board interfaces and reusable hardware/network helpers.
+- `main/boards/**/`: board-specific pins, initialization, and build variants.
+- `main/audio/`: codecs, audio tasks, engines, wake words, and queues.
+- `main/protocols/`: transport-neutral API plus WebSocket and MQTT/UDP.
+- `main/display/` and `main/led/`: reusable UI implementations.
+- `main/mcp_server.*`: common device-side MCP tools and dispatch.
+- `main/Kconfig.projbuild`: board and feature configuration.
+- `main/CMakeLists.txt`: source, board, locale, font, and asset selection.
+- `scripts/release.py`: canonical board/variant build entry point.
+
+Read the closest existing implementation before adding a new one. Prefer the narrowest owning layer; do not put board-specific behavior into core modules.
+
+## Required Rules
+
+- Preserve unrelated worktree changes and keep patches focused.
+- A build must export exactly one board factory through `DECLARE_BOARD(...)`.
+- Never alter an existing board's pins to support different hardware. Add a uniquely named board or release variant; board identity affects OTA compatibility.
+- Core code depends on `Board` interfaces, never a concrete board class or board `config.h`.
+- Treat camera, backlight, display, LED, battery, and similar capabilities as optional.
+- Change runtime state through `Application::SetDeviceState()` and the state machine.
+- Callbacks may run outside the main task. Schedule application mutations with `Application::Schedule()` or event bits.
+- Do not block the main event loop or audio tasks. Avoid unbounded queues and repeated large allocations in audio paths.
+- Keep shared message semantics in `Protocol`; verify both transports when changing its contract.
+- Validate network input and preserve `cJSON` ownership. NVS keys are persistent API and require migration when changed.
+- Guard target-specific features with Kconfig/component rules. Do not assume every target has PSRAM or S3/P4 resources.
+- Do not manually edit generated/vendor output: `build/`, `releases/`, `managed_components/`, `components/`, `sdkconfig*`, `main/assets/lang_config.h`, or generated mmap headers.
+- Format only touched C/C++ files with the repository `.clang-format`; avoid unrelated mass formatting.
+
+## Boards and Configuration
+
+Board selection is a coupled chain:
+
+`config.json` -> `scripts/release.py` -> `main/Kconfig.projbuild` -> `main/CMakeLists.txt` -> board source and `config.h`.
+
+When adding a board or variant, update every relevant link in that chain. Include a unique board identity, correct chip target, flash/partition settings, exactly one `DECLARE_BOARD`, and board documentation. Follow `docs/custom-board.md`.
+
+## Commands
+
+Source the intended ESP-IDF environment first:
+
+```sh
+source /path/to/esp-idf/export.sh
+idf.py --version
 ```
-app_main() → Application::Initialize() → Board::GetInstance() → Setup display, audio, network
-           → Application::Run() → event loop (FreeRTOS event group)
+
+```sh
+# Discover exact board and variant names
+python3 scripts/release.py --list-boards
+
+# Canonical variant build
+python3 scripts/release.py <board-directory> --name <variant-name>
+
+# Host-side release tests
+python3 -m unittest discover -s scripts/tests -v
+
+# Format/check touched files
+clang-format -i <files>
+clang-format --dry-run -Werror <files>
 ```
 
-State machine: `Starting → WifiConfiguring / Connecting → Idle → Listening → Speaking`
+The release script changes local `sdkconfig` and build state. Do not assume the build directory still represents a previous target.
 
-Communication protocols: WebSocket (default) or MQTT+UDP. Audio codec: OPUS.
+## Validation
 
-## Configuration
+- Board-only change: build affected variants and smoke-test changed hardware.
+- Core, common-board, audio, protocol, display, dependency, Kconfig, or CMake change: run host tests and build representative affected chip/network paths.
+- Protocol changes: verify WebSocket and MQTT/UDP when shared behavior changes.
+- Audio changes: verify capture, playback, wake/VAD, interruption, reconnect, and applicable AEC modes.
+- UI/assets changes: verify applicable no-display/OLED/LVGL paths and partition size.
+- Always report what was tested and what still needs physical hardware. A successful build is not hardware validation.
 
-- Board selection: `idf.py menuconfig → Xiaozhi Assistant → Board Type`
-- Language: `Xiaozhi Assistant → Default Language` (30+ languages)
-- Assets: `Xiaozhi Assistant → Flash Assets` (default/custom/emote/none)
-- Assets partition is auto-built by CMake from board config (fonts, emoji, wake word model)
-- Wake word: ESP-SR (AFE for S3/P4 with PSRAM; Wakenet for C3/C5/C6/ESP32)
+## Authoritative Documentation
 
-## Formatting
+- Overview and SDK policy: `README.md`
+- SDK compatibility: `docs/esp-idf-6-migration.md`
+- Board guide: `docs/custom-board.md`
+- Audio design: `main/audio/README.md`
+- Code style: `docs/code_style.md`
+- Protocols: `docs/websocket.md`, `docs/mqtt-udp.md`, `docs/mcp-protocol.md`
+- CI matrix: `.github/workflows/build.yml`
 
-```bash
-find main -iname '*.h' -o -iname '*.cc' | xargs clang-format -i
-```
+Keep detailed or fast-changing information in those files, not here. Add a nested `AGENTS.md` only when a subsystem needs specialized instructions.
 
-`.clang-format` at root (Google style, 4-space indent, 100 col, left-aligned pointers).
+## freenove-esp32s3-display-2.8-lcd Branch Context
 
-## Dependencies
+Branch: `v1.2-freenove`. Freenove ESP32-S3 2.8" (ILI9341, ES8311, XPT2046 touch on I2C 0x38), 16MB flash. Build: `python scripts/release.py freenove-esp32s3-display-2.8-lcd` (single-thread, weak CPU).
 
-Managed via `main/idf_component.yml`. Fetch with `idf.py reconfigure` (automatic on build). Key: LVGL 9.5.0, esp-sr 2.3.0, ESP-IDF >= 5.5.2.
+### Persist WebSocket
+- `ConnectControlChannel()` after activation, ping/pong 30s, reconnect with exponential backoff (1→60s), `server_initiated_session_` flag
+- See `main/protocols/websocket_protocol.cc`, `main/application.cc`
 
-## CI
+### AFE Audio Config
+- `AFE_TYPE_FD` + `AFE_MODE_LOW_COST` + `agc_init=true` — do not change to HIGH_PERF or SR (breaks voice after wake word)
+- See `main/audio/engines/afe_audio_engine.cc`
 
-GitHub Actions in `.github/workflows/build.yml`. Uses `espressif/idf:v5.5.2` Docker image. Builds affected boards on PR, all boards on push to `main`.
-
-## Version
-
-`2.3.0` (PROJECT_VER in root `CMakeLists.txt`). v1 branch (`git checkout v1`) maintained until Feb 2026 — **partition tables are incompatible between v1 and v2**.
-
-## Testing
-
-No formal test framework — embedded firmware. Verify by building for the target board.
-
-## v1.2-freenove Branch Context
-
-Branch: `v1.2-freenove`, tags `v1.3-freenove`, `v1.4-freenove`. Freenove ESP32-S3 2.8" (ILI9341, ES8311, XPT2046 touch on I2C 0x38), 16MB flash. WiFi `home4`. Device MACs: `3c:0f:02:dd:c1:a4` (original), `44:1b:f6:cf:78:b8` (new). IP `192.168.22.205`. Host IP `192.168.22.249`. OTA URL: `http://192.168.22.102:18792/ota`. Build with `python scripts/release.py freenove-esp32s3-display-2.8-lcd`.
-
-### USB Detection (Battery)
-TP4054 CHRG pin NOT routed to GPIO (confirmed). Voltage-trend detection via `AdcBatteryMonitor` on `ADC_UNIT_1, ADC_CHANNEL_8`, 200k/200k divider (1:2). Custom `adc_oneshot` handle + `curve_fitting` calibration. State machine: `kIdle`/`kCharging`/`kFull`/`kDischarging` with rolling median (5 samples × 5s), 30mV hysteresis, 60s >4150mV for full heuristic.
-
-### MCP Tools Added
-- `self.audio_wake_word.set_state` — `start`/`stop`, calls `AudioService::EnableWakeWordDetection()`, idempotent
-- `self.audio_wake_word.get_status` — returns `running`/`stopped` + `mic_active` via event group + codec state
-- `self.audio_pipeline.reset` — `input`/`output`/`idle`, calls `codec->EnableInput/EnableOutput()`
+### Battery
+- Voltage-trend via `AdcBatteryMonitor` on `ADC_UNIT_1, ADC_CHANNEL_8`, 200k/200k divider (1:2)
+- TP4054 CHRG pin NOT routed to GPIO
 
 ### Custom Assets
-`assets.bin` (7.78MB, 8 GIF + 30pt font). `CONFIG_FLASH_DEFAULT_ASSETS=n`, `CONFIG_FLASH_CUSTOM_ASSETS=y`, `CUSTOM_ASSETS_FILE="boards/freenove-esp32s3-display-2.8-lcd/assets.bin"`.
+- Pre-built `assets.bin` (7.78MB, 8 GIF + 30pt font) — compatible with v2.4.0
+- `CONFIG_FLASH_CUSTOM_ASSETS=y`, `CUSTOM_ASSETS_FILE="boards/freenove-esp32s3-display-2.8-lcd/assets.bin"`
+
+### OTA
+- Server: `http://192.168.22.102:18792/ota`, upload: `POST /api/firmware/upload`
+- Build + upload: `python scripts/release.py freenove-esp32s3-display-2.8-lcd --upload`
+- See `docs/ota-api.md` for server API contract
 
 ### Key Files
-- `main/boards/freenove-esp32s3-display-2.8-lcd/freenove-esp32s3-display-2.8-lcd.cc` — Board class, touch, battery monitor, MCP tools
-- `main/boards/freenove-esp32s3-display-2.8-lcd/config.json` — OTA URL + custom assets config
-- `main/boards/freenove-esp32s3-display-2.8-lcd/assets.bin` — 7.78MB custom assets
-- `main/boards/common/adc_battery_monitor.h` — `ChargeState` enum, state machine, median filter
-- `main/boards/common/adc_battery_monitor.cc` — Voltage-trend state machine, `GetVoltageMv()` via adc_oneshot + curve_fitting
-- `main/audio/audio_service.h/.cc` — `EnableWakeWordDetection()`, `IsWakeWordRunning()`, `AudioInputTask()`
-
-### Release Workflow (After Code Change)
-
-1. `python scripts/release.py freenove-esp32s3-display-2.8-lcd --upload`
-   — builds + uploads firmware to OTA server
-2. Flash via USB: `idf.py -p /dev/ttyACM0 flash` (repeat for `/dev/ttyACM1`)
-3. Wait for device to OTA-update automatically (if version bumped) or restart manually
-4. Tag: `git tag v1.<N>-freenove && git push origin v1.<N>-freenove`
-5. Push: `git push origin HEAD:v1.2-freenove`
-
-### OTA Update Mechanism
-
-- Device checks `CONFIG_OTA_URL` (`http://192.168.22.102:18792/ota`) on every boot
-- Server returns `{"firmware":{"version":"X.Y.Z","url":"http://..."}}` 
-- Device auto-downloads + applies if version > current
-- No need to flash USB for subsequent updates — just bump `PROJECT_VER` in `CMakeLists.txt`, rebuild, then `python scripts/release.py <board> --upload`
-- Upload endpoint: `POST /api/firmware/upload` (multipart, field `file`)
-- See `docs/ota-api.md` for server-side API contract
-
-### Other Notes
-
-- `sdkconfig` is auto-generated; do not edit manually
-- Per-chip defaults in `sdkconfig.defaults.esp32*` files
-- Release zips go to `releases/` directory (gitignored)
-- OTA URL configurable via `CONFIG_OTA_URL` in Kconfig
-- `docs/` has protocol specs, MCP usage, blufi setup
+- `main/boards/freenove-esp32s3-display-2.8-lcd/` — board definition, config, assets
+- `main/boards/common/adc_battery_monitor.cc/.h` — battery state machine
+- `docs/server-persistent-ws-spec.md` — persistent WS server spec
+- `docs/ota-api.md` — OTA upload API contract
+- `scripts/ota-upload.sh` — OTA upload script

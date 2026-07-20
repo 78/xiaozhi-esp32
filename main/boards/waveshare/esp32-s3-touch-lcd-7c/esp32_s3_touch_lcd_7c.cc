@@ -1,6 +1,5 @@
 #include "wifi_board.h"
 #include "display/lcd_display.h"
-// #include "font_awesome_symbols.h"
 
 #include "codecs/box_audio_codec.h"
 #include "waveshare_audio_codec.h"
@@ -185,10 +184,11 @@ private:
                 }
             },
             .data_width = 16,
-            .bits_per_pixel = 16,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 2,
             .bounce_buffer_size_px = BSP_LCD_H_RES * 10,
-            .psram_trans_align = 64,
+            .dma_burst_size = 64,
             .hsync_gpio_num = BSP_LCD_HSYNC,
             .vsync_gpio_num = BSP_LCD_VSYNC,
             .de_gpio_num = BSP_LCD_DE,

@@ -136,8 +136,8 @@ class YunliaoS3 : public DualNetworkBoard {
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_SPI_PIN_LCD_CS;
-        io_config.dc_gpio_num = DISPLAY_SPI_PIN_LCD_DC;
+        io_config.cs_gpio_num = static_cast<gpio_num_t>(DISPLAY_SPI_PIN_LCD_CS);
+        io_config.dc_gpio_num = static_cast<gpio_num_t>(DISPLAY_SPI_PIN_LCD_DC);
         io_config.spi_mode = 3;
         io_config.pclk_hz = DISPLAY_SPI_CLOCK_HZ;
         io_config.trans_queue_depth = 10;
@@ -151,7 +151,7 @@ class YunliaoS3 : public DualNetworkBoard {
         Settings settings("display", false);
         bool currentIpsMode = settings.GetBool("ips_mode", DISPLAY_INVERT_COLOR);
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_SPI_PIN_LCD_RST;
+        panel_config.reset_gpio_num = static_cast<gpio_num_t>(DISPLAY_SPI_PIN_LCD_RST);
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER_COLOR;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(
