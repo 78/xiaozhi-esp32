@@ -399,13 +399,29 @@ idf.py monitor
 
 ### 9.1 总规则
 
-> **⚠️ 重要**：每次编译前必须先清理旧的 sdkconfig，再重新配置，否则之前 Board 的配置（如 SPI RAM QUAD/OCT mode、flash 大小等）会残留导致编译错误。
+> **⚠️ 重要**：每次编译前必须先清理旧的 sdkconfig 再重新配置，否则之前 Board 的配置（如 SPI RAM QUAD/OCT mode、flash 大小、Board Type 等）会残留导致编译错误。
 
-清理命令：
+> **⚠️ 必须设置 Board Type**：清理 sdkconfig 后，如果不通过 menuconfig 选择 Board Type，默认值（ZHENGCHEN_1_54TFT_ML307）会被使用，编译出的固件将不匹配目标硬件，烧录后设备无法启动！
+
+**编译步骤（必须按顺序执行）：**
+
 ```bash
+# 第1步：清理旧配置
 rm -f sdkconfig sdkconfig.old
+
+# 第2步：选择 Board Type、语言和协议（必须先选 Board，否则默认值错误）
+idf.py menuconfig
+# → Xiaozhi Assistant → Board Type → 选择对应的开发板
+# → Xiaozhi Assistant → Default Language → Chinese / English
+# → Connection Protocol → Agora RTC
+# → Agora RTC Settings → Device API Server URL → 填入对应区域地址
+
+# 第3步：生成配置并编译
+idf.py reconfigure
+idf.py build
 ```
 
+- **完整固件输出目录**：`releases/`（工程根目录下），每次编译生成的 `.bin` 文件放入此目录便于归档。
 - **中国大陆版本**：`Default Language` → `LANGUAGE_ZH_CN`，`Device API Server URL` → `https://mybot.sh2.agoralab.co/api`
 - **海外版本**：`Default Language` → `LANGUAGE_EN_US`，`Device API Server URL` → `https://mybot.sg3.agoralab.co/api`
 
@@ -477,6 +493,10 @@ Serial flasher config → Flash size → 32 MB
 除总规则外，其余保持默认。
 
 #### 9.3.5 BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI
+
+除总规则外，其余保持默认。
+
+#### 9.3.6 BOARD_TYPE_ESP_VOCAT
 
 除总规则外，其余保持默认。
 
