@@ -285,8 +285,15 @@ private:
         esp_lcd_panel_handle_t panel = nullptr;
         ESP_LOGI(TAG, "Install panel IO");
         
-        esp_lcd_panel_io_spi_config_t io_config = ST77916_PANEL_IO_QSPI_CONFIG(DISPLAY_QSPI_CS_PIN, NULL, NULL);
-        // io_config.pclk_hz = DISPLAY_SPI_SCLK_HZ;
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = DISPLAY_QSPI_CS_PIN;
+        io_config.dc_gpio_num = GPIO_NUM_NC;
+        io_config.spi_mode = 0;
+        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 32;
+        io_config.lcd_param_bits = 8;
+        io_config.flags.quad_mode = true;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)DISPLAY_QSPI_HOST, &io_config, &panel_io));
 
     
@@ -298,12 +305,11 @@ private:
                 .use_qspi_interface = 1,
             },
         };
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = DISPLAY_QSPI_RESET_PIN,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-            .bits_per_pixel = DISPLAY_QSPI_BIT_PER_PIXEL,
-            .vendor_config = &vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = DISPLAY_QSPI_BIT_PER_PIXEL;
+        panel_config.reset_gpio_num = DISPLAY_QSPI_RESET_PIN;
+        panel_config.vendor_config = &vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st77916(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);

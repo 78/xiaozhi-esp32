@@ -311,7 +311,7 @@ private:
             ESP_LOGI(TAG, "Install LCD driver");
             esp_lcd_panel_dev_config_t panel_config = {};
             panel_config.reset_gpio_num = GPIO_NUM_NC;
-            panel_config.rgb_ele_order = LCD_RGB_ENDIAN_BGR;
+            panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
             panel_config.bits_per_pixel = 16;
             esp_lcd_new_panel_gc9309na(panel_io, &panel_config, &panel);
 

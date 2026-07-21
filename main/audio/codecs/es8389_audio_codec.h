@@ -3,7 +3,7 @@
 
 #include "audio_codec.h"
 
-#include <driver/i2c.h>
+#include <driver/i2c_master.h>
 #include <driver/gpio.h>
 #include <esp_codec_dev.h>
 #include <esp_codec_dev_defaults.h>
@@ -18,6 +18,7 @@ private:
 
     esp_codec_dev_handle_t output_dev_ = nullptr;
     esp_codec_dev_handle_t input_dev_ = nullptr;
+    bool output_device_opened_ = false;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
     std::mutex data_if_mutex_;
 

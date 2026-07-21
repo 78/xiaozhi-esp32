@@ -10,6 +10,8 @@ EspWakeWord::EspWakeWord() {
 EspWakeWord::~EspWakeWord() {
     if (wakenet_data_ != nullptr) {
         wakenet_iface_->destroy(wakenet_data_);
+    }
+    if (owns_models_ && wakenet_model_ != nullptr) {
         esp_srmodel_deinit(wakenet_model_);
     }
 }
@@ -19,6 +21,7 @@ bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
 
     if (models_list == nullptr) {
         wakenet_model_ = esp_srmodel_init("model");
+        owns_models_ = wakenet_model_ != nullptr;
     } else {
         wakenet_model_ = models_list;
     }
@@ -27,15 +30,25 @@ bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
         ESP_LOGE(TAG, "Failed to initialize wakenet model");
         return false;
     }
-    if(wakenet_model_->num > 1) {
-        ESP_LOGW(TAG, "More than one model found, using the first one");
-    } else if (wakenet_model_->num == 0) {
+    if (wakenet_model_->num == 0) {
         ESP_LOGE(TAG, "No model found");
         return false;
     }
-    char *model_name = wakenet_model_->model_name[0];
+    char *model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, nullptr);
+    if (model_name == nullptr) {
+        ESP_LOGE(TAG, "No WakeNet model found");
+        return false;
+    }
     wakenet_iface_ = (esp_wn_iface_t*)esp_wn_handle_from_name(model_name);
+    if (wakenet_iface_ == nullptr) {
+        ESP_LOGE(TAG, "No WakeNet interface found for %s", model_name);
+        return false;
+    }
     wakenet_data_ = wakenet_iface_->create(model_name, DET_MODE_95);
+    if (wakenet_data_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to create WakeNet model %s", model_name);
+        return false;
+    }
 
     int frequency = wakenet_iface_->get_samp_rate(wakenet_data_);
     int audio_chunksize = wakenet_iface_->get_samp_chunksize(wakenet_data_);
@@ -70,8 +83,8 @@ void EspWakeWord::Feed(const std::vector<int16_t>& data) {
         return;
     }
 
-    if (codec_->input_channels() == 2) {
-        for (size_t i = 0; i < data.size(); i += 2) {
+    if (codec_->input_channels() > 1) {
+        for (size_t i = 0; i < data.size(); i += codec_->input_channels()) {
             input_buffer_.push_back(data[i]);
         }
     } else {

@@ -4,8 +4,8 @@
 #include "display/lcd_display.h"
 #include "lvgl_theme.h"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_noto_sans_basic_16_4);
+LV_FONT_DECLARE(font_material_symbols_16_4);
 
 class CustomLcdDisplay : public SpiLcdDisplay {
 private:

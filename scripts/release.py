@@ -4,6 +4,7 @@ import json
 import zipfile
 import argparse
 import re
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -71,7 +72,74 @@ def _get_manufacturer(cfg: dict) -> Optional[str]:
 
 _BOARDS_DIR = Path("main/boards")
 
-def _collect_variants(config_filename: str = "config.json") -> list[dict[str, str]]:
+
+def _parse_version(value: str) -> tuple[int, int, int]:
+    """Parse an ESP-IDF version string such as 5.5.4 or v6.0."""
+    match = re.search(r"v?(\d+)\.(\d+)(?:\.(\d+))?", value)
+    if not match:
+        raise ValueError(f"Invalid ESP-IDF version: {value}")
+    return tuple(int(part or 0) for part in match.groups())
+
+
+def _detect_idf_version() -> tuple[int, int, int]:
+    """Resolve the active ESP-IDF version for version-gated build variants."""
+    idf_path = os.environ.get("IDF_PATH")
+    if idf_path:
+        version_file = Path(idf_path) / "tools/cmake/version.cmake"
+        if version_file.exists():
+            values: dict[str, int] = {}
+            for line in version_file.read_text(encoding="utf-8").splitlines():
+                match = re.match(r"set\(IDF_VERSION_(MAJOR|MINOR|PATCH)\s+(\d+)\)", line)
+                if match:
+                    values[match.group(1)] = int(match.group(2))
+            if all(part in values for part in ("MAJOR", "MINOR", "PATCH")):
+                return values["MAJOR"], values["MINOR"], values["PATCH"]
+
+    try:
+        output = subprocess.run(
+            ["idf.py", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        return _parse_version(output)
+    except (FileNotFoundError, subprocess.CalledProcessError, ValueError) as error:
+        raise RuntimeError(
+            "ESP-IDF version was not detected. Source export.sh before running release.py."
+        ) from error
+
+
+def _version_matches(version: tuple[int, int, int], expression: str) -> bool:
+    """Evaluate a single comparison such as '<6.0' or '>=6.0.1'."""
+    match = re.fullmatch(r"\s*(<=|>=|<|>|==)\s*(v?\d+\.\d+(?:\.\d+)?)\s*", expression)
+    if not match:
+        raise ValueError(f"Invalid ESP-IDF version expression: {expression}")
+    operator, expected_text = match.groups()
+    expected = _parse_version(expected_text)
+    return {
+        "<": version < expected,
+        "<=": version <= expected,
+        ">": version > expected,
+        ">=": version >= expected,
+        "==": version == expected,
+    }[operator]
+
+
+def _get_builds_for_idf(cfg: dict, idf_version: tuple[int, int, int]) -> list[dict]:
+    """Return build entries whose optional ESP-IDF version rule matches."""
+    builds: list[dict] = []
+    for build in cfg.get("builds", []):
+        expression = build.get("idf_version")
+        if expression and not _version_matches(idf_version, expression):
+            continue
+        builds.append(dict(build))
+    return builds
+
+
+def _collect_variants(
+    config_filename: str = "config.json",
+    idf_version: tuple[int, int, int] = (6, 0, 0),
+) -> list[dict[str, str]]:
     """Traverse all boards under main/boards, collect variant information.
 
     Return example:
@@ -81,7 +149,7 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
     variants: list[dict[str, str]] = []
     errors: list[str] = []
 
-    for cfg_path in _BOARDS_DIR.rglob(config_filename):
+    for cfg_path in sorted(_BOARDS_DIR.rglob(config_filename)):
         board_dir = cfg_path.parent
         if board_dir.name == "common":
             continue
@@ -116,7 +184,7 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
                         f"please move board to main/boards/{manufacturer}/{board}/"
                     )
 
-            for build in cfg.get("builds", []):
+            for build in _get_builds_for_idf(cfg, idf_version):
                 name = build["name"]
                 full_name = f"{manufacturer}-{name}" if manufacturer else name
                 variants.append({
@@ -126,17 +194,68 @@ def _collect_variants(config_filename: str = "config.json") -> list[dict[str, st
                 })
 
         except Exception as e:
-            print(f"[ERROR] Failed to parse {cfg_path}: {e}", file=sys.stderr)
+            errors.append(f"{cfg_path}: {e}")
 
-    # Report all errors at once
+    seen_names: dict[str, str] = {}
+    for variant in variants:
+        previous_board = seen_names.get(variant["full_name"])
+        if previous_board is not None:
+            errors.append(
+                f"duplicate artifact name {variant['full_name']!r} in "
+                f"{previous_board} and {variant['board']}"
+            )
+        else:
+            seen_names[variant["full_name"]] = variant["board"]
+
     if errors:
-        print("\n[ERROR] Found manufacturer configuration issues:", file=sys.stderr)
-        for err in errors:
-            print(f"  - {err}", file=sys.stderr)
-        print(file=sys.stderr)
-        sys.exit(1)
+        details = "\n".join(f"  - {error}" for error in errors)
+        raise ValueError(f"Invalid board configuration:\n{details}")
 
-    return variants
+    return sorted(variants, key=lambda variant: (variant["board"], variant["name"]))
+
+
+def _select_variants_for_changes(
+    variants: list[dict[str, str]], changed_files: list[str]
+) -> list[dict[str, str]]:
+    """Select variants affected by a git diff.
+
+    Board ownership is resolved using the longest known board directory prefix,
+    so nested paths such as waveshare/esp32-c6-touch-amoled-2.06 are preserved.
+    """
+    known_boards = sorted({variant["board"] for variant in variants}, key=len, reverse=True)
+    affected: set[str] = set()
+    global_paths = {
+        ".github/workflows/build.yml",
+        "CMakeLists.txt",
+        "scripts/build_default_assets.py",
+        "scripts/gen_lang.py",
+        "scripts/release.py",
+        "scripts/versions.py",
+    }
+
+    for raw_path in changed_files:
+        path = raw_path.strip()
+        if not path:
+            continue
+        if (path in global_paths or path.startswith("components/") or
+                path.startswith("partitions/") or
+                path.startswith("sdkconfig.defaults") or
+                (path.startswith("main/") and not path.startswith("main/boards/")) or
+                path.startswith("main/boards/common/")):
+            return variants
+
+        prefix = "main/boards/"
+        if path.startswith(prefix):
+            relative = path[len(prefix):]
+            board = next(
+                (candidate for candidate in known_boards
+                 if relative == candidate or relative.startswith(f"{candidate}/")),
+                None,
+            )
+            if board is not None:
+                affected.add(board)
+
+    return [variant for variant in variants if variant["board"] in affected]
 
 
 
@@ -162,7 +281,7 @@ def _find_board_config_candidates(board_type: str) -> list[str]:
 
 def _extract_board_config_from_sdkconfig_append(sdkconfig_append: list[str]) -> Optional[str]:
     """Extract explicit CONFIG_BOARD_TYPE_xxx=y from sdkconfig_append, if present."""
-    pattern = re.compile(r"^(CONFIG_BOARD_TYPE_[A-Z0-9_]+)=y$")
+    pattern = re.compile(r"^(CONFIG_BOARD_TYPE_[A-Za-z0-9_]+)=y$")
     matches = []
     for item in sdkconfig_append:
         m = pattern.match(item.strip())
@@ -259,7 +378,6 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
         "CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y",
         "CONFIG_BT_BLE_50_FEATURES_SUPPORTED=n",
         "CONFIG_BT_BLE_BLUFI_ENABLE=y",
-        "CONFIG_MBEDTLS_DHM_C=y",
     ],
 }
 
@@ -304,7 +422,13 @@ def _board_type_exists(board_type: str) -> bool:
 # Compile implementation
 ################################################################################
 
-def release(board_type: str, config_filename: str = "config.json", *, filter_name: Optional[str] = None) -> None:
+def release(
+    board_type: str,
+    config_filename: str = "config.json",
+    *,
+    filter_name: Optional[str] = None,
+    idf_version: tuple[int, int, int] = (6, 0, 0),
+) -> None:
     """Compile and package all/specified variants of the specified board_type
 
     Args:
@@ -325,7 +449,7 @@ def release(board_type: str, config_filename: str = "config.json", *, filter_nam
     target = cfg["target"]
     manufacturer = _get_manufacturer(cfg)
 
-    builds = cfg.get("builds", [])
+    builds = _get_builds_for_idf(cfg, idf_version)
     if filter_name:
         builds = [b for b in builds if b["name"] == filter_name]
         if not builds:
@@ -403,12 +527,24 @@ if __name__ == "__main__":
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
     parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
     parser.add_argument("--name", help="Variant name to compile (original name without manufacturer prefix)")
+    parser.add_argument(
+        "--select-changed",
+        action="store_true",
+        help="Read changed paths from stdin and output the affected variants as JSON",
+    )
 
     args = parser.parse_args()
+    idf_version = _detect_idf_version()
+
+    if args.select_changed:
+        variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
+        selected = _select_variants_for_changes(variants, sys.stdin.read().splitlines())
+        print(json.dumps(selected))
+        sys.exit(0)
 
     # List mode
     if args.list_boards:
-        variants = _collect_variants(config_filename=args.config)
+        variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
         if args.json:
             print(json.dumps(variants))
         else:
@@ -436,7 +572,7 @@ if __name__ == "__main__":
         print(f"[ERROR] board_type {board_type_input} not found in main/CMakeLists.txt", file=sys.stderr)
         sys.exit(1)
 
-    variants_all = _collect_variants(config_filename=args.config)
+    variants_all = _collect_variants(config_filename=args.config, idf_version=idf_version)
 
     # Filter board_type list
     target_board_types: set[str]
@@ -453,4 +589,9 @@ if __name__ == "__main__":
         if bt == board_type_input and not cfg_path.exists():
             print(f"Board {bt} has no {args.config} config file, skipping")
             sys.exit(0)
-        release(bt, config_filename=args.config, filter_name=name_filter if bt == board_type_input else None)
+        release(
+            bt,
+            config_filename=args.config,
+            filter_name=name_filter if bt == board_type_input else None,
+            idf_version=idf_version,
+        )

@@ -169,21 +169,32 @@ void Es8389AudioCodec::EnableOutput(bool enable) {
         return;
     }
     if (enable) {
-        // Play 16bit 1 channel
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+        if (!output_device_opened_) {
+            // Play 16bit 1 channel
+            esp_codec_dev_sample_info_t fs = {
+                .bits_per_sample = 16,
+                .channel = 1,
+                .channel_mask = 0,
+                .sample_rate = (uint32_t)output_sample_rate_,
+                .mclk_multiple = 0,
+            };
+            ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+            output_device_opened_ = true;
+        }
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_mute(output_dev_, false));
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 1);
         }
     } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+        // Keep the ES8389 TX data interface open. On ESP32-S3 the RX channel
+        // uses the paired TX channel as its clock source, and reopening TX via
+        // esp_codec_dev after it has been closed can leave the IDF 6 duplex
+        // channel silent even though esp_codec_dev_open reports success.
+        // Muting preserves the logical power state without reconfiguring I2S.
+        if (output_device_opened_) {
+            ESP_ERROR_CHECK(esp_codec_dev_set_out_mute(output_dev_, true));
+        }
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 0);
         }

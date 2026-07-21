@@ -56,4 +56,13 @@
 // IMU BMI270 I2C address
 #define IMU_BMI270_ADDR 0x68
 
+// Battery monitoring (ADC voltage divider on GPIO 10 / ADC1_CH9)
+// Verified from Cardputer-Adv schematic (Sch_M5CardputerAdv_v1.0):
+// R9 = 100KΩ (BAT+ to GPIO10), R8 = 100KΩ (GPIO10 to GND)
+#define BATTERY_ADC_UNIT        ADC_UNIT_1
+#define BATTERY_ADC_CHANNEL     ADC_CHANNEL_9
+#define BATTERY_UPPER_RESISTOR  100000.0f
+#define BATTERY_LOWER_RESISTOR  100000.0f
+#define BATTERY_CHARGING_PIN    GPIO_NUM_NC
+
 #endif // _BOARD_CONFIG_H_

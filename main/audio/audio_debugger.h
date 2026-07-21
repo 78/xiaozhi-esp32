@@ -1,11 +1,11 @@
 #ifndef AUDIO_DEBUGGER_H
 #define AUDIO_DEBUGGER_H
 
-#include <vector>
 #include <cstdint>
+#include <vector>
 
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 
 class AudioDebugger {
 public:
@@ -19,4 +19,4 @@ private:
     struct sockaddr_in udp_server_addr_;
 };
 
-#endif 
+#endif
