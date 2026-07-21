@@ -11,6 +11,7 @@
 #include "device_api_client.h"
 #include <esp_netif_sntp.h>
 #endif
+#include "display.h"
 #include "mcp_server.h"
 #include "mqtt_protocol.h"
 #include "settings.h"

@@ -449,7 +449,7 @@ void AudioService::OpusCodecTask() {
                         }
                         decoded = true;
                     } else {
-                        ESP_LOGE(TAG, "Failed to decode audio, error code: %d", ret);
+                        ESP_LOGE(TAG, "Failed to decode audio after resize, error code: %d", ret);
                     }
                 } else {
                     ESP_LOGE(TAG, "Audio decoder is not configured");
@@ -457,18 +457,18 @@ void AudioService::OpusCodecTask() {
             }
 
             lock.lock();
-            if (decoded) {
+            if (decoded && generation == playback_generation_ && !service_stopped_.load()) {
                 audio_playback_queue_.push_back(std::move(task));
-                audio_queue_cv_.notify_all();
-                debug_statistics_.decode_count++;
             }
-            /* If decoding failed and nothing is left to play, report the drain
-             * here since AudioOutputTask will not see this packet. */
-            if (audio_decode_queue_.empty() && audio_playback_queue_.empty() &&
-                callbacks_.on_playback_drained) {
+            decode_in_flight_ = false;
+            debug_statistics_.decode_count++;
+            const bool notify_drained = MarkPlaybackDrainedLocked();
+            audio_queue_cv_.notify_all();
+            lock.unlock();
+            if (notify_drained && callbacks_.on_playback_drained) {
                 callbacks_.on_playback_drained();
             }
-            }
+            lock.lock();
         }
         /* Encode the audio to send queue */
         if (!audio_encode_queue_.empty()) {
@@ -490,6 +490,9 @@ void AudioService::OpusCodecTask() {
             if (task->type == kAudioTaskTypeEncodeToSendQueue) {
                 {
                     std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                    if (audio_send_queue_.size() >= MAX_SEND_PACKETS_IN_QUEUE) {
+                        audio_send_queue_.pop_front();
+                    }
                     audio_send_queue_.push_back(std::move(packet));
                 }
                 if (callbacks_.on_send_queue_available) {
