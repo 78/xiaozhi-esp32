@@ -923,13 +923,8 @@ menu "WiFi Configuration Method"
         default y
         help
             Use WiFi Hotspot to transmit WiFi configuration data
-    config USE_ACOUSTIC_WIFI_PROVISIONING
-        bool "Acoustic"
-        help
-            Use audio signal to transmit WiFi configuration data
-
     config USE_ESP_BLUFI_WIFI_PROVISIONING
-        bool "Esp Blufi"
+        bool "ESP-BluFi"
         select BT_ENABLED
         select BT_BLE_42_FEATURES_SUPPORTED
         select BT_BLE_BLUFI_ENABLE

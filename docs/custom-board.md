@@ -437,7 +437,6 @@ Supported LCD families include:
 - `Button` - standard push buttons (click, long-press, multi-click).
 - `Knob` - rotary encoder wrapper.
 - `PressToTalkMcpTool` - push-to-talk tool that registers itself through MCP.
-- `AfskDemod` - AFSK demodulator used by some acoustic provisioning flows.
 - `SystemReset` - helper that performs a safe factory reset when a button is held at boot.
 
 ### MCP integration
