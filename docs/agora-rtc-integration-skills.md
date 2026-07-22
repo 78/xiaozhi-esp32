@@ -422,6 +422,7 @@ idf.py build
 ```
 
 - **完整固件输出目录**：`releases/`（工程根目录下），每次编译生成的 `.bin` 文件放入此目录便于归档。
+- **必须编译两个版本**：每个 Board 都必须同时编译 **中国大陆版本（sh2）** 和 **海外版本（sg3）**，缺少任一版本视为不完整。
 - **中国大陆版本**：`Default Language` → `LANGUAGE_ZH_CN`，`Device API Server URL` → `https://mybot.sh2.agoralab.co/api`
 - **海外版本**：`Default Language` → `LANGUAGE_EN_US`，`Device API Server URL` → `https://mybot.sg3.agoralab.co/api`
 
