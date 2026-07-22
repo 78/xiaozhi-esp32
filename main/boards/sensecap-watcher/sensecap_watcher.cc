@@ -99,6 +99,14 @@ class CustomLcdDisplay : public SpiLcdDisplay {
             // 针对圆形屏幕调整底部对话框位置，避免被圆角遮挡
             lv_obj_set_style_pad_bottom(bottom_bar_, 30, 0);
             lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.75); // 限制宽度，避免文字贴边
+
+            // Scale emoji to fill the 412x412 round screen.
+            // Without this, the default 64px Twemoji images appear as a tiny dot.
+            lvgl_theme->set_emoji_collection(std::make_shared<Twemoji64>());
+            lv_obj_set_size(emoji_box_, LV_HOR_RES, LV_VER_RES);
+            lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, 0);
+            lv_image_set_scale(emoji_image_, (lv_coord_t)LV_HOR_RES * 256 / 64);
+            lv_obj_center(emoji_image_);
         }
 };
 
