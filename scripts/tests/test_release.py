@@ -24,8 +24,8 @@ class VersionTests(unittest.TestCase):
     def test_current_matrix_counts_and_uniqueness(self):
         idf5 = release._collect_variants(idf_version=(5, 5, 4))
         idf6 = release._collect_variants(idf_version=(6, 0, 1))
-        self.assertEqual(len(idf5), 171)
-        self.assertEqual(len(idf6), 157)
+        self.assertEqual(len(idf5), 172)
+        self.assertEqual(len(idf6), 158)
         for variants in (idf5, idf6):
             names = [variant["full_name"] for variant in variants]
             self.assertEqual(len(names), len(set(names)))
