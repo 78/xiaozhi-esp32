@@ -44,6 +44,11 @@
 #define DISPLAY_OFFSET_X  0
 #define DISPLAY_OFFSET_Y  0
 
+// Round screen UI safe area (360x360)
+#define DISPLAY_STATUS_BAR_TOP_OFFSET 15
+#define DISPLAY_CHAT_BAR_WIDTH        250
+#define DISPLAY_CHAT_BAR_BOTTOM_OFFSET 40
+
 #define TP_PORT             (I2C_NUM_1)
 #define TP_PIN_NUM_TP_SDA   (GPIO_NUM_7)
 #define TP_PIN_NUM_TP_SCL   (GPIO_NUM_8)
