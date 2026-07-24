@@ -14,10 +14,10 @@ As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabiliti
 
 ## Recent Updates
 
-- The mainline now targets ESP-IDF v6.0 or later, with v6.0.2 as the preferred stable SDK. The complete 157-variant release matrix has been validated on ESP-IDF v6.0.1.
+- The mainline now targets ESP-IDF v6.0 or later, with v6.0.2 as the preferred stable SDK. The previous 157-variant baseline was validated on ESP-IDF v6.0.1; the current matrix contains 172 variants after enabling ESP32-P4 Rev < 3 builds with ESP-SR 2.4.7.
 - MQTT and BluFi cryptographic code has migrated to PSA Crypto. IDF 6 component splits and third-party dependency compatibility have also been addressed.
 - Audio pipeline concurrency, MQTT/UDP packet validation, and release-matrix selection have been hardened.
-- ESP-IDF v5.5 is retained only for legacy hardware paths, including pre-v3 ESP32-P4 silicon. See the [ESP-IDF 6.0 Migration Guide](docs/esp-idf-6-migration.md) for full compatibility and board-validation details.
+- ESP-IDF v5.5 is retained only for documented legacy boards. ESP32-P4 Rev1 and Rev3 are both supported on IDF 6 with ESP-SR 2.4.7; see the [ESP-IDF 6.0 Migration Guide](docs/esp-idf-6-migration.md) for full compatibility and board-validation details.
 
 ### Features Implemented
 
@@ -47,7 +47,7 @@ Breadboard demo:
 
 ![Breadboard Demo](docs/v1/wiring2.jpg)
 
-### Supports 137 Board Directories and 157 Release Variants (Partial List)
+### Supports 138 Board Directories and 172 Release Variants (Partial List)
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="LiChuang ESP32-S3 Development Board">LiChuang ESP32-S3 Development Board</a>
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="Espressif ESP32-S3-BOX3">Espressif ESP32-S3-BOX3</a>
