@@ -4,7 +4,6 @@
     "builds": [
         {
             "name": "esp32-p4-wifi6-touch-lcd-4b",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -35,7 +34,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-4.3",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -66,7 +64,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-5",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -97,7 +94,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-7b",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -134,7 +130,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-3.4c",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -165,7 +160,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-4c",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -196,7 +190,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-7",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -227,7 +220,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-8",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -258,7 +250,6 @@
         },
         {
             "name": "esp32-p4-wifi6-touch-lcd-10.1",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",

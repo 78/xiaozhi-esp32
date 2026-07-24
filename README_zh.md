@@ -14,10 +14,10 @@
 
 ## 近期更新
 
-- 项目主线现已迁移到 ESP-IDF v6.0 或以上版本，首选稳定版为 v6.0.2；完整的 157 个发布变体已在 ESP-IDF v6.0.1 上通过构建验证。
+- 项目主线现已迁移到 ESP-IDF v6.0 或以上版本，首选稳定版为 v6.0.2；此前的 157 个发布变体已在 ESP-IDF v6.0.1 上通过构建验证，使用 ESP-SR 2.4.7 启用 ESP32-P4 Rev < 3 后，当前矩阵包含 172 个变体。
 - MQTT 和 BluFi 加密已迁移到 PSA Crypto，同时完成了 IDF 6 组件拆分及第三方依赖兼容处理。
 - 加固了音频流水线并发、MQTT/UDP 数据包校验和发布矩阵选择逻辑。
-- ESP-IDF v5.5 仅保留用于旧版硬件兼容，包括 ESP32-P4 v3 之前的芯片版本。完整兼容性和板卡验证状态请参阅 [ESP-IDF 6.0 迁移文档](docs/esp-idf-6-migration.md)。
+- ESP-IDF v5.5 仅保留用于文档明确标注的旧版板卡；使用 ESP-SR 2.4.7 时，ESP32-P4 Rev1 和 Rev3 均支持 IDF 6。完整兼容性和板卡验证状态请参阅 [ESP-IDF 6.0 迁移文档](docs/esp-idf-6-migration.md)。
 
 ### 已实现功能
 
@@ -47,7 +47,7 @@
 
 ![面包板效果图](docs/v1/wiring2.jpg)
 
-### 支持 137 个板卡目录、157 个固件发布变体（仅展示部分）
+### 支持 138 个板卡目录、172 个固件发布变体（仅展示部分）
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立创·实战派 ESP32-S3 开发板">立创·实战派 ESP32-S3 开发板</a>
 - <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>

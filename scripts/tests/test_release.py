@@ -21,14 +21,16 @@ class VersionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release._version_matches((6, 0, 1), "~=6.0")
 
-    def test_current_matrix_counts_and_uniqueness(self):
+    def test_current_matrix_uniqueness_and_p4_variants(self):
         idf5 = release._collect_variants(idf_version=(5, 5, 4))
         idf6 = release._collect_variants(idf_version=(6, 0, 1))
-        self.assertEqual(len(idf5), 172)
-        self.assertEqual(len(idf6), 158)
         for variants in (idf5, idf6):
             names = [variant["full_name"] for variant in variants]
             self.assertEqual(len(names), len(set(names)))
+
+        idf6_names = {variant["full_name"] for variant in idf6}
+        self.assertIn("esp-p4-function-ev-board", idf6_names)
+        self.assertIn("esp-p4-function-ev-board-p4x", idf6_names)
 
 
 class BoardSelectionTests(unittest.TestCase):

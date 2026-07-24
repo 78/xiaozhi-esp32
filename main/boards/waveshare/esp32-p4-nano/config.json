@@ -4,7 +4,6 @@
     "builds": [
         {
             "name": "esp32-p4-nano-10.1-a",
-            "idf_version": "<6.0",
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
                 "CONFIG_CAMERA_OV5647=y",
