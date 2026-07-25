@@ -31,48 +31,85 @@
 class Pmic : public Axp2101 {
 public:
     Pmic(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : Axp2101(i2c_bus, addr) {
-        WriteReg(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
-        WriteReg(0x27, 0x10);  // hold 4s to power off
+        WriteRegWithRetry(0x22, 0b110); // PWRON > OFFLEVEL as POWEROFF Source enable
+        WriteRegWithRetry(0x27, 0x10);  // hold 4s to power off
 
         // Disable All DCs but DC1
-        WriteReg(0x80, 0x01);
+        WriteRegWithRetry(0x80, 0x01);
         // Disable All LDOs
-        WriteReg(0x90, 0x00);
-        WriteReg(0x91, 0x00);
+        WriteRegWithRetry(0x90, 0x00);
+        WriteRegWithRetry(0x91, 0x00);
 
         // Set DC1 to 3.3V
-        WriteReg(0x82, (3300 - 1500) / 100);
+        WriteRegWithRetry(0x82, (3300 - 1500) / 100);
 
         // Set ALDO1 to 3.3V
-        WriteReg(0x92, (3300 - 500) / 100);
+        WriteRegWithRetry(0x92, (3300 - 500) / 100);
 
         // Enable ALDO1(MIC)
-        WriteReg(0x90, 0x01);
+        WriteRegWithRetry(0x90, 0x01);
     
-        WriteReg(0x64, 0x02); // CV charger voltage setting to 4.1V
+        WriteRegWithRetry(0x64, 0x02); // CV charger voltage setting to 4.1V
         
-        WriteReg(0x61, 0x02); // set Main battery precharge current to 50mA
-        WriteReg(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
-        WriteReg(0x63, 0x01); // set Main battery term charge current to 25mA
+        WriteRegWithRetry(0x61, 0x02); // set Main battery precharge current to 50mA
+        WriteRegWithRetry(0x62, 0x08); // set Main battery charger current to 400mA ( 0x08-200mA, 0x09-300mA, 0x0A-400mA )
+        WriteRegWithRetry(0x63, 0x01); // set Main battery term charge current to 25mA
     }
 
     void EnablePowerButtonShortPressIrq() {
         ClearIrqStatus();
-        WriteReg(0x41, ReadReg(0x41) | 0x08); // Enable AXP2101 PWRON short press IRQ
+        uint8_t value = 0;
+        if (ReadRegWithRetry(0x41, value)) {
+            WriteRegWithRetry(0x41, value | 0x08); // Enable AXP2101 PWRON short press IRQ
+        }
     }
 
     bool ConsumePowerButtonShortPressIrq() {
-        uint8_t status = ReadReg(0x49);
+        uint8_t status = 0;
+        if (!ReadRegWithRetry(0x49, status, 1)) {
+            return false;
+        }
         if (status != 0) {
-            WriteReg(0x49, status);
+            WriteRegWithRetry(0x49, status, 1);
         }
         return (status & 0x08) != 0;
     }
 
     void ClearIrqStatus() {
-        WriteReg(0x48, 0xff);
-        WriteReg(0x49, 0xff);
-        WriteReg(0x4a, 0xff);
+        WriteRegWithRetry(0x48, 0xff);
+        WriteRegWithRetry(0x49, 0xff);
+        WriteRegWithRetry(0x4a, 0xff);
+    }
+
+private:
+    static constexpr int kPmicI2cRetries = 5;
+    static constexpr int kPmicI2cRetryDelayMs = 50;
+
+    bool WriteRegWithRetry(uint8_t reg, uint8_t value, int retries = kPmicI2cRetries) {
+        uint8_t buffer[2] = {reg, value};
+        for (int i = 0; i < retries; ++i) {
+            esp_err_t ret = i2c_master_transmit(i2c_device_, buffer, sizeof(buffer), 100);
+            if (ret == ESP_OK) {
+                return true;
+            }
+            ESP_LOGW(TAG, "AXP2101 write reg 0x%02x failed: %s, retry %d/%d",
+                     reg, esp_err_to_name(ret), i + 1, retries);
+            vTaskDelay(pdMS_TO_TICKS(kPmicI2cRetryDelayMs));
+        }
+        return false;
+    }
+
+    bool ReadRegWithRetry(uint8_t reg, uint8_t& value, int retries = kPmicI2cRetries) {
+        for (int i = 0; i < retries; ++i) {
+            esp_err_t ret = i2c_master_transmit_receive(i2c_device_, &reg, 1, &value, 1, 100);
+            if (ret == ESP_OK) {
+                return true;
+            }
+            ESP_LOGW(TAG, "AXP2101 read reg 0x%02x failed: %s, retry %d/%d",
+                     reg, esp_err_to_name(ret), i + 1, retries);
+            vTaskDelay(pdMS_TO_TICKS(kPmicI2cRetryDelayMs));
+        }
+        return false;
     }
 };
 
@@ -123,8 +160,15 @@ public:
         SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES * 0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES * 0.1, 0);
+        const lv_coord_t side_safe_area = LV_HOR_RES * 0.2;
+        const lv_coord_t status_width = LV_HOR_RES - side_safe_area * 2;
+
+        lv_obj_set_style_pad_left(status_bar_, side_safe_area, 0);
+        lv_obj_set_style_pad_right(status_bar_, side_safe_area, 0);
+        lv_obj_set_width(status_label_, status_width);
+        lv_obj_set_width(notification_label_, status_width);
+        lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_align(notification_label_, LV_ALIGN_CENTER, 0, 0);
     }
 };
 
@@ -235,9 +279,17 @@ private:
     }
 
     void InitializeTca9554(void) {
-        esp_err_t ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
-        if(ret != ESP_OK)
-            ESP_LOGE(TAG, "TCA9554 create returned error");
+        esp_err_t ret = ESP_FAIL;
+        for (int i = 0; i < 5; ++i) {
+            ret = esp_io_expander_new_i2c_tca9554(codec_i2c_bus_, I2C_ADDRESS, &io_expander);
+            if (ret == ESP_OK) {
+                break;
+            }
+            ESP_LOGW(TAG, "TCA9554 create failed: %s, retry %d/5", esp_err_to_name(ret), i + 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        ESP_ERROR_CHECK(ret);
+
         ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 |IO_EXPANDER_PIN_NUM_2, IO_EXPANDER_OUTPUT);
         ret |= esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_4, IO_EXPANDER_INPUT);
         ESP_ERROR_CHECK(ret);
@@ -288,15 +340,10 @@ private:
 
         // 液晶屏控制IO初始化
         ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = EXAMPLE_PIN_NUM_LCD_CS;
-        io_config.dc_gpio_num = GPIO_NUM_NC;
-        io_config.spi_mode = 0;
-        io_config.pclk_hz = 40 * 1000 * 1000;
-        io_config.trans_queue_depth = 10;
-        io_config.lcd_cmd_bits = 32;
-        io_config.lcd_param_bits = 8;
-        io_config.flags.quad_mode = true;
+        esp_lcd_panel_io_spi_config_t io_config = CO5300_PANEL_IO_QSPI_CONFIG(
+            EXAMPLE_PIN_NUM_LCD_CS,
+            nullptr,
+            nullptr);
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_config, &panel_io));
 
         // 初始化液晶屏驱动芯片
@@ -343,14 +390,21 @@ private:
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = {};
-        tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS;
-        tp_io_config.scl_speed_hz = 400 * 1000;
-        tp_io_config.control_phase_bytes = 1;
-        tp_io_config.dc_bit_offset = 0;
-        tp_io_config.lcd_cmd_bits = 8;
-        tp_io_config.lcd_param_bits = 0;
-        tp_io_config.flags.disable_control_phase = 1;
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS,
+            .on_color_trans_done = 0,
+            .user_ctx = 0,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 8,
+            .lcd_param_bits = 0,
+            .flags =
+            {
+                .dc_low_on_data = 0,
+                .disable_control_phase = 1,
+            },
+        };
+        tp_io_config.scl_speed_hz = 400*  1000;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(codec_i2c_bus_, &tp_io_config, &tp_io_handle));
         ESP_LOGI(TAG, "Initialize touch controller");
         ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst816s(tp_io_handle, &tp_cfg, &tp));
