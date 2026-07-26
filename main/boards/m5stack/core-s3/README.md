@@ -4,7 +4,7 @@
 **编译**
 
 ```bash
-python ./scripts/release.py m5stack-core-s3
+python ./scripts/build.py m5stack-core-s3
 ```
 
 如需手动编译，请参考 `m5stack-core-s3/config.json` 修改 menuconfig 对应选项。

@@ -23,7 +23,7 @@ ESP-Hi x 小智内置了一个控制身体运动的 WebUI，请将手机与 ESP-
 **编译**
 
 ```bash
-python ./scripts/release.py espressif/esp-hi
+python ./scripts/build.py espressif/esp-hi
 ```
 
 如需手动编译，请参考 `main/boards/espressif/esp-hi/config.json` 修改 menuconfig 对应选项。

@@ -27,7 +27,7 @@ ESP-SensairShuttle 主控采用乐鑫 ESP32-C5-WROOM-1-N16R8 模组，具有 2.4
 **编译**
 
 ```bash
-python ./scripts/release.py espressif/esp-sensairshuttle
+python ./scripts/build.py espressif/esp-sensairshuttle
 ```
 
 如需手动编译，请参考 `main/boards/espressif/esp-sensairshuttle/config.json` 修改 menuconfig 对应选项。

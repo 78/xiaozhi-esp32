@@ -53,7 +53,7 @@ pair, but its display, keyboard, and always-on amplifier topology are different.
 
 ```sh
 source /path/to/esp-idf-release-v6.1/export.sh
-python3 scripts/release.py espressif/esp32-s31-function-coreboard-1
+python3 scripts/build.py espressif/esp32-s31-function-coreboard-1
 ```
 
 After connecting a speaker to J9, flash the generated firmware through either

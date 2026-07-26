@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 import json
@@ -15,20 +17,8 @@ os.chdir(Path(__file__).resolve().parent.parent)
 # Common utility functions
 ################################################################################
 
-def get_board_type_from_compile_commands() -> Optional[str]:
-    """Parse the current compiled BOARD_TYPE from build/compile_commands.json"""
-    compile_file = Path("build/compile_commands.json")
-    if not compile_file.exists():
-        return None
-    with compile_file.open(encoding='utf-8') as f:
-        data = json.load(f)
-    for item in data:
-        if not item["file"].endswith("main.cc"):
-            continue
-        cmd = item["command"]
-        if "-DBOARD_TYPE=\\\"" in cmd:
-            return cmd.split("-DBOARD_TYPE=\\\"")[1].split("\\\"")[0].strip()
-    return None
+
+_DEFAULT_IDF_VERSION = (6, 0, 2)
 
 
 def get_project_version() -> Optional[str]:
@@ -40,11 +30,18 @@ def get_project_version() -> Optional[str]:
     return None
 
 
-def merge_bin(preview: bool = False) -> None:
-    idf_command = "idf.py --preview" if preview else "idf.py"
-    if os.system(f"{idf_command} merge-bin") != 0:
-        print("merge-bin failed", file=sys.stderr)
+def _run_idf(*args: str, preview: bool = False) -> None:
+    command = ["idf.py"]
+    if preview:
+        command.append("--preview")
+    command.extend(args)
+    if subprocess.run(command, check=False).returncode != 0:
+        print(f"{' '.join(command)} failed", file=sys.stderr)
         sys.exit(1)
+
+
+def merge_bin(preview: bool = False) -> None:
+    _run_idf("merge-bin", preview=preview)
 
 
 def zip_bin(name: str, version: str) -> None:
@@ -59,6 +56,7 @@ def zip_bin(name: str, version: str) -> None:
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zipf:
         zipf.write("build/merged-binary.bin", arcname="merged-binary.bin")
     print(f"zip bin to {output_path} done")
+
 
 def _get_manufacturer(cfg: dict) -> Optional[str]:
     """Read manufacturer from config.json"""
@@ -139,8 +137,21 @@ def _detect_idf_version() -> tuple[int, int, int]:
         return _parse_version(output)
     except (FileNotFoundError, subprocess.CalledProcessError, ValueError) as error:
         raise RuntimeError(
-            "ESP-IDF version was not detected. Source export.sh before running release.py."
+            "ESP-IDF version was not detected. Source export.sh before running build.py."
         ) from error
+
+
+def _detect_idf_version_for_listing() -> tuple[int, int, int]:
+    """Detect IDF when available, otherwise list the preferred IDF 6.0 variants."""
+    try:
+        return _detect_idf_version()
+    except RuntimeError:
+        version = ".".join(str(part) for part in _DEFAULT_IDF_VERSION)
+        print(
+            f"[WARN] ESP-IDF is not active; listing variants for ESP-IDF {version}.",
+            file=sys.stderr,
+        )
+        return _DEFAULT_IDF_VERSION
 
 
 def _version_matches(version: tuple[int, int, int], expression: str) -> bool:
@@ -264,8 +275,8 @@ def _select_variants_for_changes(
         ".github/workflows/build.yml",
         "CMakeLists.txt",
         "scripts/build_default_assets.py",
+        "scripts/build.py",
         "scripts/gen_lang.py",
-        "scripts/release.py",
         "scripts/versions.py",
     }
 
@@ -474,19 +485,111 @@ def _board_type_exists(board_type: str) -> bool:
 # Compile implementation
 ################################################################################
 
-def release(
+
+def _target_from_sdkconfig() -> Optional[str]:
+    sdkconfig = Path("sdkconfig")
+    if not sdkconfig.exists():
+        return None
+    match = re.search(
+        r'^CONFIG_IDF_TARGET="([^"]+)"$',
+        sdkconfig.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    return match.group(1) if match else None
+
+
+def _target_from_cmake_cache() -> Optional[str]:
+    cache = Path("build/CMakeCache.txt")
+    if not cache.exists():
+        return None
+    match = re.search(
+        r"^IDF_TARGET(?::[^=]+)?=(.+)$",
+        cache.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    return match.group(1).strip() if match else None
+
+
+def _configured_target() -> Optional[str]:
+    """Return the current target when sdkconfig and CMake state agree."""
+    sdkconfig_target = _target_from_sdkconfig()
+    cache_target = _target_from_cmake_cache()
+    if sdkconfig_target and cache_target and sdkconfig_target != cache_target:
+        return None
+    return cache_target or sdkconfig_target
+
+
+def _ensure_target(target: str, preview: bool) -> bool:
+    """Switch targets only when needed; return whether set-target ran."""
+    current_target = _configured_target()
+    if current_target == target:
+        print(f"[INFO] Reusing target {target}; skipping idf.py set-target.")
+        return False
+
+    if current_target:
+        print(f"[INFO] Switching target from {current_target} to {target}.")
+    else:
+        print(f"[INFO] Configuring target {target}.")
+    _run_idf("set-target", target, preview=preview)
+    return True
+
+
+def _regenerate_sdkconfig(
+    target: str,
+    sdkconfig_append: list[str],
+    preview: bool,
+    *,
+    target_changed: bool = False,
+) -> None:
+    """Regenerate sdkconfig from project defaults plus the selected variant."""
+    sdkconfig = Path("sdkconfig")
+    sdkconfig_old = Path("sdkconfig.old")
+    if sdkconfig.exists():
+        if target_changed:
+            # set-target has already saved the user's previous config as
+            # sdkconfig.old. Discard only the fresh default config it created.
+            sdkconfig.unlink()
+        else:
+            if sdkconfig_old.exists():
+                sdkconfig_old.unlink()
+            sdkconfig.replace(sdkconfig_old)
+
+    fragment = Path("build/xiaozhi-build.sdkconfig.defaults")
+    fragment.parent.mkdir(parents=True, exist_ok=True)
+    fragment.write_text(
+        "# Generated by scripts/build.py\n"
+        + "\n".join(sdkconfig_append)
+        + "\n",
+        encoding="utf-8",
+    )
+
+    defaults = []
+    if Path("sdkconfig.defaults").exists():
+        defaults.append("sdkconfig.defaults")
+    defaults.append(fragment.as_posix())
+    _run_idf(
+        f"-DIDF_TARGET={target}",
+        f"-DSDKCONFIG_DEFAULTS={';'.join(defaults)}",
+        "reconfigure",
+        preview=preview,
+    )
+
+
+def build_board(
     board_type: str,
     config_filename: str = "config.json",
     *,
-    filter_name: Optional[str] = None,
+    name_filter: str,
+    create_zip: bool = False,
     idf_version: tuple[int, int, int] = (6, 0, 0),
 ) -> None:
-    """Compile and package all/specified variants of the specified board_type
+    """Compile one specified variant of the specified board type.
 
     Args:
         board_type: directory name under main/boards
         config_filename: config.json name (default: config.json)
-        filter_name: if specified, only compile the build["name"] that matches
+        name_filter: build["name"] to compile
+        create_zip: package merged-binary.bin under releases/ when true
     """
     cfg_path = _BOARDS_DIR / Path(board_type) / config_filename
     if not cfg_path.exists():
@@ -503,23 +606,21 @@ def release(
     preview = cfg.get("preview", False)
     if not isinstance(preview, bool):
         raise ValueError(f"{cfg_path}: preview must be a boolean")
-    idf_command = "idf.py --preview" if preview else "idf.py"
     manufacturer = _get_manufacturer(cfg)
 
     builds = _get_builds_for_idf(cfg, idf_version)
-    if filter_name:
-        builds = [b for b in builds if b["name"] == filter_name]
-        if not builds:
-            print(f"[ERROR] Variant {filter_name} not found in {board_type}'s {config_filename}", file=sys.stderr)
-            sys.exit(1)
+    builds = [build for build in builds if build["name"] == name_filter]
+    if not builds:
+        print(
+            f"[ERROR] Variant {name_filter} not found in "
+            f"{board_type}'s {config_filename}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     for build in builds:
         name = build["name"]
         final_name = _get_release_full_name(manufacturer, build)
-        output_path = Path("releases") / f"v{project_version}_{final_name}.zip"
-        if output_path.exists():
-            print(f"Skipping {final_name} because {output_path} already exists")
-            continue
 
         # Process sdkconfig_append
         build_sdkconfig_append = build.get("sdkconfig_append", [])
@@ -548,79 +649,130 @@ def release(
             print(f"sdkconfig_append: {item}")
 
         os.environ.pop("IDF_TARGET", None)
+        target_changed = _ensure_target(target, preview)
+        _regenerate_sdkconfig(
+            target,
+            sdkconfig_append,
+            preview,
+            target_changed=target_changed,
+        )
 
-        # Call set-target
-        if os.system(f"{idf_command} set-target {target}") != 0:
-            print("set-target failed", file=sys.stderr)
-            sys.exit(1)
-
-        # Append sdkconfig
-        with Path("sdkconfig").open("a", encoding='utf-8') as f:
-            f.write("\n")
-            f.write("# Append by release.py\n")
-            for append in sdkconfig_append:
-                f.write(f"{append}\n")
         # build.name is the compatibility-sensitive OTA-reported board identity.
-        if os.system(f"{idf_command} -DBOARD_NAME={name} build") != 0:
-            print("build failed")
-            sys.exit(1)
+        _run_idf(f"-DBOARD_NAME={name}", "build", preview=preview)
 
         # merge-bin
         merge_bin(preview)
 
-        # Zip
-        zip_bin(final_name, project_version)
+        if create_zip:
+            zip_bin(final_name, project_version)
 
 ################################################################################
 # CLI entry
 ################################################################################
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+
+def _print_board_list(variants: list[dict[str, str]]) -> None:
+    by_board: dict[str, list[str]] = {}
+    for variant in variants:
+        by_board.setdefault(variant["board"], []).append(variant["name"])
+
+    for board, names in by_board.items():
+        print(board)
+        if len(names) > 1:
+            for name in names:
+                print(f"  - {name}")
+
+
+def _select_variant(board: str, variants: list[dict[str, str]]) -> str:
+    board_variants = [variant for variant in variants if variant["board"] == board]
+    if not board_variants:
+        print(f"[ERROR] No build variants found for {board}.", file=sys.stderr)
+        sys.exit(1)
+    if len(board_variants) == 1:
+        return board_variants[0]["name"]
+
+    print(f"Available variants for {board}:")
+    for index, variant in enumerate(board_variants, start=1):
+        print(f"  {index}. {variant['name']}")
+
+    if not sys.stdin.isatty():
+        print(
+            "[ERROR] Multiple variants found in non-interactive mode; "
+            "select one with --name.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    while True:
+        try:
+            answer = input(f"Select a variant [1-{len(board_variants)}]: ").strip()
+        except EOFError:
+            print("\n[ERROR] No variant selected.", file=sys.stderr)
+            sys.exit(2)
+        if answer.isdigit() and 1 <= int(answer) <= len(board_variants):
+            return board_variants[int(answer) - 1]["name"]
+        for variant in board_variants:
+            if answer == variant["name"]:
+                return variant["name"]
+        print("Enter a listed number or variant name.")
+
+
+def main(argv: Optional[list[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Configure and build one XiaoZhi board variant.",
+    )
     parser.add_argument("board", nargs="?", default=None, help="Board type or 'all'")
     parser.add_argument("-c", "--config", default="config.json", help="Config filename (default: config.json)")
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
     parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
     parser.add_argument("--name", help="build.name to compile (the OTA-reported board name)")
     parser.add_argument(
+        "--zip",
+        action="store_true",
+        help="Also recreate releases/v<version>_<name>.zip",
+    )
+    parser.add_argument(
         "--select-changed",
         action="store_true",
         help="Read changed paths from stdin and output the affected variants as JSON",
     )
 
-    args = parser.parse_args()
-    idf_version = _detect_idf_version()
+    args = parser.parse_args(argv)
 
     if args.select_changed:
+        if args.board or args.list_boards or args.name or args.zip or args.json:
+            parser.error("--select-changed cannot be combined with build or list options")
+        idf_version = _detect_idf_version_for_listing()
         variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
         selected = _select_variants_for_changes(variants, sys.stdin.read().splitlines())
         print(json.dumps(selected))
-        sys.exit(0)
+        return
 
-    # List mode
-    if args.list_boards:
+    # No arguments are a safe discovery mode. --list-boards is retained for CI.
+    if args.list_boards or args.board is None:
+        if args.list_boards and args.board is not None:
+            parser.error("--list-boards does not accept a board")
+        if args.zip or args.name:
+            parser.error("--zip and --name require a board")
+        idf_version = _detect_idf_version_for_listing()
         variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
         if args.json:
             print(json.dumps(variants))
+        elif args.board is None:
+            _print_board_list(variants)
         else:
             for v in variants:
                 print(f"{v['board']}: {v['name']}")
-        sys.exit(0)
-
-    # Current directory firmware packaging mode
-    if args.board is None:
-        merge_bin()
-        curr_board_type = get_board_type_from_compile_commands()
-        if curr_board_type is None:
-            print("Failed to parse board_type from compile_commands.json", file=sys.stderr)
-            sys.exit(1)
-        project_ver = get_project_version()
-        zip_bin(curr_board_type, project_ver)
-        sys.exit(0)
+        return
 
     # Compile mode
     board_type_input: str = args.board
     name_filter: Optional[str] = args.name
+    idf_version = _detect_idf_version()
+    if args.json:
+        parser.error("--json is only valid when listing boards")
+    if board_type_input == "all" and name_filter:
+        parser.error("--name cannot be combined with board 'all'")
 
     # Check board_type in CMakeLists
     if board_type_input != "all" and not _board_type_exists(board_type_input):
@@ -629,24 +781,41 @@ if __name__ == "__main__":
 
     variants_all = _collect_variants(config_filename=args.config, idf_version=idf_version)
 
-    # Filter board_type list
-    target_board_types: set[str]
     if board_type_input == "all":
-        target_board_types = {v["board"] for v in variants_all}
+        selected_variants = variants_all
     else:
-        target_board_types = {board_type_input}
+        if name_filter is None:
+            name_filter = _select_variant(board_type_input, variants_all)
+        selected_variants = [
+            variant
+            for variant in variants_all
+            if variant["board"] == board_type_input
+            and variant["name"] == name_filter
+        ]
+        if not selected_variants:
+            print(
+                f"[ERROR] Variant {name_filter} not found for {board_type_input}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
-    for bt in sorted(target_board_types):
+    for variant in selected_variants:
+        bt = variant["board"]
         if not _board_type_exists(bt):
             print(f"[ERROR] board_type {bt} not found in main/CMakeLists.txt", file=sys.stderr)
             sys.exit(1)
         cfg_path = _BOARDS_DIR / bt / args.config
         if bt == board_type_input and not cfg_path.exists():
             print(f"Board {bt} has no {args.config} config file, skipping")
-            sys.exit(0)
-        release(
+            return
+        build_board(
             bt,
             config_filename=args.config,
-            filter_name=name_filter if bt == board_type_input else None,
+            name_filter=variant["name"],
+            create_zip=args.zip,
             idf_version=idf_version,
         )
+
+
+if __name__ == "__main__":
+    main()

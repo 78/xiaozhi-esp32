@@ -3,7 +3,7 @@
 ## One-click Build
 
 ```bash
-python scripts/release.py sensecap-watcher -c config_en.json
+python scripts/build.py sensecap-watcher -c config_en.json
 ```
 
 ## Manual Configuration and Build

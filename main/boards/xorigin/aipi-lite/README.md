@@ -3,7 +3,7 @@
 ## 一键编译
 
 ```bash
-python scripts/release.py xorigin/aipi-lite
+python scripts/build.py xorigin/aipi-lite
 ```
 
 ## 手动配置编译

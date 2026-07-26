@@ -23,7 +23,7 @@ https://e.tb.cn/h.hBc8Gcx9cUluJJO?tk=YW5C4LPixKg
 **编译**
 
 ```bash
-python ./scripts/release.py zhengchen-cam
+python ./scripts/build.py zhengchen-cam
 ```
 
 如需手动编译，请参考 `zhengchen-cam/config.json` 修改 menuconfig 对应选项。

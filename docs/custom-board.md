@@ -4,7 +4,7 @@ This guide describes how to add a new board to the XiaoZhi AI voice assistant pr
 
 ## Important
 
-> **Warning**: for a custom board whose IO configuration differs from an existing board, never overwrite the original board's configuration. Always create a new board type - or use the `builds` array in `config.json` to produce a distinct firmware name with different `sdkconfig` macros. Use `python scripts/release.py [board-directory]` to build and package the firmware.
+> **Warning**: for a custom board whose IO configuration differs from an existing board, never overwrite the original board's configuration. Always create a new board type - or use the `builds` array in `config.json` to produce a distinct firmware name with different `sdkconfig` macros. Use `python scripts/build.py [board-directory]` to build the firmware.
 >
 > Overwriting an existing board's configuration is dangerous because OTA updates may replace your custom firmware with the stock firmware for the original board. Every board must have a unique identity and its own firmware update channel.
 
@@ -14,7 +14,7 @@ A board directory typically contains:
 
 - `xxx_board.cc` - board-level initialization and glue code.
 - `config.h` - pin assignments and board-level settings.
-- `config.json` - reported board type and release configuration consumed by CMake and `scripts/release.py`.
+- `config.json` - reported board type and release configuration consumed by CMake and `scripts/build.py`.
 - `README.md` - board-specific notes.
 
 Boards can live directly under `main/boards/` or be grouped by manufacturer under `main/boards/<manufacturer>/<board>/` (see [Manufacturer Sub-directories](#manufacturer-sub-directories) below).
@@ -89,7 +89,7 @@ Example (from `lichuang-c3-dev`):
 
 #### config.json
 
-`config.json` defines the compatibility-sensitive reported type and drives `scripts/release.py`:
+`config.json` defines the compatibility-sensitive reported type and drives `scripts/build.py`:
 
 ```json
 {
@@ -358,19 +358,24 @@ Emoji collections:
    idf.py flash monitor
    ```
 
-#### Option B - use `release.py` (recommended)
+#### Option B - use `build.py` (recommended)
 
-If the board directory contains a `config.json`, you can build and package automatically:
+If the board directory contains a `config.json`, you can configure and build it automatically:
 
 ```bash
-python scripts/release.py my-custom-board
+python scripts/build.py my-custom-board
 ```
 
 The script:
-- Reads `target` from `config.json` and calls `idf.py set-target`.
-- Passes each build's `name` as the reported firmware variant name.
-- Appends the entries listed in `sdkconfig_append`.
-- Builds and packages the firmware.
+- Lists board types when run without arguments.
+- Prompts for a variant when the selected board has multiple builds. In
+  non-interactive environments, pass `--name <variant>`.
+- Reads `target` from `config.json`. It calls `idf.py set-target` only when the
+  target changes, then regenerates `sdkconfig` from defaults and the selected
+  build's `sdkconfig_append`.
+- Passes the selected build's `name` as the reported firmware variant name.
+- Builds `build/merged-binary.bin` without creating a ZIP by default. Pass
+  `--zip` to recreate `releases/v<version>_<name>.zip`.
 
 ### 6. Write the README
 

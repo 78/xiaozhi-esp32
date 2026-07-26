@@ -2,10 +2,10 @@
 
 ## 快速构建
 
-推荐使用 release 脚本生成完整固件包：
+推荐使用 build 脚本生成完整固件包：
 
 ```bash
-python scripts/release.py atoms3r-echo-base --name atoms3r-echo-base
+python scripts/build.py atoms3r-echo-base --name atoms3r-echo-base --zip
 ```
 
 生成的固件压缩包位于：

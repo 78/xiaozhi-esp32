@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import contextlib
+import io
 import re
 import tempfile
 import unittest
@@ -8,24 +11,24 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("release", ROOT / "scripts/release.py")
-release = importlib.util.module_from_spec(SPEC)
+SPEC = importlib.util.spec_from_file_location("build", ROOT / "scripts/build.py")
+build = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
-SPEC.loader.exec_module(release)
+SPEC.loader.exec_module(build)
 
 
 class VersionTests(unittest.TestCase):
     def test_parse_and_match(self):
-        self.assertEqual(release._parse_version("ESP-IDF v6.0.1"), (6, 0, 1))
-        self.assertTrue(release._version_matches((5, 5, 4), "<6.0"))
-        self.assertTrue(release._version_matches((6, 0, 1), ">=6.0"))
+        self.assertEqual(build._parse_version("ESP-IDF v6.0.1"), (6, 0, 1))
+        self.assertTrue(build._version_matches((5, 5, 4), "<6.0"))
+        self.assertTrue(build._version_matches((6, 0, 1), ">=6.0"))
         with self.assertRaises(ValueError):
-            release._version_matches((6, 0, 1), "~=6.0")
+            build._version_matches((6, 0, 1), "~=6.0")
 
     def test_current_matrix_uniqueness_and_p4_variants(self):
-        idf5 = release._collect_variants(idf_version=(5, 5, 4))
-        idf6 = release._collect_variants(idf_version=(6, 0, 1))
-        idf61 = release._collect_variants(idf_version=(6, 1, 0))
+        idf5 = build._collect_variants(idf_version=(5, 5, 4))
+        idf6 = build._collect_variants(idf_version=(6, 0, 1))
+        idf61 = build._collect_variants(idf_version=(6, 1, 0))
         for variants in (idf5, idf6, idf61):
             names = [variant["full_name"] for variant in variants]
             self.assertEqual(len(names), len(set(names)))
@@ -70,41 +73,41 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(aipi_en["manufacturer"], "xorigin")
         self.assertEqual(aipi_en["type"], "aipi-lite")
         self.assertEqual(
-            release._get_release_full_name(
+            build._get_release_full_name(
                 aipi_en["manufacturer"],
                 aipi_en["builds"][0],
             ),
             "xorigin-aipi-lite_en",
         )
         self.assertEqual(
-            release._get_release_full_name(
+            build._get_release_full_name(
                 "espressif",
                 {"name": "esp-box-3"},
             ),
             "espressif-esp-box-3",
         )
         self.assertEqual(
-            release._get_release_full_name(
+            build._get_release_full_name(
                 "espressif",
                 {"name": "esp32-p4x-function-ev-board"},
             ),
             "espressif-esp32-p4x-function-ev-board",
         )
         self.assertEqual(
-            release._normalize_p4x_release_name("m5stack-tab5-p4x"),
+            build._normalize_p4x_release_name("m5stack-tab5-p4x"),
             "m5stack-tab5-p4x",
         )
 
         for config_path in (ROOT / "main/boards").rglob("config.json"):
             config = json.loads(config_path.read_text(encoding="utf-8"))
-            self.assertEqual(release._get_reported_type(config), config["type"])
+            self.assertEqual(build._get_reported_type(config), config["type"])
             self.assertNotIn("board_name", config, config_path)
             self.assertNotIn("release_name", config, config_path)
             board = config_path.parent.relative_to(ROOT / "main/boards").as_posix()
-            self.assertTrue(release._board_type_exists(board), config_path)
-            for build in config.get("builds", []):
-                self.assertNotIn("board_name", build, config_path)
-                self.assertNotIn("release_name", build, config_path)
+            self.assertTrue(build._board_type_exists(board), config_path)
+            for build_config in config.get("builds", []):
+                self.assertNotIn("board_name", build_config, config_path)
+                self.assertNotIn("release_name", build_config, config_path)
 
         cmake = (ROOT / "main/CMakeLists.txt").read_text(encoding="utf-8")
         self.assertNotIn("set(MANUFACTURER", cmake)
@@ -135,7 +138,7 @@ class BoardSelectionTests(unittest.TestCase):
         ]
 
     def test_nested_manufacturer_board_path(self):
-        selected = release._select_variants_for_changes(
+        selected = build._select_variants_for_changes(
             self.variants,
             ["main/boards/waveshare/esp32-c6-touch-amoled-2.06/config.h"],
         )
@@ -143,17 +146,17 @@ class BoardSelectionTests(unittest.TestCase):
 
     def test_official_directory_can_keep_legacy_board_type(self):
         board = "espressif/esp32-s3-box-3"
-        self.assertTrue(release._board_type_exists(board))
+        self.assertTrue(build._board_type_exists(board))
         self.assertEqual(
-            release._resolve_board_config(board, "esp32s3", []),
+            build._resolve_board_config(board, "esp32s3", []),
             "CONFIG_BOARD_TYPE_ESP32_S3_BOX_3",
         )
 
     def test_m5stack_directory_can_omit_manufacturer_prefix(self):
         board = "m5stack/cardputer-adv"
-        self.assertTrue(release._board_type_exists(board))
+        self.assertTrue(build._board_type_exists(board))
         self.assertEqual(
-            release._resolve_board_config(board, "esp32s3", []),
+            build._resolve_board_config(board, "esp32s3", []),
             "CONFIG_BOARD_TYPE_M5STACK_CARDPUTER_ADV",
         )
 
@@ -169,14 +172,14 @@ class BoardSelectionTests(unittest.TestCase):
         }
         for board, expected in cases.items():
             with self.subTest(board=board):
-                self.assertTrue(release._board_type_exists(board))
+                self.assertTrue(build._board_type_exists(board))
                 config = json.loads(
                     (ROOT / "main/boards" / board / "config.json").read_text(
                         encoding="utf-8"
                     )
                 )
                 self.assertEqual(
-                    release._resolve_board_config(
+                    build._resolve_board_config(
                         board,
                         config["target"],
                         config["builds"][0].get("sdkconfig_append", []),
@@ -209,7 +212,7 @@ class BoardSelectionTests(unittest.TestCase):
                 self.assertEqual(config["manufacturer"], "alientek")
                 self.assertEqual(config["type"], expected_type)
                 self.assertEqual(
-                    release._resolve_board_config(
+                    build._resolve_board_config(
                         board,
                         config["target"],
                         config.get("sdkconfig_append", []),
@@ -219,11 +222,11 @@ class BoardSelectionTests(unittest.TestCase):
 
     def test_same_leaf_names_are_scoped_by_manufacturer(self):
         self.assertEqual(
-            release._resolve_board_config("magiclick/c3", "esp32c3", []),
+            build._resolve_board_config("magiclick/c3", "esp32c3", []),
             "CONFIG_BOARD_TYPE_MAGICLICK_C3",
         )
         self.assertEqual(
-            release._resolve_board_config("xmini/c3", "esp32c3", []),
+            build._resolve_board_config("xmini/c3", "esp32c3", []),
             "CONFIG_BOARD_TYPE_XMINI_C3",
         )
 
@@ -233,17 +236,17 @@ class BoardSelectionTests(unittest.TestCase):
             "main/application.cc",
             "components/esp-ml307/src/at_modem.cc",
             "scripts/build_default_assets.py",
-            "scripts/release.py",
+            "scripts/build.py",
         ):
             with self.subTest(path=path):
                 self.assertEqual(
-                    release._select_variants_for_changes(self.variants, [path]),
+                    build._select_variants_for_changes(self.variants, [path]),
                     self.variants,
                 )
 
     def test_docs_only_selects_none(self):
         self.assertEqual(
-            release._select_variants_for_changes(self.variants, ["docs/readme.md"]),
+            build._select_variants_for_changes(self.variants, ["docs/readme.md"]),
             [],
         )
 
@@ -344,9 +347,9 @@ class InvalidConfigTests(unittest.TestCase):
                 "target": "esp32s3",
                 "builds": [{"name": "bad-board"}],
             }), encoding="utf-8")
-            with mock.patch.object(release, "_BOARDS_DIR", boards):
+            with mock.patch.object(build, "_BOARDS_DIR", boards):
                 with self.assertRaisesRegex(ValueError, 'top-level "type"'):
-                    release._collect_variants(idf_version=(6, 0, 1))
+                    build._collect_variants(idf_version=(6, 0, 1))
 
     def test_invalid_version_rule_fails_collection(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -361,17 +364,251 @@ class InvalidConfigTests(unittest.TestCase):
                     "idf_version": "~=6.0",
                 }],
             }), encoding="utf-8")
-            with mock.patch.object(release, "_BOARDS_DIR", boards):
+            with mock.patch.object(build, "_BOARDS_DIR", boards):
                 with self.assertRaisesRegex(ValueError, "Invalid ESP-IDF version expression"):
-                    release._collect_variants(idf_version=(6, 0, 1))
+                    build._collect_variants(idf_version=(6, 0, 1))
 
 
 class PreviewTargetTests(unittest.TestCase):
     def test_merge_bin_enables_preview_mode(self):
-        with mock.patch.object(release.os, "system", return_value=0) as system:
-            release.merge_bin(preview=True)
+        with mock.patch.object(build, "_run_idf") as run_idf:
+            build.merge_bin(preview=True)
 
-        system.assert_called_once_with("idf.py --preview merge-bin")
+        run_idf.assert_called_once_with("merge-bin", preview=True)
+
+
+class TargetConfigurationTests(unittest.TestCase):
+    def test_same_target_skips_set_target(self):
+        with (
+            mock.patch.object(build, "_configured_target", return_value="esp32s3"),
+            mock.patch.object(build, "_run_idf") as run_idf,
+        ):
+            changed = build._ensure_target("esp32s3", preview=False)
+
+        run_idf.assert_not_called()
+        self.assertFalse(changed)
+
+    def test_changed_target_calls_set_target(self):
+        with (
+            mock.patch.object(build, "_configured_target", return_value="esp32c3"),
+            mock.patch.object(build, "_run_idf") as run_idf,
+        ):
+            changed = build._ensure_target("esp32s3", preview=True)
+
+        run_idf.assert_called_once_with(
+            "set-target",
+            "esp32s3",
+            preview=True,
+        )
+        self.assertTrue(changed)
+
+    def test_regenerate_sdkconfig_uses_clean_variant_fragment(self):
+        previous_cwd = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                Path("sdkconfig").write_text(
+                    'CONFIG_IDF_TARGET="esp32s3"\nCONFIG_OLD_VARIANT=y\n',
+                    encoding="utf-8",
+                )
+                Path("sdkconfig.defaults").write_text(
+                    "CONFIG_PROJECT_DEFAULT=y\n",
+                    encoding="utf-8",
+                )
+
+                with mock.patch.object(build, "_run_idf") as run_idf:
+                    build._regenerate_sdkconfig(
+                        "esp32s3",
+                        ["CONFIG_BOARD_TYPE_TEST=y", "CONFIG_FEATURE=y"],
+                        preview=False,
+                    )
+
+                self.assertFalse(Path("sdkconfig").exists())
+                self.assertIn(
+                    "CONFIG_OLD_VARIANT=y",
+                    Path("sdkconfig.old").read_text(encoding="utf-8"),
+                )
+                fragment = Path("build/xiaozhi-build.sdkconfig.defaults")
+                self.assertEqual(
+                    fragment.read_text(encoding="utf-8"),
+                    "# Generated by scripts/build.py\n"
+                    "CONFIG_BOARD_TYPE_TEST=y\n"
+                    "CONFIG_FEATURE=y\n",
+                )
+                run_idf.assert_called_once_with(
+                    "-DIDF_TARGET=esp32s3",
+                    "-DSDKCONFIG_DEFAULTS="
+                    "sdkconfig.defaults;build/xiaozhi-build.sdkconfig.defaults",
+                    "reconfigure",
+                    preview=False,
+                )
+        finally:
+            os.chdir(previous_cwd)
+
+    def test_target_change_preserves_set_target_backup(self):
+        previous_cwd = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                Path("sdkconfig").write_text(
+                    'CONFIG_IDF_TARGET="esp32s3"\n',
+                    encoding="utf-8",
+                )
+                Path("sdkconfig.old").write_text(
+                    "CONFIG_USER_PREVIOUS_VALUE=y\n",
+                    encoding="utf-8",
+                )
+
+                with mock.patch.object(build, "_run_idf"):
+                    build._regenerate_sdkconfig(
+                        "esp32s3",
+                        ["CONFIG_BOARD_TYPE_TEST=y"],
+                        preview=False,
+                        target_changed=True,
+                    )
+
+                self.assertFalse(Path("sdkconfig").exists())
+                self.assertEqual(
+                    Path("sdkconfig.old").read_text(encoding="utf-8"),
+                    "CONFIG_USER_PREVIOUS_VALUE=y\n",
+                )
+        finally:
+            os.chdir(previous_cwd)
+
+
+class VariantSelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.variants = [
+            {"board": "test-board", "name": "variant-a", "full_name": "variant-a"},
+            {"board": "test-board", "name": "variant-b", "full_name": "variant-b"},
+        ]
+
+    def test_non_interactive_selection_requires_name(self):
+        stdin = mock.Mock()
+        stdin.isatty.return_value = False
+        with (
+            mock.patch.object(build.sys, "stdin", stdin),
+            self.assertRaisesRegex(SystemExit, "2"),
+        ):
+            build._select_variant("test-board", self.variants)
+
+    def test_interactive_selection_accepts_number(self):
+        stdin = mock.Mock()
+        stdin.isatty.return_value = True
+        with (
+            mock.patch.object(build.sys, "stdin", stdin),
+            mock.patch("builtins.input", return_value="2"),
+        ):
+            selected = build._select_variant("test-board", self.variants)
+
+        self.assertEqual(selected, "variant-b")
+
+
+class CliTests(unittest.TestCase):
+    def setUp(self):
+        self.variants = [
+            {
+                "board": "bread-compact-wifi",
+                "name": "bread-compact-wifi",
+                "full_name": "bread-compact-wifi",
+            },
+            {
+                "board": "multi-board",
+                "name": "variant-a",
+                "full_name": "variant-a",
+            },
+            {
+                "board": "multi-board",
+                "name": "variant-b",
+                "full_name": "variant-b",
+            },
+        ]
+
+    def test_no_arguments_lists_boards_without_building(self):
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                build,
+                "_detect_idf_version_for_listing",
+                return_value=(6, 0, 2),
+            ),
+            mock.patch.object(
+                build,
+                "_collect_variants",
+                return_value=self.variants,
+            ),
+            mock.patch.object(build, "build_board") as build_board,
+            contextlib.redirect_stdout(output),
+        ):
+            build.main([])
+
+        build_board.assert_not_called()
+        self.assertEqual(
+            output.getvalue(),
+            "bread-compact-wifi\n"
+            "multi-board\n"
+            "  - variant-a\n"
+            "  - variant-b\n",
+        )
+
+    def test_build_does_not_create_zip_by_default(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 0, 2)),
+            mock.patch.object(build, "_board_type_exists", return_value=True),
+            mock.patch.object(
+                build,
+                "_collect_variants",
+                return_value=self.variants,
+            ),
+            mock.patch.object(build, "build_board") as build_board,
+        ):
+            build.main(["bread-compact-wifi"])
+
+        build_board.assert_called_once_with(
+            "bread-compact-wifi",
+            config_filename="config.json",
+            name_filter="bread-compact-wifi",
+            create_zip=False,
+            idf_version=(6, 0, 2),
+        )
+
+    def test_zip_flag_is_forwarded(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 0, 2)),
+            mock.patch.object(build, "_board_type_exists", return_value=True),
+            mock.patch.object(
+                build,
+                "_collect_variants",
+                return_value=self.variants,
+            ),
+            mock.patch.object(build, "build_board") as build_board,
+        ):
+            build.main(["bread-compact-wifi", "--zip"])
+
+        self.assertTrue(build_board.call_args.kwargs["create_zip"])
+
+
+class ZipTests(unittest.TestCase):
+    def test_zip_is_always_recreated(self):
+        previous_cwd = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                Path("build").mkdir()
+                Path("build/merged-binary.bin").write_bytes(b"new firmware")
+                Path("releases").mkdir()
+                output = Path("releases/v1.2.3_test-board.zip")
+                output.write_bytes(b"stale zip")
+
+                build.zip_bin("test-board", "1.2.3")
+
+                with build.zipfile.ZipFile(output) as archive:
+                    self.assertEqual(
+                        archive.read("merged-binary.bin"),
+                        b"new firmware",
+                    )
+        finally:
+            os.chdir(previous_cwd)
 
 
 if __name__ == "__main__":

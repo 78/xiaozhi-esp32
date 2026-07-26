@@ -4,7 +4,7 @@
 
 ## 重要提示
 
-> **警告**: 对于自定义开发板，当IO配置与原有开发板不同时，切勿直接覆盖原有开发板的配置编译固件。必须创建新的开发板类型，或者通过config.json文件中的builds配置不同的name和sdkconfig宏定义来区分。使用 `python scripts/release.py [开发板目录名字]` 来编译打包固件。
+> **警告**: 对于自定义开发板，当IO配置与原有开发板不同时，切勿直接覆盖原有开发板的配置编译固件。必须创建新的开发板类型，或者通过config.json文件中的builds配置不同的name和sdkconfig宏定义来区分。使用 `python scripts/build.py [开发板目录名字]` 来编译固件。
 >
 > 如果直接覆盖原有配置，将来OTA升级时，您的自定义固件可能会被原有开发板的标准固件覆盖，导致您的设备无法正常工作。每个开发板有唯一的标识和对应的固件升级通道，保持开发板标识的唯一性非常重要。
 
@@ -14,7 +14,7 @@
 
 - `xxx_board.cc` - 主要的板级初始化代码，实现了板子相关的初始化和功能
 - `config.h` - 板级配置文件，定义了硬件管脚映射和其他配置项
-- `config.json` - 上报开发板类型及发布配置，供 CMake 和 `scripts/release.py` 使用
+- `config.json` - 上报开发板类型及发布配置，供 CMake 和 `scripts/build.py` 使用
 - `README.md` - 开发板相关的说明文档
 
 ## 定制开发板步骤
@@ -377,19 +377,23 @@ endif()
    idf.py flash monitor
    ```
 
-#### 方法二：使用 release.py 脚本（推荐）
+#### 方法二：使用 build.py 脚本（推荐）
 
 如果你的开发板目录下有 `config.json` 文件，可以使用此脚本自动完成配置和编译：
 
 ```bash
-python scripts/release.py my-custom-board
+python scripts/build.py my-custom-board
 ```
 
 此脚本会自动：
-- 读取 `config.json` 中的 `target` 配置并设置目标芯片
-- 将每个 build 的 `name` 作为固件上报的变体名称
-- 应用 `sdkconfig_append` 中的编译选项
-- 完成编译并打包固件
+- 不传参数时列出所有开发板类型
+- 如果开发板有多个变体，交互式提示选择；非交互环境使用 `--name <变体>`
+- 读取 `config.json` 中的 `target`，仅在目标芯片变化时调用
+  `idf.py set-target`，然后根据 defaults 和所选变体的
+  `sdkconfig_append` 重新生成 `sdkconfig`
+- 将所选 build 的 `name` 作为固件上报的变体名称
+- 默认生成 `build/merged-binary.bin`，不创建 ZIP；指定 `--zip` 时会重新生成
+  `releases/v<版本>_<名称>.zip`
 
 ### 6. 创建README.md
 

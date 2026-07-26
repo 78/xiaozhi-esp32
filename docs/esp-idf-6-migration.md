@@ -100,7 +100,7 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 
 ## Per-Board Progress
 
-In the table below, "Board" is the source directory and "Build variant" is the firmware name used by the release script. Different chip revisions of the same board may have different status, so they are split into separate rows when necessary.
+In the table below, "Board" is the source directory and "Build variant" is the firmware name used by the build script. Different chip revisions of the same board may have different status, so they are split into separate rows when necessary.
 
 | Chip | Board | Build variant | IDF 6.0 status | Current validation | Blocker/next step |
 |---|---|---|---|---|---|
@@ -242,7 +242,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd-3.5` | `waveshare-esp32-p4x-wifi6-touch-lcd-3.5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 ## Next Steps and Acceptance Criteria
 
-1. Run the new IDF 5.5 compatibility and IDF 6 BluFi CI jobs, then hardware-test at least one P4 v1.3 device on the legacy SDK path. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
+1. Run the IDF 6 BluFi CI job, then hardware-test at least one P4 v1.3 device on the legacy SDK path. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
 2. For every green variant, complete a minimal hardware smoke test covering boot, networking, audio input/output, display/touch when present, camera when present, and 4G/Ethernet when present.
 3. Perform a physical negative test for the `xmini-c3`/`xmini-c3-v3` firmware guard. CI proves that both images compile; it does not prove that a wrong image is safely rejected. Acceptance requires flashing each wrong image to a sacrificial or recoverable board and verifying that startup stops before any board-specific power or peripheral initialization can cause damage.
 4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1` and `wvirgil123/sscma_client 1.0.3` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
@@ -251,7 +251,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 
 ```bash
 source ~/.espressif/v6.0.1/esp-idf/export.sh
-python scripts/release.py <board> --name <variant>
+python scripts/build.py <board> --name <variant>
 ```
 
 This document is a migration-status snapshot. Build compatibility and hardware compatibility are tracked separately. Add "hardware validated" to a board only after validation on physical hardware is complete.

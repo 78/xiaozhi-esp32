@@ -64,10 +64,10 @@
 -----------
 ## 快速构建
 
-推荐使用 release 脚本生成完整固件包：
+推荐使用 build 脚本生成完整固件包：
 
 ```bash
-python scripts/release.py m5stack-stopwatch --name m5stack-stopwatch
+python scripts/build.py m5stack-stopwatch --name m5stack-stopwatch --zip
 ```
 
 生成的固件压缩包位于：
