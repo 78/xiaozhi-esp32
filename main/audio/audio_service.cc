@@ -22,7 +22,7 @@
         .self_delimited = false,                                                                          \
     }
 
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
 #include "engines/afe_audio_engine.h"
 #else
 #include "engines/lite_audio_engine.h"
@@ -85,7 +85,7 @@ void AudioService::Initialize(AudioCodec* codec) {
         }
     }
 
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
     audio_engine_ = std::make_unique<AfeAudioEngine>();
 #else
     audio_engine_ = std::make_unique<LiteAudioEngine>();

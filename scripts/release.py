@@ -40,8 +40,9 @@ def get_project_version() -> Optional[str]:
     return None
 
 
-def merge_bin() -> None:
-    if os.system("idf.py merge-bin") != 0:
+def merge_bin(preview: bool = False) -> None:
+    idf_command = "idf.py --preview" if preview else "idf.py"
+    if os.system(f"{idf_command} merge-bin") != 0:
         print("merge-bin failed", file=sys.stderr)
         sys.exit(1)
 
@@ -447,6 +448,10 @@ def release(
     with cfg_path.open(encoding='utf-8') as f:
         cfg = json.load(f)
     target = cfg["target"]
+    preview = cfg.get("preview", False)
+    if not isinstance(preview, bool):
+        raise ValueError(f"{cfg_path}: preview must be a boolean")
+    idf_command = "idf.py --preview" if preview else "idf.py"
     manufacturer = _get_manufacturer(cfg)
 
     builds = _get_builds_for_idf(cfg, idf_version)
@@ -495,7 +500,7 @@ def release(
         os.environ.pop("IDF_TARGET", None)
 
         # Call set-target
-        if os.system(f"idf.py set-target {target}") != 0:
+        if os.system(f"{idf_command} set-target {target}") != 0:
             print("set-target failed", file=sys.stderr)
             sys.exit(1)
 
@@ -506,12 +511,12 @@ def release(
             for append in sdkconfig_append:
                 f.write(f"{append}\n")
         # Build with macro BOARD_NAME defined to name
-        if os.system(f"idf.py -DBOARD_NAME={name} -DBOARD_TYPE={board_type} build") != 0:
+        if os.system(f"{idf_command} -DBOARD_NAME={name} -DBOARD_TYPE={board_type} build") != 0:
             print("build failed")
             sys.exit(1)
 
         # merge-bin
-        merge_bin()
+        merge_bin(preview)
 
         # Zip
         zip_bin(final_name, project_version)

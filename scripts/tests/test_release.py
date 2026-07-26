@@ -90,5 +90,13 @@ class InvalidConfigTests(unittest.TestCase):
                     release._collect_variants(idf_version=(6, 0, 1))
 
 
+class PreviewTargetTests(unittest.TestCase):
+    def test_merge_bin_enables_preview_mode(self):
+        with mock.patch.object(release.os, "system", return_value=0) as system:
+            release.merge_bin(preview=True)
+
+        system.assert_called_once_with("idf.py --preview merge-bin")
+
+
 if __name__ == "__main__":
     unittest.main()
