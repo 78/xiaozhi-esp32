@@ -5,7 +5,7 @@ This document explains how to enable and use BluFi (BLE-based WiFi provisioning)
 ## Prerequisites
 
 - A chip and firmware configuration that support BLE.
-- In `idf.py menuconfig`, enable `WiFi Configuration Method -> Esp Blufi` (`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`). If you want to use BluFi, disable the Hotspot option in the same menu; otherwise hotspot provisioning wins by default.
+- In `idf.py menuconfig`, enable `WiFi Configuration Method -> ESP-BluFi` (`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`). If you want to use BluFi, disable the Hotspot option in the same menu; otherwise hotspot provisioning wins by default.
 - Keep the default NVS and event-loop initialization provided by the project's `app_main`.
 - Exactly one of `CONFIG_BT_BLUEDROID_ENABLED` / `CONFIG_BT_NIMBLE_ENABLED` must be selected; they are mutually exclusive.
 
@@ -18,7 +18,7 @@ This document explains how to enable and use BluFi (BLE-based WiFi provisioning)
 
 ## Steps
 
-1. **Configure**: turn on `Esp Blufi` in menuconfig, then build and flash the firmware.
+1. **Configure**: turn on `ESP-BluFi` in menuconfig, then build and flash the firmware.
 2. **Trigger provisioning**: at first boot with no stored WiFi credentials the device enters provisioning automatically.
 3. **Phone side**: open the EspBlufi app (or another BluFi client), scan and connect to the device, optionally enable encryption, then enter the WiFi SSID / password and send them.
 4. **Observe the result**:
