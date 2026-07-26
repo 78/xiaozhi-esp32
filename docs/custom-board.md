@@ -14,7 +14,7 @@ A board directory typically contains:
 
 - `xxx_board.cc` - board-level initialization and glue code.
 - `config.h` - pin assignments and board-level settings.
-- `config.json` - build configuration consumed by `scripts/release.py`.
+- `config.json` - reported board type and release configuration consumed by CMake and `scripts/release.py`.
 - `README.md` - board-specific notes.
 
 Boards can live directly under `main/boards/` or be grouped by manufacturer under `main/boards/<manufacturer>/<board>/` (see [Manufacturer Sub-directories](#manufacturer-sub-directories) below).
@@ -89,10 +89,11 @@ Example (from `lichuang-c3-dev`):
 
 #### config.json
 
-`config.json` drives `scripts/release.py`:
+`config.json` defines the compatibility-sensitive reported type and drives `scripts/release.py`:
 
 ```json
 {
+    "type": "my-custom-board",
     "target": "esp32s3",
     "builds": [
         {
@@ -107,8 +108,9 @@ Example (from `lichuang-c3-dev`):
 ```
 
 **Fields**:
+- `type`: compatibility-sensitive board family reported by the firmware. Keep it stable after release.
 - `target`: target chip, must match the real hardware (`esp32`, `esp32s3`, `esp32c3`, `esp32c6`, `esp32p4`, ...).
-- `name`: firmware package name; typically matches the directory name.
+- `name`: compatibility-sensitive firmware variant name reported by release builds; typically matches `type`.
 - `sdkconfig_append`: extra sdkconfig lines merged into the defaults.
 
 **Common `sdkconfig_append` entries**:
@@ -310,7 +312,7 @@ Open `main/CMakeLists.txt` and extend the board-type chain:
 
 ```cmake
 elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
-    set(BOARD_TYPE "my-custom-board")                # must match the directory name
+    set(BOARD_DIR "my-custom-board")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)     # pick a font for the display
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)         // optional, for emoji display
@@ -366,6 +368,7 @@ python scripts/release.py my-custom-board
 
 The script:
 - Reads `target` from `config.json` and calls `idf.py set-target`.
+- Passes each build's `name` as the reported firmware variant name.
 - Appends the entries listed in `sdkconfig_append`.
 - Builds and packages the firmware.
 
@@ -377,18 +380,19 @@ In `README.md`, describe the board, hardware requirements, build instructions, a
 
 Boards can be grouped by manufacturer under `main/boards/<manufacturer>/<board>/`. This is the recommended layout when a single vendor ships several variants - for example `main/boards/waveshare/esp32-p4-nano/` or `main/boards/lceda-course-examples/eda-tv-pro/`.
 
-To enable the layout, set the `MANUFACTURER` variable in `main/CMakeLists.txt` for your board:
+For a board in a manufacturer sub-directory, add the same value to `config.json`, for example `"manufacturer": "waveshare"`. The firmware reports it as `board.manufacturer` together with `board.type` and `board.name`. Flat community boards without this field report an empty manufacturer string.
+
+Set `BOARD_DIR` to the complete path relative to `main/boards/`:
 
 ```cmake
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-p4-nano")
+    set(BOARD_DIR "waveshare/esp32-p4-nano")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 ```
 
-When `MANUFACTURER` is set, the build system globs source files from `main/boards/${MANUFACTURER}/${BOARD_TYPE}/`. When it is empty, it falls back to the flat `main/boards/${BOARD_TYPE}/` layout.
+The build system loads sources from `main/boards/${BOARD_DIR}/` and reads the reported board type from that directory's `config.json`. If `config.json` or its top-level `type` is absent, the full `BOARD_DIR` with `/` replaced by `-` is used as the fallback type.
 
 Rules of thumb:
 - Use the manufacturer layout when you have two or more boards from the same vendor that share drivers, assets, or documentation.

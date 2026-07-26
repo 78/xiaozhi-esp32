@@ -105,13 +105,13 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/release.py esp-s31-function-coreboard-1 \
-            --name esp-s31-function-coreboard-1
+          python scripts/release.py espressif/esp32-s31-function-coreboard-1 \
+            --name esp32-s31-function-coreboard-1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi_esp-s31-function-coreboard-1_${{ github.sha }}
+          name: xiaozhi_espressif-esp32-s31-function-coreboard-1_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
 
@@ -124,8 +124,8 @@ jobs:
         include:
           - board: xmini-c3
             name: xmini-c3
-          - board: esp-p4-function-ev-board
-            name: esp-p4-function-ev-board
+          - board: espressif/esp32-p4-function-ev-board
+            name: esp32-p4-function-ev-board
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v5.5.4

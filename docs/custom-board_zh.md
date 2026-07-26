@@ -14,7 +14,7 @@
 
 - `xxx_board.cc` - 主要的板级初始化代码，实现了板子相关的初始化和功能
 - `config.h` - 板级配置文件，定义了硬件管脚映射和其他配置项
-- `config.json` - 编译配置，指定目标芯片和特殊的编译选项
+- `config.json` - 上报开发板类型及发布配置，供 CMake 和 `scripts/release.py` 使用
 - `README.md` - 开发板相关的说明文档
 
 ## 定制开发板步骤
@@ -87,10 +87,11 @@ mkdir main/boards/my-custom-board
 
 #### config.json
 
-在`config.json`中定义编译配置，这个文件用于 `scripts/release.py` 脚本自动化编译：
+在`config.json`中定义兼容性相关的上报类型和自动化编译配置：
 
 ```json
 {
+    "type": "my-custom-board",  // 固件上报的开发板类型，发布后应保持稳定
     "target": "esp32s3",  // 目标芯片型号: esp32, esp32s3, esp32c3, esp32c6, esp32p4等
     "builds": [
         {
@@ -107,8 +108,10 @@ mkdir main/boards/my-custom-board
 ```
 
 **配置项说明：**
+- `manufacturer`: 厂商子目录名称；使用厂商目录时必须填写，并作为 `board.manufacturer` 上报。平铺社区板可以省略，上报为空字符串
+- `type`: 固件上报的开发板系列类型，发布后应保持稳定
 - `target`: 目标芯片型号，必须与硬件匹配
-- `name`: 编译输出的固件包名称，建议与目录名一致
+- `name`: release 构建上报的固件变体名称，通常与 `type` 一致
 - `sdkconfig_append`: 额外的 sdkconfig 配置项数组，会追加到默认配置中
 
 **常用的 sdkconfig_append 配置：**
@@ -321,7 +324,7 @@ endchoice
 ```cmake
 # 在 elseif 链中添加你的开发板配置
 elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
-    set(BOARD_TYPE "my-custom-board")  # 与目录名一致
+    set(BOARD_DIR "my-custom-board")  # 相对于 main/boards 的完整路径
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)  # 根据屏幕大小选择合适的字体
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)  # 可选，如果需要表情显示
@@ -384,6 +387,7 @@ python scripts/release.py my-custom-board
 
 此脚本会自动：
 - 读取 `config.json` 中的 `target` 配置并设置目标芯片
+- 将每个 build 的 `name` 作为固件上报的变体名称
 - 应用 `sdkconfig_append` 中的编译选项
 - 完成编译并打包固件
 
@@ -450,4 +454,4 @@ python scripts/release.py my-custom-board
 
 - ESP-IDF 文档: https://docs.espressif.com/projects/esp-idf/
 - LVGL 文档: https://docs.lvgl.io/
-- ESP-SR 文档: https://github.com/espressif/esp-sr 
+- ESP-SR 文档: https://github.com/espressif/esp-sr

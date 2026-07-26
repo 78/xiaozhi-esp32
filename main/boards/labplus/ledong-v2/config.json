@@ -1,0 +1,11 @@
+{
+    "manufacturer": "labplus",
+    "type": "labplus-ledong-v2",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "labplus-ledong-v2",
+            "sdkconfig_append": []
+        }
+    ]
+}

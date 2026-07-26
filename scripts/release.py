@@ -67,6 +67,39 @@ def _get_manufacturer(cfg: dict) -> Optional[str]:
         return m.strip()
     return None
 
+
+def _get_reported_type(cfg: dict) -> str:
+    """Read the compatibility-sensitive board type from config.json."""
+    board_type = cfg.get("type")
+    if not isinstance(board_type, str) or not board_type.strip():
+        raise ValueError('missing non-empty top-level "type"')
+    return board_type.strip()
+
+
+def _get_full_name(manufacturer: Optional[str], name: str) -> str:
+    """Return the artifact name without duplicating an existing manufacturer prefix."""
+    prefix = f"{manufacturer}-" if manufacturer else ""
+    return name if not prefix or name.startswith(prefix) else f"{prefix}{name}"
+
+
+def _normalize_p4x_release_name(name: str) -> str:
+    """Represent P4X as a chip-family segment instead of a trailing suffix."""
+    if name.endswith("-p4x"):
+        name_without_suffix = name[:-4]
+        if "-p4-" in name_without_suffix:
+            return name_without_suffix.replace("-p4-", "-p4x-", 1)
+    return name
+
+
+def _get_release_full_name(
+    manufacturer: Optional[str],
+    build: dict,
+) -> str:
+    """Return manufacturer + board name for the release artifact."""
+    release_name = build["name"]
+    release_name = _normalize_p4x_release_name(release_name)
+    return _get_full_name(manufacturer, release_name)
+
 ################################################################################
 # board / variant related functions
 ################################################################################
@@ -161,6 +194,7 @@ def _collect_variants(
                 cfg = json.load(f)
 
             manufacturer = _get_manufacturer(cfg)
+            _get_reported_type(cfg)
 
             # Check manufacturer consistency with directory structure
             if "/" in board:
@@ -185,9 +219,10 @@ def _collect_variants(
                         f"please move board to main/boards/{manufacturer}/{board}/"
                     )
 
-            for build in _get_builds_for_idf(cfg, idf_version):
+            builds = _get_builds_for_idf(cfg, idf_version)
+            for build in builds:
                 name = build["name"]
-                full_name = f"{manufacturer}-{name}" if manufacturer else name
+                full_name = _get_release_full_name(manufacturer, build)
                 variants.append({
                     "board": board, 
                     "name": name,
@@ -262,21 +297,40 @@ def _select_variants_for_changes(
 
 def _find_board_config_candidates(board_type: str) -> list[str]:
     """Find all CONFIG_BOARD_TYPE_xxx candidates for the given board_type."""
-    board_leaf = board_type.split("/")[-1]
-    pattern = f'set(BOARD_TYPE "{board_leaf}")'
-
-    cmake_file = Path("main/CMakeLists.txt")
-    lines = cmake_file.read_text(encoding="utf-8").splitlines()
+    board_path = board_type.strip("/")
+    lines = Path("main/CMakeLists.txt").read_text(encoding="utf-8").splitlines()
     candidates: list[str] = []
+    branch_symbol: Optional[str] = None
+    branch_lines: list[str] = []
 
-    for idx, line in enumerate(lines):
-        if pattern in line:
-            # Found the BOARD_TYPE line, search backwards for the nearest config guard
-            for back_idx in range(idx - 1, -1, -1):
-                back_line = lines[back_idx]
-                if "if(CONFIG_BOARD_TYPE_" in back_line:
-                    candidates.append(back_line.strip().split("if(")[1].split(")")[0])
-                    break
+    def finish_branch() -> None:
+        if branch_symbol is None:
+            return
+
+        branch = "\n".join(branch_lines)
+        directory_match = re.search(r'set\(BOARD_DIR\s+"([^"]+)"\)', branch)
+        directory = directory_match.group(1) if directory_match else None
+        if directory == board_path:
+            candidates.append(branch_symbol)
+
+    condition_pattern = re.compile(r"^\s*(?:if|elseif)\(([^)]+)\)")
+    for line in lines:
+        condition_match = condition_pattern.match(line)
+        if condition_match:
+            finish_branch()
+            condition = condition_match.group(1)
+            branch_symbol = (
+                condition if condition.startswith("CONFIG_BOARD_TYPE_") else None
+            )
+            branch_lines = []
+        elif re.match(r"^\s*(?:else|endif)\b", line):
+            finish_branch()
+            branch_symbol = None
+            branch_lines = []
+        elif branch_symbol is not None:
+            branch_lines.append(line)
+    finish_branch()
+
     return candidates
 
 
@@ -414,10 +468,7 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
 ################################################################################
 
 def _board_type_exists(board_type: str) -> bool:
-    cmake_file = Path("main/CMakeLists.txt").read_text(encoding="utf-8")
-    board_leaf = board_type.split("/")[-1]
-    pattern = f'set(BOARD_TYPE "{board_leaf}")'
-    return pattern in cmake_file
+    return bool(_find_board_config_candidates(board_type))
 
 ################################################################################
 # Compile implementation
@@ -448,6 +499,7 @@ def release(
     with cfg_path.open(encoding='utf-8') as f:
         cfg = json.load(f)
     target = cfg["target"]
+    reported_type = _get_reported_type(cfg)
     preview = cfg.get("preview", False)
     if not isinstance(preview, bool):
         raise ValueError(f"{cfg_path}: preview must be a boolean")
@@ -463,12 +515,7 @@ def release(
 
     for build in builds:
         name = build["name"]
-        board_leaf = board_type.split("/")[-1]
-
-        if board_leaf not in name:
-            raise ValueError(f"build.name {name} must contain {board_leaf}")
-        
-        final_name = f"{manufacturer}-{name}" if manufacturer else name
+        final_name = _get_release_full_name(manufacturer, build)
         output_path = Path("releases") / f"v{project_version}_{final_name}.zip"
         if output_path.exists():
             print(f"Skipping {final_name} because {output_path} already exists")
@@ -491,6 +538,9 @@ def release(
 
         print("-" * 80)
         print(f"name: {final_name}")
+        if final_name != name:
+            print(f"reported_name: {name}")
+        print(f"reported_type: {reported_type}")
         print(f"target: {target}")
         if manufacturer:
             print(f"manufacturer: {manufacturer}")
@@ -510,8 +560,8 @@ def release(
             f.write("# Append by release.py\n")
             for append in sdkconfig_append:
                 f.write(f"{append}\n")
-        # Build with macro BOARD_NAME defined to name
-        if os.system(f"{idf_command} -DBOARD_NAME={name} -DBOARD_TYPE={board_type} build") != 0:
+        # build.name is the compatibility-sensitive OTA-reported board identity.
+        if os.system(f"{idf_command} -DBOARD_NAME={name} build") != 0:
             print("build failed")
             sys.exit(1)
 
@@ -531,7 +581,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", default="config.json", help="Config filename (default: config.json)")
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
     parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
-    parser.add_argument("--name", help="Variant name to compile (original name without manufacturer prefix)")
+    parser.add_argument("--name", help="build.name to compile (the OTA-reported board name)")
     parser.add_argument(
         "--select-changed",
         action="store_true",

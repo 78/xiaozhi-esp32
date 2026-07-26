@@ -1,0 +1,6 @@
+{
+    "manufacturer": "alientek",
+    "type": "atk-dnesp32s3m-wifi",
+    "target": "esp32s3",
+    "builds": []
+}

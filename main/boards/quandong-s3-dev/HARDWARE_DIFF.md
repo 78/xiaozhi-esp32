@@ -147,7 +147,7 @@ InitializeTools()           // 注册 LampController（MCP 外设）
 | quandong-s3-dev | `font_noto_sans_basic_20_4` | `font_material_symbols_20_4` | `noto-color-emoji_64` |
 | bread-compact-wifi | `font_noto_sans_basic_14_1` | `font_material_symbols_14_1` | （无） |
 
-→ quandong 走的是和 `lichuang-dev`、`esp-box-3` 等 240×320 LCD 板同档资源；OLED 板因为像素少，用 14 像素位图字体即可，emoji 也加载不动。
+→ quandong 走的是和 `lichuang-dev`、`esp32-s3-box-3` 等 240×320 LCD 板同档资源；OLED 板因为像素少，用 14 像素位图字体即可，emoji 也加载不动。
 
 ### 其它依赖
 
