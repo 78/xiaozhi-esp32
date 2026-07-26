@@ -1,6 +1,8 @@
 #include "es8311_audio_codec.h"
 
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #define TAG "Es8311AudioCodec"
 
@@ -36,6 +38,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     };
     ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
     assert(ctrl_if_ != NULL);
+    ResetCodec();
 
     gpio_if_ = audio_codec_new_gpio();
     assert(gpio_if_ != NULL);
@@ -56,6 +59,17 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     } else {
         ESP_LOGI(TAG, "Es8311AudioCodec initialized");
     }
+}
+
+void Es8311AudioCodec::ResetCodec() {
+    // Hold the ES8311 digital blocks in reset for several milliseconds, as
+    // recommended by the initialization guide. Normal codec initialization
+    // releases the reset and starts the state machine.
+    uint8_t reset_value = 0x1F;
+    ESP_ERROR_CHECK(static_cast<esp_err_t>(
+        ctrl_if_->write_reg(ctrl_if_, 0x00, 1, &reset_value, 1)));
+    vTaskDelay(pdMS_TO_TICKS(5));
+    ESP_LOGI(TAG, "ES8311 software reset complete");
 }
 
 Es8311AudioCodec::~Es8311AudioCodec() {

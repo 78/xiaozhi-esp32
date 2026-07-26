@@ -186,6 +186,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP-P4-Function-EV-Board"
         depends on IDF_TARGET_ESP32P4
+    config BOARD_TYPE_ESP_S31_FUNCTION_COREBOARD_1
+        bool "Espressif ESP32-S31-Function-CoreBoard-1"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_ESP_VOCAT
         bool "Espressif ESP-VoCat"
         depends on IDF_TARGET_ESP32S3
@@ -810,7 +813,7 @@ config USE_MULTILINE_CHAT_MESSAGE
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
-    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
     default WAKE_WORD_DISABLED
     help
         Choose the type of wake word implementation to use
@@ -828,15 +831,15 @@ choice WAKE_WORD_TYPE
 
     config USE_AFE_WAKE_WORD
         bool "Wakenet model with AFE"
-        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
         help
-            Support AEC if available, requires ESP32 S3 and PSRAM
+            Support AEC if available, requires ESP32-S3, ESP32-P4, or ESP32-S31 and PSRAM
 
     config USE_CUSTOM_WAKE_WORD
         bool "Multinet model (Custom Wake Word)"
-        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+        depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
         help
-            Requires ESP32 S3 and PSRAM
+            Requires ESP32-S3, ESP32-P4, or ESP32-S31 and PSRAM
 
 endchoice
 
@@ -882,11 +885,11 @@ config WAKE_WORD_DETECTION_IN_LISTENING
 config USE_AUDIO_PROCESSOR
     bool "Enable AFE Audio Processing"
     default y
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
     help
         Enable the shared AFE uplink path with AEC and VAD. Noise suppression
         is not enabled because this project does not provide an NSNet model.
-        Requires ESP32-S3 or ESP32-P4 with PSRAM.
+        Requires ESP32-S3, ESP32-P4, or ESP32-S31 with PSRAM.
 
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
