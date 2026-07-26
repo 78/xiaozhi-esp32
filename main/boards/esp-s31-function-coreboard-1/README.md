@@ -1,7 +1,7 @@
 # ESP32-S31-Function-CoreBoard-1
 
 This board definition targets Espressif's ESP32-S31-Function-CoreBoard-1 and
-requires an ESP-IDF master revision with `esp32s31` target support.
+requires ESP-IDF `release/v6.1` or newer with `esp32s31` target support.
 Chip-wide flash, PSRAM, CPU, and Wi-Fi defaults live in
 `sdkconfig.defaults.esp32s31`; `config.json` contains only this board's release
 variant settings.
@@ -52,7 +52,7 @@ pair, but its display, keyboard, and always-on amplifier topology are different.
 ## Build
 
 ```sh
-source /path/to/esp-idf-master/export.sh
+source /path/to/esp-idf-release-v6.1/export.sh
 python3 scripts/release.py esp-s31-function-coreboard-1
 ```
 

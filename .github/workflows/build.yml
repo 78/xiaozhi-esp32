@@ -92,6 +92,29 @@ jobs:
           path: build/merged-binary.bin
           if-no-files-found: error
 
+  esp32s31-idf61:
+    name: Build ESP32-S31 with IDF 6.1
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ESP32-S31 preview variant
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/release.py esp-s31-function-coreboard-1 \
+            --name esp-s31-function-coreboard-1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_esp-s31-function-coreboard-1_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+
   compatibility-idf5:
     name: IDF 5.5 compatibility - ${{ matrix.name }}
     if: ${{ github.event_name == 'pull_request' }}

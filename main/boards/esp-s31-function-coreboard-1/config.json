@@ -4,7 +4,7 @@
     "builds": [
         {
             "name": "esp-s31-function-coreboard-1",
-            "idf_version": ">=6.2"
+            "idf_version": ">=6.1"
         }
     ]
 }
