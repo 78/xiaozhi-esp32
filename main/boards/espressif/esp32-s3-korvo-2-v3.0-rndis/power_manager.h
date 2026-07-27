@@ -78,8 +78,8 @@ private:
         
         // 根据分压比计算实际电池电压
         // 电路分压比: R21/(R20+R21) = 100K/300K = 1/3
-        // 实际电池电压 = ADC测量电压 × 3
-        int battery_voltage_mv = voltage_mv * 3;
+        // 实际电池电压 = ADC测量电压 × 4
+        int battery_voltage_mv = voltage_mv * 4;
         
         // 将电压值添加到队列中用于平滑
         adc_values_.push_back(battery_voltage_mv);
