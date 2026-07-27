@@ -1,0 +1,100 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+// ES8389 音频编解码芯片 + 双 NS4150B 功放
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
+
+// 依据官方 esp-bsp（esp32_s31_korvo_1）
+#define AUDIO_I2S_GPIO_MCLK GPIO_NUM_2
+#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_3
+#define AUDIO_I2S_GPIO_WS   GPIO_NUM_4
+#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_6
+#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_5
+
+#define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_0
+#define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_1
+#define AUDIO_CODEC_PA_PIN      GPIO_NUM_7
+#define AUDIO_CODEC_ES8389_ADDR ES8389_CODEC_DEFAULT_ADDR
+#define AUDIO_CODEC_USE_MCLK    false
+#define AUDIO_INPUT_CHANNELS    2  // 双模拟麦克风阵列
+#define AUDIO_OUTPUT_CHANNELS   2  // 立体声输出，双 NS4150B 功放
+
+// 板载用户控件
+#define BUILTIN_LED_GPIO GPIO_NUM_37
+#define BOOT_BUTTON_GPIO GPIO_NUM_61
+
+// 4 个 ADC 按键（SET/MODE/VOL-/VOL+），电阻分压网络
+#define ADC_BUTTON_GPIO GPIO_NUM_42
+
+// ADC 按键中心电压（mV），官方 BSP 校准数据（配合 esp32_s31_adc_calibration.c
+// 的软件校准使用，校准后读数与分压理论值一致）。
+// 按键窗口按官方算法取相邻键中点自动划分。
+// 注意：S31 的 SAR ADC 原始值是反相的（电压越高 raw 越小），
+// 未经校准的直读公式会得出相反的键序，请勿以此判断键位。
+#define ADC_BUTTON_SET_MV      1870
+#define ADC_BUTTON_MODE_MV     1340
+#define ADC_BUTTON_VOL_DOWN_MV 820
+#define ADC_BUTTON_VOL_UP_MV   380
+#define ADC_BUTTON_IDLE_MV     2000
+
+// LCD 子板：RGB 16 位面板（ST7262E43），800x480 横屏。
+// 背光硬件常开；复位/触摸中断线未连接。
+#define DISPLAY_WIDTH   800
+#define DISPLAY_HEIGHT  480
+#define DISPLAY_MIRROR_X  false
+#define DISPLAY_MIRROR_Y  false
+#define DISPLAY_SWAP_XY   false
+#define DISPLAY_OFFSET_X  0
+#define DISPLAY_OFFSET_Y  0
+
+#define LCD_RGB_VSYNC GPIO_NUM_45
+#define LCD_RGB_HSYNC GPIO_NUM_44
+#define LCD_RGB_DE    GPIO_NUM_43
+#define LCD_RGB_PCLK  GPIO_NUM_40
+#define LCD_RGB_DISP  GPIO_NUM_38
+#define LCD_RGB_DATA0  GPIO_NUM_8
+#define LCD_RGB_DATA1  GPIO_NUM_9
+#define LCD_RGB_DATA2  GPIO_NUM_10
+#define LCD_RGB_DATA3  GPIO_NUM_11
+#define LCD_RGB_DATA4  GPIO_NUM_12
+#define LCD_RGB_DATA5  GPIO_NUM_13
+#define LCD_RGB_DATA6  GPIO_NUM_14
+#define LCD_RGB_DATA7  GPIO_NUM_15
+#define LCD_RGB_DATA8  GPIO_NUM_16
+#define LCD_RGB_DATA9  GPIO_NUM_17
+#define LCD_RGB_DATA10 GPIO_NUM_18
+#define LCD_RGB_DATA11 GPIO_NUM_19
+#define LCD_RGB_DATA12 GPIO_NUM_33
+#define LCD_RGB_DATA13 GPIO_NUM_34
+#define LCD_RGB_DATA14 GPIO_NUM_35
+#define LCD_RGB_DATA15 GPIO_NUM_36
+
+// GT1151 触摸，与 codec 共享 I2C 总线（无复位/中断线）
+
+// OV3660 摄像头，DVP 接口（SCCB 与 codec 共享 I2C 总线，地址 0x78）。
+// 参数以官方 factory demo 的 BSP 实测值为准：XCLK 20MHz，SCCB 10kHz。
+#define CAMERA_PIN_XCLK  GPIO_NUM_55
+#define CAMERA_PIN_PCLK  GPIO_NUM_54
+#define CAMERA_PIN_VSYNC GPIO_NUM_56
+#define CAMERA_PIN_HREF  GPIO_NUM_57
+#define CAMERA_PIN_D0    GPIO_NUM_46
+#define CAMERA_PIN_D1    GPIO_NUM_47
+#define CAMERA_PIN_D2    GPIO_NUM_48
+#define CAMERA_PIN_D3    GPIO_NUM_49
+#define CAMERA_PIN_D4    GPIO_NUM_50
+#define CAMERA_PIN_D5    GPIO_NUM_51
+#define CAMERA_PIN_D6    GPIO_NUM_52
+#define CAMERA_PIN_D7    GPIO_NUM_53
+#define CAMERA_PIN_RESET GPIO_NUM_NC
+#define CAMERA_PIN_PWDN  GPIO_NUM_NC
+#define CAMERA_XCLK_FREQ_HZ  (20 * 1000 * 1000)
+#define CAMERA_SCCB_FREQ_HZ  (10 * 1000)
+
+// 摄像头：OV3660 模组
+#define CAMERA_VFLIP   true
+#define CAMERA_HMIRROR true
+
+#endif  // _BOARD_CONFIG_H_
