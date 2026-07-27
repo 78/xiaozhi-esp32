@@ -14,7 +14,7 @@
 
 ## 最近の更新
 
-- メインラインはESP-IDF v6.0以降へ移行し、推奨安定版はv6.0.2です。従来の157リリースバリアントはESP-IDF v6.0.1でビルド検証済みで、ESP-SR 2.4.7によってESP32-P4 Rev < 3を有効化した現在のマトリクスは172バリアントです。
+- メインラインはESP-IDF v6.0以降へ移行し、推奨安定版はv6.0.2です。従来の157リリースバリアントはESP-IDF v6.0.1でビルド検証済みです。現在のマトリクスは171バリアントで、そのうち170はIDF 6.0.xに対応し、ESP32-S31バリアントにはIDF 6.1以降が必要です。
 - MQTTとBluFiの暗号処理をPSA Cryptoへ移行し、IDF 6のコンポーネント分割およびサードパーティ依存関係にも対応しました。
 - オーディオパイプラインの並行処理、MQTT/UDPパケット検証、リリースマトリクス選択処理を強化しました。
 - ESP-IDF v5.5は、文書で明記された旧式ボード向けにのみ残しています。ESP-SR 2.4.7を使用すると、ESP32-P4 Rev1とRev3の両方がIDF 6に対応します。詳細な互換性とボード検証状況は、[ESP-IDF 6.0移行ガイド](docs/esp-idf-6-migration.md)を参照してください。
@@ -47,10 +47,10 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 ![ブレッドボードデモ](docs/v1/wiring2.jpg)
 
-### 138のボードディレクトリと172のリリースバリアントに対応（一部のみ表示）
+### 138のボードディレクトリと171のリリースバリアントに対応（一部のみ表示）
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立創・実戦派 ESP32-S3 開発ボード">立創・実戦派 ESP32-S3 開発ボード</a>
-- <a href="https://github.com/espressif/esp-box" target="_blank" title="楽鑫 ESP32-S3-BOX3">楽鑫 ESP32-S3-BOX3</a>
+- <a href="https://github.com/espressif/esp-box" target="_blank" title="楽鑫 ESP32-S3-BOX-3">楽鑫 ESP32-S3-BOX-3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">M5Stack AtomS3R + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="マジックボタン2.4">マジックボタン2.4</a>

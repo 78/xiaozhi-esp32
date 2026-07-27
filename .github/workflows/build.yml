@@ -26,13 +26,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Test release tooling
+      - name: Test build tooling
         run: python -m unittest discover -s scripts/tests -v
 
       - id: list
         name: Get all variant list
         run: |
-          echo "all_variants=$(python scripts/release.py --list-boards --json)" >> $GITHUB_OUTPUT
+          echo "all_variants=$(python scripts/build.py --list-boards --json)" >> $GITHUB_OUTPUT
 
       - id: select
         name: Select variants based on changes
@@ -61,7 +61,7 @@ jobs:
           CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           echo -e "Changed files:\n$CHANGED"
 
-          SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/release.py --select-changed)
+          SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/build.py --select-changed)
           echo "variants=$SELECTED" >> $GITHUB_OUTPUT
 
   build:
@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/release.py ${{ matrix.board }} --name ${{ matrix.name }}
+          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -105,39 +105,15 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/release.py esp-s31-function-coreboard-1 \
-            --name esp-s31-function-coreboard-1
+          python scripts/build.py espressif/esp32-s31-function-coreboard-1 \
+            --name esp32-s31-function-coreboard-1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi_esp-s31-function-coreboard-1_${{ github.sha }}
+          name: xiaozhi_espressif-esp32-s31-function-coreboard-1_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
-
-  compatibility-idf5:
-    name: IDF 5.5 compatibility - ${{ matrix.name }}
-    if: ${{ github.event_name == 'pull_request' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - board: xmini-c3
-            name: xmini-c3
-          - board: esp-p4-function-ev-board
-            name: esp-p4-function-ev-board
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:v5.5.4
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build compatibility variant
-        shell: bash
-        run: |
-          source $IDF_PATH/export.sh
-          python scripts/release.py ${{ matrix.board }} --name ${{ matrix.name }}
 
   blufi-idf6:
     name: IDF 6 BluFi option
@@ -154,7 +130,7 @@ jobs:
           source $IDF_PATH/export.sh
           idf.py -B build-blufi \
             -DSDKCONFIG=build-blufi/sdkconfig \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;scripts/ci/blufi.sdkconfig.defaults" \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;scripts/ci/blufi.sdkconfig.defaults" \
             -DIDF_TARGET=esp32s3 \
             -DBOARD_NAME=bread-compact-wifi \
             -DBOARD_TYPE=bread-compact-wifi \

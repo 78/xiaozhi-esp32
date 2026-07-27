@@ -102,7 +102,7 @@ CLK   = IO12          D1 = IO13
 
 ```bash
 # 一键编译打包 (推荐)
-python scripts/release.py lcdwiki-es3c35p
+python scripts/build.py lcdwiki-es3c35p --zip
 
 # 或手动编译
 idf.py set-target esp32s3

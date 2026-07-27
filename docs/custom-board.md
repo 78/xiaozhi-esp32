@@ -4,7 +4,7 @@ This guide describes how to add a new board to the XiaoZhi AI voice assistant pr
 
 ## Important
 
-> **Warning**: for a custom board whose IO configuration differs from an existing board, never overwrite the original board's configuration. Always create a new board type - or use the `builds` array in `config.json` to produce a distinct firmware name with different `sdkconfig` macros. Use `python scripts/release.py [board-directory]` to build and package the firmware.
+> **Warning**: for a custom board whose IO configuration differs from an existing board, never overwrite the original board's configuration. Always create a new board type - or use the `builds` array in `config.json` to produce a distinct firmware name with different `sdkconfig` macros. Use `python scripts/build.py [board-directory]` to build the firmware.
 >
 > Overwriting an existing board's configuration is dangerous because OTA updates may replace your custom firmware with the stock firmware for the original board. Every board must have a unique identity and its own firmware update channel.
 
@@ -14,7 +14,7 @@ A board directory typically contains:
 
 - `xxx_board.cc` - board-level initialization and glue code.
 - `config.h` - pin assignments and board-level settings.
-- `config.json` - build configuration consumed by `scripts/release.py`.
+- `config.json` - reported board type and release configuration consumed by CMake and `scripts/build.py`.
 - `README.md` - board-specific notes.
 
 Boards can live directly under `main/boards/` or be grouped by manufacturer under `main/boards/<manufacturer>/<board>/` (see [Manufacturer Sub-directories](#manufacturer-sub-directories) below).
@@ -89,10 +89,11 @@ Example (from `lichuang-c3-dev`):
 
 #### config.json
 
-`config.json` drives `scripts/release.py`:
+`config.json` defines the compatibility-sensitive reported type and drives `scripts/build.py`:
 
 ```json
 {
+    "type": "my-custom-board",
     "target": "esp32s3",
     "builds": [
         {
@@ -107,9 +108,14 @@ Example (from `lichuang-c3-dev`):
 ```
 
 **Fields**:
+- `type`: compatibility-sensitive board family reported by the firmware. Keep it stable after release.
 - `target`: target chip, must match the real hardware (`esp32`, `esp32s3`, `esp32c3`, `esp32c6`, `esp32p4`, ...).
-- `name`: firmware package name; typically matches the directory name.
+- `name`: compatibility-sensitive firmware variant name reported by release builds; typically matches `type`.
 - `sdkconfig_append`: extra sdkconfig lines merged into the defaults.
+
+Both `type` and `name` must contain only lowercase letters, digits, periods
+(`.`), and hyphens (`-`). Underscores, spaces, and uppercase letters are not
+allowed.
 
 **Common `sdkconfig_append` entries**:
 
@@ -117,21 +123,24 @@ Example (from `lichuang-c3-dev`):
 // Flash size
 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y"
 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y"
-"CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"
 
 // Partition table
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
-"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\""
 
-// Language
-"CONFIG_LANGUAGE_EN_US=y"
-"CONFIG_LANGUAGE_ZH_CN=y"
-
-// Wake word configuration
+// Audio pipeline
 "CONFIG_USE_DEVICE_AEC=y"          // enable on-device AEC
-"CONFIG_WAKE_WORD_DISABLED=y"      // disable wake word detection
 ```
+
+The project defaults to 16MB flash and `partitions/v2/16m.csv` on applicable
+targets. Do not repeat values that already match the effective project and
+target defaults; use `sdkconfig_append` only for actual board-specific
+overrides.
+
+Do not select a language or a specific wake word in a board `config.json`.
+Those are user build options and must be configured consistently through
+`menuconfig` or build-script parameters so CLI, agent, and online builds can
+share the same interface.
 
 ### 3. Implement the Board Class
 
@@ -310,7 +319,7 @@ Open `main/CMakeLists.txt` and extend the board-type chain:
 
 ```cmake
 elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
-    set(BOARD_TYPE "my-custom-board")                # must match the directory name
+    set(BOARD_DIR "my-custom-board")
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)     # pick a font for the display
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)         // optional, for emoji display
@@ -356,18 +365,51 @@ Emoji collections:
    idf.py flash monitor
    ```
 
-#### Option B - use `release.py` (recommended)
+#### Option B - use `build.py` (recommended)
 
-If the board directory contains a `config.json`, you can build and package automatically:
+If the board directory contains a `config.json`, you can configure and build it automatically:
 
 ```bash
-python scripts/release.py my-custom-board
+python scripts/build.py my-custom-board
 ```
 
+Language and wake-word selection are user build options:
+
+```bash
+python scripts/build.py my-custom-board \
+  --language en-US \
+  --wake-word wn9_jarvis_tts
+```
+
+`--language` accepts a locale listed under `main/assets/locales/`.
+`--wake-word` accepts an ESP-SR model name, `nihaoxiaozhi` (which selects the
+compatible model for the target), or `disabled`. ESP32-C3/C5/C6 targets support
+WakeNet9s (`wn9s_*`) models; ESP32-S3/P4/S31 builds automatically use the AFE
+wake-word engine.
+
+Query the accepted values in text or machine-readable form:
+
+```bash
+python scripts/build.py --list-languages
+python scripts/build.py --list-languages --json
+python scripts/build.py --list-wake-words
+python scripts/build.py --list-wake-words --json
+```
+
+The wake-word list is read from the currently resolved ESP-SR component, so
+run `idf.py reconfigure` first if `managed_components/` has not been populated.
+
 The script:
-- Reads `target` from `config.json` and calls `idf.py set-target`.
-- Appends the entries listed in `sdkconfig_append`.
-- Builds and packages the firmware.
+- Prints help when run without arguments. Use `--list-boards` to list board
+  types and variants.
+- Prompts for a variant when the selected board has multiple builds. In
+  non-interactive environments, pass `--name <variant>`.
+- Reads `target` from `config.json`. It calls `idf.py set-target` only when the
+  target changes, then regenerates `sdkconfig` from defaults and the selected
+  build's `sdkconfig_append`.
+- Passes the selected build's `name` as the reported firmware variant name.
+- Builds `build/merged-binary.bin` without creating a ZIP by default. Pass
+  `--zip` to recreate `releases/v<version>_<name>.zip`.
 
 ### 6. Write the README
 
@@ -377,18 +419,19 @@ In `README.md`, describe the board, hardware requirements, build instructions, a
 
 Boards can be grouped by manufacturer under `main/boards/<manufacturer>/<board>/`. This is the recommended layout when a single vendor ships several variants - for example `main/boards/waveshare/esp32-p4-nano/` or `main/boards/lceda-course-examples/eda-tv-pro/`.
 
-To enable the layout, set the `MANUFACTURER` variable in `main/CMakeLists.txt` for your board:
+For a board in a manufacturer sub-directory, add the same value to `config.json`, for example `"manufacturer": "waveshare"`. The firmware reports it as `board.manufacturer` together with `board.type` and `board.name`. Flat community boards without this field report an empty manufacturer string.
+
+Set `BOARD_DIR` to the complete path relative to `main/boards/`:
 
 ```cmake
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
-    set(MANUFACTURER "waveshare")
-    set(BOARD_TYPE "esp32-p4-nano")
+    set(BOARD_DIR "waveshare/esp32-p4-nano")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
     set(BUILTIN_ICON_FONT font_awesome_30_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 ```
 
-When `MANUFACTURER` is set, the build system globs source files from `main/boards/${MANUFACTURER}/${BOARD_TYPE}/`. When it is empty, it falls back to the flat `main/boards/${BOARD_TYPE}/` layout.
+The build system loads sources from `main/boards/${BOARD_DIR}/` and reads the reported board type from that directory's `config.json`. If `config.json` or its top-level `type` is absent, the full `BOARD_DIR` with `/` replaced by `-` is used as the fallback type.
 
 Rules of thumb:
 - Use the manufacturer layout when you have two or more boards from the same vendor that share drivers, assets, or documentation.

@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-p4-wifi6-touch-lcd",
     "target": "esp32p4",
     "builds": [
         {
@@ -19,7 +20,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-4b-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-4b",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-4b-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -49,7 +51,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-4.3-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-4.3",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-4.3-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -79,7 +82,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-5-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-5",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-5-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -112,7 +116,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-7b-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-7b",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-7b-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -145,7 +150,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-3.4c-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-3.4c",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-3.4c-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -175,7 +181,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-4c-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-4c",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-4c-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -205,7 +212,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-7-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-7",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-7-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -235,7 +243,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-8-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-8",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-8-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
@@ -265,7 +274,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-10.1-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-10.1",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-10.1-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",

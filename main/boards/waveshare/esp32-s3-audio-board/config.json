@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-s3-audio-board",
     "target": "esp32s3",
     "builds": [
         {

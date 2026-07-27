@@ -2,16 +2,16 @@
 
 > Last updated: 2026-07-24
 > Validated SDK: ESP-IDF v6.0.1
-> Scope: 138 board directories and 172 supported build variants defined by `main/boards/**/config.json`.
+> Scope: 138 board directories and 171 supported build variants defined by `main/boards/**/config.json`.
 
 ## Current Status
 
-The current IDF 6 release selection contains 172 variants. The previous 157-variant baseline passed the latest complete GitHub Actions matrix on ESP-IDF 6.0.1. ESP-SR 2.4.7 adds IDF 6 support for ESP32-P4 Rev < 3, so the 14 unsuffixed Rev1 variants now join their existing `-p4x` Rev3 counterparts in the IDF 6 matrix. Component versions that use ranges are resolved from the Component Registry at build time; until per-target lock snapshots are committed, this is a source-reproducible build rather than a bit-for-bit dependency-reproducible build.
+The current release matrix contains 171 variants: 170 select on IDF 6.0.x, while the ESP32-S31 variant requires IDF 6.1 or later. The previous 157-variant baseline passed the latest complete GitHub Actions matrix on ESP-IDF 6.0.1. ESP-SR 2.4.7 adds IDF 6 support for ESP32-P4 Rev < 3, so the 14 unsuffixed Rev1 variants now join their existing `-p4x` Rev3 counterparts in the IDF 6 matrix. Component versions that use ranges are resolved from the Component Registry at build time; until per-target lock snapshots are committed, this is a source-reproducible build rather than a bit-for-bit dependency-reproducible build.
 
 | Status | Variants | Meaning |
 |---|---:|---|
 | ✅ Previously matrix-validated | 157 | All 157 baseline builds completed in GitHub Actions with ESP-IDF 6.0.1; this does not imply hardware or complete peripheral validation |
-| 🟡 Added since full-matrix validation | 15 | Includes the 14 newly enabled P4 Rev1 variants; representative validation is recorded below and a complete 172-variant CI run remains pending |
+| 🟡 Net variants added since full-matrix validation | 14 | Includes the 14 newly enabled P4 Rev1 variants and the IDF 6.1-only ESP32-S31 variant, after retired low-use variants were removed; a complete current-matrix CI run remains pending |
 | 🟡 Feature-degraded subset | 1 | `esp-vocat` builds on IDF 6, but its PCB capacitive slider/button support is disabled pending compatible touch-sensor components |
 | 🔴 Build-blocked | 0 | No supported release variant remains blocked at compile or link time |
 
@@ -22,7 +22,7 @@ Representative local full-build results are shown below. Firmware size and free 
 | Chip | Build variant | Application size | Free space in smallest app partition |
 |---|---|---:|---:|
 | ESP32 | `bread-compact-esp32` | `0x240560` | 23% |
-| ESP32-C3 | `esp-hi` | `0x20ef10` | 30% |
+| ESP32-C3 | `espressif-esp-hi` | `0x20ef10` | 30% |
 | ESP32-C3 | `xmini-c3` | `0x2370f0` | 44% |
 | ESP32-C5 | `waveshare-esp32-c5-touch-lcd-1.69` | `0x27cd30` | 37% |
 | ESP32-C6 | `waveshare-esp32-c6-lcd-0.85` | `0x280ee0` | 15% |
@@ -32,19 +32,19 @@ Representative local full-build results are shown below. Firmware size and free 
 | ESP32-S3 | `zhengchen-1.54tft-wifi` | `0x2abdc0` | 32% |
 | ESP32-S3 | `kevin-yuying-313lcd` | `0x2c4990` | 30% |
 | ESP32-S3 | `otto-robot` | `0x37ff70` | 11% |
-| ESP32-S3 | `esp-vocat` | `0x2742f0` | 38% |
+| ESP32-S3 | `espressif-esp-vocat` | `0x2742f0` | 38% |
 | ESP32-S3 | `sensecap-watcher` | `0x2faff0` | 25% |
-| ESP32-P4 Rev1 | `esp-p4-function-ev-board` | `0x345a90` | 17% |
-| ESP32-P4 Rev3 | `esp-p4-function-ev-board-p4x` | `0x34a150` | 16% |
+| ESP32-P4 Rev1 | `espressif-esp32-p4-function-ev-board` | `0x345a90` | 17% |
+| ESP32-P4 Rev3 | `espressif-esp32-p4x-function-ev-board` | `0x34a150` | 16% |
 | ESP32-P4 v3.x | `m5stack-tab5-p4x` | `0x380790` | 11% |
 
-The old negative result for `esp-p4-function-ev-board` came from ESP-SR 2.4.6. ESP-SR 2.4.7 supplies the missing ESP32-P4 Rev < 3 libraries for IDF 6, so the project no longer version-gates the unsuffixed P4 variants.
+The old negative result for `esp32-p4-function-ev-board` came from ESP-SR 2.4.6. ESP-SR 2.4.7 supplies the missing ESP32-P4 Rev < 3 libraries for IDF 6, so the project no longer version-gates the P4 variants.
 
-For backward-compatibility regression coverage, `xmini-c3` also completed a full build with ESP-IDF 5.5.4 (application size `0x234920`, 44% free in the smallest app partition). The legacy `esp-p4-function-ev-board` release variant subsequently completed the same 5.5.4 release flow (application size `0x38a130`, 10% free), including merged-binary packaging. This confirms that the compatibility changes for I2S port numbering, LCD I2C configuration, the UHCI DMA dependency, and the pre-v3 P4 selection did not break the existing 5.5 build chain.
+For backward-compatibility regression coverage, `xmini-c3` also completed a full build with ESP-IDF 5.5.4 (application size `0x234920`, 44% free in the smallest app partition). The legacy `esp32-p4-function-ev-board` release variant subsequently completed the same 5.5.4 release flow (application size `0x38a130`, 10% free), including merged-binary packaging. This confirms that the compatibility changes for I2S port numbering, LCD I2C configuration, the UHCI DMA dependency, and the pre-v3 P4 selection did not break the existing 5.5 build chain.
 
 ## Full-Matrix CI Validation
 
-GitHub Actions run [29534954031](https://github.com/78/xiaozhi-esp32/actions/runs/29534954031) built the then-current matrix with the `espressif/idf:v6.0.1` container. The matrix-generation job and all 157 board builds passed. This historical run predates the 172-variant matrix.
+GitHub Actions run [29534954031](https://github.com/78/xiaozhi-esp32/actions/runs/29534954031) built the then-current matrix with the `espressif/idf:v6.0.1` container. The matrix-generation job and all 157 board builds passed. This historical run predates the current 170-variant IDF 6.0.x matrix.
 
 Results by chip target:
 
@@ -66,10 +66,10 @@ The IDF 6 release matrix supports both ESP32-P4 Rev < 3 and Rev >= 3 silicon. Th
 
 | SDK | ESP32-P4 Rev < 3 | ESP32-P4 Rev >= 3 |
 |---|---|---|
-| ESP-IDF < 6 | Original name without a suffix; adds `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` and `CONFIG_ESP32P4_REV_MIN_100=y` | Original name plus `-p4x` |
-| ESP-IDF >= 6 | Original name without a suffix; adds `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` and `CONFIG_ESP32P4_REV_MIN_100=y` | Original name plus `-p4x` |
+| ESP-IDF < 6 | Original `esp32-p4-` name; adds `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` and `CONFIG_ESP32P4_REV_MIN_100=y` | Uses `esp32-p4x-` when the variant starts with the chip name; otherwise retains the established `-p4x` suffix |
+| ESP-IDF >= 6 | Original `esp32-p4-` name; adds `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` and `CONFIG_ESP32P4_REV_MIN_100=y` | Uses `esp32-p4x-` when the variant starts with the chip name; otherwise retains the established `-p4x` suffix |
 
-Both ESP-IDF 5.5 and ESP-IDF 6 now select 172 variants: 14 P4 `-p4x` artifacts, 14 Rev < 3 P4 artifacts with their original unsuffixed names, and 144 non-P4 variants.
+ESP-IDF 5.5 and 6.0.x each select 170 variants: 14 P4X artifacts, 14 Rev < 3 P4 artifacts with their original names, and 142 non-P4 variants. ESP-IDF 6.1 or later additionally selects the ESP32-S31 build, for 171 variants in total.
 
 Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1, and v3.2, with no v4.0 revision. The public errata history added v3.0/v3.1 information on 2026-02-12 and v3.2 information on 2026-04-20. ESP-IDF 6.0 release notes explicitly describe support for "ESP32-P4 Version3 silicon." See the official [chip revision identification](https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/01-chip-identification/index.html), [errata revision history](https://docs.espressif.com/projects/esp-chip-errata/en/latest/esp32p4/revision-history/index.html), and [ESP-IDF releases](https://github.com/espressif/esp-idf/releases).
 
@@ -96,11 +96,11 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | BluFi security negotiation (conditional path) | PSA FFDH + SHA-256 + AES-CTR | ✅ Ported | Uses the ESP-IDF 6 security scheme with ffdhe3072 and passed local full ESP32-S3 builds with BluFi enabled on IDF 5.5.4 and 6.0.1. Legacy 1024-bit BluFi clients are not compatible and must be upgraded |
 | `espressif/bmi270_sensor` | [`0.1.2`](https://components.espressif.com/components/espressif/bmi270_sensor/versions/0.1.2/readme?language=en) | ✅ Upstream support | Provides IDF 6.0 prebuilt libraries for ESP32-C5 and ESP32-S3; validated by a full `esp-spot-c5` build |
 | `touch_slider_sensor` / `touch_button_sensor` | Disabled for IDF 6 | 🟡 Feature gap | Their manifests require IDF < 6.0, so ESP Vocat omits its PCB capacitive slider/button path on IDF 6. CST816 display touch is unaffected |
-| ESP32-P4 Rev < 3 / `espressif/esp-sr` | `~2.4.7` | ✅ Upstream support | The 14 unsuffixed Rev1 variants are available on IDF 5.5 and IDF 6; `-p4x` continues to select Rev >= 3 |
+| ESP32-P4 Rev < 3 / `espressif/esp-sr` | `~2.4.7` | ✅ Upstream support | The 14 Rev1 variants are available on IDF 5.5 and IDF 6; P4X-specific names continue to select Rev >= 3 |
 
 ## Per-Board Progress
 
-In the table below, "Board" is the source directory and "Build variant" is the firmware name used by the release script. Different chip revisions of the same board may have different status, so they are split into separate rows when necessary.
+In the table below, "Board" is the source directory and "Build variant" is the firmware name used by the build script. Different chip revisions of the same board may have different status, so they are split into separate rows when necessary.
 
 | Chip | Board | Build variant | IDF 6.0 status | Current validation | Blocker/next step |
 |---|---|---|---|---|---|
@@ -108,20 +108,20 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32` | `bread-compact-esp32` | `bread-compact-esp32` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
 | `esp32` | `bread-compact-esp32` | `bread-compact-esp32-128x32` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32` | `bread-compact-esp32-lcd` | `bread-compact-esp32-lcd` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32` | `esp32-cgc` | `esp32-cgc` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32` | `esp32-cgc-144` | `esp32-cgc-144` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32` | `wdmomo/esp32-cgc` | `wdmomo-esp32-cgc` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32` | `wdmomo/esp32-cgc-144` | `wdmomo-esp32-cgc-144` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32` | `waveshare/esp32-touch-lcd-3.5` | `waveshare-esp32-touch-lcd-3.5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32c3` | `esp-hi` | `esp-hi` | ✅ Full build passed | IDF 6.0.1 `idf.py build`; `servo_dog_ctrl 0.2.0` | Hardware smoke, servo, and audio peripheral regression pending |
-| `esp32c3` | `kevin-c3` | `kevin-c3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32c3` | `lichuang-c3-dev` | `lichuang-c3-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32c3` | `espressif/esp-hi` | `espressif-esp-hi` | ✅ Full build passed | IDF 6.0.1 `idf.py build`; `servo_dog_ctrl 0.2.0` | Hardware smoke, servo, and audio peripheral regression pending |
+| `esp32c3` | `kevin/c3` | `kevin-c3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32c3` | `lckfb/szpi-esp32c3` | `lckfb-lichuang-c3-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `magiclick-c3` | `magiclick-c3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `magiclick-c3-v2` | `magiclick-c3-v2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `surfer-c3-1.14tft` | `surfer-c3-1.14tft` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `xmini-c3` | `xmini-c3` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `xmini-c3-4g` | `xmini-c3-4g` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c3` | `xmini-c3-v3` | `xmini-c3-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32c5` | `esp-sensairshuttle` | `esp-sensairshuttle` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32c5` | `esp-spot` | `esp-spot-c5` | ✅ Full build passed | IDF 6.0.1 `idf.py build`; `bmi270_sensor 0.1.2` | Hardware smoke, BMI270, audio, and power-management regression pending |
+| `esp32c5` | `espressif/esp-sensairshuttle` | `espressif-esp-sensairshuttle` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32c5` | `espressif/esp-spot` | `espressif-esp-spot-c5` | ✅ Full build passed | IDF 6.0.1 `idf.py build`; `bmi270_sensor 0.1.2` | Hardware smoke, BMI270, audio, and power-management regression pending |
 | `esp32c5` | `movecall-moji2-esp32c5` | `movecall-moji2-esp32c5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c5` | `waveshare/esp32-c5-touch-lcd-1.69` | `waveshare-esp32-c5-touch-lcd-1.69` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
 | `esp32c6` | `waveshare/esp32-c6-lcd-0.85` | `waveshare-esp32-c6-lcd-0.85` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
@@ -133,13 +133,13 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32c6` | `waveshare/esp32-c6-touch-amoled-2.16` | `waveshare-esp32-c6-touch-amoled-2.16` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c6` | `waveshare/esp32-c6-touch-lcd-1.54` | `waveshare-esp32-c6-touch-lcd-1.54` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32c6` | `waveshare/esp32-c6-touch-lcd-1.83` | `waveshare-esp32-c6-touch-lcd-1.83` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `aipi-lite` | `aipi-lite` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3` | `atk-dnesp32s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3-box` | `atk-dnesp32s3-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3-box0` | `atk-dnesp32s3-box0` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `atk-dnesp32s3-box2-4g` | `atk-dnesp32s3-box2-4g` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
-| `esp32s3` | `atk-dnesp32s3-box2-wifi` | `atk-dnesp32s3-box2-wifi` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
-| `esp32s3` | `atk-dnesp32s3-box3` | `atk-dnesp32s3-box3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `xorigin/aipi-lite` | `xorigin-aipi-lite` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `alientek/atk-dnesp32s3` | `alientek-atk-dnesp32s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `alientek/atk-dnesp32s3-box` | `alientek-atk-dnesp32s3-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `alientek/atk-dnesp32s3-box0` | `alientek-atk-dnesp32s3-box0` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `alientek/atk-dnesp32s3-box2-4g` | `alientek-atk-dnesp32s3-box2-4g` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
+| `esp32s3` | `alientek/atk-dnesp32s3-box2-wifi` | `alientek-atk-dnesp32s3-box2-wifi` | ✅ Build and hardware validated | GitHub Actions IDF 6.0.1 full build; maintainer hardware validation | Complete for the IDF 6 migration scope |
+| `esp32s3` | `alientek/atk-dnesp32s3-box3` | `alientek-atk-dnesp32s3-box3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atom-echos3r` | `atom-echos3r` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atoms3-echo-base` | `atoms3-echo-base` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `atoms3r-cam-m12-echo-base` | `atoms3r-cam-m12-echo-base` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -153,29 +153,29 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `doit-s3-aibox` | `doit-s3-aibox` | ✅ Full build passed | IDF 6.0.1 `idf.py build` | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `du-chatx` | `du-chatx` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `electron-bot` | `electron-bot` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-box` | `esp-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-box-3` | `esp-box-3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-box-lite` | `esp-box-lite` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-s3-lcd-ev-board` | `esp-s3-lcd-ev-board-1p4`<br>`esp-s3-lcd-ev-board-1p5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-s3-lcd-ev-board-2` | `esp-s3-lcd-ev-board-2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-sparkbot` | `esp-sparkbot` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp-vocat` | `esp-vocat` | 🟡 Full build passed; feature-degraded | Local ESP-IDF 6.0.1 full build after rebasing onto `origin/main` | PCB capacitive slider/button disabled on IDF 6; CST816 display touch remains enabled; hardware regression pending |
-| `esp32s3` | `esp32s3-korvo2-v3` | `esp32s3-korvo2-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `esp32s3-korvo2-v3-rndis` | `esp32s3-korvo2-v3-rndis` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-box` | `espressif-esp-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-box-3` | `espressif-esp-box-3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-box-lite` | `espressif-esp-box-lite` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-lcd-ev-board` | `espressif-esp-s3-lcd-ev-board-1p4`<br>`espressif-esp-s3-lcd-ev-board-1p5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-lcd-ev-board-2` | `espressif-esp32-s3-lcd-ev-board-2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp-sparkbot` | `espressif-esp-sparkbot` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp-vocat` | `espressif-esp-vocat` | 🟡 Full build passed; feature-degraded | Local ESP-IDF 6.0.1 full build after rebasing onto `origin/main` | PCB capacitive slider/button disabled on IDF 6; CST816 display touch remains enabled; hardware regression pending |
+| `esp32s3` | `espressif/esp32-s3-korvo-2-v3.0` | `espressif-esp32s3-korvo2-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `espressif/esp32-s3-korvo-2-v3.0-rndis` | `espressif-esp32s3-korvo2-v3-rndis` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `freenove-esp32s3-display-2.8-lcd` | `freenove-esp32s3-display-2.8-lcd` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `genjutech-s3-1.54tft` | `genjutech-s3-1.54tft` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `hu-087` | `hu-087` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `jiuchuan-s3` | `jiuchuan-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `kevin-box-2` | `kevin-box-2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `kevin-sp-v4-dev` | `kevin-sp-v4-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `kevin-yuying-313lcd` | `kevin-yuying-313lcd` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `labplus-ledong-v2` | `labplus-ledong-v2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `labplus-mpython-v3` | `labplus-mpython-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `kevin/box-2` | `kevin-box-2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `kevin/sp-v4-dev` | `kevin-sp-v4-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `kevin/yuying-313lcd` | `kevin-yuying-313lcd` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `labplus/ledong-v2` | `labplus-ledong-v2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `labplus/mpython-v3` | `labplus-mpython-v3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lceda-course-examples/eda-robot-pro` | `lceda-course-examples-eda-robot-pro` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lceda-course-examples/eda-super-bear` | `lceda-course-examples-eda-super-bear` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lceda-course-examples/eda-tv-pro` | `lceda-course-examples-eda-tv-pro` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `lichuang-dev` | `lichuang-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `lilygo-t-cameraplus-s3` | `lilygo-t-cameraplus-s3`<br>`lilygo-t-cameraplus-s3_v1_2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `lckfb/szpi-esp32s3` | `lckfb-lichuang-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `lilygo-t-cameraplus-s3` | `lilygo-t-cameraplus-s3`<br>`lilygo-t-cameraplus-s3-v1.2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lilygo-t-circle-s3` | `lilygo-t-circle-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lilygo-t-display-s3-pro-mvsrlora` | `lilygo-t-display-s3-pro-mvsrlora` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `m5stack-cardputer-adv` | `m5stack-cardputer-adv` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -196,7 +196,6 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `sp-esp32-s3-1.28-box` | `sp-esp32-s3-1.28-box` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `sp-esp32-s3-1.54-muma` | `sp-esp32-s3-1.54-muma` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `taiji-pi-s3` | `taiji-pi-s3`<br>`taiji-pi-s3-pdm` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `tudouzi` | `tudouzi` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `waveshare/esp32-s3-audio-board` | `waveshare-esp32-s3-audio-board` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `waveshare/esp32-s3-cam` | `waveshare-esp32-s3-cam-2`<br>`waveshare-esp32-s3-cam-2.8`<br>`waveshare-esp32-s3-cam-3.5`<br>`waveshare-esp32-s3-cam-1.83` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `waveshare/esp32-s3-epaper-1.54` | `waveshare-esp32-s3-epaper-1.54-v2`<br>`waveshare-esp32-s3-epaper-1.54-v1` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
@@ -236,16 +235,14 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `zhengchen-1.54tft-wifi` | `zhengchen-1.54tft-wifi` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `zhengchen-cam` | `zhengchen-cam` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `zhengchen-cam-ml307` | `zhengchen-cam-ml307` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `esp-p4-function-ev-board` | `esp-p4-function-ev-board`<br>`esp-p4-function-ev-board-p4x` | ✅ Full builds passed | IDF 6.0.1 canonical release builds with ESP-SR 2.4.7 for Rev1 and Rev3 | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `espressif/esp32-p4-function-ev-board` | `espressif-esp32-p4-function-ev-board`<br>`espressif-esp32-p4x-function-ev-board` | ✅ Full builds passed | IDF 6.0.1 canonical release builds with ESP-SR 2.4.7 for Rev1 and Rev3 | Hardware smoke/peripheral regression pending |
 | `esp32p4` | `m5stack-tab5` | `m5stack-tab5-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-nano` | `waveshare-esp32-p4-nano-10.1-a-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd` | `waveshare-esp32-p4-wifi6-touch-lcd-4b-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4.3-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-5-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7b-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-3.4c-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-4c-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-7-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-8-p4x`<br>`waveshare-esp32-p4-wifi6-touch-lcd-10.1-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd-3.5` | `waveshare-esp32-p4-wifi6-touch-lcd-3.5-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32p4` | `wireless-tag-wtp4c5mp07s` | `wireless-tag-wtp4c5mp07s-p4x` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-
+| `esp32p4` | `waveshare/esp32-p4-nano` | `waveshare-esp32-p4x-nano-10.1-a` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd` | `waveshare-esp32-p4x-wifi6-touch-lcd-4b`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-4.3`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-5`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-7b`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-3.4c`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-4c`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-7`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-8`<br>`waveshare-esp32-p4x-wifi6-touch-lcd-10.1` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32p4` | `waveshare/esp32-p4-wifi6-touch-lcd-3.5` | `waveshare-esp32-p4x-wifi6-touch-lcd-3.5` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 ## Next Steps and Acceptance Criteria
 
-1. Run the new IDF 5.5 compatibility and IDF 6 BluFi CI jobs, then hardware-test at least one P4 v1.3 device on the legacy SDK path. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
+1. Run the IDF 6 BluFi CI job, then hardware-test at least one P4 v1.3 device on the legacy SDK path. When IDF 6-compatible releases of `touch_slider_sensor` and `touch_button_sensor` become available, re-enable and hardware-test the ESP Vocat PCB capacitive slider/button path.
 2. For every green variant, complete a minimal hardware smoke test covering boot, networking, audio input/output, display/touch when present, camera when present, and 4G/Ethernet when present.
 3. Perform a physical negative test for the `xmini-c3`/`xmini-c3-v3` firmware guard. CI proves that both images compile; it does not prove that a wrong image is safely rejected. Acceptance requires flashing each wrong image to a sacrificial or recoverable board and verifying that startup stops before any board-specific power or peripheral initialization can cause damage.
 4. Keep third-party experiments under the ignored `components/` directory out of the migration branch. The reproducible baseline must use the published `78/esp_lcd_nv3023 1.0.1` and `wvirgil123/sscma_client 1.0.3` packages. `espfriends/servo_dog_ctrl 0.2.0` is an upstream registry dependency and needs no local override.
@@ -254,7 +251,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 
 ```bash
 source ~/.espressif/v6.0.1/esp-idf/export.sh
-python scripts/release.py <board> --name <variant>
+python scripts/build.py <board> --name <variant>
 ```
 
 This document is a migration-status snapshot. Build compatibility and hardware compatibility are tracked separately. Add "hardware validated" to a board only after validation on physical hardware is complete.

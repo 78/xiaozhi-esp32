@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-p4-wifi6-touch-lcd-3.5",
     "target": "esp32p4",
     "builds": [
         {
@@ -16,7 +17,8 @@
             ]
         },
         {
-            "name": "esp32-p4-wifi6-touch-lcd-3.5-p4x",
+            "name": "esp32-p4x-wifi6-touch-lcd-3.5",
+            "legacy_names": ["esp32-p4-wifi6-touch-lcd-3.5-p4x"],
             "sdkconfig_append": [
                 "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",

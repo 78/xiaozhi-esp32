@@ -4,7 +4,7 @@
 
 ## 重要提示
 
-> **警告**: 对于自定义开发板，当IO配置与原有开发板不同时，切勿直接覆盖原有开发板的配置编译固件。必须创建新的开发板类型，或者通过config.json文件中的builds配置不同的name和sdkconfig宏定义来区分。使用 `python scripts/release.py [开发板目录名字]` 来编译打包固件。
+> **警告**: 对于自定义开发板，当IO配置与原有开发板不同时，切勿直接覆盖原有开发板的配置编译固件。必须创建新的开发板类型，或者通过config.json文件中的builds配置不同的name和sdkconfig宏定义来区分。使用 `python scripts/build.py [开发板目录名字]` 来编译固件。
 >
 > 如果直接覆盖原有配置，将来OTA升级时，您的自定义固件可能会被原有开发板的标准固件覆盖，导致您的设备无法正常工作。每个开发板有唯一的标识和对应的固件升级通道，保持开发板标识的唯一性非常重要。
 
@@ -14,7 +14,7 @@
 
 - `xxx_board.cc` - 主要的板级初始化代码，实现了板子相关的初始化和功能
 - `config.h` - 板级配置文件，定义了硬件管脚映射和其他配置项
-- `config.json` - 编译配置，指定目标芯片和特殊的编译选项
+- `config.json` - 上报开发板类型及发布配置，供 CMake 和 `scripts/build.py` 使用
 - `README.md` - 开发板相关的说明文档
 
 ## 定制开发板步骤
@@ -87,10 +87,11 @@ mkdir main/boards/my-custom-board
 
 #### config.json
 
-在`config.json`中定义编译配置，这个文件用于 `scripts/release.py` 脚本自动化编译：
+在`config.json`中定义兼容性相关的上报类型和自动化编译配置：
 
 ```json
 {
+    "type": "my-custom-board",  // 固件上报的开发板类型，发布后应保持稳定
     "target": "esp32s3",  // 目标芯片型号: esp32, esp32s3, esp32c3, esp32c6, esp32p4等
     "builds": [
         {
@@ -107,30 +108,36 @@ mkdir main/boards/my-custom-board
 ```
 
 **配置项说明：**
+- `manufacturer`: 厂商子目录名称；使用厂商目录时必须填写，并作为 `board.manufacturer` 上报。平铺社区板可以省略，上报为空字符串
+- `type`: 固件上报的开发板系列类型，发布后应保持稳定
 - `target`: 目标芯片型号，必须与硬件匹配
-- `name`: 编译输出的固件包名称，建议与目录名一致
+- `name`: release 构建上报的固件变体名称，通常与 `type` 一致
 - `sdkconfig_append`: 额外的 sdkconfig 配置项数组，会追加到默认配置中
+
+`type` 和 `name` 只能包含小写字母、数字、点（`.`）和连字符（`-`），
+不允许使用下划线、空格或大写字母。
 
 **常用的 sdkconfig_append 配置：**
 ```json
 // Flash 大小
 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y"   // 4MB Flash
 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y"   // 8MB Flash
-"CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"  // 16MB Flash
 
 // 分区表
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""  // 4MB 分区表
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""  // 8MB 分区表
-"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"" // 16MB 分区表
 
-// 语言配置
-"CONFIG_LANGUAGE_EN_US=y"  // 英语
-"CONFIG_LANGUAGE_ZH_CN=y"  // 简体中文
-
-// 唤醒词配置
+// 音频处理
 "CONFIG_USE_DEVICE_AEC=y"          // 启用设备端 AEC
-"CONFIG_WAKE_WORD_DISABLED=y"      // 禁用唤醒词
 ```
+
+对于适用的目标芯片，项目默认使用 16MB Flash 和
+`partitions/v2/16m.csv`。如果板子配置与项目及目标芯片的有效默认值相同，
+不要在 `sdkconfig_append` 中重复填写；这里应只保留板子确实需要的覆盖项。
+
+不要在板子的 `config.json` 中选择语言或具体唤醒词。这些属于用户构建选项，
+应统一通过 `menuconfig` 或构建脚本参数配置，方便 CLI、Agent 和在线编译接口
+共用同一套参数。
 
 ### 3. 编写板级初始化代码
 
@@ -321,7 +328,7 @@ endchoice
 ```cmake
 # 在 elseif 链中添加你的开发板配置
 elseif(CONFIG_BOARD_TYPE_MY_CUSTOM_BOARD)
-    set(BOARD_TYPE "my-custom-board")  # 与目录名一致
+    set(BOARD_DIR "my-custom-board")  # 相对于 main/boards 的完整路径
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)  # 根据屏幕大小选择合适的字体
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)  # 可选，如果需要表情显示
@@ -374,18 +381,48 @@ endif()
    idf.py flash monitor
    ```
 
-#### 方法二：使用 release.py 脚本（推荐）
+#### 方法二：使用 build.py 脚本（推荐）
 
 如果你的开发板目录下有 `config.json` 文件，可以使用此脚本自动完成配置和编译：
 
 ```bash
-python scripts/release.py my-custom-board
+python scripts/build.py my-custom-board
 ```
 
+语言和唤醒词属于用户构建参数：
+
+```bash
+python scripts/build.py my-custom-board \
+  --language en-US \
+  --wake-word wn9_jarvis_tts
+```
+
+`--language` 接受 `main/assets/locales/` 下已有的 locale；`--wake-word`
+接受 ESP-SR 模型名、`nihaoxiaozhi`（自动选择与目标芯片兼容的模型）或
+`disabled`。ESP32-C3/C5/C6 仅支持 WakeNet9s（`wn9s_*`）模型；
+ESP32-S3/P4/S31 构建会自动使用 AFE 唤醒引擎。
+
+可以用文本或 JSON 格式查询可用值：
+
+```bash
+python scripts/build.py --list-languages
+python scripts/build.py --list-languages --json
+python scripts/build.py --list-wake-words
+python scripts/build.py --list-wake-words --json
+```
+
+唤醒词列表从当前已解析的 ESP-SR 组件读取。如果尚未生成
+`managed_components/`，请先运行 `idf.py reconfigure`。
+
 此脚本会自动：
-- 读取 `config.json` 中的 `target` 配置并设置目标芯片
-- 应用 `sdkconfig_append` 中的编译选项
-- 完成编译并打包固件
+- 不传参数时打印帮助；使用 `--list-boards` 列出所有开发板类型和变体
+- 如果开发板有多个变体，交互式提示选择；非交互环境使用 `--name <变体>`
+- 读取 `config.json` 中的 `target`，仅在目标芯片变化时调用
+  `idf.py set-target`，然后根据 defaults 和所选变体的
+  `sdkconfig_append` 重新生成 `sdkconfig`
+- 将所选 build 的 `name` 作为固件上报的变体名称
+- 默认生成 `build/merged-binary.bin`，不创建 ZIP；指定 `--zip` 时会重新生成
+  `releases/v<版本>_<名称>.zip`
 
 ### 6. 创建README.md
 
@@ -450,4 +487,4 @@ python scripts/release.py my-custom-board
 
 - ESP-IDF 文档: https://docs.espressif.com/projects/esp-idf/
 - LVGL 文档: https://docs.lvgl.io/
-- ESP-SR 文档: https://github.com/espressif/esp-sr 
+- ESP-SR 文档: https://github.com/espressif/esp-sr
