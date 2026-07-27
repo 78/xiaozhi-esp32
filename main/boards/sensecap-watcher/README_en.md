@@ -3,7 +3,9 @@
 ## One-click Build
 
 ```bash
-python scripts/build.py sensecap-watcher -c config_en.json
+python scripts/build.py sensecap-watcher \
+  --language en-US \
+  --wake-word wn9_jarvis_tts
 ```
 
 ## Manual Configuration and Build
@@ -40,7 +42,7 @@ CONFIG_SR_WN_WN9_JARVIS_TTS=y
 ## Build and Flash
 
 ```bash
-idf.py -DBOARD_NAME=sensecap-watcher-en build flash
+idf.py -DBOARD_NAME=sensecap-watcher build flash
 ```
 
 Note: If your device was previously shipped with the SenseCAP firmware (not the Xiaozhi version), please be very careful with the flash partition addresses to avoid accidentally erasing the device information (such as EUI) of the SenseCAP Watcher. Otherwise, even if you restore the SenseCAP firmware, the device may not be able to connect to the SenseCraft server correctly! Therefore, before flashing the firmware, be sure to record the necessary device information to ensure you have a way to recover it!

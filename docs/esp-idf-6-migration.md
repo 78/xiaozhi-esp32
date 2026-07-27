@@ -175,7 +175,7 @@ In the table below, "Board" is the source directory and "Build variant" is the f
 | `esp32s3` | `lceda-course-examples/eda-super-bear` | `lceda-course-examples-eda-super-bear` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lceda-course-examples/eda-tv-pro` | `lceda-course-examples-eda-tv-pro` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lckfb/szpi-esp32s3` | `lckfb-lichuang-dev` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
-| `esp32s3` | `lilygo-t-cameraplus-s3` | `lilygo-t-cameraplus-s3`<br>`lilygo-t-cameraplus-s3_v1_2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
+| `esp32s3` | `lilygo-t-cameraplus-s3` | `lilygo-t-cameraplus-s3`<br>`lilygo-t-cameraplus-s3-v1.2` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lilygo-t-circle-s3` | `lilygo-t-circle-s3` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `lilygo-t-display-s3-pro-mvsrlora` | `lilygo-t-display-s3-pro-mvsrlora` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |
 | `esp32s3` | `m5stack-cardputer-adv` | `m5stack-cardputer-adv` | ✅ Full build passed | GitHub Actions IDF 6.0.1 full build | Hardware smoke/peripheral regression pending |

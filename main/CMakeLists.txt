@@ -845,6 +845,11 @@ endif()
 if(NOT BOARD_MANUFACTURER AND BOARD_DIR MATCHES "^([^/]+)/")
     set(BOARD_MANUFACTURER "${CMAKE_MATCH_1}")
 endif()
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND NOT BOARD_TYPE MATCHES "^[a-z0-9.-]+$")
+    message(FATAL_ERROR
+        "Invalid BOARD_TYPE '${BOARD_TYPE}': only lowercase letters, digits, '.' and '-' are allowed"
+    )
+endif()
 
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_DIR}/*.cc
@@ -1052,6 +1057,11 @@ idf_component_register(SRCS ${SOURCES}
 # If BOARD_NAME is empty, use BOARD_TYPE
 if(NOT BOARD_NAME)
     set(BOARD_NAME ${BOARD_TYPE})
+endif()
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND NOT BOARD_NAME MATCHES "^[a-z0-9.-]+$")
+    message(FATAL_ERROR
+        "Invalid BOARD_NAME '${BOARD_NAME}': only lowercase letters, digits, '.' and '-' are allowed"
+    )
 endif()
 string(REGEX MATCH "^font_noto_sans_basic_([0-9]+)_([0-9]+)$" _font_match "${BUILTIN_TEXT_FONT}")
 if(NOT _font_match)

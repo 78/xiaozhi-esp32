@@ -114,26 +114,30 @@ mkdir main/boards/my-custom-board
 - `name`: release 构建上报的固件变体名称，通常与 `type` 一致
 - `sdkconfig_append`: 额外的 sdkconfig 配置项数组，会追加到默认配置中
 
+`type` 和 `name` 只能包含小写字母、数字、点（`.`）和连字符（`-`），
+不允许使用下划线、空格或大写字母。
+
 **常用的 sdkconfig_append 配置：**
 ```json
 // Flash 大小
 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y"   // 4MB Flash
 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y"   // 8MB Flash
-"CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"  // 16MB Flash
 
 // 分区表
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""  // 4MB 分区表
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""  // 8MB 分区表
-"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"" // 16MB 分区表
 
-// 语言配置
-"CONFIG_LANGUAGE_EN_US=y"  // 英语
-"CONFIG_LANGUAGE_ZH_CN=y"  // 简体中文
-
-// 唤醒词配置
+// 音频处理
 "CONFIG_USE_DEVICE_AEC=y"          // 启用设备端 AEC
-"CONFIG_WAKE_WORD_DISABLED=y"      // 禁用唤醒词
 ```
+
+对于适用的目标芯片，项目默认使用 16MB Flash 和
+`partitions/v2/16m.csv`。如果板子配置与项目及目标芯片的有效默认值相同，
+不要在 `sdkconfig_append` 中重复填写；这里应只保留板子确实需要的覆盖项。
+
+不要在板子的 `config.json` 中选择语言或具体唤醒词。这些属于用户构建选项，
+应统一通过 `menuconfig` 或构建脚本参数配置，方便 CLI、Agent 和在线编译接口
+共用同一套参数。
 
 ### 3. 编写板级初始化代码
 
@@ -384,6 +388,31 @@ endif()
 ```bash
 python scripts/build.py my-custom-board
 ```
+
+语言和唤醒词属于用户构建参数：
+
+```bash
+python scripts/build.py my-custom-board \
+  --language en-US \
+  --wake-word wn9_jarvis_tts
+```
+
+`--language` 接受 `main/assets/locales/` 下已有的 locale；`--wake-word`
+接受 ESP-SR 模型名、`nihaoxiaozhi`（自动选择与目标芯片兼容的模型）或
+`disabled`。ESP32-C3/C5/C6 仅支持 WakeNet9s（`wn9s_*`）模型；
+ESP32-S3/P4/S31 构建会自动使用 AFE 唤醒引擎。
+
+可以用文本或 JSON 格式查询可用值：
+
+```bash
+python scripts/build.py --list-languages
+python scripts/build.py --list-languages --json
+python scripts/build.py --list-wake-words
+python scripts/build.py --list-wake-words --json
+```
+
+唤醒词列表从当前已解析的 ESP-SR 组件读取。如果尚未生成
+`managed_components/`，请先运行 `idf.py reconfigure`。
 
 此脚本会自动：
 - 不传参数时打印帮助；使用 `--list-boards` 列出所有开发板类型和变体

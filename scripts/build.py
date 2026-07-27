@@ -20,6 +20,23 @@ os.chdir(Path(__file__).resolve().parent.parent)
 
 _DEFAULT_IDF_VERSION = (6, 0, 2)
 
+_LITE_WAKE_WORD_TARGETS = {"esp32c3", "esp32c5", "esp32c6"}
+_AFE_WAKE_WORD_TARGETS = {"esp32s3", "esp32p4", "esp32s31"}
+_ESP_WAKE_WORD_TARGETS = {"esp32", *_LITE_WAKE_WORD_TARGETS}
+_WAKE_WORD_TARGETS = (
+    "esp32",
+    "esp32c3",
+    "esp32c5",
+    "esp32c6",
+    "esp32s3",
+    "esp32p4",
+    "esp32s31",
+)
+_WAKE_WORD_MODEL_PATTERN = re.compile(r"^wn9[sl]?_[a-z0-9_]+$")
+_ESP_SR_KCONFIG = Path(
+    "managed_components/espressif__esp-sr/Kconfig.projbuild"
+)
+
 
 def get_project_version() -> Optional[str]:
     """Read set(PROJECT_VER "x.y.z") from root CMakeLists.txt"""
@@ -66,12 +83,29 @@ def _get_manufacturer(cfg: dict) -> Optional[str]:
     return None
 
 
+_REPORTED_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9.-]+$")
+
+
+def _validate_reported_identifier(value: object, field: str) -> str:
+    """Validate an OTA-reported board type or name."""
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"missing non-empty {field}")
+    if not _REPORTED_IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"{field} {value!r} must contain only lowercase letters, "
+            'digits, "." and "-"'
+        )
+    return value
+
+
 def _get_reported_type(cfg: dict) -> str:
     """Read the compatibility-sensitive board type from config.json."""
-    board_type = cfg.get("type")
-    if not isinstance(board_type, str) or not board_type.strip():
-        raise ValueError('missing non-empty top-level "type"')
-    return board_type.strip()
+    return _validate_reported_identifier(cfg.get("type"), 'top-level "type"')
+
+
+def _get_reported_name(build: dict) -> str:
+    """Read the compatibility-sensitive board name from a build entry."""
+    return _validate_reported_identifier(build.get("name"), 'build "name"')
 
 
 def _get_full_name(manufacturer: Optional[str], name: str) -> str:
@@ -94,9 +128,215 @@ def _get_release_full_name(
     build: dict,
 ) -> str:
     """Return manufacturer + board name for the release artifact."""
-    release_name = build["name"]
+    release_name = _get_reported_name(build)
     release_name = _normalize_p4x_release_name(release_name)
     return _get_full_name(manufacturer, release_name)
+
+
+def _normalize_language(language: str) -> str:
+    """Normalize a locale accepted by the build interface."""
+    supported_languages = _collect_languages()
+    languages_by_casefold = {
+        supported.casefold(): supported
+        for supported in supported_languages
+    }
+    normalized = language.strip().replace("_", "-").casefold()
+    try:
+        return languages_by_casefold[normalized]
+    except KeyError as error:
+        supported = ", ".join(supported_languages)
+        raise ValueError(
+            f"Unsupported language {language!r}. Supported values: {supported}"
+        ) from error
+
+
+def _collect_languages(
+    cmake_path: Path = Path("main/CMakeLists.txt"),
+    kconfig_path: Path = Path("main/Kconfig.projbuild"),
+    locales_dir: Path = Path("main/assets/locales"),
+) -> list[str]:
+    """Read configured locale mappings and validate their build resources."""
+    for path in (cmake_path, kconfig_path, locales_dir):
+        if not path.exists():
+            raise RuntimeError(f"Language configuration source not found: {path}")
+
+    cmake = cmake_path.read_text(encoding="utf-8")
+    mappings = re.findall(
+        r"(?:if|elseif)\(CONFIG_LANGUAGE_([A-Z_]+)\)\s*"
+        r'set\(LANG_DIR "([^"]+)"\)',
+        cmake,
+    )
+    if not mappings:
+        raise RuntimeError(f"No language mappings found in {cmake_path}")
+
+    kconfig = kconfig_path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    languages: list[str] = []
+    for symbol, language in mappings:
+        if not re.search(
+            rf"^\s*config LANGUAGE_{re.escape(symbol)}$",
+            kconfig,
+            re.MULTILINE,
+        ):
+            errors.append(f"CONFIG_LANGUAGE_{symbol} is missing from {kconfig_path}")
+        if not (locales_dir / language).is_dir():
+            errors.append(f"locale directory is missing: {locales_dir / language}")
+        if language in languages:
+            errors.append(f"duplicate language mapping: {language}")
+        else:
+            languages.append(language)
+
+    if errors:
+        details = "\n".join(f"  - {error}" for error in errors)
+        raise RuntimeError(f"Invalid language configuration:\n{details}")
+    return languages
+
+
+def _language_sdkconfig_option(language: str) -> tuple[str, str]:
+    """Return the normalized locale and its Kconfig assignment."""
+    normalized = _normalize_language(language)
+    symbol = normalized.replace("-", "_").upper()
+    return normalized, f"CONFIG_LANGUAGE_{symbol}=y"
+
+
+def _collect_wake_words(
+    kconfig_path: Path = _ESP_SR_KCONFIG,
+) -> list[dict[str, object]]:
+    """Read available WakeNet models from the resolved ESP-SR component."""
+    if not kconfig_path.exists():
+        raise RuntimeError(
+            f"{kconfig_path} was not found. Resolve managed components with "
+            "'idf.py reconfigure' before listing wake words."
+        )
+
+    content = kconfig_path.read_text(encoding="utf-8")
+    config_matches = list(re.finditer(
+        r"^\s*config SR_WN_([A-Z0-9_]+)\s*$",
+        content,
+        re.MULTILINE,
+    ))
+    wake_words: list[dict[str, object]] = []
+    for index, match in enumerate(config_matches):
+        block_end = (
+            config_matches[index + 1].start()
+            if index + 1 < len(config_matches)
+            else len(content)
+        )
+        block = content[match.end():block_end]
+        label_match = re.search(r'^\s*bool "([^"]+)"\s*$', block, re.MULTILINE)
+        if not label_match:
+            continue
+
+        model = match.group(1).lower()
+        label = label_match.group(1)
+        suffix = f"({model})"
+        phrase = (
+            label[:-len(suffix)].strip()
+            if label.endswith(suffix)
+            else label
+        )
+        targets = (
+            _WAKE_WORD_TARGETS
+            if model.startswith("wn9s_")
+            else (
+                "esp32",
+                "esp32s3",
+                "esp32p4",
+                "esp32s31",
+            )
+        )
+        wake_words.append({
+            "model": model,
+            "phrase": phrase,
+            "targets": list(targets),
+        })
+
+    if not wake_words:
+        raise RuntimeError(f"No WakeNet models found in {kconfig_path}")
+    return wake_words
+
+
+def _print_wake_word_list(wake_words: list[dict[str, object]]) -> None:
+    """Print a human-readable table of available wake-word models."""
+    model_width = max(
+        len("MODEL"),
+        *(len(str(item["model"])) for item in wake_words),
+    )
+    phrase_width = max(
+        len("PHRASE"),
+        *(len(str(item["phrase"])) for item in wake_words),
+    )
+    print(f"{'MODEL':<{model_width}}  {'PHRASE':<{phrase_width}}  TARGETS")
+    for item in wake_words:
+        targets = ",".join(str(target) for target in item["targets"])
+        print(
+            f"{str(item['model']):<{model_width}}  "
+            f"{str(item['phrase']):<{phrase_width}}  {targets}"
+        )
+    print("\nSpecial values: nihaoxiaozhi, disabled")
+
+
+def _enabled_default_wake_word_symbols(target: str) -> list[str]:
+    """Return wake-word models enabled by the project and target defaults."""
+    symbols: list[str] = []
+    for path in (Path("sdkconfig.defaults"), Path(f"sdkconfig.defaults.{target}")):
+        if not path.exists():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = re.fullmatch(r"(CONFIG_SR_WN_[A-Z0-9_]+)=y", line.strip())
+            if match and match.group(1) not in symbols:
+                symbols.append(match.group(1))
+    return symbols
+
+
+def _wake_word_sdkconfig_options(
+    wake_word: str,
+    target: str,
+) -> tuple[str, list[str], list[str]]:
+    """Map a wake-word model to implementation and model Kconfig options."""
+    normalized = wake_word.strip().casefold().replace("-", "_")
+    if normalized == "nihaoxiaozhi":
+        normalized = (
+            "wn9s_nihaoxiaozhi"
+            if target in _LITE_WAKE_WORD_TARGETS
+            else "wn9_nihaoxiaozhi_tts"
+        )
+
+    model_symbols = _enabled_default_wake_word_symbols(target)
+    options = [f"{symbol}=n" for symbol in model_symbols]
+    options.extend([
+        "CONFIG_WAKE_WORD_DISABLED=n",
+        "CONFIG_USE_ESP_WAKE_WORD=n",
+        "CONFIG_USE_AFE_WAKE_WORD=n",
+        "CONFIG_USE_CUSTOM_WAKE_WORD=n",
+    ])
+
+    if normalized == "disabled":
+        options.append("CONFIG_WAKE_WORD_DISABLED=y")
+        return normalized, options, ["CONFIG_WAKE_WORD_DISABLED"]
+
+    if target not in _ESP_WAKE_WORD_TARGETS | _AFE_WAKE_WORD_TARGETS:
+        raise ValueError(f"Wake-word selection is not supported for target {target}")
+    if not _WAKE_WORD_MODEL_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            f"Invalid wake word {wake_word!r}. Use 'disabled', "
+            "'nihaoxiaozhi', or an ESP-SR model name such as "
+            "'wn9_jarvis_tts'."
+        )
+    if target in _LITE_WAKE_WORD_TARGETS and not normalized.startswith("wn9s_"):
+        raise ValueError(
+            f"Target {target} supports WakeNet9s models only; "
+            f"{normalized!r} is not compatible"
+        )
+
+    implementation = (
+        "CONFIG_USE_AFE_WAKE_WORD"
+        if target in _AFE_WAKE_WORD_TARGETS
+        else "CONFIG_USE_ESP_WAKE_WORD"
+    )
+    model_symbol = f"CONFIG_SR_WN_{normalized.upper()}"
+    options.extend((f"{implementation}=y", f"{model_symbol}=y"))
+    return normalized, options, [implementation, model_symbol]
 
 ################################################################################
 # board / variant related functions
@@ -174,6 +414,7 @@ def _get_builds_for_idf(cfg: dict, idf_version: tuple[int, int, int]) -> list[di
     """Return build entries whose optional ESP-IDF version rule matches."""
     builds: list[dict] = []
     for build in cfg.get("builds", []):
+        _get_reported_name(build)
         expression = build.get("idf_version")
         if expression and not _version_matches(idf_version, expression):
             continue
@@ -193,6 +434,9 @@ def _collect_variants(
     """
     variants: list[dict[str, str]] = []
     errors: list[str] = []
+    type_owners: dict[str, str] = {}
+    name_owners: dict[str, str] = {}
+    identity_owners: dict[tuple[str, str], str] = {}
 
     for cfg_path in sorted(_BOARDS_DIR.rglob(config_filename)):
         board_dir = cfg_path.parent
@@ -205,7 +449,16 @@ def _collect_variants(
                 cfg = json.load(f)
 
             manufacturer = _get_manufacturer(cfg)
-            _get_reported_type(cfg)
+            reported_type = _get_reported_type(cfg)
+
+            previous_board = type_owners.get(reported_type)
+            if previous_board is not None and previous_board != board:
+                errors.append(
+                    f"duplicate reported board type {reported_type!r} in "
+                    f"{previous_board} and {board}"
+                )
+            else:
+                type_owners[reported_type] = board
 
             # Check manufacturer consistency with directory structure
             if "/" in board:
@@ -232,8 +485,28 @@ def _collect_variants(
 
             builds = _get_builds_for_idf(cfg, idf_version)
             for build in builds:
-                name = build["name"]
+                name = _get_reported_name(build)
                 full_name = _get_release_full_name(manufacturer, build)
+
+                previous_config = name_owners.get(name)
+                if previous_config is not None:
+                    errors.append(
+                        f"duplicate reported board name {name!r} in "
+                        f"{previous_config} and {cfg_path}"
+                    )
+                else:
+                    name_owners[name] = str(cfg_path)
+
+                identity = (reported_type, name)
+                previous_config = identity_owners.get(identity)
+                if previous_config is not None:
+                    errors.append(
+                        f"duplicate reported board identity {identity!r} in "
+                        f"{previous_config} and {cfg_path}"
+                    )
+                else:
+                    identity_owners[identity] = str(cfg_path)
+
                 variants.append({
                     "board": board, 
                     "name": name,
@@ -474,6 +747,22 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
 
     return items
 
+
+def _merge_sdkconfig_options(
+    base_options: list[str],
+    override_options: list[str],
+) -> list[str]:
+    """Merge sdkconfig assignments by key, with later overrides winning."""
+    keys: list[str] = []
+    values: dict[str, str] = {}
+    for option in (*base_options, *override_options):
+        key = option.split("=", 1)[0]
+        if key not in values:
+            keys.append(key)
+        values[key] = option
+    return [values[key] for key in keys]
+
+
 ################################################################################
 # Check board_type in CMakeLists
 ################################################################################
@@ -575,12 +864,36 @@ def _regenerate_sdkconfig(
     )
 
 
+def _validate_configured_symbols(symbols: list[str], option_name: str) -> None:
+    """Ensure Kconfig accepted every user-selected build option."""
+    if not symbols:
+        return
+    sdkconfig = Path("sdkconfig")
+    if not sdkconfig.exists():
+        raise RuntimeError(
+            f"Cannot validate {option_name}: sdkconfig was not generated"
+        )
+    configured = sdkconfig.read_text(encoding="utf-8")
+    missing = [
+        symbol
+        for symbol in symbols
+        if not re.search(rf"^{re.escape(symbol)}=y$", configured, re.MULTILINE)
+    ]
+    if missing:
+        raise ValueError(
+            f"{option_name} is incompatible with this board or ESP-IDF "
+            f"configuration; Kconfig rejected: {', '.join(missing)}"
+        )
+
+
 def build_board(
     board_type: str,
     config_filename: str = "config.json",
     *,
     name_filter: str,
     create_zip: bool = False,
+    language: Optional[str] = None,
+    wake_word: Optional[str] = None,
     idf_version: tuple[int, int, int] = (6, 0, 0),
 ) -> None:
     """Compile one specified variant of the specified board type.
@@ -590,6 +903,8 @@ def build_board(
         config_filename: config.json name (default: config.json)
         name_filter: build["name"] to compile
         create_zip: package merged-binary.bin under releases/ when true
+        language: optional locale such as en-US
+        wake_word: optional ESP-SR model name or "disabled"
     """
     cfg_path = _BOARDS_DIR / Path(board_type) / config_filename
     if not cfg_path.exists():
@@ -609,7 +924,10 @@ def build_board(
     manufacturer = _get_manufacturer(cfg)
 
     builds = _get_builds_for_idf(cfg, idf_version)
-    builds = [build for build in builds if build["name"] == name_filter]
+    builds = [
+        build for build in builds
+        if _get_reported_name(build) == name_filter
+    ]
     if not builds:
         print(
             f"[ERROR] Variant {name_filter} not found in "
@@ -619,7 +937,7 @@ def build_board(
         sys.exit(1)
 
     for build in builds:
-        name = build["name"]
+        name = _get_reported_name(build)
         final_name = _get_release_full_name(manufacturer, build)
 
         # Process sdkconfig_append
@@ -635,6 +953,30 @@ def build_board(
             board_type_config = _resolve_board_config(board_type, target, build_sdkconfig_append)
             sdkconfig_append = [f"{board_type_config}=y"]
             sdkconfig_append.extend(build_sdkconfig_append)
+
+        user_options: list[str] = []
+        validation_symbols: list[tuple[list[str], str]] = []
+        selected_language = None
+        selected_wake_word = None
+        if language is not None:
+            selected_language, option = _language_sdkconfig_option(language)
+            user_options.append(option)
+            validation_symbols.append(
+                ([option.split("=", 1)[0]], "--language")
+            )
+        if wake_word is not None:
+            (
+                selected_wake_word,
+                wake_word_options,
+                wake_word_symbols,
+            ) = _wake_word_sdkconfig_options(wake_word, target)
+            user_options.extend(wake_word_options)
+            validation_symbols.append((wake_word_symbols, "--wake-word"))
+
+        sdkconfig_append = _merge_sdkconfig_options(
+            sdkconfig_append,
+            user_options,
+        )
         sdkconfig_append = _apply_auto_selects(sdkconfig_append)
 
         print("-" * 80)
@@ -645,6 +987,10 @@ def build_board(
         print(f"target: {target}")
         if manufacturer:
             print(f"manufacturer: {manufacturer}")
+        if selected_language:
+            print(f"language: {selected_language}")
+        if selected_wake_word:
+            print(f"wake_word: {selected_wake_word}")
         for item in sdkconfig_append:
             print(f"sdkconfig_append: {item}")
 
@@ -656,6 +1002,8 @@ def build_board(
             preview,
             target_changed=target_changed,
         )
+        for symbols, option_name in validation_symbols:
+            _validate_configured_symbols(symbols, option_name)
 
         # build.name is the compatibility-sensitive OTA-reported board identity.
         _run_idf(f"-DBOARD_NAME={name}", "build", preview=preview)
@@ -724,8 +1072,35 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser.add_argument("board", nargs="?", default=None, help="Board type or 'all'")
     parser.add_argument("-c", "--config", default="config.json", help="Config filename (default: config.json)")
     parser.add_argument("--list-boards", action="store_true", help="List all supported boards and variants")
-    parser.add_argument("--json", action="store_true", help="Output in JSON format (use with --list-boards)")
+    parser.add_argument(
+        "--list-languages",
+        action="store_true",
+        help="List values accepted by --language",
+    )
+    parser.add_argument(
+        "--list-wake-words",
+        action="store_true",
+        help="List wake-word models provided by the current ESP-SR component",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output list results in JSON format",
+    )
     parser.add_argument("--name", help="build.name to compile (the OTA-reported board name)")
+    parser.add_argument(
+        "--language",
+        metavar="LOCALE",
+        help="Firmware language locale, for example zh-CN or en-US",
+    )
+    parser.add_argument(
+        "--wake-word",
+        metavar="MODEL",
+        help=(
+            "Wake-word model (for example wn9_jarvis_tts), "
+            "'nihaoxiaozhi', or 'disabled'"
+        ),
+    )
     parser.add_argument(
         "--zip",
         action="store_true",
@@ -744,7 +1119,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     args = parser.parse_args(cli_args)
 
     if args.select_changed:
-        if args.board or args.list_boards or args.name or args.zip or args.json:
+        if (
+            args.board
+            or args.list_boards
+            or args.list_languages
+            or args.list_wake_words
+            or args.name
+            or args.language
+            or args.wake_word
+            or args.zip
+            or args.json
+        ):
             parser.error("--select-changed cannot be combined with build or list options")
         idf_version = _detect_idf_version_for_listing()
         variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
@@ -752,11 +1137,66 @@ def main(argv: Optional[list[str]] = None) -> None:
         print(json.dumps(selected))
         return
 
+    if args.list_languages:
+        if (
+            args.board is not None
+            or args.list_boards
+            or args.list_wake_words
+            or args.name
+            or args.language
+            or args.wake_word
+            or args.zip
+        ):
+            parser.error(
+                "--list-languages cannot be combined with build or other "
+                "list options"
+            )
+        languages = _collect_languages()
+        if args.json:
+            print(json.dumps(languages))
+        else:
+            print("\n".join(languages))
+        return
+
+    if args.list_wake_words:
+        if (
+            args.board is not None
+            or args.list_boards
+            or args.name
+            or args.language
+            or args.wake_word
+            or args.zip
+        ):
+            parser.error(
+                "--list-wake-words cannot be combined with build or other "
+                "list options"
+            )
+        try:
+            wake_words = _collect_wake_words()
+        except RuntimeError as error:
+            print(f"[ERROR] {error}", file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps(wake_words, ensure_ascii=False))
+        else:
+            _print_wake_word_list(wake_words)
+        return
+
     if args.list_boards:
         if args.board is not None:
             parser.error("--list-boards does not accept a board")
-        if args.zip or args.name:
-            parser.error("--zip and --name require a board")
+        if (
+            args.list_languages
+            or args.list_wake_words
+            or args.zip
+            or args.name
+            or args.language
+            or args.wake_word
+        ):
+            parser.error(
+                "--list-boards cannot be combined with build or other "
+                "list options"
+            )
         idf_version = _detect_idf_version_for_listing()
         variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
         if args.json:
@@ -816,6 +1256,8 @@ def main(argv: Optional[list[str]] = None) -> None:
             config_filename=args.config,
             name_filter=variant["name"],
             create_zip=args.zip,
+            language=args.language,
+            wake_word=args.wake_word,
             idf_version=idf_version,
         )
 

@@ -113,27 +113,34 @@ Example (from `lichuang-c3-dev`):
 - `name`: compatibility-sensitive firmware variant name reported by release builds; typically matches `type`.
 - `sdkconfig_append`: extra sdkconfig lines merged into the defaults.
 
+Both `type` and `name` must contain only lowercase letters, digits, periods
+(`.`), and hyphens (`-`). Underscores, spaces, and uppercase letters are not
+allowed.
+
 **Common `sdkconfig_append` entries**:
 
 ```json
 // Flash size
 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y"
 "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y"
-"CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"
 
 // Partition table
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\""
 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
-"CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\""
 
-// Language
-"CONFIG_LANGUAGE_EN_US=y"
-"CONFIG_LANGUAGE_ZH_CN=y"
-
-// Wake word configuration
+// Audio pipeline
 "CONFIG_USE_DEVICE_AEC=y"          // enable on-device AEC
-"CONFIG_WAKE_WORD_DISABLED=y"      // disable wake word detection
 ```
+
+The project defaults to 16MB flash and `partitions/v2/16m.csv` on applicable
+targets. Do not repeat values that already match the effective project and
+target defaults; use `sdkconfig_append` only for actual board-specific
+overrides.
+
+Do not select a language or a specific wake word in a board `config.json`.
+Those are user build options and must be configured consistently through
+`menuconfig` or build-script parameters so CLI, agent, and online builds can
+share the same interface.
 
 ### 3. Implement the Board Class
 
@@ -365,6 +372,32 @@ If the board directory contains a `config.json`, you can configure and build it 
 ```bash
 python scripts/build.py my-custom-board
 ```
+
+Language and wake-word selection are user build options:
+
+```bash
+python scripts/build.py my-custom-board \
+  --language en-US \
+  --wake-word wn9_jarvis_tts
+```
+
+`--language` accepts a locale listed under `main/assets/locales/`.
+`--wake-word` accepts an ESP-SR model name, `nihaoxiaozhi` (which selects the
+compatible model for the target), or `disabled`. ESP32-C3/C5/C6 targets support
+WakeNet9s (`wn9s_*`) models; ESP32-S3/P4/S31 builds automatically use the AFE
+wake-word engine.
+
+Query the accepted values in text or machine-readable form:
+
+```bash
+python scripts/build.py --list-languages
+python scripts/build.py --list-languages --json
+python scripts/build.py --list-wake-words
+python scripts/build.py --list-wake-words --json
+```
+
+The wake-word list is read from the currently resolved ESP-SR component, so
+run `idf.py reconfigure` first if `managed_components/` has not been populated.
 
 The script:
 - Prints help when run without arguments. Use `--list-boards` to list board

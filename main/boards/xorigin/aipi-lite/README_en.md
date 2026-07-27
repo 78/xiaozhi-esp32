@@ -3,7 +3,7 @@
 ## One-click Build
 
 ```bash
-python scripts/build.py xorigin/aipi-lite -c config_en.json
+python scripts/build.py xorigin/aipi-lite --language en-US
 ```
 
 ## Manual Configuration and Build

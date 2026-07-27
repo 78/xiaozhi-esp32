@@ -130,7 +130,7 @@ jobs:
           source $IDF_PATH/export.sh
           idf.py -B build-blufi \
             -DSDKCONFIG=build-blufi/sdkconfig \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;scripts/ci/blufi.sdkconfig.defaults" \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;scripts/ci/blufi.sdkconfig.defaults" \
             -DIDF_TARGET=esp32s3 \
             -DBOARD_NAME=bread-compact-wifi \
             -DBOARD_TYPE=bread-compact-wifi \
