@@ -153,7 +153,16 @@ private:
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new Esp32Camera(config);
-        camera_->SetHMirror(false);
+
+        // AtomS3R-CAM (GC0308) and AtomS3R-M12 (OV3660) share this board file but
+        // mount their sensors with opposite orientations, so the OV3660 used on
+        // the M12 variant needs hmirror enabled to avoid a mirrored image.
+        sensor_t *sensor = esp_camera_sensor_get();
+        if (sensor && sensor->id.PID == OV3660_PID) {
+            camera_->SetHMirror(true);
+        } else {
+            camera_->SetHMirror(false);
+        }
     }
 
     virtual Camera* GetCamera() override {
