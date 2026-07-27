@@ -122,7 +122,7 @@ private:
     void InitializeLcdDisplay() {
         const esp_lcd_panel_io_spi_config_t io_config = {
             .cs_gpio_num = LCD_CS,          
-            .dc_gpio_num = -1,          
+            .dc_gpio_num = GPIO_NUM_NC,
             .spi_mode = 0,              
             .pclk_hz = 40 * 1000 * 1000,
             .trans_queue_depth = 4,     
@@ -143,12 +143,11 @@ private:
                 .use_qspi_interface = 1,
             },
         };
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = LCD_RST,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,     // Implemented by LCD command `36h`
-            .bits_per_pixel = 16,                           // Implemented by LCD command `3Ah` (16/18)
-            .vendor_config = &vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB; // Implemented by LCD command `36h`
+        panel_config.bits_per_pixel = 16;                       // Implemented by LCD command `3Ah` (16/18)
+        panel_config.reset_gpio_num = LCD_RST;
+        panel_config.vendor_config = &vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_sh8601(io_handle, &panel_config, &panel_handle));
         esp_lcd_panel_set_gap(panel_handle,0x06,0x00);
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));

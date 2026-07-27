@@ -29,8 +29,8 @@
 
 #define TAG "Spotpear_ESP32_S3_1_28_BOX"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_noto_sans_basic_16_4);
+LV_FONT_DECLARE(font_material_symbols_16_4);
 
 
 class Cst816d : public I2cDevice {
@@ -335,7 +335,7 @@ private:
         esp_lcd_panel_handle_t panel_handle = NULL;
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;    // Set to -1 if not use
-        panel_config.rgb_endian = LCD_RGB_ENDIAN_BGR;           //LCD_RGB_ENDIAN_RGB;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
 
         ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle, &panel_config, &panel_handle));

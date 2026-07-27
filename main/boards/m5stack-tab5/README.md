@@ -8,16 +8,17 @@
 
 ## 基础使用
 
-* idf version: v5.5.2 or above (recommended: v6.0-dev)
+* idf version: v5.5.2 or above (recommended: v6.0.2)
 
 * No dependency override needed — the project already specifies the correct `esp_video` and `esp_ipa` versions in `main/idf_component.yml`. Do NOT change the dependency versions unless you are also modifying the source code to match the older API.
 
-针对 ESP32-P4 Rev <3.0 用户:
-确保你的 sdkconfig.defaults 包含:
+`release.py` 会根据当前 ESP-IDF 版本选择芯片版本：
 
-CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+- `m5stack-tab5` 面向 Rev < 3，并包含 `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` 和 `CONFIG_ESP32P4_REV_MIN_100=y`。
+- `m5stack-tab5-p4x` 面向 Rev >= 3。
+- ESP-IDF 6 构建需要 `esp-sr` 2.4.7 或更高版本，两个芯片修订版均可用。
 
-否则烧写的时候会出现：'bootloader/bootloader.bin' requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)
+不要把 `m5stack-tab5-p4x` 固件强制刷入 Rev 1.x 芯片；应改用无后缀的 `m5stack-tab5` 固件。误用 P4X 固件时，正常情况下烧录工具会报告：`bootloader/bootloader.bin requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)`。
 
 1. 使用 release.py 编译
 

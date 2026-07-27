@@ -12,6 +12,7 @@
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
+#include <esp_idf_version.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
@@ -233,7 +234,11 @@ private:
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_NC;
         panel_config.bits_per_pixel = 16;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+#else
         panel_config.color_space = ESP_LCD_COLOR_SPACE_BGR;
+#endif
 
         ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(panel_io, &panel_config, &panel));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));

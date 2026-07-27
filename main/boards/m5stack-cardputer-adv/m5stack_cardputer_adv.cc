@@ -7,6 +7,7 @@
 #include "config.h"
 #include "i2c_device.h"
 #include "tca8418_keyboard.h"
+#include "adc_battery_monitor.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -33,6 +34,7 @@ private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Tca8418Keyboard* keyboard_ = nullptr;
+    AdcBatteryMonitor* battery_monitor_ = nullptr;
     std::unique_ptr<WifiConfigUI> wifi_config_ui_;
     bool wifi_config_mode_ = false;
 
@@ -128,6 +130,15 @@ private:
             }
             app.ToggleChatState();
         });
+    }
+
+    void InitializeBatteryMonitor() {
+        ESP_LOGI(TAG, "Initialize battery monitor (GPIO%d, %dK/%dK divider)",
+                 BATTERY_ADC_CHANNEL, (int)(BATTERY_UPPER_RESISTOR / 1000), (int)(BATTERY_LOWER_RESISTOR / 1000));
+        battery_monitor_ = new AdcBatteryMonitor(
+            BATTERY_ADC_UNIT, BATTERY_ADC_CHANNEL,
+            BATTERY_UPPER_RESISTOR, BATTERY_LOWER_RESISTOR,
+            BATTERY_CHARGING_PIN);
     }
 
     void InitializeKeyboard() {
@@ -317,6 +328,7 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeKeyboard();
+        InitializeBatteryMonitor();
         GetBacklight()->RestoreBrightness();
     }
 
@@ -352,6 +364,16 @@ public:
         // M5GFX uses 256Hz PWM frequency for Cardputer backlight
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT, 256);
         return &backlight;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        if (battery_monitor_ == nullptr) {
+            return false;
+        }
+        charging = battery_monitor_->IsCharging();
+        discharging = battery_monitor_->IsDischarging();
+        level = battery_monitor_->GetBatteryLevel();
+        return true;
     }
 };
 

@@ -17,6 +17,8 @@
 #include "esp_lcd_st7703.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3
 #include "esp_lcd_st7701.h"
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5
+#include "esp_lcd_hx8394.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
 #include "esp_lcd_ek79007.h"
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C \
@@ -104,7 +106,8 @@ private:
         esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 46,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = 720,
@@ -115,9 +118,6 @@ private:
                 .vsync_pulse_width = 4,
                 .vsync_back_porch = 12,
                 .vsync_front_porch = 30,
-            },
-            .flags = {
-                .use_dma2d = true,
             },
         };
         st7703_vendor_config_t vendor_config = {
@@ -132,9 +132,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_st7703(io, &lcd_dev_config, &disp_panel);
@@ -142,7 +142,8 @@ private:
     esp_lcd_dpi_panel_config_t dpi_config = {                                                 
         .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,  
         .dpi_clock_freq_mhz = 30,                     
-        .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,                    
+        .in_color_format = LCD_COLOR_FMT_RGB565,
+        .out_color_format = LCD_COLOR_FMT_RGB565,
         .num_fbs = 1,                                 
         .video_timing = {                             
             .h_size = 480,                            
@@ -154,9 +155,6 @@ private:
             .vsync_back_porch = 2,                    
             .vsync_front_porch = 60,                  
         },                                            
-        .flags = {
-            .use_dma2d = true,
-        },                  
     };
     st7701_vendor_config_t vendor_config = {
         .init_cmds = vendor_specific_init_default,
@@ -172,17 +170,54 @@ private:
     };
 
     const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
     };
     esp_lcd_new_panel_st7701(io, &lcd_dev_config, &disp_panel);
+#elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5
+        esp_lcd_dpi_panel_config_t dpi_config = {
+            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+            .dpi_clock_freq_mhz = 58,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
+            .num_fbs = 1,
+            .video_timing = {
+                .h_size = DISPLAY_WIDTH,
+                .v_size = DISPLAY_HEIGHT,
+                .hsync_pulse_width = 20,
+                .hsync_back_porch = 20,
+                .hsync_front_porch = 40,
+                .vsync_pulse_width = 4,
+                .vsync_back_porch = 10,
+                .vsync_front_porch = 24,
+            },
+        };
+        hx8394_vendor_config_t vendor_config = {
+            .mipi_config = {
+                .dsi_bus = mipi_dsi_bus,
+                .dpi_config = &dpi_config,
+                .lane_num = 2,
+            },
+        };
+
+        const esp_lcd_panel_dev_config_t lcd_dev_config = {
+            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+            .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
+            .vendor_config = &vendor_config,
+            .flags = {
+                .reset_active_high = true,
+            },
+        };
+        esp_lcd_new_panel_hx8394(io, &lcd_dev_config, &disp_panel);
 #elif CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 52,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = 1024,
@@ -194,9 +229,6 @@ private:
                 .vsync_back_porch = 23,
                 .vsync_front_porch = 12,
             },
-            .flags = {
-                .use_dma2d = true,
-            },
         };
         ek79007_vendor_config_t vendor_config = {
             .mipi_config = {
@@ -206,9 +238,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_ek79007(io, &lcd_dev_config, &disp_panel);
@@ -216,7 +248,8 @@ private:
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 46,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
@@ -228,9 +261,6 @@ private:
                 .vsync_back_porch = 12,
                 .vsync_front_porch = 24,
             },
-            .flags = {
-                .use_dma2d = true,
-            },
         };
         jd9365_vendor_config_t vendor_config = {
             .init_cmds = lcd_init_cmds,
@@ -243,9 +273,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_jd9365(io, &lcd_dev_config, &disp_panel);
@@ -253,7 +283,8 @@ private:
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 52,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
@@ -265,9 +296,6 @@ private:
                 .vsync_back_porch = 10,
                 .vsync_front_porch = 30,
             },
-            .flags = {
-                .use_dma2d = true,
-            },
         };
         jd9365_vendor_config_t vendor_config = {
             .init_cmds = lcd_init_cmds,
@@ -280,9 +308,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_jd9365(io, &lcd_dev_config, &disp_panel);
@@ -290,7 +318,8 @@ private:
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 80,
-            .pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 1,
             .video_timing = {
                 .h_size = DISPLAY_WIDTH,
@@ -301,9 +330,6 @@ private:
                 .vsync_pulse_width = 30,
                 .vsync_back_porch = 20,
                 .vsync_front_porch = 2,
-            },
-            .flags = {
-                .use_dma2d = true,
             },
         };
         ili9881c_vendor_config_t vendor_config = {
@@ -317,9 +343,9 @@ private:
         };
 
         const esp_lcd_panel_dev_config_t lcd_dev_config = {
-            .reset_gpio_num = PIN_NUM_LCD_RST,
             .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
             .bits_per_pixel = 16,
+            .reset_gpio_num = PIN_NUM_LCD_RST,
             .vendor_config = &vendor_config,
         };
         esp_lcd_new_panel_ili9881c(io, &lcd_dev_config, &disp_panel);
