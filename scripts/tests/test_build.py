@@ -524,7 +524,19 @@ class CliTests(unittest.TestCase):
             },
         ]
 
-    def test_no_arguments_lists_boards_without_building(self):
+    def test_no_arguments_prints_help_without_building(self):
+        output = io.StringIO()
+        with (
+            mock.patch.object(build, "build_board") as build_board,
+            contextlib.redirect_stdout(output),
+        ):
+            build.main([])
+
+        build_board.assert_not_called()
+        self.assertIn("usage:", output.getvalue())
+        self.assertIn("--list-boards", output.getvalue())
+
+    def test_list_boards_prints_boards_and_multi_variants(self):
         output = io.StringIO()
         with (
             mock.patch.object(
@@ -537,12 +549,10 @@ class CliTests(unittest.TestCase):
                 "_collect_variants",
                 return_value=self.variants,
             ),
-            mock.patch.object(build, "build_board") as build_board,
             contextlib.redirect_stdout(output),
         ):
-            build.main([])
+            build.main(["--list-boards"])
 
-        build_board.assert_not_called()
         self.assertEqual(
             output.getvalue(),
             "bread-compact-wifi\n"
@@ -586,6 +596,29 @@ class CliTests(unittest.TestCase):
             build.main(["bread-compact-wifi", "--zip"])
 
         self.assertTrue(build_board.call_args.kwargs["create_zip"])
+
+
+class BoardSourceTests(unittest.TestCase):
+    def test_relative_board_includes_exist(self):
+        missing = []
+        boards_dir = ROOT / "main/boards"
+        for source in boards_dir.rglob("*"):
+            if source.suffix not in {".c", ".cc", ".cpp", ".h", ".hpp"}:
+                continue
+            for line_number, line in enumerate(
+                source.read_text(encoding="utf-8", errors="replace").splitlines(),
+                1,
+            ):
+                match = re.match(
+                    r'\s*#\s*include\s+"(\.\./[^"]+)"',
+                    line,
+                )
+                if match and not (source.parent / match.group(1)).resolve().exists():
+                    missing.append(
+                        f"{source.relative_to(ROOT)}:{line_number}: {match.group(1)}"
+                    )
+
+        self.assertEqual(missing, [])
 
 
 class ZipTests(unittest.TestCase):

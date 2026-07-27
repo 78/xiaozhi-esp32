@@ -367,7 +367,8 @@ python scripts/build.py my-custom-board
 ```
 
 The script:
-- Lists board types when run without arguments.
+- Prints help when run without arguments. Use `--list-boards` to list board
+  types and variants.
 - Prompts for a variant when the selected board has multiple builds. In
   non-interactive environments, pass `--name <variant>`.
 - Reads `target` from `config.json`. It calls `idf.py set-target` only when the

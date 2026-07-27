@@ -737,7 +737,11 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Read changed paths from stdin and output the affected variants as JSON",
     )
 
-    args = parser.parse_args(argv)
+    cli_args = sys.argv[1:] if argv is None else argv
+    if not cli_args:
+        parser.print_help()
+        return
+    args = parser.parse_args(cli_args)
 
     if args.select_changed:
         if args.board or args.list_boards or args.name or args.zip or args.json:
@@ -748,9 +752,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         print(json.dumps(selected))
         return
 
-    # No arguments are a safe discovery mode. --list-boards is retained for CI.
-    if args.list_boards or args.board is None:
-        if args.list_boards and args.board is not None:
+    if args.list_boards:
+        if args.board is not None:
             parser.error("--list-boards does not accept a board")
         if args.zip or args.name:
             parser.error("--zip and --name require a board")
@@ -758,12 +761,12 @@ def main(argv: Optional[list[str]] = None) -> None:
         variants = _collect_variants(config_filename=args.config, idf_version=idf_version)
         if args.json:
             print(json.dumps(variants))
-        elif args.board is None:
-            _print_board_list(variants)
         else:
-            for v in variants:
-                print(f"{v['board']}: {v['name']}")
+            _print_board_list(variants)
         return
+
+    if args.board is None:
+        parser.error("a board is required unless --list-boards is used")
 
     # Compile mode
     board_type_input: str = args.board

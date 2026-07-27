@@ -386,7 +386,7 @@ python scripts/build.py my-custom-board
 ```
 
 此脚本会自动：
-- 不传参数时列出所有开发板类型
+- 不传参数时打印帮助；使用 `--list-boards` 列出所有开发板类型和变体
 - 如果开发板有多个变体，交互式提示选择；非交互环境使用 `--name <变体>`
 - 读取 `config.json` 中的 `target`，仅在目标芯片变化时调用
   `idf.py set-target`，然后根据 defaults 和所选变体的

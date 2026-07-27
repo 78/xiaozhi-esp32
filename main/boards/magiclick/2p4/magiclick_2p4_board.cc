@@ -13,7 +13,7 @@
 #include <driver/spi_common.h>
 #include <esp_lcd_nv3023.h>
 
-#include "../magiclick-2p5/power_manager.h"
+#include "../2p5/power_manager.h"
 #include "power_save_timer.h"
 
 #define TAG "magiclick_2p4"

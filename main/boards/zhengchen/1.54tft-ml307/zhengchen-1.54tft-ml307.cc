@@ -1,6 +1,6 @@
 #include "dual_network_board.h"
 #include "codecs/no_audio_codec.h"
-#include "../zhengchen-1.54tft-wifi/zhengchen_lcd_display.h"
+#include "../1.54tft-wifi/zhengchen_lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -8,7 +8,7 @@
 #include "power_save_timer.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-#include "../zhengchen-1.54tft-wifi/power_manager.h"
+#include "../1.54tft-wifi/power_manager.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
