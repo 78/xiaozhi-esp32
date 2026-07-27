@@ -82,8 +82,8 @@ Espressif's current chip-identification table lists v0.0, v1.0, v1.3, v3.0, v3.1
 | `espressif/mqtt` | `1.0.0` | ✅ Upstream support | MQTT moved from a built-in SDK component to a Component Manager dependency in IDF 6 |
 | `78/esp-ml307` | `3.6.6` + project-level `espressif/mqtt` | ✅ Builds in CI | The upstream source compiles under IDF 6.0.1 when the project supplies the MQTT component moved out of IDF |
 | `espressif/esp_hosted` / `esp_wifi_remote` | `2.12.11` / `1.6.2` | ✅ Upstream support | Used for ESP32-P4 Hosted Wi-Fi |
-| `espressif/esp_video` | `^2.0.1` | ✅ Upstream support | Currently resolves to 2.3.0 on S3 and 2.0.1 on P4 due to BSP constraints |
-| P4 BSP / LCD drivers | BSP `5.2.3`, EK79007/ST7701 `2.0.x` | ✅ Upstream support | Resolves IDF 6 DPI, color-field, and split-driver-component issues |
+| `espressif/esp_video` | `^2.3.0` | ✅ Upstream support | Requires the current 2.3 API baseline and accepts future compatible 2.x releases on S3 and P4 |
+| P4 LCD drivers | EK79007/ST7701 `2.0.x` | ✅ Upstream support | ESP32-P4-Function-EV-Board initializes its hardware directly so its former BSP cannot constrain `esp_video`; the LCD drivers resolve IDF 6 DPI, color-field, and split-driver-component issues |
 | `espressif/esp_lcd_st77916` | `2.0.2` | ✅ Upstream support | Major version 2 uses the IDF 6 panel I/O definitions |
 | `espressif/esp_lcd_spd2010` | `^2.0.0` (resolved `2.0.0~1`) | ✅ Upstream support | Major version 2 declares ESP-IDF 6 compatibility |
 | `espressif/esp_lcd_co5300` | `2.1.0` | ✅ Upstream support | Used with explicit IDF 6-compatible QSPI I/O configuration in board code |

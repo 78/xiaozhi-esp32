@@ -10,7 +10,7 @@ LCD is supported via the official MIPI‑DSI LCD adapter.
 - Audio: ES8311 codec with speaker and microphone support
 - Touch: GT911 capacitive touch controller
 - SD Card: MicroSD card support (MMC mode)
-- Camera: MIPI-CSI camera interface with fallback DVP configuration (OV5647, SC2336 sensors supported)
+- Camera: MIPI-CSI camera interface (OV5647 and SC2336 sensors supported)
 - USB: USB host/device support
 - SPIFFS: Built-in flash filesystem support
 - Fonts: Custom font support with Unicode characters (Vietnamese, Chinese, etc.)
@@ -24,13 +24,19 @@ Ensure these are set (auto-set when building via config.json):
 - `CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y`
 - `CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y`
 
+The board initializes I2C, LCD, touch, audio, SDMMC, and camera hardware directly
+from the board implementation. It does not depend on the
+`espressif/esp32_p4_function_ev_board` BSP, allowing the project-wide
+`esp_video` dependency to resolve independently.
+
 ## LCD Connection (from Espressif user guide)
 - Connect the LCD adapter board J3 to the board’s MIPI DSI connector (reverse ribbon).
 - Wire `RST_LCD` (adapter J6) to `GPIO27` (board J1).
 - Wire `PWM` (adapter J6) to `GPIO26` (board J1).
 - Optionally power the LCD adapter via its USB or provide `5V` and `GND` from the board.
 
-These pins are pre-configured in `config.h` as `PIN_NUM_LCD_RST=GPIO27` and `DISPLAY_BACKLIGHT_PIN=GPIO26`. Resolution is set to 1024×600.
+These pins are configured in `config.h` as `DISPLAY_RESET_PIN=GPIO27` and
+`DISPLAY_BACKLIGHT_PIN=GPIO26`. Resolution is set to 1024×600.
 
 ## Build (example)
 ```powershell

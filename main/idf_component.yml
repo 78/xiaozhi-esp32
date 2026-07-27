@@ -44,12 +44,8 @@ dependencies:
     version: ^2.1.6
     rules:
     - if: target in [esp32s3]
-  # espressif/esp_video:
-  #   version: ^2.0.1
-  #   rules:
-  #   - if: target in [esp32p4, esp32s3]
   espressif/esp_video:
-    version: ^2.2.0
+    version: ^2.3.0
     rules:
     - if: target in [esp32p4, esp32s3, esp32s31]
 
@@ -93,10 +89,6 @@ dependencies:
     - if: target in [esp32p4]
   waveshare/esp_lcd_st7703:
     version: '*'
-    rules:
-    - if: target in [esp32p4]
-  espressif/esp32_p4_function_ev_board:
-    version: ^5.2.3
     rules:
     - if: target in [esp32p4]
   espressif/esp_lcd_ili9881c:

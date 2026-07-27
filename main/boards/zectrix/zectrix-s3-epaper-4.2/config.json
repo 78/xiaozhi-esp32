@@ -1,0 +1,11 @@
+{
+    "manufacturer": "zectrix",
+    "target": "esp32s3",
+    "builds": [{
+        "name": "zectrix-s3-epaper-4.2",
+        "sdkconfig_append": [
+            "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+            "CONFIG_USE_MULTILINE_CHAT_MESSAGE=y"
+        ]
+    }]
+}
