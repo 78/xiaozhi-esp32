@@ -1,5 +1,6 @@
 {
     "manufacturer": "zectrix",
+    "type": "zectrix-s3-epaper-4.2",
     "target": "esp32s3",
     "builds": [{
         "name": "zectrix-s3-epaper-4.2",
