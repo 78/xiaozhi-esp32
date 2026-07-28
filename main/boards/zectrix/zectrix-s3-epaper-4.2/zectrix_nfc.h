@@ -12,12 +12,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include "i2c_bus_lock.h"
 #include "i2c_device.h"
 
 class ZectrixNfc : public I2cDevice {
@@ -88,7 +86,6 @@ private:
     std::atomic<bool> powered_{false};
     std::atomic<bool> field_present_{false};
     std::mutex mutex_;
-    std::unique_ptr<ScopedI2cBusLock> i2c_session_lock_;
     std::function<void(bool)> field_callback_;
 };
 

@@ -13,7 +13,7 @@
 #include "esp_lvgl_port.h"
 #include "settings.h"
 #include "custom_lcd_display.h"
-#include "common/sleep_manager.h"
+#include "sleep_manager_compat.h"
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(font_puhui_basic_30_4);

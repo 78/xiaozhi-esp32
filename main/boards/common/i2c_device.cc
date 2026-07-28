@@ -4,16 +4,17 @@
 
 #define TAG "I2cDevice"
 
-
-I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr) {
+I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
+    : i2c_bus_(i2c_bus), device_address_(addr) {
     i2c_device_config_t i2c_device_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = addr,
         .scl_speed_hz = 400 * 1000,
         .scl_wait_us = 0,
-        .flags = {
-            .disable_ack_check = 0,
-        },
+        .flags =
+            {
+                .disable_ack_check = 0,
+            },
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus, &i2c_device_cfg, &i2c_device_));
     assert(i2c_device_ != NULL);
@@ -32,4 +33,9 @@ uint8_t I2cDevice::ReadReg(uint8_t reg) {
 
 void I2cDevice::ReadRegs(uint8_t reg, uint8_t* buffer, size_t length) {
     ESP_ERROR_CHECK(i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, length, 100));
+}
+
+esp_err_t I2cDevice::ResetBus(const char* reason) {
+    ESP_LOGW(TAG, "Resetting I2C bus: %s", reason ? reason : "unspecified");
+    return i2c_master_bus_reset(i2c_bus_);
 }

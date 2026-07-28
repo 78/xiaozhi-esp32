@@ -201,12 +201,6 @@ bool ZectrixNfc::Init() {
 }
 
 bool ZectrixNfc::PowerOn() {
-    ScopedI2cBusLock bus_lock("ZectrixNfc::PowerOn");
-    if (!bus_lock.locked()) {
-        ESP_LOGW(kTag, "NFC power on bus lock failed: %s", esp_err_to_name(bus_lock.status()));
-        powered_.store(false, std::memory_order_release);
-        return false;
-    }
     gpio_hold_dis(power_gpio_);
     gpio_set_level(power_gpio_, 1);
     gpio_hold_en(power_gpio_);
@@ -503,19 +497,11 @@ esp_err_t ZectrixNfc::EnsureIsrServiceInstalled() {
 }
 
 esp_err_t ZectrixNfc::Probe() {
-    ScopedI2cBusLock bus_lock("ZectrixNfc::Probe");
-    if (!bus_lock.locked()) return bus_lock.status();
     BoardI2cForcePowerOn();
     return i2c_master_probe(i2c_bus_, device_address_, kI2cTimeoutMs);
 }
 
 esp_err_t ZectrixNfc::BeginTransferSessionLocked(const char* reason) {
-    i2c_session_lock_ = std::make_unique<ScopedI2cBusLock>("ZectrixNfc::TransferSession");
-    if (!i2c_session_lock_->locked()) {
-        esp_err_t ret = i2c_session_lock_->status();
-        i2c_session_lock_.reset();
-        return ret;
-    }
     gpio_hold_dis(power_gpio_);
     gpio_set_level(power_gpio_, 0);
     esp_rom_delay_us(kPowerCycleDelayUs);
@@ -528,7 +514,6 @@ esp_err_t ZectrixNfc::BeginTransferSessionLocked(const char* reason) {
     if (ret != ESP_OK) {
         ESP_LOGW(kTag, "transfer session probe failed: reason=%s ret=%s",
                  reason ? reason : "unknown", esp_err_to_name(ret));
-        i2c_session_lock_.reset();
     }
     return ret;
 }
@@ -536,7 +521,6 @@ esp_err_t ZectrixNfc::BeginTransferSessionLocked(const char* reason) {
 void ZectrixNfc::EndTransferSessionLocked() {
     esp_rom_delay_us(kTransferDelayUs);
     UpdateFieldState(IsPowered() && IsFieldLevelActive(), false);
-    i2c_session_lock_.reset();
 }
 
 esp_err_t ZectrixNfc::ExecuteTransferLocked(const char* reason,
