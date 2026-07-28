@@ -47,8 +47,8 @@ dependencies:
   espressif/esp_video:
     version: ^2.3.0
     rules:
-    - if: target in [esp32p4, esp32s3]
-  
+    - if: target in [esp32p4, esp32s3, esp32s31]
+
   espressif/esp_image_effects:
     version: ^1.0.1
     rules:
@@ -131,7 +131,7 @@ dependencies:
     - if: idf_version < 6.0.0
 
   espressif/esp_lcd_touch_st7123: ^1.0.0
-  espressif/iot_usbh_rndis: 
+  espressif/iot_usbh_rndis:
     version: ^0.3.1
     rules:
     - if: target in [esp32s3, esp32p4]

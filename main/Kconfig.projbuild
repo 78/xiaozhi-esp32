@@ -217,6 +217,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1
         bool "Espressif ESP32-S31-Function-CoreBoard-1"
         depends on IDF_TARGET_ESP32S31
+    config BOARD_TYPE_ESP32_S31_KORVO_1
+        bool "Espressif ESP32-S31-Korvo-1"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_ESP_HI
         bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3

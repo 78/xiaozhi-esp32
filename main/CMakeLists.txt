@@ -548,6 +548,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
     set(BOARD_DIR "espressif/esp32-p4-function-ev-board")
 elseif(CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1)
     set(BOARD_DIR "espressif/esp32-s31-function-coreboard-1")
+elseif(CONFIG_BOARD_TYPE_ESP32_S31_KORVO_1)
+    set(BOARD_DIR "espressif/esp32-s31-korvo-1")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_DIR "bread-compact-wifi-lcd")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -1003,6 +1008,11 @@ if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
     list(APPEND SOURCES "boards/common/esp_video.cc"
                         "boards/common/rndis_board.cc"
                         )
+endif()
+
+# Include EspVideo if target is ESP32S31
+if(CONFIG_IDF_TARGET_ESP32S31)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
 endif()
 
 # Include Esp32Camera if target is ESP32S3
