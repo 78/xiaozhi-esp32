@@ -33,7 +33,7 @@ dependencies:
   78/xiaozhi-fonts: ~2.0.0
   espressif/led_strip: ~3.0.2
   espressif/esp_codec_dev: ~1.5.6
-  espressif/esp-sr: ~2.4.6
+  espressif/esp-sr: ~2.4.7
   espressif/button: ~4.2.0
   espressif/knob: ^1.0.0
   esphome/esp-hub75:
@@ -45,14 +45,15 @@ dependencies:
     rules:
     - if: target in [esp32s3]
   espressif/esp_video:
-    version: ^2.0.1
+    version: ^2.3.0
     rules:
-    - if: target in [esp32p4, esp32s3]
-  
+    - if: target in [esp32p4, esp32s3, esp32s31]
+
   espressif/esp_image_effects:
     version: ^1.0.1
     rules:
     - if: target not in [esp32]
+  espressif/esp_lcd_st77922: ^2.0.2
   espressif/esp_lcd_touch_ft5x06: ~1
   espressif/esp_lcd_touch_gt911: ^1
   espressif/esp_lcd_touch_gt1151: ^1
@@ -69,7 +70,7 @@ dependencies:
     rules:
     - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.1
-  espressif/esp_new_jpeg: ^0.6.1
+  espressif/esp_new_jpeg: ^1.0.2
 
   # SenseCAP Watcher Board
   wvirgil123/sscma_client:
@@ -88,10 +89,6 @@ dependencies:
     - if: target in [esp32p4]
   waveshare/esp_lcd_st7703:
     version: '*'
-    rules:
-    - if: target in [esp32p4]
-  espressif/esp32_p4_function_ev_board:
-    version: ^5.2.3
     rules:
     - if: target in [esp32p4]
   espressif/esp_lcd_ili9881c:
@@ -134,7 +131,7 @@ dependencies:
     - if: idf_version < 6.0.0
 
   espressif/esp_lcd_touch_st7123: ^1.0.0
-  espressif/iot_usbh_rndis: 
+  espressif/iot_usbh_rndis:
     version: ^0.3.1
     rules:
     - if: target in [esp32s3, esp32p4]

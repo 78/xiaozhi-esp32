@@ -14,10 +14,10 @@
 
 ## 近期更新
 
-- 项目主线现已迁移到 ESP-IDF v6.0 或以上版本，首选稳定版为 v6.0.2；完整的 157 个发布变体已在 ESP-IDF v6.0.1 上通过构建验证。
+- 项目主线现已迁移到 ESP-IDF v6.0 或以上版本，首选稳定版为 v6.0.2；此前的 157 个发布变体已在 ESP-IDF v6.0.1 上通过构建验证。当前矩阵包含 171 个变体，其中 170 个支持 IDF 6.0.x，ESP32-S31 变体需要 IDF 6.1 或以上版本。
 - MQTT 和 BluFi 加密已迁移到 PSA Crypto，同时完成了 IDF 6 组件拆分及第三方依赖兼容处理。
 - 加固了音频流水线并发、MQTT/UDP 数据包校验和发布矩阵选择逻辑。
-- ESP-IDF v5.5 仅保留用于旧版硬件兼容，包括 ESP32-P4 v3 之前的芯片版本。完整兼容性和板卡验证状态请参阅 [ESP-IDF 6.0 迁移文档](docs/esp-idf-6-migration.md)。
+- ESP-IDF v5.5 仅保留用于文档明确标注的旧版板卡；使用 ESP-SR 2.4.7 时，ESP32-P4 Rev1 和 Rev3 均支持 IDF 6。完整兼容性和板卡验证状态请参阅 [ESP-IDF 6.0 迁移文档](docs/esp-idf-6-migration.md)。
 
 ### 已实现功能
 
@@ -30,7 +30,7 @@
 - 电量显示与电源管理
 - 提供 38 种界面语言；语音提示优先使用本地化资源，缺失时自动回退到英文
 - 支持 ESP32、ESP32-C3、ESP32-C5、ESP32-C6、ESP32-S3、ESP32-P4 芯片平台
-- 支持热点、声波和 BluFi 三种 Wi-Fi 配网方式
+- 支持热点和 BluFi 两种 Wi-Fi 配网方式
 - 通过设备端 MCP 实现设备控制（音量、灯光、电机、GPIO 等）
 - 通过云端 MCP 扩展大模型能力（智能家居控制、PC桌面操作、知识搜索、邮件收发等）
 - 自定义唤醒词、字体、表情与聊天背景，支持网页端在线修改 ([自定义Assets生成器](https://github.com/78/xiaozhi-assets-generator))
@@ -47,10 +47,10 @@
 
 ![面包板效果图](docs/v1/wiring2.jpg)
 
-### 支持 137 个板卡目录、157 个固件发布变体（仅展示部分）
+### 支持 138 个板卡目录、171 个固件发布变体（仅展示部分）
 
 - <a href="https://oshwhub.com/li-chuang-kai-fa-ban/li-chuang-shi-zhan-pai-esp32-s3-kai-fa-ban" target="_blank" title="立创·实战派 ESP32-S3 开发板">立创·实战派 ESP32-S3 开发板</a>
-- <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX3">乐鑫 ESP32-S3-BOX3</a>
+- <a href="https://github.com/espressif/esp-box" target="_blank" title="乐鑫 ESP32-S3-BOX-3">乐鑫 ESP32-S3-BOX-3</a>
 - <a href="https://docs.m5stack.com/zh_CN/core/CoreS3" target="_blank" title="M5Stack CoreS3">M5Stack CoreS3</a>
 - <a href="https://docs.m5stack.com/en/atom/Atomic%20Echo%20Base" target="_blank" title="AtomS3R + Echo Base">M5Stack AtomS3R + Echo Base</a>
 - <a href="https://gf.bilibili.com/item/detail/1108782064" target="_blank" title="神奇按钮 2.4">神奇按钮 2.4</a>

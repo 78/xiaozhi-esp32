@@ -169,6 +169,7 @@ std::string Ml307Board::GetBoardJson() {
     // Set the board type for OTA
     std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
     board_json += "\"name\":\"" BOARD_NAME "\",";
+    board_json += "\"manufacturer\":\"" BOARD_MANUFACTURER "\",";
     board_json += "\"revision\":\"" + modem_->GetModuleRevision() + "\",";
     board_json += "\"carrier\":\"" + modem_->GetCarrierName() + "\",";
     board_json += "\"csq\":\"" + std::to_string(modem_->GetCsq()) + "\",";

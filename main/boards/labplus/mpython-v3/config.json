@@ -1,0 +1,11 @@
+{
+    "manufacturer": "labplus",
+    "type": "labplus-mpython-v3",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "labplus-mpython-v3",
+            "sdkconfig_append": []
+        }
+    ]
+}

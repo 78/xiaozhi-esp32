@@ -15,6 +15,28 @@
 
 #define TAG "TaijiPiS3Board"
 
+class TaijiPiS3Display : public SpiLcdDisplay {
+public:
+    using SpiLcdDisplay::SpiLcdDisplay;
+
+    void SetupUI() override {
+        SpiLcdDisplay::SetupUI();
+        DisplayLockGuard lock(this);
+
+        lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, DISPLAY_STATUS_BAR_TOP_OFFSET);
+
+        if (bottom_bar_ != nullptr && chat_message_label_ != nullptr) {
+            lv_obj_set_width(bottom_bar_, DISPLAY_CHAT_BAR_WIDTH);
+            lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -DISPLAY_CHAT_BAR_BOTTOM_OFFSET);
+
+            const lv_coord_t horizontal_padding =
+                lv_obj_get_style_pad_left(bottom_bar_, LV_PART_MAIN) +
+                lv_obj_get_style_pad_right(bottom_bar_, LV_PART_MAIN);
+            lv_obj_set_width(chat_message_label_, DISPLAY_CHAT_BAR_WIDTH - horizontal_padding);
+        }
+    }
+};
+
 static const st77916_lcd_init_cmd_t lcd_init_cmds[] = {
 #ifdef CONFIG_TAIJIPAI_I2S_TYPE_STD
     {0xF0, (uint8_t[]){0x08}, 1, 0},
@@ -595,8 +617,9 @@ private:
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
 
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new TaijiPiS3Display(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                       DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                       DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeMute() {

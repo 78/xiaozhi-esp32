@@ -17,7 +17,6 @@
 #include <wifi_manager.h>
 #include <wifi_station.h>
 #include <ssid_manager.h>
-#include "afsk_demod.h"
 #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
 #include "blufi.h"
 #endif
@@ -188,21 +187,6 @@ void WifiBoard::StartWifiConfigMode() {
     // initialize esp-blufi protocol
     blufi.init();
 #endif
-#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
-    // Start acoustic provisioning task
-    auto codec = Board::GetInstance().GetAudioCodec();
-    int channel = codec ? codec->input_channels() : 1;
-    ESP_LOGI(TAG, "Starting acoustic WiFi provisioning, channels: %d", channel);
-
-    xTaskCreate([](void* arg) {
-        auto ch = reinterpret_cast<intptr_t>(arg);
-        auto& app = Application::GetInstance();
-        auto& wifi = WifiManager::GetInstance();
-        auto disp = Board::GetInstance().GetDisplay();
-        audio_wifi_config::ReceiveWifiCredentialsFromAudio(&app, &wifi, disp, ch);
-        vTaskDelete(NULL);
-    }, "acoustic_wifi", 4096, reinterpret_cast<void*>(channel), 2, NULL);
-#endif
 }
 
 void WifiBoard::EnterWifiConfigMode() {
@@ -278,6 +262,7 @@ std::string WifiBoard::GetBoardJson() {
     auto& wifi = WifiManager::GetInstance();
     std::string json = R"({"type":")" + std::string(BOARD_TYPE) + R"(",)";
     json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
+    json += R"("manufacturer":")" + std::string(BOARD_MANUFACTURER) + R"(",)";
 
     if (!wifi.IsConfigMode()) {
         json += R"("ssid":")" + wifi.GetSsid() + R"(",)";

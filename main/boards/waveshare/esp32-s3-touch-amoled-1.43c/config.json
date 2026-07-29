@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-s3-touch-amoled-1.43c",
     "target": "esp32s3",
     "builds": [
         {

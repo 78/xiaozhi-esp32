@@ -183,6 +183,7 @@ std::string RndisBoard::GetBoardJson() {
  
     std::string json = R"({"type":")" + std::string(BOARD_TYPE) + R"(",)";
     json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
+    json += R"("manufacturer":")" + std::string(BOARD_MANUFACTURER) + R"(",)";
 
     json += R"("mac":")" + SystemInfo::GetMacAddress() + R"("})";
     return json;

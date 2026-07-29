@@ -1,0 +1,12 @@
+{
+    "manufacturer": "m5stack",
+    "type": "atommatrix-echo-base",
+    "target": "esp32",
+    "builds": [
+        {
+            "name": "atommatrix-echo-base",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}
