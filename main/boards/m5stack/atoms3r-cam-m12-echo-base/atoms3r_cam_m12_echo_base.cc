@@ -146,6 +146,8 @@ private:
         config.pin_reset = CAMERA_PIN_RESET;
         config.xclk_freq_hz = XCLK_FREQ_HZ;
         config.pixel_format = PIXFORMAT_RGB565;
+        // Start at QVGA so both GC0308 (AtomS3R-CAM) and OV3660 (AtomS3R-M12) can
+        // complete sensor init, then raise resolution for capable sensors.
         config.frame_size = FRAMESIZE_QVGA;
         config.jpeg_quality = 12;
         config.fb_count = 1;
@@ -160,8 +162,17 @@ private:
         sensor_t *sensor = esp_camera_sensor_get();
         if (sensor && sensor->id.PID == OV3660_PID) {
             camera_->SetHMirror(true);
+            // Prefer board-configured explain/capture resolution (default SVGA).
+            if (!camera_->SetFrameSize(CAMERA_FRAME_SIZE_NAME)) {
+                ESP_LOGW(TAG, "Failed to apply CAMERA_FRAME_SIZE_NAME=%s, keeping QVGA",
+                         CAMERA_FRAME_SIZE_NAME);
+            }
         } else {
             camera_->SetHMirror(false);
+            // GC0308 tops out around VGA; keep a modest default.
+            if (!camera_->SetFrameSize("VGA")) {
+                ESP_LOGW(TAG, "Failed to set VGA on non-OV3660 sensor, keeping QVGA");
+            }
         }
     }
 

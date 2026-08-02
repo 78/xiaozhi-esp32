@@ -475,6 +475,12 @@ Supported LCD families include:
 - `RndisBoard` - RNDIS-over-USB networking (ESP32-S3 / ESP32-P4).
 - `EspVideo` helpers for ESP-Video on ESP32-S3 / ESP32-P4.
 
+### Camera / vision explain resolution
+
+- `Esp32Camera` and other `Camera` implementations power MCP `self.camera.take_photo`.
+- Set the board default capture size in the board `.cc` via `camera_config_t.frame_size`, and/or define a board `config.h` macro such as `CAMERA_FRAME_SIZE_NAME` (`"QVGA"`, `"VGA"`, `"SVGA"`, `"UXGA"`, ...) and apply it with `Camera::SetFrameSize()` after init (see `atoms3r-cam-m12-echo-base`).
+- Callers can also pass an optional per-request `resolution` argument to `self.camera.take_photo`. Higher resolutions improve text/label reading but need more PSRAM and longer uploads. Init at a size the sensor can actually support; `Esp32Camera::SetFrameSize` will reinit when a larger framebuffer is required.
+
 ### Input helpers
 
 - `Button` - standard push buttons (click, long-press, multi-click).

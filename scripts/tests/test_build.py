@@ -1092,6 +1092,43 @@ class BoardSourceTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
 
+class CameraResolutionConfigTests(unittest.TestCase):
+    def test_camera_interface_exposes_set_frame_size(self):
+        camera_h = (ROOT / "main/boards/common/camera.h").read_text(encoding="utf-8")
+        self.assertIn("SetFrameSize", camera_h)
+
+        esp32_camera_h = (ROOT / "main/boards/common/esp32_camera.h").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("SetFrameSize", esp32_camera_h)
+        self.assertIn("ParseFrameSize", esp32_camera_h)
+
+        esp32_camera_cc = (ROOT / "main/boards/common/esp32_camera.cc").read_text(
+            encoding="utf-8"
+        )
+        for name in ("QVGA", "VGA", "SVGA", "UXGA", "HD"):
+            self.assertIn(f'"{name}"', esp32_camera_cc)
+
+        mcp = (ROOT / "main/mcp_server.cc").read_text(encoding="utf-8")
+        self.assertIn('Property("resolution", kPropertyTypeString', mcp)
+        self.assertIn("SetFrameSize(resolution)", mcp)
+
+    def test_atoms3r_board_default_frame_size_name(self):
+        config_h = (
+            ROOT
+            / "main/boards/m5stack/atoms3r-cam-m12-echo-base/config.h"
+        ).read_text(encoding="utf-8")
+        self.assertIn("CAMERA_FRAME_SIZE_NAME", config_h)
+        self.assertIn('"SVGA"', config_h)
+
+        board_cc = (
+            ROOT
+            / "main/boards/m5stack/atoms3r-cam-m12-echo-base/atoms3r_cam_m12_echo_base.cc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("SetFrameSize(CAMERA_FRAME_SIZE_NAME)", board_cc)
+        self.assertIn('SetFrameSize("VGA")', board_cc)
+
+
 class ZipTests(unittest.TestCase):
     def test_zip_is_always_recreated(self):
         previous_cwd = Path.cwd()

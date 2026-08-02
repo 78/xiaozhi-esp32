@@ -45,5 +45,12 @@
 #define CAMERA_XCLK_FREQ   (20000000)
 #define XCLK_FREQ_HZ CAMERA_XCLK_FREQ
 
+// Default capture/explain resolution name for OV3660 (AtomS3R-M12).
+// Accepted values match Camera::SetFrameSize (e.g. "QVGA", "VGA", "SVGA", "UXGA").
+// SVGA (800x600) balances text legibility against RAM/upload cost. GC0308
+// (AtomS3R-CAM) is clamped to VGA after sensor detection in the board file.
+#ifndef CAMERA_FRAME_SIZE_NAME
+#define CAMERA_FRAME_SIZE_NAME "SVGA"
+#endif
 
 #endif // _BOARD_CONFIG_H_
