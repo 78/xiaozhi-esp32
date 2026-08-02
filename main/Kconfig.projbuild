@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "https://api.tenclass.net/xiaozhi/ota/"
+    default "https://chat.beithing.com:60443/xiaozhi/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
