@@ -1,0 +1,22 @@
+{
+    "manufacturer": "guition",
+    "type": "jc8012p4a1c",
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "jc8012p4a1c",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_JC8012P4A1C=y",
+                "CONFIG_SLAVE_IDF_TARGET_ESP32C6=y",
+                "CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y",
+                "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
+                "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
+                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y",
+                "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP=y",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y",
+                "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=y"
+            ]
+        }
+    ]
+}

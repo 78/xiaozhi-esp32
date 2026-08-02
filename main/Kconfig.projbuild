@@ -247,6 +247,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_HU_087
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_JC8012P4A1C
+        bool "Guition JC8012P4A1C (10.1inch JD9365)"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_JIUCHUAN
         bool "Jiuchuan ESP32-S3 (九川智能)"
         depends on IDF_TARGET_ESP32S3
@@ -608,6 +611,15 @@ choice BOARD_TYPE
         bool "Zhengchen AI Camera Wi-Fi (征辰科技)"
         depends on IDF_TARGET_ESP32S3
 endchoice
+
+config JC8012P4A1C_ENABLE_CAMERA
+    bool "Enable MIPI-CSI camera on JC8012P4A1C"
+    depends on BOARD_TYPE_JC8012P4A1C
+    default n
+    help
+        The JC8012P4A1C ships with an empty 15P CSI connector. Enable this only
+        after attaching a sensor module, and select the matching CONFIG_CAMERA_*
+        sensor driver as well.
 
 choice XIAOZHI_NETWORK_TYPE
     prompt "Network Type"
