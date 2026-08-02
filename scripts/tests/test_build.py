@@ -1096,21 +1096,29 @@ class CameraResolutionConfigTests(unittest.TestCase):
     def test_camera_interface_exposes_set_frame_size(self):
         camera_h = (ROOT / "main/boards/common/camera.h").read_text(encoding="utf-8")
         self.assertIn("SetFrameSize", camera_h)
+        self.assertIn("GetSupportedFrameSizeNames", camera_h)
+        self.assertIn("GetFrameSizeName", camera_h)
 
         esp32_camera_h = (ROOT / "main/boards/common/esp32_camera.h").read_text(
             encoding="utf-8"
         )
         self.assertIn("SetFrameSize", esp32_camera_h)
         self.assertIn("ParseFrameSize", esp32_camera_h)
+        self.assertIn("GetSupportedFrameSizeNames", esp32_camera_h)
+        self.assertIn("GetSensorMaxFrameSize", esp32_camera_h)
 
         esp32_camera_cc = (ROOT / "main/boards/common/esp32_camera.cc").read_text(
             encoding="utf-8"
         )
         for name in ("QVGA", "VGA", "SVGA", "UXGA", "HD"):
             self.assertIn(f'"{name}"', esp32_camera_cc)
+        self.assertIn("esp_camera_sensor_get_info", esp32_camera_cc)
+        self.assertIn("kNamedFrameSizes", esp32_camera_cc)
 
         mcp = (ROOT / "main/mcp_server.cc").read_text(encoding="utf-8")
         self.assertIn('Property("resolution", kPropertyTypeString', mcp)
+        self.assertIn("GetSupportedFrameSizeNames", mcp)
+        self.assertIn("Supported values on this device", mcp)
         self.assertIn("SetFrameSize(resolution)", mcp)
 
     def test_atoms3r_board_default_frame_size_name(self):

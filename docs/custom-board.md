@@ -479,7 +479,7 @@ Supported LCD families include:
 
 - `Esp32Camera` and other `Camera` implementations power MCP `self.camera.take_photo`.
 - Set the board default capture size in the board `.cc` via `camera_config_t.frame_size`, and/or define a board `config.h` macro such as `CAMERA_FRAME_SIZE_NAME` (`"QVGA"`, `"VGA"`, `"SVGA"`, `"UXGA"`, ...) and apply it with `Camera::SetFrameSize()` after init (see `atoms3r-cam-m12-echo-base`).
-- Callers can also pass an optional per-request `resolution` argument to `self.camera.take_photo`. Higher resolutions improve text/label reading but need more PSRAM and longer uploads. Init at a size the sensor can actually support; `Esp32Camera::SetFrameSize` will reinit when a larger framebuffer is required.
+- Callers can also pass an optional per-request `resolution` argument to `self.camera.take_photo`. `Esp32Camera` reports sensor-supported modes through `GetSupportedFrameSizeNames()` (from `esp_camera_sensor_get_info()->max_size`), and MCP embeds that list in the tool description at registration time. Higher resolutions improve text/label reading but need more PSRAM and longer uploads. Init at a size the sensor can actually support; `Esp32Camera::SetFrameSize` will reinit when a larger framebuffer is required.
 
 ### Input helpers
 

@@ -162,15 +162,49 @@ bool Esp32Camera::SetSwapBytes(bool enabled) {
     return true;
 }
 
+// Named sizes exposed to MCP / board config. Keep in sync with ParseFrameSize.
+static const struct {
+    framesize_t size;
+    const char* name;
+} kNamedFrameSizes[] = {
+    {FRAMESIZE_QQVGA, "QQVGA"}, {FRAMESIZE_QVGA, "QVGA"},   {FRAMESIZE_HVGA, "HVGA"},
+    {FRAMESIZE_VGA, "VGA"},     {FRAMESIZE_SVGA, "SVGA"},   {FRAMESIZE_XGA, "XGA"},
+    {FRAMESIZE_HD, "HD"},       {FRAMESIZE_SXGA, "SXGA"},   {FRAMESIZE_UXGA, "UXGA"},
+    {FRAMESIZE_FHD, "FHD"},     {FRAMESIZE_QXGA, "QXGA"},   {FRAMESIZE_QHD, "QHD"},
+    {FRAMESIZE_WQXGA, "WQXGA"}, {FRAMESIZE_QSXGA, "QSXGA"},
+};
+
+const char* Esp32Camera::FrameSizeToName(framesize_t frame_size) {
+    for (const auto& entry : kNamedFrameSizes) {
+        if (entry.size == frame_size) {
+            return entry.name;
+        }
+    }
+    return nullptr;
+}
+
+framesize_t Esp32Camera::GetSensorMaxFrameSize() const {
+    sensor_t* s = esp_camera_sensor_get();
+    if (s != nullptr) {
+        // esp_camera_sensor_get_info takes a non-const sensor_id_t*.
+        sensor_id_t id = s->id;
+        camera_sensor_info_t* info = esp_camera_sensor_get_info(&id);
+        if (info != nullptr && info->max_size < FRAMESIZE_INVALID) {
+            return info->max_size;
+        }
+    }
+    // Fall back to the largest size we have already configured successfully.
+    return config_.frame_size > frame_size_ ? config_.frame_size : frame_size_;
+}
+
 bool Esp32Camera::ParseFrameSize(const std::string& name, framesize_t* out) {
     if (out == nullptr || name.empty()) {
         return false;
     }
 
     std::string n = name;
-    n.erase(std::remove_if(n.begin(), n.end(), [](unsigned char c) {
-                return std::isspace(c) || c == '_' || c == '-';
-            }),
+    n.erase(std::remove_if(n.begin(), n.end(),
+                           [](unsigned char c) { return std::isspace(c) || c == '_' || c == '-'; }),
             n.end());
     std::transform(n.begin(), n.end(), n.begin(),
                    [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
@@ -318,7 +352,36 @@ bool Esp32Camera::SetFrameSize(const std::string& frame_size) {
         ESP_LOGE(TAG, "Unknown camera frame size '%s'", frame_size.c_str());
         return false;
     }
+    framesize_t max_size = GetSensorMaxFrameSize();
+    if (fs > max_size) {
+        ESP_LOGE(TAG, "Frame size '%s' exceeds sensor maximum", frame_size.c_str());
+        return false;
+    }
     return ApplyFrameSize(fs);
+}
+
+std::string Esp32Camera::GetSupportedFrameSizeNames() const {
+    if (!streaming_on_) {
+        return {};
+    }
+
+    framesize_t max_size = GetSensorMaxFrameSize();
+    std::string names;
+    for (const auto& entry : kNamedFrameSizes) {
+        if (entry.size > max_size) {
+            continue;
+        }
+        if (!names.empty()) {
+            names += ", ";
+        }
+        names += entry.name;
+    }
+    return names;
+}
+
+std::string Esp32Camera::GetFrameSizeName() const {
+    const char* name = FrameSizeToName(frame_size_);
+    return name != nullptr ? std::string(name) : std::string();
 }
 
 std::string Esp32Camera::Explain(const std::string &question) {

@@ -36,6 +36,8 @@ private:
     size_t encode_buf_size_ = 0;
 
     static bool ParseFrameSize(const std::string &name, framesize_t *out);
+    static const char *FrameSizeToName(framesize_t frame_size);
+    framesize_t GetSensorMaxFrameSize() const;
     bool ApplyFrameSize(framesize_t frame_size);
 
 public:
@@ -48,5 +50,7 @@ public:
     virtual bool SetVFlip(bool enabled) override;
     virtual bool SetSwapBytes(bool enabled) override;
     virtual bool SetFrameSize(const std::string &frame_size) override;
+    virtual std::string GetSupportedFrameSizeNames() const override;
+    virtual std::string GetFrameSizeName() const override;
     virtual std::string Explain(const std::string &question) override;
 };

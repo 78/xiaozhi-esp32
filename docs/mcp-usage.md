@@ -105,7 +105,7 @@ A tool registered this way will not appear in a regular `tools/list` response. T
 | `self.audio_speaker.set_volume` | Set speaker volume (`volume`: 0-100). |
 | `self.screen.set_brightness` | Set screen brightness when a backlight is available (`brightness`: 0-100). |
 | `self.screen.set_theme` | Switch UI theme (`theme`: `"light"` or `"dark"`), when LVGL is enabled. |
-| `self.camera.take_photo` | Take a picture with the on-board camera (when the board has one) and answer the given `question` about it. Optional `resolution` (`QQVGA` / `QVGA` / `VGA` / `SVGA` / `XGA` / `HD` / `SXGA` / `UXGA`, ...) overrides the board default for that capture when the camera driver supports it. Higher values help with text/label reading but use more RAM and upload time. |
+| `self.camera.take_photo` | Take a picture with the on-board camera (when the board has one) and answer the given `question` about it. When the driver can enumerate sensor modes, the tool description lists the device-supported `resolution` values (e.g. `QVGA` / `VGA` / `SVGA` / … up to the sensor max) and the current default. Higher values help with text/label reading but use more RAM and upload time. |
 
 Board-specific tools are appended after these by each board's `InitializeTools()`.
 
