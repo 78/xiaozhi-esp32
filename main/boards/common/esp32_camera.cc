@@ -1,35 +1,43 @@
 #include "sdkconfig.h"
 
 #include <esp_heap_caps.h>
-#include <cstdio>
-#include <cstring>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <img_converters.h>
 
-#include "esp32_camera.h"
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
+
 #include "board.h"
 #include "display.h"
+#include "esp32_camera.h"
+#include "jpg/image_to_jpeg.h"
 #include "lvgl_display.h"
 #include "mcp_server.h"
 #include "system_info.h"
-#include "jpg/image_to_jpeg.h"
-#include "esp_timer.h"
 
 #define TAG "Esp32Camera"
 
-Esp32Camera::Esp32Camera(const camera_config_t &config) {
-    esp_err_t err = esp_camera_init(&config);
+Esp32Camera::Esp32Camera(const camera_config_t& config) {
+    config_ = config;
+    frame_size_ = config.frame_size;
+
+    esp_err_t err = esp_camera_init(&config_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_camera_init failed with error 0x%x", err);
         return;
     }
 
-    sensor_t *s = esp_camera_sensor_get();
+    sensor_t* s = esp_camera_sensor_get();
     if (s) {
         if (s->id.PID == GC0308_PID) {
-            s->set_hmirror(s, 0); // Control camera mirror: 1 for mirror, 0 for normal
+            s->set_hmirror(s, 0);  // Control camera mirror: 1 for mirror, 0 for normal
+            hmirror_ = false;
         }
-        ESP_LOGI(TAG, "Camera initialized: format=%d", config.pixel_format);
+        ESP_LOGI(TAG, "Camera initialized: format=%d, frame_size=%d", config_.pixel_format,
+                 (int)frame_size_);
     }
 
     streaming_on_ = true;
@@ -130,26 +138,250 @@ bool Esp32Camera::Capture() {
 }
 
 bool Esp32Camera::SetHMirror(bool enabled) {
-    sensor_t *s = esp_camera_sensor_get();
+    sensor_t* s = esp_camera_sensor_get();
     if (!s) {
         return false;
     }
     s->set_hmirror(s, enabled ? 1 : 0);
+    hmirror_ = enabled;
     return true;
 }
 
 bool Esp32Camera::SetVFlip(bool enabled) {
-    sensor_t *s = esp_camera_sensor_get();
+    sensor_t* s = esp_camera_sensor_get();
     if (!s) {
         return false;
     }
     s->set_vflip(s, enabled ? 1 : 0);
+    vflip_ = enabled;
     return true;
 }
 
 bool Esp32Camera::SetSwapBytes(bool enabled) {
     swap_bytes_enabled_ = enabled;
     return true;
+}
+
+// Named sizes exposed to MCP / board config. Keep in sync with ParseFrameSize.
+static const struct {
+    framesize_t size;
+    const char* name;
+} kNamedFrameSizes[] = {
+    {FRAMESIZE_QQVGA, "QQVGA"}, {FRAMESIZE_QVGA, "QVGA"},   {FRAMESIZE_HVGA, "HVGA"},
+    {FRAMESIZE_VGA, "VGA"},     {FRAMESIZE_SVGA, "SVGA"},   {FRAMESIZE_XGA, "XGA"},
+    {FRAMESIZE_HD, "HD"},       {FRAMESIZE_SXGA, "SXGA"},   {FRAMESIZE_UXGA, "UXGA"},
+    {FRAMESIZE_FHD, "FHD"},     {FRAMESIZE_QXGA, "QXGA"},   {FRAMESIZE_QHD, "QHD"},
+    {FRAMESIZE_WQXGA, "WQXGA"}, {FRAMESIZE_QSXGA, "QSXGA"},
+};
+
+const char* Esp32Camera::FrameSizeToName(framesize_t frame_size) {
+    for (const auto& entry : kNamedFrameSizes) {
+        if (entry.size == frame_size) {
+            return entry.name;
+        }
+    }
+    return nullptr;
+}
+
+framesize_t Esp32Camera::GetSensorMaxFrameSize() const {
+    sensor_t* s = esp_camera_sensor_get();
+    if (s != nullptr) {
+        // esp_camera_sensor_get_info takes a non-const sensor_id_t*.
+        sensor_id_t id = s->id;
+        camera_sensor_info_t* info = esp_camera_sensor_get_info(&id);
+        if (info != nullptr && info->max_size < FRAMESIZE_INVALID) {
+            return info->max_size;
+        }
+    }
+    // Fall back to the largest size we have already configured successfully.
+    return config_.frame_size > frame_size_ ? config_.frame_size : frame_size_;
+}
+
+bool Esp32Camera::ParseFrameSize(const std::string& name, framesize_t* out) {
+    if (out == nullptr || name.empty()) {
+        return false;
+    }
+
+    std::string n = name;
+    n.erase(std::remove_if(n.begin(), n.end(),
+                           [](unsigned char c) { return std::isspace(c) || c == '_' || c == '-'; }),
+            n.end());
+    std::transform(n.begin(), n.end(), n.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+
+    // Common aliases used by boards / MCP callers.
+    if (n == "96X96") {
+        *out = FRAMESIZE_96X96;
+    } else if (n == "QQVGA") {
+        *out = FRAMESIZE_QQVGA;
+    } else if (n == "QCIF") {
+        *out = FRAMESIZE_QCIF;
+    } else if (n == "HQVGA") {
+        *out = FRAMESIZE_HQVGA;
+    } else if (n == "240X240") {
+        *out = FRAMESIZE_240X240;
+    } else if (n == "QVGA") {
+        *out = FRAMESIZE_QVGA;
+    } else if (n == "CIF") {
+        *out = FRAMESIZE_CIF;
+    } else if (n == "HVGA") {
+        *out = FRAMESIZE_HVGA;
+    } else if (n == "VGA") {
+        *out = FRAMESIZE_VGA;
+    } else if (n == "SVGA") {
+        *out = FRAMESIZE_SVGA;
+    } else if (n == "XGA") {
+        *out = FRAMESIZE_XGA;
+    } else if (n == "HD") {
+        *out = FRAMESIZE_HD;
+    } else if (n == "SXGA") {
+        *out = FRAMESIZE_SXGA;
+    } else if (n == "UXGA") {
+        *out = FRAMESIZE_UXGA;
+    } else if (n == "FHD") {
+        *out = FRAMESIZE_FHD;
+    } else if (n == "QXGA") {
+        *out = FRAMESIZE_QXGA;
+    } else if (n == "QHD") {
+        *out = FRAMESIZE_QHD;
+    } else if (n == "WQXGA") {
+        *out = FRAMESIZE_WQXGA;
+    } else if (n == "QSXGA" || n == "5MP") {
+        *out = FRAMESIZE_QSXGA;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+bool Esp32Camera::ApplyFrameSize(framesize_t frame_size) {
+    if (!streaming_on_) {
+        return false;
+    }
+    if (frame_size == frame_size_) {
+        return true;
+    }
+    if (frame_size >= FRAMESIZE_INVALID) {
+        return false;
+    }
+
+    if (encoder_thread_.joinable()) {
+        encoder_thread_.join();
+    }
+
+    const resolution_info_t& wanted = resolution[frame_size];
+    const resolution_info_t& allocated = resolution[config_.frame_size];
+    const size_t wanted_pixels = (size_t)wanted.width * (size_t)wanted.height;
+    const size_t allocated_pixels = (size_t)allocated.width * (size_t)allocated.height;
+
+    // Prefer a lightweight sensor-only change when the existing framebuffer is large enough.
+    if (wanted_pixels <= allocated_pixels) {
+        sensor_t* s = esp_camera_sensor_get();
+        if (s == nullptr) {
+            return false;
+        }
+        if (s->set_framesize(s, frame_size) != 0) {
+            ESP_LOGE(TAG, "set_framesize failed for %dx%d", wanted.width, wanted.height);
+            return false;
+        }
+        frame_size_ = frame_size;
+        ESP_LOGI(TAG, "Camera frame size set to %dx%d", wanted.width, wanted.height);
+        return true;
+    }
+
+    // Larger than the current framebuffer allocation: reinit the driver.
+    if (current_fb_) {
+        esp_camera_fb_return(current_fb_);
+        current_fb_ = nullptr;
+    }
+    if (encode_buf_) {
+        heap_caps_free(encode_buf_);
+        encode_buf_ = nullptr;
+        encode_buf_size_ = 0;
+    }
+
+    framesize_t previous_size = frame_size_;
+    framesize_t previous_alloc = config_.frame_size;
+    esp_camera_deinit();
+    streaming_on_ = false;
+
+    config_.frame_size = frame_size;
+    esp_err_t err = esp_camera_init(&config_);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_camera_init failed while switching to %dx%d: 0x%x", wanted.width,
+                 wanted.height, err);
+        // Best-effort restore of the previous configuration.
+        config_.frame_size = previous_alloc;
+        err = esp_camera_init(&config_);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to restore previous camera configuration: 0x%x", err);
+            return false;
+        }
+        streaming_on_ = true;
+        frame_size_ = previous_alloc;
+        sensor_t* s = esp_camera_sensor_get();
+        if (s) {
+            s->set_hmirror(s, hmirror_ ? 1 : 0);
+            s->set_vflip(s, vflip_ ? 1 : 0);
+            if (previous_size != previous_alloc) {
+                s->set_framesize(s, previous_size);
+                frame_size_ = previous_size;
+            }
+        }
+        return false;
+    }
+
+    streaming_on_ = true;
+    frame_size_ = frame_size;
+    sensor_t* s = esp_camera_sensor_get();
+    if (s) {
+        s->set_hmirror(s, hmirror_ ? 1 : 0);
+        s->set_vflip(s, vflip_ ? 1 : 0);
+    }
+    ESP_LOGI(TAG, "Camera reinitialized at %dx%d", wanted.width, wanted.height);
+    return true;
+}
+
+bool Esp32Camera::SetFrameSize(const std::string& frame_size) {
+    if (frame_size.empty()) {
+        return true;
+    }
+
+    framesize_t fs;
+    if (!ParseFrameSize(frame_size, &fs)) {
+        ESP_LOGE(TAG, "Unknown camera frame size '%s'", frame_size.c_str());
+        return false;
+    }
+    framesize_t max_size = GetSensorMaxFrameSize();
+    if (fs > max_size) {
+        ESP_LOGE(TAG, "Frame size '%s' exceeds sensor maximum", frame_size.c_str());
+        return false;
+    }
+    return ApplyFrameSize(fs);
+}
+
+std::string Esp32Camera::GetSupportedFrameSizeNames() const {
+    if (!streaming_on_) {
+        return {};
+    }
+
+    framesize_t max_size = GetSensorMaxFrameSize();
+    std::string names;
+    for (const auto& entry : kNamedFrameSizes) {
+        if (entry.size > max_size) {
+            continue;
+        }
+        if (!names.empty()) {
+            names += ", ";
+        }
+        names += entry.name;
+    }
+    return names;
+}
+
+std::string Esp32Camera::GetFrameSizeName() const {
+    const char* name = FrameSizeToName(frame_size_);
+    return name != nullptr ? std::string(name) : std::string();
 }
 
 std::string Esp32Camera::Explain(const std::string &question) {

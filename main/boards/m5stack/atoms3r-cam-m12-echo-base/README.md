@@ -35,6 +35,12 @@ idf.py menuconfig
 - `Partition Table` → `Custom partition CSV file` → 删除原有内容，输入 `partitions/v2/8m.csv`
 - `Serial flasher config` → `Flash size` → 选择 `8 MB`
 
+### 摄像头视觉分辨率
+
+- 默认捕获/解释分辨率在 `config.h` 的 `CAMERA_FRAME_SIZE_NAME` 中配置（M12 / OV3660 默认为 `"SVGA"`）。
+- AtomS3R-CAM（GC0308）会在传感器识别后限制到 `VGA`。
+- MCP 工具 `self.camera.take_photo` 支持可选参数 `resolution`（如 `"VGA"` / `"SVGA"` / `"UXGA"`），可按次覆盖默认值，便于细小文字识别。更高分辨率会占用更多 PSRAM 并增加上传耗时。
+
 按 `S` 保存，按 `Q` 退出。
 
 **编译**

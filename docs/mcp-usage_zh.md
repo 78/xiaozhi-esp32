@@ -109,6 +109,24 @@ void InitializeTools() {
 }
 ```
 
+### 5. 摄像头拍照解释（可选分辨率）
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "self.camera.take_photo",
+    "arguments": {
+      "question": "请读出图片中的文字",
+      "resolution": "SVGA"
+    }
+  },
+  "id": 5
+}
+```
+
+`resolution` 为可选参数。设备会在 MCP 工具描述中写入当前摄像头传感器实际支持的分辨率列表（以及默认值）；不传则使用板级默认值。更高分辨率有利于识别细小文字，但会占用更多内存并增加上传时间。
+
 ## 备注
 - 工具名称、参数及返回值请以设备端 `AddTool` 注册为准。
 - 推荐所有新项目统一采用 MCP 协议进行物联网控制。

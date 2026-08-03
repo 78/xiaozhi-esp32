@@ -99,19 +99,48 @@ void McpServer::AddCommonTools() {
 
     auto camera = board.GetCamera();
     if (camera) {
-        AddTool("self.camera.take_photo",
+        std::string description =
             "Always remember you have a camera. If the user asks you to see something, use this tool to take a photo and then explain it.\n"
             "Args:\n"
-            "  `question`: The question that you want to ask about the photo.\n"
+            "  `question`: The question that you want to ask about the photo.\n";
+
+        PropertyList properties({
+            Property("question", kPropertyTypeString)
+        });
+
+        // Advertise only the resolutions this camera sensor actually supports.
+        std::string supported_resolutions = camera->GetSupportedFrameSizeNames();
+        const bool resolution_supported = !supported_resolutions.empty();
+        if (resolution_supported) {
+            description +=
+                "  `resolution`: Optional capture resolution for this photo. Use a higher value when the task needs fine detail "
+                "(e.g. reading text/labels). Supported values on this device: " +
+                supported_resolutions + ".";
+            std::string current_resolution = camera->GetFrameSizeName();
+            if (!current_resolution.empty()) {
+                description += " Default (when omitted): " + current_resolution + ".";
+            } else {
+                description += " Leave empty to keep the board default.";
+            }
+            description += " Higher resolutions use more RAM and take longer to upload.\n";
+            properties.AddProperty(Property("resolution", kPropertyTypeString, std::string()));
+        }
+
+        description +=
             "Return:\n"
-            "  A JSON object that provides the photo information.",
-            PropertyList({
-                Property("question", kPropertyTypeString)
-            }),
-            [camera](const PropertyList& properties) -> ReturnValue {
+            "  A JSON object that provides the photo information.";
+
+        AddTool("self.camera.take_photo", description, properties,
+            [camera, resolution_supported](const PropertyList& properties) -> ReturnValue {
                 // Lower the priority to do the camera capture
                 TaskPriorityReset priority_reset(1);
 
+                if (resolution_supported) {
+                    auto resolution = properties["resolution"].value<std::string>();
+                    if (!resolution.empty() && !camera->SetFrameSize(resolution)) {
+                        throw std::runtime_error("Unsupported or failed camera resolution: " + resolution);
+                    }
+                }
                 if (!camera->Capture()) {
                     throw std::runtime_error("Failed to capture photo");
                 }
