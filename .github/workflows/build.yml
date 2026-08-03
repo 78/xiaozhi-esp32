@@ -17,7 +17,7 @@ jobs:
     name: Determine variants to build
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:release-v6.1
+      image: espressif/idf:v6.0.2
     outputs:
       variants: ${{ steps.select.outputs.variants }}
     steps:
@@ -74,7 +74,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:release-v6.1
+      image: espressif/idf:v6.0.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +86,38 @@ jobs:
           python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
 
       - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+
+  esp32s31-idf61:
+    name: Build ${{ matrix.full_name }} with IDF 6.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: espressif/esp32-s31-function-coreboard-1
+            name: esp32-s31-function-coreboard-1
+            full_name: espressif-esp32-s31-function-coreboard-1
+          - board: espressif/esp32-s31-korvo-1
+            name: esp32-s31-korvo-1
+            full_name: espressif-esp32-s31-korvo-1
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ESP32-S31 variant
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
