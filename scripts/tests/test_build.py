@@ -65,6 +65,17 @@ class VersionTests(unittest.TestCase):
         self.assertIn("espressif-esp32-s31-function-coreboard-1", idf61_names)
         self.assertIn("rymcu-bigsmart", idf61_names)
         self.assertNotIn("rymcu-rymcu-bigsmart", idf61_names)
+        atk = next(
+            variant for variant in idf61
+            if variant["board"] == "alientek/atk-dnesp32s3"
+        )
+        self.assertEqual(atk["type"], "atk-dnesp32s3")
+        self.assertEqual(atk["target"], "esp32s3")
+        self.assertEqual(atk["config"], "CONFIG_BOARD_TYPE_ATK_DNESP32S3")
+        self.assertEqual(
+            atk["display_name"],
+            "Alientek ATK-DNESP32S3 Development Board (正点原子)",
+        )
         self.assertEqual(
             build._get_release_full_name(
                 "espressif",
@@ -316,6 +327,26 @@ class BoardSelectionTests(unittest.TestCase):
         self.assertEqual(
             build._resolve_board_config(board, "esp32s3", []),
             "CONFIG_BOARD_TYPE_ESP32_S3_BOX_3",
+        )
+
+    def test_board_display_name_comes_from_kconfig_prompt(self):
+        self.assertEqual(
+            build._get_board_display_name(
+                "CONFIG_BOARD_TYPE_ATK_DNESP32S3"
+            ),
+            "Alientek ATK-DNESP32S3 Development Board (正点原子)",
+        )
+
+    def test_variant_name_disambiguates_shared_board_directory(self):
+        board = "lilygo/t-cameraplus-s3"
+        self.assertEqual(
+            build._resolve_board_config(
+                board,
+                "esp32s3",
+                [],
+                variant_name="lilygo-t-cameraplus-s3-v1.2",
+            ),
+            "CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2",
         )
 
     def test_m5stack_directory_can_omit_manufacturer_prefix(self):
@@ -601,6 +632,27 @@ class InvalidConfigTests(unittest.TestCase):
 
 
 class PreviewTargetTests(unittest.TestCase):
+    def test_stage_marker_is_only_emitted_when_enabled(self):
+        output = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            contextlib.redirect_stdout(output),
+        ):
+            build._emit_build_stage("compiling")
+        self.assertEqual(output.getvalue(), "")
+
+        output = io.StringIO()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {"XIAOZHI_BUILD_STAGES": "true"},
+                clear=True,
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            build._emit_build_stage("compiling")
+        self.assertEqual(output.getvalue(), "XIAOZHI_STAGE compiling\n")
+
     def test_merge_bin_enables_preview_mode(self):
         with mock.patch.object(build, "_run_idf") as run_idf:
             build.merge_bin(preview=True)
@@ -609,31 +661,60 @@ class PreviewTargetTests(unittest.TestCase):
 
 
 class TargetConfigurationTests(unittest.TestCase):
-    def test_same_target_skips_set_target(self):
+    def test_sync_vscode_target_preserves_other_settings(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Path(temp_dir) / "settings.json"
+            settings.write_text(
+                '{\n'
+                '  "idf.customExtraVars": {\n'
+                '    "IDF_TARGET": "esp32c3"\n'
+                '  },\n'
+                '  "editor.formatOnSave": true\n'
+                '}\n',
+                encoding="utf-8",
+            )
+
+            self.assertTrue(build._sync_vscode_target("esp32s3", settings))
+            self.assertEqual(
+                settings.read_text(encoding="utf-8"),
+                '{\n'
+                '  "idf.customExtraVars": {\n'
+                '    "IDF_TARGET": "esp32s3"\n'
+                '  },\n'
+                '  "editor.formatOnSave": true\n'
+                '}\n',
+            )
+            self.assertFalse(build._sync_vscode_target("esp32s3", settings))
+
+    def test_sync_vscode_target_skips_missing_settings(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Path(temp_dir) / "settings.json"
+            self.assertFalse(build._sync_vscode_target("esp32s3", settings))
+
+    def test_same_target_does_not_clean_build_directory(self):
         with (
+            mock.patch.object(build, "_target_from_cmake_cache", return_value="esp32s3"),
             mock.patch.object(build, "_configured_target", return_value="esp32s3"),
             mock.patch.object(build, "_run_idf") as run_idf,
         ):
-            changed = build._ensure_target("esp32s3", preview=False)
+            build._prepare_target("esp32s3", preview=False)
 
         run_idf.assert_not_called()
-        self.assertFalse(changed)
 
-    def test_changed_target_calls_set_target(self):
+    def test_changed_cmake_target_runs_fullclean_only(self):
         with (
-            mock.patch.object(build, "_configured_target", return_value="esp32c3"),
+            mock.patch.object(build, "_target_from_cmake_cache", return_value="esp32c3"),
+            mock.patch.object(build, "_configured_target", return_value=None),
             mock.patch.object(build, "_run_idf") as run_idf,
         ):
-            changed = build._ensure_target("esp32s3", preview=True)
+            build._prepare_target("esp32s3", preview=True)
 
         run_idf.assert_called_once_with(
-            "set-target",
-            "esp32s3",
+            "fullclean",
             preview=True,
         )
-        self.assertTrue(changed)
 
-    def test_regenerate_sdkconfig_uses_clean_variant_fragment(self):
+    def test_configure_build_uses_all_cmake_values_in_one_run(self):
         previous_cwd = Path.cwd()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -648,9 +729,10 @@ class TargetConfigurationTests(unittest.TestCase):
                 )
 
                 with mock.patch.object(build, "_run_idf") as run_idf:
-                    build._regenerate_sdkconfig(
+                    build._configure_build(
                         "esp32s3",
                         ["CONFIG_BOARD_TYPE_TEST=y", "CONFIG_FEATURE=y"],
+                        "test-board",
                         preview=False,
                     )
 
@@ -670,13 +752,14 @@ class TargetConfigurationTests(unittest.TestCase):
                     "-DIDF_TARGET=esp32s3",
                     "-DSDKCONFIG_DEFAULTS="
                     "sdkconfig.defaults;build/xiaozhi-build.sdkconfig.defaults",
+                    "-DBOARD_NAME=test-board",
                     "reconfigure",
                     preview=False,
                 )
         finally:
             os.chdir(previous_cwd)
 
-    def test_target_change_preserves_set_target_backup(self):
+    def test_configure_build_replaces_stale_sdkconfig_backup(self):
         previous_cwd = Path.cwd()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -691,17 +774,17 @@ class TargetConfigurationTests(unittest.TestCase):
                 )
 
                 with mock.patch.object(build, "_run_idf"):
-                    build._regenerate_sdkconfig(
+                    build._configure_build(
                         "esp32s3",
                         ["CONFIG_BOARD_TYPE_TEST=y"],
+                        "test-board",
                         preview=False,
-                        target_changed=True,
                     )
 
                 self.assertFalse(Path("sdkconfig").exists())
                 self.assertEqual(
                     Path("sdkconfig.old").read_text(encoding="utf-8"),
-                    "CONFIG_USER_PREVIOUS_VALUE=y\n",
+                    'CONFIG_IDF_TARGET="esp32s3"\n',
                 )
         finally:
             os.chdir(previous_cwd)

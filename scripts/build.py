@@ -38,6 +38,13 @@ _ESP_SR_KCONFIG = Path(
 )
 
 
+def _emit_build_stage(stage: str) -> None:
+    """Emit a machine-readable stage marker for cloud build runners."""
+    enabled = os.environ.get("XIAOZHI_BUILD_STAGES", "").strip().casefold()
+    if enabled in {"1", "true", "yes", "on"}:
+        print(f"XIAOZHI_STAGE {stage}", flush=True)
+
+
 def get_project_version() -> Optional[str]:
     """Read set(PROJECT_VER "x.y.z") from root CMakeLists.txt"""
     with Path("CMakeLists.txt").open(encoding='utf-8') as f:
@@ -422,6 +429,36 @@ def _get_builds_for_idf(cfg: dict, idf_version: tuple[int, int, int]) -> list[di
     return builds
 
 
+def _get_board_display_name(
+    config_symbol: str,
+    kconfig_path: Path = Path("main/Kconfig.projbuild"),
+) -> str:
+    """Return the user-facing bool prompt for a CONFIG_BOARD_TYPE_* symbol."""
+    symbol = config_symbol.removeprefix("CONFIG_")
+    if not kconfig_path.exists():
+        raise ValueError(f"Board Kconfig file not found: {kconfig_path}")
+
+    in_symbol = False
+    for line in kconfig_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("config "):
+            if in_symbol:
+                break
+            in_symbol = stripped.split("config ", 1)[1].strip() == symbol
+            continue
+        if not in_symbol:
+            continue
+        prompt = re.match(r'^bool\s+"([^"]+)"', stripped)
+        if prompt:
+            return prompt.group(1)
+        if stripped.startswith(("choice ", "endchoice", "menu ", "endmenu")):
+            break
+
+    raise ValueError(
+        f'Kconfig bool prompt not found for {config_symbol} in {kconfig_path}'
+    )
+
+
 def _collect_variants(
     config_filename: str = "config.json",
     idf_version: tuple[int, int, int] = (6, 0, 0),
@@ -450,6 +487,9 @@ def _collect_variants(
 
             manufacturer = _get_manufacturer(cfg)
             reported_type = _get_reported_type(cfg)
+            target = cfg.get("target")
+            if not isinstance(target, str) or not target:
+                raise ValueError(f"{cfg_path}: missing non-empty target")
 
             previous_board = type_owners.get(reported_type)
             if previous_board is not None and previous_board != board:
@@ -508,9 +548,11 @@ def _collect_variants(
                     identity_owners[identity] = str(cfg_path)
 
                 variants.append({
-                    "board": board, 
+                    "board": board,
                     "name": name,
-                    "full_name": full_name
+                    "full_name": full_name,
+                    "type": reported_type,
+                    "target": target,
                 })
 
         except Exception as e:
@@ -530,6 +572,33 @@ def _collect_variants(
     if errors:
         details = "\n".join(f"  - {error}" for error in errors)
         raise ValueError(f"Invalid board configuration:\n{details}")
+
+    # Enrich only after the compatibility identities above are validated, so
+    # duplicate/malformed config errors remain the primary actionable failure.
+    for variant in variants:
+        cfg_path = _BOARDS_DIR / variant["board"] / config_filename
+        with cfg_path.open(encoding="utf-8") as file:
+            cfg = json.load(file)
+        build = next(
+            item for item in _get_builds_for_idf(cfg, idf_version)
+            if _get_reported_name(item) == variant["name"]
+        )
+        sdkconfig_append = build.get("sdkconfig_append", [])
+        if not isinstance(sdkconfig_append, list) or not all(
+            isinstance(item, str) for item in sdkconfig_append
+        ):
+            raise ValueError(
+                f'{cfg_path}: build {variant["name"]!r} '
+                'sdkconfig_append must be a string list'
+            )
+        config_symbol = _resolve_board_config(
+            variant["board"],
+            variant["target"],
+            sdkconfig_append,
+            variant_name=variant["name"],
+        )
+        variant["config"] = config_symbol
+        variant["display_name"] = _get_board_display_name(config_symbol)
 
     return sorted(variants, key=lambda variant: (variant["board"], variant["name"]))
 
@@ -634,6 +703,21 @@ def _extract_board_config_from_sdkconfig_append(sdkconfig_append: list[str]) -> 
     return uniq[0]
 
 
+def _board_config_symbol_exists(
+    symbol: str,
+    kconfig_path: Path = Path("main/Kconfig.projbuild"),
+) -> bool:
+    """Return whether a CONFIG_BOARD_TYPE_* symbol exists in project Kconfig."""
+    if not kconfig_path.exists():
+        return False
+    name = symbol.removeprefix("CONFIG_")
+    return bool(re.search(
+        rf"^\s*config\s+{re.escape(name)}\s*$",
+        kconfig_path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ))
+
+
 def _symbol_supports_target(symbol: str, target: str) -> bool:
     """Check whether Kconfig symbol depends on given target (e.g. esp32c5)."""
     kconfig_file = Path("main/Kconfig.projbuild")
@@ -641,6 +725,7 @@ def _symbol_supports_target(symbol: str, target: str) -> bool:
         return False
 
     target_flag = f"IDF_TARGET_{target.upper()}"
+    symbol = symbol.removeprefix("CONFIG_")
     lines = kconfig_file.read_text(encoding="utf-8").splitlines()
 
     in_symbol = False
@@ -657,17 +742,39 @@ def _symbol_supports_target(symbol: str, target: str) -> bool:
     return False
 
 
-def _resolve_board_config(board_type: str, target: str, sdkconfig_append: list[str]) -> str:
+def _resolve_board_config(
+    board_type: str,
+    target: str,
+    sdkconfig_append: list[str],
+    *,
+    variant_name: Optional[str] = None,
+) -> str:
     """Resolve CONFIG_BOARD_TYPE_xxx for current board build."""
     explicit = _extract_board_config_from_sdkconfig_append(sdkconfig_append)
-    if explicit:
+    if explicit and _board_config_symbol_exists(explicit):
         return explicit
+    if explicit:
+        print(
+            f"[WARN] Explicit board config {explicit} does not exist in Kconfig; "
+            f"resolving it from BOARD_DIR={board_type!r} instead.",
+            file=sys.stderr,
+        )
 
     candidates = _find_board_config_candidates(board_type)
     if not candidates:
         raise ValueError(f"Cannot find board config symbol for {board_type}")
     if len(candidates) == 1:
         return candidates[0]
+
+    if variant_name:
+        expected = "CONFIG_BOARD_TYPE_" + re.sub(
+            r"[^A-Z0-9]+",
+            "_",
+            variant_name.upper(),
+        ).strip("_")
+        by_variant = [candidate for candidate in candidates if candidate == expected]
+        if len(by_variant) == 1:
+            return by_variant[0]
 
     by_target = [c for c in candidates if _symbol_supports_target(c, target)]
     if len(by_target) == 1:
@@ -808,40 +915,62 @@ def _configured_target() -> Optional[str]:
     return cache_target or sdkconfig_target
 
 
-def _ensure_target(target: str, preview: bool) -> bool:
-    """Switch targets only when needed; return whether set-target ran."""
-    current_target = _configured_target()
-    if current_target == target:
-        print(f"[INFO] Reusing target {target}; skipping idf.py set-target.")
+def _sync_vscode_target(
+    target: str,
+    settings_path: Path = Path(".vscode/settings.json"),
+) -> bool:
+    """Keep an existing VS Code ESP-IDF target setting in sync."""
+    if not settings_path.exists():
         return False
 
-    if current_target:
-        print(f"[INFO] Switching target from {current_target} to {target}.")
-    else:
-        print(f"[INFO] Configuring target {target}.")
-    _run_idf("set-target", target, preview=preview)
+    content = settings_path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r'(?P<prefix>"IDF_TARGET"\s*:\s*")'
+        r'(?:\\.|[^"\\])*'
+        r'(?P<suffix>")'
+    )
+    updated, matches = pattern.subn(
+        lambda match: f'{match.group("prefix")}{target}{match.group("suffix")}',
+        content,
+    )
+    if matches == 0 or updated == content:
+        return False
+
+    settings_path.write_text(updated, encoding="utf-8")
+    print(f"[INFO] Updated {settings_path} IDF_TARGET to {target}.")
     return True
 
 
-def _regenerate_sdkconfig(
+def _prepare_target(target: str, preview: bool) -> None:
+    """Clean only when an existing CMake build uses another target."""
+    cache_target = _target_from_cmake_cache()
+    current_target = _configured_target()
+    if current_target == target:
+        print(f"[INFO] Reusing target {target}.")
+        return
+
+    if cache_target and cache_target != target:
+        print(f"[INFO] Switching target from {cache_target} to {target}.")
+        _run_idf("fullclean", preview=preview)
+    elif current_target:
+        print(f"[INFO] Configuring target {target} (was {current_target}).")
+    else:
+        print(f"[INFO] Configuring target {target}.")
+
+
+def _configure_build(
     target: str,
     sdkconfig_append: list[str],
+    board_name: str,
     preview: bool,
-    *,
-    target_changed: bool = False,
 ) -> None:
-    """Regenerate sdkconfig from project defaults plus the selected variant."""
+    """Configure target, board identity and sdkconfig defaults in one CMake run."""
     sdkconfig = Path("sdkconfig")
     sdkconfig_old = Path("sdkconfig.old")
     if sdkconfig.exists():
-        if target_changed:
-            # set-target has already saved the user's previous config as
-            # sdkconfig.old. Discard only the fresh default config it created.
-            sdkconfig.unlink()
-        else:
-            if sdkconfig_old.exists():
-                sdkconfig_old.unlink()
-            sdkconfig.replace(sdkconfig_old)
+        if sdkconfig_old.exists():
+            sdkconfig_old.unlink()
+        sdkconfig.replace(sdkconfig_old)
 
     fragment = Path("build/xiaozhi-build.sdkconfig.defaults")
     fragment.parent.mkdir(parents=True, exist_ok=True)
@@ -859,9 +988,11 @@ def _regenerate_sdkconfig(
     _run_idf(
         f"-DIDF_TARGET={target}",
         f"-DSDKCONFIG_DEFAULTS={';'.join(defaults)}",
+        f"-DBOARD_NAME={board_name}",
         "reconfigure",
         preview=preview,
     )
+    _sync_vscode_target(target)
 
 
 def _validate_configured_symbols(symbols: list[str], option_name: str) -> None:
@@ -950,7 +1081,12 @@ def build_board(
             )
             sdkconfig_append = list(build_sdkconfig_append)
         else:
-            board_type_config = _resolve_board_config(board_type, target, build_sdkconfig_append)
+            board_type_config = _resolve_board_config(
+                board_type,
+                target,
+                build_sdkconfig_append,
+                variant_name=name,
+            )
             sdkconfig_append = [f"{board_type_config}=y"]
             sdkconfig_append.extend(build_sdkconfig_append)
 
@@ -994,21 +1130,24 @@ def build_board(
         for item in sdkconfig_append:
             print(f"sdkconfig_append: {item}")
 
+        _emit_build_stage("dependencies_resolving")
         os.environ.pop("IDF_TARGET", None)
-        target_changed = _ensure_target(target, preview)
-        _regenerate_sdkconfig(
+        _prepare_target(target, preview)
+        _configure_build(
             target,
             sdkconfig_append,
+            name,
             preview,
-            target_changed=target_changed,
         )
         for symbols, option_name in validation_symbols:
             _validate_configured_symbols(symbols, option_name)
 
         # build.name is the compatibility-sensitive OTA-reported board identity.
-        _run_idf(f"-DBOARD_NAME={name}", "build", preview=preview)
+        _emit_build_stage("compiling")
+        _run_idf("build", preview=preview)
 
         # merge-bin
+        _emit_build_stage("packaging")
         merge_bin(preview)
 
         if create_zip:

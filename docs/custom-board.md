@@ -404,9 +404,10 @@ The script:
   types and variants.
 - Prompts for a variant when the selected board has multiple builds. In
   non-interactive environments, pass `--name <variant>`.
-- Reads `target` from `config.json`. It calls `idf.py set-target` only when the
-  target changes, then regenerates `sdkconfig` from defaults and the selected
-  build's `sdkconfig_append`.
+- Reads `target` from `config.json`, cleans an existing build directory only
+  when its target differs, then configures the target, board name, defaults,
+  and selected build's `sdkconfig_append` in one `idf.py reconfigure` call.
+  The following `idf.py build` reuses that configuration.
 - Passes the selected build's `name` as the reported firmware variant name.
 - Builds `build/merged-binary.bin` without creating a ZIP by default. Pass
   `--zip` to recreate `releases/v<version>_<name>.zip`.

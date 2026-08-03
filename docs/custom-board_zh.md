@@ -417,9 +417,10 @@ python scripts/build.py --list-wake-words --json
 此脚本会自动：
 - 不传参数时打印帮助；使用 `--list-boards` 列出所有开发板类型和变体
 - 如果开发板有多个变体，交互式提示选择；非交互环境使用 `--name <变体>`
-- 读取 `config.json` 中的 `target`，仅在目标芯片变化时调用
-  `idf.py set-target`，然后根据 defaults 和所选变体的
-  `sdkconfig_append` 重新生成 `sdkconfig`
+- 读取 `config.json` 中的 `target`；仅当已有 build 目录的目标芯片不同时
+  执行清理，然后通过一次 `idf.py reconfigure` 同时配置目标芯片、开发板
+  名称、defaults 和所选变体的 `sdkconfig_append`。随后的 `idf.py build`
+  会复用这份配置
 - 将所选 build 的 `name` 作为固件上报的变体名称
 - 默认生成 `build/merged-binary.bin`，不创建 ZIP；指定 `--zip` 时会重新生成
   `releases/v<版本>_<名称>.zip`

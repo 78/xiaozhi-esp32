@@ -16,10 +16,10 @@ docker build \
 
 The base image defaults to `espressif/idf:release-v6.1`.
 
-`scripts/build.py` calls `idf.py set-target`, which can recreate
-`managed_components`. The image therefore does not rely on a project-level
-component prewarm; each ECI job must have outbound network access to resolve
-components when needed.
+`scripts/build.py` configures the target, generated sdkconfig defaults, and
+board name in one `idf.py reconfigure` call. Component Manager resolves and
+populates `managed_components` during that step, so each fresh ECI source clone
+must have outbound network access.
 
 ## Run one build
 

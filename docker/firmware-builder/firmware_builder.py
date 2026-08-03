@@ -357,6 +357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     write_manifest(args.output_dir, manifest)
     if upload_config is not None:
         try:
+            print("XIAOZHI_STAGE uploading", flush=True)
             upload_outputs(args.output_dir, manifest, upload_config)
         except Exception as error:
             print(f"firmware-builder: OSS upload failed: {error}", file=sys.stderr)

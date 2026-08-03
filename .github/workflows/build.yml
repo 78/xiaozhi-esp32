@@ -17,7 +17,7 @@ jobs:
     name: Determine variants to build
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v6.0.1
+      image: espressif/idf:release-v6.1
     outputs:
       variants: ${{ steps.select.outputs.variants }}
     steps:
@@ -74,7 +74,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v6.0.1
+      image: espressif/idf:release-v6.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,47 +91,3 @@ jobs:
           name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
-
-  esp32s31-idf61:
-    name: Build ESP32-S31 with IDF 6.1
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:release-v6.1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build ESP32-S31 preview variant
-        shell: bash
-        run: |
-          source $IDF_PATH/export.sh
-          python scripts/build.py espressif/esp32-s31-function-coreboard-1 \
-            --name esp32-s31-function-coreboard-1
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: xiaozhi_espressif-esp32-s31-function-coreboard-1_${{ github.sha }}
-          path: build/merged-binary.bin
-          if-no-files-found: error
-
-  blufi-idf6:
-    name: IDF 6 BluFi option
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:v6.0.1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build BluFi-enabled firmware
-        shell: bash
-        run: |
-          source $IDF_PATH/export.sh
-          idf.py -B build-blufi \
-            -DSDKCONFIG=build-blufi/sdkconfig \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;scripts/ci/blufi.sdkconfig.defaults" \
-            -DIDF_TARGET=esp32s3 \
-            -DBOARD_NAME=bread-compact-wifi \
-            -DBOARD_TYPE=bread-compact-wifi \
-            build
