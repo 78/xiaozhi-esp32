@@ -56,6 +56,9 @@ void WifiBoard::StartNetwork() {
     WifiManagerConfig config;
     config.ssid_prefix = "Xiaozhi";
     config.language = Lang::CODE;
+    config.show_ota_config = true;
+    config.show_sleep_config = true;
+
     // Set a DHCP hostname so the router shows a friendly name instead of "espressif".
     // Uses the same "<prefix>-<last 2 MAC bytes>" scheme as the config AP SSID.
     uint8_t mac[6];
