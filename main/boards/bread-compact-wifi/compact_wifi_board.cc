@@ -1,6 +1,8 @@
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
 #include "display/oled_display.h"
+#include "display/oled_home_screen.h"
+#include "display/lvgl_display/lvgl_theme.h"
 #include "system_reset.h"
 #include "application.h"
 #include "button.h"
@@ -14,6 +16,10 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_wifi.h>
+#include <lvgl.h>
+
+LV_FONT_DECLARE(lv_font_montserrat_24);
 
 #ifdef SH1106
 #include <esp_lcd_panel_sh1106.h>
@@ -27,6 +33,10 @@ private:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Display* display_ = nullptr;
+    OledHomeScreen* home_screen_ = nullptr;
+    esp_timer_handle_t home_init_timer_ = nullptr;
+    esp_timer_handle_t state_poll_timer_ = nullptr;
+    DeviceState last_state_ = kDeviceStateUnknown;
     Button boot_button_;
     Button touch_button_;
     Button volume_up_button_;
@@ -123,11 +133,18 @@ private:
                 volume = 100;
             }
             codec->SetOutputVolume(volume);
+            // 更新首页音量图标
+            if (home_screen_) {
+                home_screen_->SetVolumeLevel(volume);
+            }
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_up_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(100);
+            if (home_screen_) {
+                home_screen_->SetVolumeLevel(100);
+            }
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
@@ -138,13 +155,117 @@ private:
                 volume = 0;
             }
             codec->SetOutputVolume(volume);
+            // 更新首页音量图标
+            if (home_screen_) {
+                home_screen_->SetVolumeLevel(volume);
+            }
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
 
         volume_down_button_.OnLongPress([this]() {
             GetAudioCodec()->SetOutputVolume(0);
+            if (home_screen_) {
+                home_screen_->SetVolumeLevel(0);
+            }
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
+    }
+
+    // 检查WiFi是否已连接
+    bool IsWifiConnected() {
+        wifi_ap_record_t ap_info;
+        return esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK;
+    }
+
+    // 根据设备状态切换首页/默认界面
+    void UpdateDisplayByState(DeviceState state) {
+        if (!home_screen_) return;
+
+        // 这些状态下显示首页（空闲状态）
+        bool should_show_home = (state == kDeviceStateIdle);
+
+        if (should_show_home && !home_screen_->IsVisible()) {
+            // 切换到首页前，更新状态
+            home_screen_->SetWifiStatus(IsWifiConnected());
+            home_screen_->SetVolumeLevel(GetAudioCodec()->output_volume());
+            home_screen_->Show();
+        } else if (!should_show_home && home_screen_->IsVisible()) {
+            // 切换回默认界面
+            home_screen_->Hide();
+        }
+    }
+
+    // 状态轮询定时器回调
+    void StartStatePolling() {
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void* arg) {
+                auto* board = static_cast<CompactWifiBoard*>(arg);
+                auto& app = Application::GetInstance();
+                DeviceState current_state = app.GetDeviceState();
+                
+                // 状态变化时更新显示
+                if (current_state != board->last_state_) {
+                    ESP_LOGI(TAG, "Device state changed: %d -> %d", board->last_state_, current_state);
+                    board->last_state_ = current_state;
+                    board->UpdateDisplayByState(current_state);
+                }
+                
+                // 空闲状态下定期更新WiFi状态
+                if (current_state == kDeviceStateIdle && board->home_screen_ && board->home_screen_->IsVisible()) {
+                    board->home_screen_->SetWifiStatus(board->IsWifiConnected());
+                }
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "state_poll_timer",
+            .skip_unhandled_events = true
+        };
+        esp_timer_create(&timer_args, &state_poll_timer_);
+        esp_timer_start_periodic(state_poll_timer_, 500000); // 500ms轮询
+    }
+
+    void InitializeHomeScreen() {
+        if (!display_) return;
+        
+        auto theme = static_cast<LvglTheme*>(display_->GetTheme());
+        if (!theme) return;
+        
+        // 创建首页，传入可见性变化回调
+        home_screen_ = new OledHomeScreen(
+            DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            theme->text_font()->font(),
+            theme->icon_font()->font(),
+            &lv_font_montserrat_24,
+            [this](bool home_visible) {
+                // 首页显示时隐藏默认界面，反之亦然
+                auto oled_display = static_cast<OledDisplay*>(display_);
+                if (home_visible) {
+                    oled_display->HideDefaultUI();
+                } else {
+                    oled_display->ShowDefaultUI();
+                }
+            }
+        );
+        
+        // 延迟初始化首页，等待OledDisplay的SetupUI完成
+        esp_timer_create_args_t timer_args = {
+            .callback = [](void* arg) {
+                auto* board = static_cast<CompactWifiBoard*>(arg);
+                if (board->home_screen_) {
+                    board->home_screen_->Initialize();
+                    // 初始化完成后启动状态轮询
+                    board->StartStatePolling();
+                }
+                esp_timer_delete(board->home_init_timer_);
+                board->home_init_timer_ = nullptr;
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "home_init_delay",
+            .skip_unhandled_events = true
+        };
+        esp_timer_create(&timer_args, &home_init_timer_);
+        esp_timer_start_once(home_init_timer_, 500000); // 500ms延迟
     }
 
     // 物联网初始化，逐步迁移到 MCP 协议
@@ -162,6 +283,7 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+        InitializeHomeScreen();
     }
 
     virtual Led* GetLed() override {
