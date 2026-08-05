@@ -352,9 +352,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_C3_V2
         bool "Magiclick C3 V2 (神奇按钮)"
         depends on IDF_TARGET_ESP32C3
-    config BOARD_TYPE_MAZA_AI
-        bool "Maza AI"
+    config BOARD_TYPE_MAZA_AI_ESP32_S3
+        bool "Maza AI ESP32-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MAZA_AI_ESP32_S31
+        bool "Maza AI ESP32-S31"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "Minsi K08 Dual Network (敏思科技)"
         depends on IDF_TARGET_ESP32S3
