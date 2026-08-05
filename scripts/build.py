@@ -8,7 +8,7 @@ import argparse
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 # Switch to project root directory
 os.chdir(Path(__file__).resolve().parent.parent)
@@ -351,6 +351,317 @@ def _wake_word_sdkconfig_options(
 
 _BOARDS_DIR = Path("main/boards")
 
+_DISPLAY_STYLE_SYMBOLS = {
+    "default": "CONFIG_USE_DEFAULT_MESSAGE_STYLE",
+    "wechat": "CONFIG_USE_WECHAT_MESSAGE_STYLE",
+    "emote": "CONFIG_USE_EMOTE_MESSAGE_STYLE",
+}
+_DYNAMIC_CAMERA_MIRROR_BOARD_CONFIGS = {
+    # These boards intentionally change orientation at runtime according to the
+    # detected sensor or persisted device state. A compile-time override would
+    # be misleading because that runtime decision would win afterwards.
+    "CONFIG_BOARD_TYPE_DF_S3_AI_CAM",
+    "CONFIG_BOARD_TYPE_ESP_SPARKBOT",
+    "CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE",
+    "CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER",
+}
+
+
+def _sdkconfig_assignments(options: list[str]) -> dict[str, str]:
+    """Return the final value for each CONFIG_* assignment in a fragment."""
+    assignments: dict[str, str] = {}
+    for option in options:
+        key, separator, value = option.strip().partition("=")
+        if not separator or not key.startswith("CONFIG_"):
+            raise ValueError(f"Invalid sdkconfig assignment: {option!r}")
+        assignments[key] = value
+    return assignments
+
+
+def _kconfig_choice(
+    name: str,
+    kconfig_path: Path = Path("main/Kconfig.projbuild"),
+) -> dict[str, Any]:
+    """Read a named project choice without trying to reimplement Kconfig."""
+    content = kconfig_path.read_text(encoding="utf-8")
+    start = re.search(rf"^choice\s+{re.escape(name)}\s*$", content, re.MULTILINE)
+    if not start:
+        raise ValueError(f"Kconfig choice {name} was not found in {kconfig_path}")
+    end = re.search(r"^endchoice\s*$", content[start.end():], re.MULTILINE)
+    if not end:
+        raise ValueError(f"Kconfig choice {name} has no endchoice")
+    block = content[start.end():start.end() + end.start()]
+    entries: list[dict[str, str]] = []
+    matches = list(re.finditer(r"^\s*config\s+([A-Za-z0-9_]+)\s*$", block, re.MULTILINE))
+    for index, match in enumerate(matches):
+        entry_end = matches[index + 1].start() if index + 1 < len(matches) else len(block)
+        entry = block[match.end():entry_end]
+        label = re.search(r'^\s*bool\s+"([^"]+)"', entry, re.MULTILINE)
+        if label:
+            entries.append({"value": match.group(1), "label": label.group(1)})
+    default = re.search(r"^\s*default\s+([A-Za-z0-9_]+)", block, re.MULTILINE)
+    return {
+        "entries": entries,
+        "default": default.group(1) if default else None,
+        "board_configs": {
+            f"CONFIG_{symbol}"
+            for symbol in re.findall(r"\b(BOARD_TYPE_[A-Za-z0-9_]+)\b", block)
+        },
+        "block": block,
+    }
+
+
+def _kconfig_config_board_dependencies(
+    symbol: str,
+    kconfig_path: Path = Path("main/Kconfig.projbuild"),
+) -> set[str]:
+    """Return CONFIG_BOARD_TYPE_* names mentioned by one config entry."""
+    content = kconfig_path.read_text(encoding="utf-8")
+    start = re.search(rf"^\s*config\s+{re.escape(symbol)}\s*$", content, re.MULTILINE)
+    if not start:
+        raise ValueError(f"Kconfig config {symbol} was not found in {kconfig_path}")
+    remainder = content[start.end():]
+    end = re.search(r"^\s*(?:config\s+|endchoice\s*$|endmenu\s*$)", remainder, re.MULTILINE)
+    block = remainder[:end.start()] if end else remainder
+    return {
+        f"CONFIG_{item}"
+        for item in re.findall(r"\b(BOARD_TYPE_[A-Za-z0-9_]+)\b", block)
+    }
+
+
+def _board_source_text(board: str) -> str:
+    board_dir = _BOARDS_DIR / board
+    parts: list[str] = []
+    for path in sorted(board_dir.rglob("*")):
+        if path.suffix in {".c", ".cc", ".cpp", ".h", ".hpp"}:
+            parts.append(path.read_text(encoding="utf-8", errors="replace"))
+    return "\n".join(parts)
+
+
+def _selected_choice_default(
+    choice: dict[str, Any],
+    assignments: dict[str, str],
+) -> str:
+    for entry in choice["entries"]:
+        if assignments.get(f"CONFIG_{entry['value']}") == "y":
+            return str(entry["value"])
+    default = choice.get("default")
+    if not default:
+        raise ValueError("Exposed Kconfig choice has no default")
+    return str(default)
+
+
+def _build_option_definitions(
+    board: str,
+    target: str,
+    board_config: str,
+    build: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Describe the curated, board-compatible options exposed to callers."""
+    sdkconfig_append = build.get("sdkconfig_append", [])
+    if not isinstance(sdkconfig_append, list) or not all(isinstance(item, str) for item in sdkconfig_append):
+        raise ValueError(f"build {build.get('name')!r} sdkconfig_append must be a string list")
+    assignments = _sdkconfig_assignments(sdkconfig_append)
+    source = _board_source_text(board)
+    definitions: list[dict[str, Any]] = []
+
+    for choice_name in ("DISPLAY_OLED_TYPE", "DISPLAY_LCD_TYPE"):
+        choice = _kconfig_choice(choice_name)
+        if board_config not in choice["board_configs"]:
+            continue
+        entries = [entry for entry in choice["entries"] if entry["value"] != "LCD_CUSTOM"]
+        definitions.append({
+            "key": "display_model",
+            "type": "select",
+            "default": _selected_choice_default(choice, assignments),
+            "choices": entries,
+        })
+        break
+
+    # Message styles are implemented by the color LCD display path. OLED and
+    # no-display boards deliberately do not expose a selector that has no effect.
+    if re.search(r"\b[A-Za-z0-9_]*LcdDisplay\b", source):
+        style_choice = _kconfig_choice("DISPLAY_STYLE")
+        emote_boards = _kconfig_config_board_dependencies("USE_EMOTE_MESSAGE_STYLE")
+        style_choices = [
+            {"value": "default", "label": "Default"},
+            {"value": "wechat", "label": "WeChat"},
+        ]
+        if board_config in emote_boards:
+            style_choices.append({"value": "emote", "label": "Emote animation"})
+        style_default = "default"
+        selected_style = _selected_choice_default(style_choice, assignments)
+        for value, symbol in _DISPLAY_STYLE_SYMBOLS.items():
+            if symbol == f"CONFIG_{selected_style}":
+                style_default = value
+                break
+        definitions.extend((
+            {
+                "key": "display_style",
+                "type": "select",
+                "default": style_default,
+                "choices": style_choices,
+            },
+            {
+                "key": "multiline_chat",
+                "type": "boolean",
+                "default": assignments.get("CONFIG_USE_MULTILINE_CHAT_MESSAGE") == "y",
+            },
+        ))
+
+    aec_boards = _kconfig_config_board_dependencies("USE_DEVICE_AEC")
+    if board_config in aec_boards:
+        definitions.append({
+            "key": "aec_mode",
+            "type": "select",
+            "default": "device" if assignments.get("CONFIG_USE_DEVICE_AEC") == "y" else "off",
+            "choices": [
+                {"value": "off", "label": "Off"},
+                {"value": "device", "label": "Device-side AEC"},
+            ],
+        })
+
+    # ESP32-P4 obtains networking through a companion chip and cannot enable
+    # the local ESP-BluFi stack selected by this project option.
+    if target != "esp32p4" and ("wifi_board.h" in source or re.search(r"\bWifiBoard\b", source)):
+        definitions.append({
+            "key": "wifi_provisioning",
+            "type": "select",
+            "default": (
+                "blufi"
+                if assignments.get("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING") == "y"
+                and assignments.get("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING") == "n"
+                else "hotspot"
+            ),
+            "choices": [
+                {"value": "hotspot", "label": "Wi-Fi hotspot"},
+                {"value": "blufi", "label": "ESP-BluFi"},
+            ],
+        })
+
+    has_common_camera = "new Esp32Camera" in source or "new EspVideo" in source
+    if has_common_camera and board_config not in _DYNAMIC_CAMERA_MIRROR_BOARD_CONFIGS:
+        definitions.extend((
+            {"key": "camera_hmirror", "type": "boolean", "default": False},
+            {"key": "camera_vflip", "type": "boolean", "default": False},
+        ))
+
+    configured_defaults = build.get("build_options", {})
+    if not isinstance(configured_defaults, dict):
+        raise ValueError(f"build {build.get('name')!r} build_options must be an object")
+    by_key = {definition["key"]: definition for definition in definitions}
+    unknown_defaults = sorted(set(configured_defaults) - set(by_key))
+    if unknown_defaults:
+        raise ValueError(
+            f"build {build.get('name')!r} has unsupported build_options defaults: "
+            + ", ".join(unknown_defaults)
+        )
+    for key, value in configured_defaults.items():
+        by_key[key]["default"] = value
+
+    # Validate board defaults through the same path used for caller input.
+    _normalize_build_options(definitions, {})
+    return definitions
+
+
+def _normalize_build_options(
+    definitions: list[dict[str, Any]],
+    requested: object,
+) -> dict[str, object]:
+    if not isinstance(requested, dict):
+        raise ValueError("--build-options-json must contain a JSON object")
+    by_key = {definition["key"]: definition for definition in definitions}
+    unknown = sorted(set(requested) - set(by_key))
+    if unknown:
+        raise ValueError("Unsupported build option(s): " + ", ".join(unknown))
+
+    normalized: dict[str, object] = {}
+    for key in sorted(by_key):
+        definition = by_key[key]
+        value = requested.get(key, definition["default"])
+        if definition["type"] == "boolean":
+            if not isinstance(value, bool):
+                raise ValueError(f"Build option {key} must be a boolean")
+        elif definition["type"] == "select":
+            allowed = {choice["value"] for choice in definition["choices"]}
+            if not isinstance(value, str) or value not in allowed:
+                raise ValueError(
+                    f"Build option {key} must be one of: {', '.join(sorted(allowed))}"
+                )
+        normalized[key] = value
+
+    if normalized.get("display_style") != "default" and "multiline_chat" in normalized:
+        normalized["multiline_chat"] = False
+    return normalized
+
+
+def _build_options_sdkconfig(
+    definitions: list[dict[str, Any]],
+    options: dict[str, object],
+    base_assignments: dict[str, str],
+) -> list[str]:
+    """Expand semantic build options into a complete, mutually-exclusive fragment."""
+    by_key = {definition["key"]: definition for definition in definitions}
+    result: list[str] = []
+
+    if "display_model" in options:
+        selected = options["display_model"]
+        for choice in by_key["display_model"]["choices"]:
+            result.append(f"CONFIG_{choice['value']}={'y' if choice['value'] == selected else 'n'}")
+        if isinstance(selected, str) and selected.startswith("LCD_"):
+            # LCD_CUSTOM is intentionally not exposed in the cloud UI because
+            # it requires source-level panel configuration, but it is still a
+            # sibling in the Kconfig choice and must be disabled explicitly.
+            result.append("CONFIG_LCD_CUSTOM=n")
+
+    if "display_style" in options:
+        selected = options["display_style"]
+        for value, symbol in _DISPLAY_STYLE_SYMBOLS.items():
+            result.append(f"{symbol}={'y' if value == selected else 'n'}")
+        flash_symbols = (
+            "CONFIG_FLASH_NONE_ASSETS",
+            "CONFIG_FLASH_DEFAULT_ASSETS",
+            "CONFIG_FLASH_CUSTOM_ASSETS",
+            "CONFIG_FLASH_EXPRESSION_ASSETS",
+        )
+        if selected == "emote" and base_assignments.get("CONFIG_FLASH_CUSTOM_ASSETS") != "y":
+            result.extend(
+                f"{symbol}={'y' if symbol == 'CONFIG_FLASH_EXPRESSION_ASSETS' else 'n'}"
+                for symbol in flash_symbols
+            )
+        elif selected != "emote" and base_assignments.get("CONFIG_FLASH_EXPRESSION_ASSETS") == "y":
+            result.extend(
+                f"{symbol}={'y' if symbol == 'CONFIG_FLASH_DEFAULT_ASSETS' else 'n'}"
+                for symbol in flash_symbols
+            )
+
+    if "multiline_chat" in options:
+        result.append(f"CONFIG_USE_MULTILINE_CHAT_MESSAGE={'y' if options['multiline_chat'] else 'n'}")
+
+    if "aec_mode" in options:
+        device = options["aec_mode"] == "device"
+        result.extend((
+            f"CONFIG_USE_DEVICE_AEC={'y' if device else 'n'}",
+            "CONFIG_USE_SERVER_AEC=n",
+        ))
+        if device:
+            result.append("CONFIG_USE_AUDIO_PROCESSOR=y")
+
+    if "wifi_provisioning" in options:
+        blufi = options["wifi_provisioning"] == "blufi"
+        result.extend((
+            f"CONFIG_USE_HOTSPOT_WIFI_PROVISIONING={'n' if blufi else 'y'}",
+            f"CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING={'y' if blufi else 'n'}",
+        ))
+
+    if "camera_hmirror" in options or "camera_vflip" in options:
+        result.extend((
+            "CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y",
+            f"CONFIG_XIAOZHI_CAMERA_HMIRROR={'y' if options.get('camera_hmirror') else 'n'}",
+            f"CONFIG_XIAOZHI_CAMERA_VFLIP={'y' if options.get('camera_vflip') else 'n'}",
+        ))
+    return result
+
 
 def _parse_version(value: str) -> tuple[int, int, int]:
     """Parse an ESP-IDF version string such as 5.5.4 or v6.0."""
@@ -462,7 +773,7 @@ def _get_board_display_name(
 def _collect_variants(
     config_filename: str = "config.json",
     idf_version: tuple[int, int, int] = (6, 0, 0),
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Traverse all boards under main/boards, collect variant information.
 
     Return example:
@@ -599,6 +910,12 @@ def _collect_variants(
         )
         variant["config"] = config_symbol
         variant["display_name"] = _get_board_display_name(config_symbol)
+        variant["build_options"] = _build_option_definitions(
+            variant["board"],
+            variant["target"],
+            config_symbol,
+            build,
+        )
 
     return sorted(variants, key=lambda variant: (variant["board"], variant["name"]))
 
@@ -830,26 +1147,17 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
 
 def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
     """Apply hardcoded auto-select rules to sdkconfig_append."""
-    items: list[str] = []
-    existing_keys: set[str] = set()
-
-    def _append_if_missing(entry: str) -> None:
-        key = entry.split("=", 1)[0]
-        if key not in existing_keys:
-            items.append(entry)
-            existing_keys.add(key)
-
-    # Preserve original order while tracking keys
-    for entry in sdkconfig_append:
-        _append_if_missing(entry)
+    items = list(sdkconfig_append)
 
     # Apply auto-select rules
     for key, deps in _AUTO_SELECT_RULES.items():
         for entry in sdkconfig_append:
             name, _, value = entry.partition("=")
             if name == key and value.lower().startswith("y"):
-                for dep in deps:
-                    _append_if_missing(dep)
+                # A board preset may explicitly disable a dependency. Kconfig's
+                # select would override it, so the generated defaults fragment
+                # must do the same instead of keeping the earlier value.
+                items = _merge_sdkconfig_options(items, deps)
                 break
 
     return items
@@ -1017,6 +1325,36 @@ def _validate_configured_symbols(symbols: list[str], option_name: str) -> None:
         )
 
 
+def _validate_configured_options(options: list[str], option_name: str) -> None:
+    """Ensure Kconfig accepted each requested y/n semantic build option."""
+    if not options:
+        return
+    sdkconfig = Path("sdkconfig")
+    if not sdkconfig.exists():
+        raise RuntimeError(f"Cannot validate {option_name}: sdkconfig was not generated")
+    content = sdkconfig.read_text(encoding="utf-8")
+    rejected: list[str] = []
+    for option in options:
+        key, _, expected = option.partition("=")
+        if expected == "y":
+            accepted = bool(re.search(rf"^{re.escape(key)}=y$", content, re.MULTILINE))
+        elif expected == "n":
+            accepted = bool(re.search(
+                rf"^(?:# {re.escape(key)} is not set|{re.escape(key)}=n)$",
+                content,
+                re.MULTILINE,
+            ))
+        else:
+            continue
+        if not accepted:
+            rejected.append(option)
+    if rejected:
+        raise ValueError(
+            f"{option_name} is incompatible with this board or ESP-IDF "
+            f"configuration; Kconfig rejected: {', '.join(rejected)}"
+        )
+
+
 def build_board(
     board_type: str,
     config_filename: str = "config.json",
@@ -1025,6 +1363,7 @@ def build_board(
     create_zip: bool = False,
     language: Optional[str] = None,
     wake_word: Optional[str] = None,
+    build_options: Optional[dict[str, object]] = None,
     idf_version: tuple[int, int, int] = (6, 0, 0),
 ) -> None:
     """Compile one specified variant of the specified board type.
@@ -1036,6 +1375,7 @@ def build_board(
         create_zip: package merged-binary.bin under releases/ when true
         language: optional locale such as en-US
         wake_word: optional ESP-SR model name or "disabled"
+        build_options: optional semantic, board-validated option values
     """
     cfg_path = _BOARDS_DIR / Path(board_type) / config_filename
     if not cfg_path.exists():
@@ -1090,10 +1430,19 @@ def build_board(
             sdkconfig_append = [f"{board_type_config}=y"]
             sdkconfig_append.extend(build_sdkconfig_append)
 
+        option_definitions = _build_option_definitions(
+            board_type,
+            target,
+            board_type_config if not explicit_board_cfg else explicit_board_cfg,
+            build,
+        )
+
         user_options: list[str] = []
         validation_symbols: list[tuple[list[str], str]] = []
+        build_option_sdkconfig: list[str] = []
         selected_language = None
         selected_wake_word = None
+        selected_build_options: Optional[dict[str, object]] = None
         if language is not None:
             selected_language, option = _language_sdkconfig_option(language)
             user_options.append(option)
@@ -1108,6 +1457,20 @@ def build_board(
             ) = _wake_word_sdkconfig_options(wake_word, target)
             user_options.extend(wake_word_options)
             validation_symbols.append((wake_word_symbols, "--wake-word"))
+
+        # A build entry may carry semantic defaults to preserve an existing
+        # board-specific behavior after it moves out of hardcoded C++.
+        if build_options is not None or "build_options" in build:
+            selected_build_options = _normalize_build_options(
+                option_definitions,
+                build_options or {},
+            )
+            build_option_sdkconfig = _build_options_sdkconfig(
+                option_definitions,
+                selected_build_options,
+                _sdkconfig_assignments(build_sdkconfig_append),
+            )
+            user_options.extend(build_option_sdkconfig)
 
         sdkconfig_append = _merge_sdkconfig_options(
             sdkconfig_append,
@@ -1127,6 +1490,11 @@ def build_board(
             print(f"language: {selected_language}")
         if selected_wake_word:
             print(f"wake_word: {selected_wake_word}")
+        if selected_build_options is not None:
+            print(
+                "build_options: "
+                + json.dumps(selected_build_options, ensure_ascii=False, sort_keys=True)
+            )
         for item in sdkconfig_append:
             print(f"sdkconfig_append: {item}")
 
@@ -1141,6 +1509,7 @@ def build_board(
         )
         for symbols, option_name in validation_symbols:
             _validate_configured_symbols(symbols, option_name)
+        _validate_configured_options(build_option_sdkconfig, "--build-options-json")
 
         # build.name is the compatibility-sensitive OTA-reported board identity.
         _emit_build_stage("compiling")
@@ -1241,6 +1610,14 @@ def main(argv: Optional[list[str]] = None) -> None:
         ),
     )
     parser.add_argument(
+        "--build-options-json",
+        metavar="JSON",
+        help=(
+            "Semantic board options as a JSON object. Accepted keys are "
+            "reported by --list-boards --json for the selected variant."
+        ),
+    )
+    parser.add_argument(
         "--zip",
         action="store_true",
         help="Also recreate releases/v<version>_<name>.zip",
@@ -1266,6 +1643,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             or args.name
             or args.language
             or args.wake_word
+            or args.build_options_json
             or args.zip
             or args.json
         ):
@@ -1284,6 +1662,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             or args.name
             or args.language
             or args.wake_word
+            or args.build_options_json
             or args.zip
         ):
             parser.error(
@@ -1304,6 +1683,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             or args.name
             or args.language
             or args.wake_word
+            or args.build_options_json
             or args.zip
         ):
             parser.error(
@@ -1331,6 +1711,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             or args.name
             or args.language
             or args.wake_word
+            or args.build_options_json
         ):
             parser.error(
                 "--list-boards cannot be combined with build or other "
@@ -1355,6 +1736,18 @@ def main(argv: Optional[list[str]] = None) -> None:
         parser.error("--json is only valid when listing boards")
     if board_type_input == "all" and name_filter:
         parser.error("--name cannot be combined with board 'all'")
+    if board_type_input == "all" and args.build_options_json:
+        parser.error("--build-options-json cannot be combined with board 'all'")
+
+    parsed_build_options: Optional[dict[str, object]] = None
+    if args.build_options_json is not None:
+        try:
+            raw_build_options = json.loads(args.build_options_json)
+        except json.JSONDecodeError as error:
+            parser.error(f"--build-options-json is invalid JSON: {error}")
+        if not isinstance(raw_build_options, dict):
+            parser.error("--build-options-json must contain a JSON object")
+        parsed_build_options = raw_build_options
 
     # Check board_type in CMakeLists
     if board_type_input != "all" and not _board_type_exists(board_type_input):
@@ -1397,6 +1790,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             create_zip=args.zip,
             language=args.language,
             wake_word=args.wake_word,
+            build_options=parsed_build_options,
             idf_version=idf_version,
         )
 

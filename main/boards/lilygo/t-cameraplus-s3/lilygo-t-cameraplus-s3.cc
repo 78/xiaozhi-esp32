@@ -271,8 +271,6 @@ private:
         };
 
         camera_ = new EspVideo(video_config);
-        camera_->SetVFlip(1);
-        camera_->SetHMirror(1);
     }
 
     void InitializeTools() {

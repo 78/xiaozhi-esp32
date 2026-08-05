@@ -70,6 +70,8 @@ sys.exit(%d)
                         "zh-CN",
                         "--wake-word",
                         "nihaoxiaozhi",
+                        "--build-options-json",
+                        '{"wifi_provisioning":"blufi","multiline_chat":false}',
                         "--source-dir",
                         str(source),
                         "--output-dir",
@@ -89,6 +91,16 @@ sys.exit(%d)
             self.assertEqual(manifest["board_dir"], "xmini/c3")
             self.assertEqual(manifest["board_type"], "xmini-c3")
             self.assertEqual(manifest["board_name"], "xmini-c3")
+            self.assertEqual(
+                manifest["build_options"],
+                {"wifi_provisioning": "blufi", "multiline_chat": False},
+            )
+            build_log = (output / "build.log").read_text(encoding="utf-8")
+            self.assertIn("--build-options-json", build_log)
+            self.assertIn(
+                '{\\"multiline_chat\\":false,\\"wifi_provisioning\\":\\"blufi\\"}',
+                build_log,
+            )
             self.assertNotIn("variant", manifest)
             self.assertTrue(manifest["runtime_architecture"])
             self.assertGreaterEqual(manifest["runtime_cpu_count"], 1)
@@ -218,6 +230,27 @@ sys.exit(%d)
                     "en-US",
                     "--wake-word",
                     "disabled",
+                    "--source-dir",
+                    str(source),
+                ]
+            )
+            self.assertEqual(exit_code, 2)
+
+    def test_rejects_invalid_build_options(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = self.create_source(Path(temporary))
+            exit_code = firmware_builder.main(
+                [
+                    "--board-dir",
+                    "xmini/c3",
+                    "--board-name",
+                    "xmini-c3",
+                    "--language",
+                    "en-US",
+                    "--wake-word",
+                    "disabled",
+                    "--build-options-json",
+                    '["not-an-object"]',
                     "--source-dir",
                     str(source),
                 ]

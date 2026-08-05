@@ -971,6 +971,111 @@ class BuildOptionTests(unittest.TestCase):
         finally:
             os.chdir(previous_cwd)
 
+    def test_lcd_board_exposes_curated_display_options(self):
+        config = json.loads(
+            (ROOT / "main/boards/bread-compact-esp32-lcd/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "bread-compact-esp32-lcd",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "bread-compact-esp32-lcd",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        by_key = {definition["key"]: definition for definition in definitions}
+
+        self.assertEqual(by_key["display_model"]["default"], "LCD_ST7789_240X240_7PIN")
+        self.assertNotIn(
+            "LCD_CUSTOM",
+            {choice["value"] for choice in by_key["display_model"]["choices"]},
+        )
+        self.assertIn("display_style", by_key)
+        self.assertIn("multiline_chat", by_key)
+
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_model": "LCD_ST7789_240X320"},
+        )
+        sdkconfig = build._build_options_sdkconfig(definitions, normalized, {})
+        self.assertIn("CONFIG_LCD_CUSTOM=n", sdkconfig)
+
+    def test_non_default_style_disables_multiline_chat(self):
+        definitions = [
+            {
+                "key": "display_style",
+                "type": "select",
+                "default": "default",
+                "choices": [
+                    {"value": "default", "label": "Default"},
+                    {"value": "wechat", "label": "WeChat"},
+                ],
+            },
+            {"key": "multiline_chat", "type": "boolean", "default": True},
+        ]
+
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_style": "wechat", "multiline_chat": True},
+        )
+
+        self.assertFalse(normalized["multiline_chat"])
+
+    def test_blufi_expansion_disables_hotspot(self):
+        definitions = [{
+            "key": "wifi_provisioning",
+            "type": "select",
+            "default": "hotspot",
+            "choices": [
+                {"value": "hotspot", "label": "Wi-Fi hotspot"},
+                {"value": "blufi", "label": "ESP-BluFi"},
+            ],
+        }]
+
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"wifi_provisioning": "blufi"},
+            {},
+        )
+
+        self.assertIn("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=n", options)
+        self.assertIn("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y", options)
+
+    def test_camera_board_defaults_are_declared_by_board_config(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp32-s3-korvo-2-v3.0/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp32-s3-korvo-2-v3.0",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "espressif/esp32-s3-korvo-2-v3.0",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        defaults = {definition["key"]: definition["default"] for definition in definitions}
+
+        self.assertFalse(defaults["camera_hmirror"])
+        self.assertTrue(defaults["camera_vflip"])
+
+    def test_unknown_semantic_build_option_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported build option"):
+            build._normalize_build_options([], {"raw_sdkconfig": "CONFIG_FOO=y"})
+
 
 class VariantSelectionTests(unittest.TestCase):
     def setUp(self):
@@ -1108,6 +1213,7 @@ class CliTests(unittest.TestCase):
             create_zip=False,
             language=None,
             wake_word=None,
+            build_options=None,
             idf_version=(6, 0, 2),
         )
 
@@ -1149,6 +1255,24 @@ class CliTests(unittest.TestCase):
         self.assertEqual(
             build_board.call_args.kwargs["wake_word"],
             "wn9_jarvis_tts",
+        )
+
+    def test_build_options_json_is_forwarded(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 0, 2)),
+            mock.patch.object(build, "_board_type_exists", return_value=True),
+            mock.patch.object(build, "_collect_variants", return_value=self.variants),
+            mock.patch.object(build, "build_board") as build_board,
+        ):
+            build.main([
+                "bread-compact-wifi",
+                "--build-options-json",
+                '{"wifi_provisioning":"blufi"}',
+            ])
+
+        self.assertEqual(
+            build_board.call_args.kwargs["build_options"],
+            {"wifi_provisioning": "blufi"},
         )
 
 

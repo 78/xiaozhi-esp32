@@ -56,6 +56,19 @@
 
 #define TAG "EspVideo"
 
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+#if CONFIG_XIAOZHI_CAMERA_HMIRROR
+static constexpr bool kConfiguredHMirror = true;
+#else
+static constexpr bool kConfiguredHMirror = false;
+#endif
+#if CONFIG_XIAOZHI_CAMERA_VFLIP
+static constexpr bool kConfiguredVFlip = true;
+#else
+static constexpr bool kConfiguredVFlip = false;
+#endif
+#endif
+
 #if defined(CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER) || defined(CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP)
 #pragma message("CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER or CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP is enabled; verify YUV422 image integrity")
 #endif
@@ -270,6 +283,11 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
         sensor_format_ = 0;
         return;
     }
+
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+    SetHMirror(kConfiguredHMirror);
+    SetVFlip(kConfiguredVFlip);
+#endif
 
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     frame_.width = setformat.fmt.pix.height;

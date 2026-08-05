@@ -83,13 +83,19 @@ def parser() -> argparse.ArgumentParser:
         description=(
             "Build one XiaoZhi firmware board configuration. Arguments may also "
             "be supplied through FIRMWARE_BOARD_DIR, FIRMWARE_BOARD_NAME, "
-            "FIRMWARE_LANGUAGE, and FIRMWARE_WAKE_WORD."
+            "FIRMWARE_LANGUAGE, FIRMWARE_WAKE_WORD, and "
+            "FIRMWARE_BUILD_OPTIONS."
         )
     )
     result.add_argument("--board-dir", default=env("FIRMWARE_BOARD_DIR"))
     result.add_argument("--board-name", default=env("FIRMWARE_BOARD_NAME"))
     result.add_argument("--language", default=env("FIRMWARE_LANGUAGE"))
     result.add_argument("--wake-word", default=env("FIRMWARE_WAKE_WORD"))
+    result.add_argument(
+        "--build-options-json",
+        default=env("FIRMWARE_BUILD_OPTIONS") or "{}",
+        help="Curated semantic build options as a JSON object",
+    )
     result.add_argument(
         "--source-dir",
         type=Path,
@@ -134,6 +140,30 @@ def validate(args: argparse.Namespace) -> None:
     if not SAFE_WAKE_WORD.fullmatch(normalized_wake_word):
         raise ValueError(f"Invalid wake word: {args.wake_word!r}")
     args.wake_word = normalized_wake_word
+
+    try:
+        build_options = json.loads(args.build_options_json)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"Invalid build options JSON: {error}") from error
+    if not isinstance(build_options, dict):
+        raise ValueError("Build options JSON must contain an object")
+    invalid_values = [
+        key
+        for key, value in build_options.items()
+        if not isinstance(key, str) or not isinstance(value, (str, bool))
+    ]
+    if invalid_values:
+        raise ValueError(
+            "Build option values must be strings or booleans: "
+            + ", ".join(map(str, invalid_values))
+        )
+    args.build_options = build_options
+    args.build_options_json = json.dumps(
+        build_options,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
     build_script = args.source_dir / "scripts/build.py"
     if not build_script.is_file():
@@ -316,6 +346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "board_name": args.board_name,
         "language": args.language,
         "wake_word": args.wake_word,
+        "build_options": args.build_options,
         "firmware_version": project_version(args.source_dir),
         "firmware_source_revision": env("FIRMWARE_SOURCE_REVISION") or "unknown",
         "idf_version": command_output(["idf.py", "--version"], args.source_dir),
@@ -336,6 +367,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.language,
         "--wake-word",
         args.wake_word,
+        "--build-options-json",
+        args.build_options_json,
     ]
     return_code = run_and_log(command, args.source_dir, log_path)
     manifest["finished_at"] = utc_now()

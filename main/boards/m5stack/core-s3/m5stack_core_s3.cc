@@ -327,7 +327,6 @@ private:
         };
 
         camera_ = new EspVideo(video_config);
-        camera_->SetHMirror(false);
     }
 
 public:

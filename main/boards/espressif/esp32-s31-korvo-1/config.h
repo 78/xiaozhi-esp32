@@ -93,8 +93,4 @@
 #define CAMERA_XCLK_FREQ_HZ  (20 * 1000 * 1000)
 #define CAMERA_SCCB_FREQ_HZ  (10 * 1000)
 
-// 摄像头：OV3660 模组
-#define CAMERA_VFLIP   true
-#define CAMERA_HMIRROR true
-
 #endif  // _BOARD_CONFIG_H_

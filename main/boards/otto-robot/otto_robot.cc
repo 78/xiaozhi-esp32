@@ -288,21 +288,6 @@ private:
             config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
             camera_ = new Esp32Camera(config);
-
-            // 根据摄像头类型设置不同的翻转参数
-            switch (camera_type_) {
-                case OTTO_CAMERA_OV3660:
-                    camera_->SetVFlip(true);
-                    camera_->SetHMirror(true);
-                    ESP_LOGI(TAG, "OV3660: 设置 VFlip=true, HMirror=true");
-                    break;
-                case OTTO_CAMERA_OV2640:
-                default:
-                    camera_->SetVFlip(true);
-                    camera_->SetHMirror(true);
-                    ESP_LOGI(TAG, "OV2640: 设置 VFlip=true, HMirror=true");
-                    break;
-            }
             return true;
         } catch (...) {
             camera_ = nullptr;

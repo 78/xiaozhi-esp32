@@ -967,6 +967,28 @@ menu "Camera Configuration"
 
     comment "Warning: Please read the help text before modifying these settings."
 
+    config XIAOZHI_CAMERA_MIRROR_CONFIGURED
+        bool
+        default n
+        help
+            Internal guard used by the parameterized build flow. When enabled,
+            the common camera implementations apply the horizontal and vertical
+            mirror settings below after the sensor has been initialized.
+
+    config XIAOZHI_CAMERA_HMIRROR
+        bool "Mirror Camera Horizontally"
+        default n
+        depends on XIAOZHI_CAMERA_MIRROR_CONFIGURED
+        help
+            Flip the captured camera image across the vertical axis.
+
+    config XIAOZHI_CAMERA_VFLIP
+        bool "Mirror Camera Vertically"
+        default n
+        depends on XIAOZHI_CAMERA_MIRROR_CONFIGURED
+        help
+            Flip the captured camera image across the horizontal axis.
+
     config XIAOZHI_CAMERA_ALLOW_JPEG_INPUT
         bool "Allow JPEG Input"
         default n
