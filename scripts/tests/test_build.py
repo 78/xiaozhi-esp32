@@ -1028,6 +1028,51 @@ class BuildOptionTests(unittest.TestCase):
 
         self.assertFalse(normalized["multiline_chat"])
 
+    def test_display_style_only_writes_board_supported_choices(self):
+        definitions = [{
+            "key": "display_style",
+            "type": "select",
+            "default": "default",
+            "choices": [
+                {"value": "default", "label": "Default"},
+                {"value": "wechat", "label": "WeChat"},
+            ],
+        }]
+
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"display_style": "wechat"},
+            {},
+        )
+
+        self.assertIn("CONFIG_USE_DEFAULT_MESSAGE_STYLE=n", options)
+        self.assertIn("CONFIG_USE_WECHAT_MESSAGE_STYLE=y", options)
+        self.assertNotIn("CONFIG_USE_EMOTE_MESSAGE_STYLE=n", options)
+
+    def test_camera_mirror_guard_is_settable_by_build_defaults(self):
+        kconfig = (ROOT / "main/Kconfig.projbuild").read_text(
+            encoding="utf-8"
+        )
+        guard = kconfig.split(
+            "config XIAOZHI_CAMERA_MIRROR_CONFIGURED\n",
+            1,
+        )[1].split("config XIAOZHI_CAMERA_HMIRROR\n", 1)[0]
+
+        self.assertIn('bool "Override camera mirror settings"', guard)
+
+        definitions = [
+            {"key": "camera_hmirror", "type": "boolean", "default": False},
+            {"key": "camera_vflip", "type": "boolean", "default": True},
+        ]
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"camera_hmirror": False, "camera_vflip": True},
+            {},
+        )
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y", options)
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_HMIRROR=n", options)
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_VFLIP=y", options)
+
     def test_blufi_expansion_disables_hotspot(self):
         definitions = [{
             "key": "wifi_provisioning",

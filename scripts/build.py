@@ -616,7 +616,9 @@ def _build_options_sdkconfig(
 
     if "display_style" in options:
         selected = options["display_style"]
-        for value, symbol in _DISPLAY_STYLE_SYMBOLS.items():
+        for choice in by_key["display_style"]["choices"]:
+            value = choice["value"]
+            symbol = _DISPLAY_STYLE_SYMBOLS[value]
             result.append(f"{symbol}={'y' if value == selected else 'n'}")
         flash_symbols = (
             "CONFIG_FLASH_NONE_ASSETS",
