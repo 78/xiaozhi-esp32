@@ -1,76 +1,143 @@
-# MCP 协议物联网控制用法说明
+# MCP IoT Control Usage
 
-> 本文档介绍如何基于 MCP 协议实现 ESP32 设备的物联网控制。详细协议流程请参考 [`mcp-protocol.md`](./mcp-protocol.md)。
+> This document describes how to implement IoT control for ESP32 devices using the MCP protocol. For the detailed wire protocol, see [`mcp-protocol.md`](./mcp-protocol.md).
 
-## 简介
+## Introduction
 
-MCP（Model Context Protocol）是新一代推荐用于物联网控制的协议，通过标准 JSON-RPC 2.0 格式在后台与设备间发现和调用"工具"（Tool），实现灵活的设备控制。
+MCP (Model Context Protocol) is the recommended protocol for IoT control in this project. It uses JSON-RPC 2.0 to let the backend discover and invoke "tools" registered by the device, giving you a flexible way to expose device functionality.
 
-## 典型使用流程
+## Typical Flow
 
-1. 设备启动后通过基础协议（如 WebSocket/MQTT）与后台建立连接。
-2. 后台通过 MCP 协议的 `initialize` 方法初始化会话。
-3. 后台通过 `tools/list` 获取设备支持的所有工具（功能）及参数说明。
-4. 后台通过 `tools/call` 调用具体工具，实现对设备的控制。
+1. The device boots and connects to the backend over WebSocket or MQTT.
+2. The backend sends an `initialize` call to start the MCP session.
+3. The backend issues `tools/list` to discover available tools and their input schemas.
+4. The backend calls individual tools with `tools/call` to control the device.
 
-详细协议格式与交互请见 [`mcp-protocol.md`](./mcp-protocol.md)。
+See [`mcp-protocol.md`](./mcp-protocol.md) for the exact message format.
 
-## 设备端工具注册方法说明
+## Registering Tools on the Device
 
-设备通过 `McpServer::AddTool` 方法注册可被后台调用的"工具"。其常用函数签名如下：
+Tools are registered through the `McpServer` singleton. There are two registration APIs:
+
+- `McpServer::AddTool` - regular tool, visible in the default `tools/list` response and callable by the AI model.
+- `McpServer::AddUserOnlyTool` - hidden tool, only returned when the backend lists tools with `withUserTools=true`. Use this for privileged or user-initiated actions (reboot, firmware upgrade, snapshots, etc.) that must not be invoked autonomously by the model.
+
+Both APIs share the same signature:
 
 ```cpp
 void AddTool(
-    const std::string& name,           // 工具名称，建议唯一且有层次感，如 self.dog.forward
-    const std::string& description,    // 工具描述，简明说明功能，便于大模型理解
-    const PropertyList& properties,    // 输入参数列表（可为空），支持类型：布尔、整数、字符串
-    std::function<ReturnValue(const PropertyList&)> callback // 工具被调用时的回调实现
+    const std::string& name,           // unique tool name, e.g. self.dog.forward
+    const std::string& description,    // short description for the model
+    const PropertyList& properties,    // input parameters (may be empty); supported types: bool, int, string
+    std::function<ReturnValue(const PropertyList&)> callback // implementation
+);
+
+void AddUserOnlyTool(
+    const std::string& name,
+    const std::string& description,
+    const PropertyList& properties,
+    std::function<ReturnValue(const PropertyList&)> callback
 );
 ```
-- name：工具唯一标识，建议用"模块.功能"命名风格。
-- description：自然语言描述，便于 AI/用户理解。
-- properties：参数列表，支持类型有布尔、整数、字符串，可指定范围和默认值。
-- callback：收到调用请求时的实际执行逻辑，返回值可为 bool/int/string。
 
-## 典型注册示例（以 ESP-Hi 为例）
+- `name` - unique identifier. A `module.action` naming style works well.
+- `description` - natural-language description; used by the AI to decide when to call the tool.
+- `properties` - input parameters. Supported property types are boolean, integer, and string, with optional min/max and default values.
+- `callback` - implementation. Return values may be `bool`, `int`, or `std::string`.
+
+## Example (ESP-Hi)
 
 ```cpp
 void InitializeTools() {
     auto& mcp_server = McpServer::GetInstance();
-    // 例1：无参数，控制机器人前进
-    mcp_server.AddTool("self.dog.forward", "机器人向前移动", PropertyList(), [this](const PropertyList&) -> ReturnValue {
-        servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
-        return true;
-    });
-    // 例2：带参数，设置灯光 RGB 颜色
-    mcp_server.AddTool("self.light.set_rgb", "设置RGB颜色", PropertyList({
-        Property("r", kPropertyTypeInteger, 0, 255),
-        Property("g", kPropertyTypeInteger, 0, 255),
-        Property("b", kPropertyTypeInteger, 0, 255)
-    }), [this](const PropertyList& properties) -> ReturnValue {
-        int r = properties["r"].value<int>();
-        int g = properties["g"].value<int>();
-        int b = properties["b"].value<int>();
-        led_on_ = true;
-        SetLedColor(r, g, b);
-        return true;
-    });
+
+    // Example 1: no arguments - move the robot forward
+    mcp_server.AddTool("self.dog.forward",
+        "Move the robot forward",
+        PropertyList(),
+        [this](const PropertyList&) -> ReturnValue {
+            servo_dog_ctrl_send(DOG_STATE_FORWARD, NULL);
+            return true;
+        });
+
+    // Example 2: with arguments - set RGB light color
+    mcp_server.AddTool("self.light.set_rgb",
+        "Set the RGB color of the light",
+        PropertyList({
+            Property("r", kPropertyTypeInteger, 0, 255),
+            Property("g", kPropertyTypeInteger, 0, 255),
+            Property("b", kPropertyTypeInteger, 0, 255)
+        }),
+        [this](const PropertyList& properties) -> ReturnValue {
+            int r = properties["r"].value<int>();
+            int g = properties["g"].value<int>();
+            int b = properties["b"].value<int>();
+            led_on_ = true;
+            SetLedColor(r, g, b);
+            return true;
+        });
 }
 ```
 
-## 常见工具调用 JSON-RPC 示例
+## Example - Registering a User-only Tool
 
-### 1. 获取工具列表
+```cpp
+mcp_server.AddUserOnlyTool("self.display.clear_cache",
+    "Clear locally cached images. User-only action.",
+    PropertyList(),
+    [](const PropertyList&) -> ReturnValue {
+        ClearLocalCache();
+        return true;
+    });
+```
+
+A tool registered this way will not appear in a regular `tools/list` response. The backend must set `params.withUserTools = true` to see it.
+
+## Built-in Tools
+
+`McpServer::AddCommonTools` and `McpServer::AddUserOnlyTools` register a number of tools automatically:
+
+### Default (AI-callable) tools - from `AddCommonTools`
+
+| Tool | Description |
+|------|-------------|
+| `self.get_device_status` | Returns the current volume, screen, battery, network, etc. |
+| `self.audio_speaker.set_volume` | Set speaker volume (`volume`: 0-100). |
+| `self.screen.set_brightness` | Set screen brightness when a backlight is available (`brightness`: 0-100). |
+| `self.screen.set_theme` | Switch UI theme (`theme`: `"light"` or `"dark"`), when LVGL is enabled. |
+| `self.camera.take_photo` | Take a picture with the on-board camera (when the board has one) and answer the given `question` about it. |
+
+Board-specific tools are appended after these by each board's `InitializeTools()`.
+
+### User-only tools - from `AddUserOnlyTools`
+
+These tools are hidden by default. The backend must pass `withUserTools=true` to `tools/list` to see them. They are intended for companion apps / end users rather than the AI model.
+
+| Tool | Description |
+|------|-------------|
+| `self.get_system_info` | Return a JSON blob describing the system. |
+| `self.reboot` | Reboot the device after a short delay. |
+| `self.upgrade_firmware` | Download firmware from `url` and install it, then reboot. |
+| `self.screen.get_info` | Return the current screen width, height, and whether it is monochrome (LVGL boards only). |
+| `self.screen.snapshot` | Snapshot the screen as JPEG and upload it to `url` (LVGL boards, when `CONFIG_LV_USE_SNAPSHOT=y`). |
+| `self.screen.preview_image` | Download and display an image from `url` on the screen. |
+| `self.assets.set_download_url` | Set the download URL for the assets partition. |
+
+## JSON-RPC Examples
+
+### 1. Get the tools list
+
 ```json
 {
   "jsonrpc": "2.0",
   "method": "tools/list",
-  "params": { "cursor": "" },
+  "params": { "cursor": "", "withUserTools": false },
   "id": 1
 }
 ```
 
-### 2. 控制底盘前进
+### 2. Move the chassis forward
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -83,7 +150,8 @@ void InitializeTools() {
 }
 ```
 
-### 3. 切换灯光模式
+### 3. Switch the light mode
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -96,20 +164,22 @@ void InitializeTools() {
 }
 ```
 
-### 4. 摄像头翻转
+### 4. Reboot the device (user-only)
+
 ```json
 {
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "self.camera.set_camera_flipped",
+    "name": "self.reboot",
     "arguments": {}
   },
   "id": 4
 }
 ```
 
-## 备注
-- 工具名称、参数及返回值请以设备端 `AddTool` 注册为准。
-- 推荐所有新项目统一采用 MCP 协议进行物联网控制。
-- 详细协议与进阶用法请查阅 [`mcp-protocol.md`](./mcp-protocol.md)。 
+## Notes
+
+- Tool names, parameters, and return values must match what the device registers via `AddTool` / `AddUserOnlyTool`.
+- Prefer MCP for any new IoT control.
+- For the wire protocol and advanced topics, see [`mcp-protocol.md`](./mcp-protocol.md).

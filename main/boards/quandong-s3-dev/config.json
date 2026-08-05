@@ -1,0 +1,10 @@
+{
+    "type": "quandong-s3-dev",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "quandong-s3-dev",
+            "sdkconfig_append": []
+        }
+    ]
+}

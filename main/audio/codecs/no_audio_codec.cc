@@ -2,6 +2,7 @@
 
 #include <esp_log.h>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 
 #define TAG "NoAudioCodec"
@@ -21,7 +22,7 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
     output_sample_rate_ = output_sample_rate;
 
     i2s_chan_config_t chan_cfg = {
-        .id = I2S_NUM_0,
+        .id = XIAOZHI_I2S_PORT(0),
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
         .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
@@ -82,7 +83,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
 
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
-        .id = (i2s_port_t)0,
+        .id = XIAOZHI_I2S_PORT(0),
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
         .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
@@ -133,7 +134,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
 
     // Create a new channel for MIC
-    chan_cfg.id = (i2s_port_t)1;
+    chan_cfg.id = XIAOZHI_I2S_PORT(1);
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
     std_cfg.gpio_cfg.bclk = mic_sck;
@@ -151,7 +152,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
 
     // Create a new channel for speaker
     i2s_chan_config_t chan_cfg = {
-        .id = (i2s_port_t)0,
+        .id = XIAOZHI_I2S_PORT(0),
         .role = I2S_ROLE_MASTER,
         .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
         .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
@@ -202,7 +203,7 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
 
     // Create a new channel for MIC
-    chan_cfg.id = (i2s_port_t)1;
+    chan_cfg.id = XIAOZHI_I2S_PORT(1);
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, nullptr, &rx_handle_));
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)input_sample_rate_;
     std_cfg.slot_cfg.slot_mask = mic_slot_mask;
@@ -239,10 +240,10 @@ int NoAudioCodec::Write(const int16_t* data, int samples) {
 
 int NoAudioCodec::Read(int16_t* dest, int samples) {
     size_t bytes_read;
-    constexpr TickType_t kReadTimeoutTicks = pdMS_TO_TICKS(200);
+    constexpr uint32_t kReadTimeoutMs = 200;
 
     std::vector<int32_t> bit32_buffer(samples);
-    if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples * sizeof(int32_t), &bytes_read, kReadTimeoutTicks) != ESP_OK) {
+    if (i2s_channel_read(rx_handle_, bit32_buffer.data(), samples * sizeof(int32_t), &bytes_read, kReadTimeoutMs) != ESP_OK) {
         return 0;
     }
 
@@ -292,7 +293,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
     output_sample_rate_ = output_sample_rate;
 
     // Create a new channel for speaker
-    i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)1, I2S_ROLE_MASTER);
+    i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(XIAOZHI_I2S_PORT(1), I2S_ROLE_MASTER);
     tx_chan_cfg.dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM;
     tx_chan_cfg.dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM;
     tx_chan_cfg.auto_clear_after_cb = true;
@@ -342,7 +343,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &tx_std_cfg));
 #if SOC_I2S_SUPPORTS_PDM_RX
     // Create a new channel for MIC in PDM mode
-    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)0, I2S_ROLE_MASTER);
+    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(XIAOZHI_I2S_PORT(0), I2S_ROLE_MASTER);
     ESP_ERROR_CHECK(i2s_new_channel(&rx_chan_cfg, NULL, &rx_handle_));
     i2s_pdm_rx_config_t pdm_rx_cfg = {
         .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG((uint32_t)input_sample_rate_),

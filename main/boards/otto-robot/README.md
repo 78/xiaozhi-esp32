@@ -205,3 +205,212 @@ otto 机器人具有丰富的动作能力，包括行走、转向、跳跃、摇
 
 **说明**: 小智控制机器人动作是创建新的任务在后台控制，动作执行期间仍可接受新的语音指令。可以通过"停止"语音指令立即停下Otto。
 
+---
+
+## WebSocket 直连调试接口
+
+Otto 机器人内置 WebSocket 服务器，可在局域网内直接调试，无需经过云端。
+
+**连接地址：** `ws://<设备IP>:8080/ws`
+
+> 协议格式：JSON-RPC 2.0，`id` 字段自行递增即可。
+
+### 连接方式
+
+1. 确认 Otto 已连上 WiFi，获取 IP 地址（可通过小程序或串口日志查看）
+2. 打开任意 WebSocket 调试工具（如 [websocket.org/echo](https://websocket.org/echo) 或浏览器控制台）
+3. 连接 `ws://192.168.x.x:8080/ws`（注意末尾必须有 `/ws`）
+4. 发送 JSON 命令，响应会直接返回到同一连接
+
+---
+
+### 一、协议初始化（首次连接建议先发）
+
+```json
+{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}
+```
+
+---
+
+### 二、获取工具列表
+
+```json
+{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}
+```
+
+---
+
+### 三、Otto 机器人工具命令
+
+#### 获取舵机微调值
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.get_trims","arguments":{}},"id":3}
+```
+
+#### 设置单个舵机微调（永久保存）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.set_trim","arguments":{"servo_type":"left_leg","trim_value":5}},"id":4}
+```
+
+`servo_type` 可选值：`left_leg` / `right_leg` / `left_foot` / `right_foot` / `left_hand` / `right_hand`，`trim_value` 范围 `-50` ~ `50`
+
+#### 行走（前进3步）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"walk","steps":3,"speed":700,"direction":1}},"id":5}
+```
+
+#### 后退
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"walk","steps":3,"speed":700,"direction":-1}},"id":6}
+```
+
+#### 左转
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"turn","steps":3,"speed":700,"direction":-1}},"id":7}
+```
+
+#### 跳跃
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"jump","steps":1,"speed":500}},"id":8}
+```
+
+#### 摇摆
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"swing","steps":5,"speed":600,"amount":30}},"id":9}
+```
+
+#### 太空步
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"moonwalk","steps":3,"speed":800,"direction":1,"amount":30}},"id":10}
+```
+
+#### 坐下
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"sit"}},"id":11}
+```
+
+#### 复位
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"home"}},"id":12}
+```
+
+#### 展示动作
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"showcase"}},"id":13}
+```
+
+#### 举手（需手部舵机）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"hands_up","speed":500,"direction":1}},"id":14}
+```
+
+#### 挥手（需手部舵机）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.action","arguments":{"action":"hand_wave","direction":1}},"id":15}
+```
+
+#### 立即停止所有动作
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.stop","arguments":{}},"id":16}
+```
+
+#### 获取运动状态（返回 `"moving"` 或 `"idle"`）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.get_status","arguments":{}},"id":17}
+```
+
+#### 获取 IP 地址
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.get_ip","arguments":{}},"id":18}
+```
+
+#### 获取电池电量
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.battery.get_level","arguments":{}},"id":19}
+```
+
+---
+
+### 四、系统通用工具
+
+#### 获取设备状态（音量/网络/电池等）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.get_device_status","arguments":{}},"id":20}
+```
+
+#### 设置音量（0~100）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.audio_speaker.set_volume","arguments":{"volume":70}},"id":21}
+```
+
+#### 重启设备
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.reboot","arguments":{}},"id":22}
+```
+
+---
+
+### 五、自定义舵机序列
+
+#### 普通移动模式（逐步移动各舵机）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.servo_sequences","arguments":{"sequence":"{\"a\":[{\"s\":{\"ll\":110,\"rl\":70},\"v\":800},{\"s\":{\"ll\":90,\"rl\":90},\"v\":800}],\"d\":0}"}},"id":23}
+```
+
+#### 振荡器模式（双臂摆动）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.servo_sequences","arguments":{"sequence":"{\"a\":[{\"osc\":{\"a\":{\"lh\":30,\"rh\":30},\"o\":{\"lh\":90,\"rh\":90},\"ph\":{\"rh\":180},\"p\":500,\"c\":5.0}}]}"}},"id":24}
+```
+
+#### 振荡器模式（左右摇摆波浪）
+
+```json
+{"jsonrpc":"2.0","method":"tools/call","params":{"name":"self.otto.servo_sequences","arguments":{"sequence":"{\"a\":[{\"osc\":{\"a\":{\"ll\":20,\"rl\":20},\"o\":{\"ll\":90,\"rl\":90},\"ph\":{\"rl\":180},\"p\":600,\"c\":5.0}}]}"}},"id":25}
+```
+
+**序列舵机键名说明：**
+
+| 键名 | 舵机 | 说明 |
+|------|------|------|
+| `ll` | 左腿 | 0=完全外展，90=中立，180=完全内收 |
+| `rl` | 右腿 | 0=完全内收，90=中立，180=完全外展 |
+| `lf` | 左脚 | 0=完全向上，90=水平，180=完全向下 |
+| `rf` | 右脚 | 0=完全向下，90=水平，180=完全向上 |
+| `lh` | 左手 | 0=完全向下，90=水平，180=完全向上 |
+| `rh` | 右手 | 0=完全向上，90=水平，180=完全向下 |
+
+---
+
+### 六、动作参数速查
+
+| 参数 | 说明 | 范围 | 默认 |
+|------|------|------|------|
+| `steps` | 动作步数 | 1~100 | 3 |
+| `speed` | 速度（毫秒，越小越快） | 100~3000 | 700 |
+| `direction` | 方向（1=前/左，-1=后/右） | -1~1 | 1 |
+| `amount` | 幅度 | 0~170 | 30 |
+| `arm_swing` | 手臂摆动幅度 | 0~170 | 50 |
+| `trim_value` | 舵机微调 | -50~50 | 0 |
+

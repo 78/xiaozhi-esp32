@@ -1,7 +1,7 @@
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
 
-#include <driver/adc.h>
+#include <esp_adc/adc_oneshot.h>
 #include <driver/gpio.h>
 
 #define OTTO_VERSION_AUTO 0
@@ -19,9 +19,9 @@ enum OttoCameraType {
     OTTO_CAMERA_UNKNOWN = 99,
 };
 
-#define OV2640_PID_1 0x2640
-#define OV2640_PID_2 0x2626
-#define OV3660_PID 0x3660
+#define OTTO_OV2640_PID_1 0x2640
+#define OTTO_OV2640_PID_2 0x2626
+#define OTTO_OV3660_PID 0x3660
 
 struct HardwareConfig {
     gpio_num_t power_charge_detect_pin;

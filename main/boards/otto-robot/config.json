@@ -1,4 +1,5 @@
 {
+    "type": "otto-robot",
     "target": "esp32s3",
     "builds": [
         {
@@ -6,11 +7,7 @@
             "sdkconfig_append": [
                 "CONFIG_HTTPD_WS_SUPPORT=y",
                 "CONFIG_CAMERA_OV2640=y",
-                "CONFIG_CAMERA_OV2640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
-                "CONFIG_CAMERA_OV2640_DVP_YUV422_240X240_25FPS=y",
-                "CONFIG_CAMERA_OV3660=y",
-                "CONFIG_CAMERA_OV3660_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
-                "CONFIG_CAMERA_OV3660_DVP_YUV422_240X240_24FPS=y"
+                "CONFIG_CAMERA_OV3660=y"
             ]
         }
     ]

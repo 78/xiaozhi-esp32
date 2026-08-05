@@ -17,6 +17,8 @@ public:
 
     size_t GetClientCount() const;
 
+    void BroadcastMessage(const std::string& message);
+
 private:
     httpd_handle_t server_handle_;
     std::map<int, httpd_req_t*> clients_;

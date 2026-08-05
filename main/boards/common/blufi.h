@@ -1,16 +1,15 @@
 #pragma once
 
-#include <aes/esp_aes.h>
 #include <cassert>
 #include <cstring>
 #include <vector>
 #include "esp_blufi_api.h"
 #include "esp_err.h"
+#include "esp_idf_version.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "mbedtls/aes.h"
-#include "mbedtls/dhm.h"
+#include "psa/crypto.h"
 #include "wifi_manager.h"
 
 class Blufi {
@@ -25,8 +24,9 @@ public:
      * This method intelligently handles WiFi scanning based on current WiFi state:
      * - If WiFi config mode is active, it uses the existing scan results from WifiConfigurationAp
      * - Otherwise, it performs a dedicated scan without interfering with normal WiFi operations
+     * @return true if a scan was started (or was already in progress); false on failure.
      */
-    void start_wifi_scan();
+    bool start_wifi_scan();
 
     /**
      * @brief Initializes the Bluetooth controller, host, and Blufi profile.
@@ -111,18 +111,19 @@ private:
 
     // Security context, formerly blufi_sec struct
     struct BlufiSecurity {
-#define DH_SELF_PUB_KEY_LEN 128
+#define DH_PARAM_LEN_MAX 1024
+#define DH_SELF_PUB_KEY_LEN 384
         uint8_t self_public_key[DH_SELF_PUB_KEY_LEN];
-#define SHARE_KEY_LEN 128
+#define SHARE_KEY_LEN 384
         uint8_t share_key[SHARE_KEY_LEN];
         size_t share_len;
-#define PSK_LEN 16
+#define PSK_LEN 32
         uint8_t psk[PSK_LEN];
         uint8_t *dh_param;
         int dh_param_len;
-        uint8_t iv[16];
-        mbedtls_dhm_context *dhm;
-        esp_aes_context *aes;
+        psa_key_id_t aes_key;
+        psa_cipher_operation_t enc_operation;
+        psa_cipher_operation_t dec_operation;
     };
 
     BlufiSecurity *m_sec;
@@ -143,5 +144,13 @@ private:
     // WiFi scan related
     std::vector<wifi_ap_record_t> m_ap_records;
     bool m_scan_in_progress = false;
+    // When true, scan results are stored in m_ap_records on scan completion.
+    // Cleared during connect-to-AP so that the connect-time scan does not
+    // overwrite the cache with results gathered for connection purposes.
     bool m_scan_should_save_ssid = true;
+    // When true, the next scan-done event responds to a pending GET_WIFI_LIST
+    // request from the App. Set by the GET_WIFI_LIST handler when no cache is
+    // available or a scan is already in flight; cleared by the scan-done
+    // handler after dispatching the response.
+    bool m_send_list_after_scan = false;
 };

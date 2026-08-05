@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-c6-touch-lcd-1.83",
     "target": "esp32c6",
     "builds": [
         {

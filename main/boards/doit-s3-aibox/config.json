@@ -1,4 +1,5 @@
 {
+    "type": "doit-s3-aibox",
     "target": "esp32s3",
     "builds": [
         {

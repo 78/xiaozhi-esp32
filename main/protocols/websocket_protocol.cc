@@ -1,24 +1,20 @@
 #include "websocket_protocol.h"
-#include "board.h"
-#include "system_info.h"
 #include "application.h"
+#include "board.h"
 #include "settings.h"
+#include "system_info.h"
 
-#include <cstring>
-#include <cJSON.h>
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include <cJSON.h>
+#include <cstring>
 #include "assets/lang_config.h"
 
 #define TAG "WS"
 
-WebsocketProtocol::WebsocketProtocol() {
-    event_group_handle_ = xEventGroupCreate();
-}
+WebsocketProtocol::WebsocketProtocol() { event_group_handle_ = xEventGroupCreate(); }
 
-WebsocketProtocol::~WebsocketProtocol() {
-    vEventGroupDelete(event_group_handle_);
-}
+WebsocketProtocol::~WebsocketProtocol() { vEventGroupDelete(event_group_handle_); }
 
 bool WebsocketProtocol::Start() {
     // Only connect to server when audio channel is needed
@@ -123,8 +119,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = bp2->timestamp,
-                        .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)
-                    }));
+                        .payload = std::vector<uint8_t>(payload, payload + bp2->payload_size)}));
                 } else if (version_ == 3) {
                     BinaryProtocol3* bp3 = (BinaryProtocol3*)data;
                     bp3->type = bp3->type;
@@ -134,15 +129,13 @@ bool WebsocketProtocol::OpenAudioChannel() {
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
-                        .payload = std::vector<uint8_t>(payload, payload + bp3->payload_size)
-                    }));
+                        .payload = std::vector<uint8_t>(payload, payload + bp3->payload_size)}));
                 } else {
                     on_incoming_audio_(std::make_unique<AudioStreamPacket>(AudioStreamPacket{
                         .sample_rate = server_sample_rate_,
                         .frame_duration = server_frame_duration_,
                         .timestamp = 0,
-                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)
-                    }));
+                        .payload = std::vector<uint8_t>((uint8_t*)data, (uint8_t*)data + len)}));
                 }
             }
         } else {
@@ -186,7 +179,9 @@ bool WebsocketProtocol::OpenAudioChannel() {
     }
 
     // Wait for server hello
-    EventBits_t bits = xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+    EventBits_t bits =
+        xEventGroupWaitBits(event_group_handle_, WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT, pdTRUE,
+                            pdFALSE, pdMS_TO_TICKS(10000));
     if (!(bits & WEBSOCKET_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
         SetError(Lang::Strings::SERVER_TIMEOUT);
@@ -211,6 +206,7 @@ std::string WebsocketProtocol::GetHelloMessage() {
 #endif
     cJSON_AddBoolToObject(features, "mcp", true);
     cJSON_AddItemToObject(root, "features", features);
+    AddTextFontCapabilities(root);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");

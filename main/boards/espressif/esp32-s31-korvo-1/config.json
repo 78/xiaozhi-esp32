@@ -1,0 +1,15 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp32-s31-korvo-1",
+    "target": "esp32s31",
+    "preview": true,
+    "builds": [
+        {
+            "name": "esp32-s31-korvo-1",
+            "idf_version": ">=6.1",
+            "sdkconfig_append": [
+                "CONFIG_CAMERA_OV3660=y"
+            ]
+        }
+    ]
+}
