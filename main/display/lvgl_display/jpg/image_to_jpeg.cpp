@@ -175,6 +175,7 @@ static uint8_t* convert_input_to_encoder_buf(const uint8_t* src, uint16_t width,
         err = esp_imgfx_color_convert_process(convert_handle, &convert_input_data, &convert_output_data);
         if (err != ESP_IMGFX_ERR_OK) {
             ESP_LOGE(TAG, "esp_imgfx_color_convert_process failed");
+            esp_imgfx_color_convert_close(convert_handle);
             jpeg_free_align(buf);
             return nullptr;
         }
