@@ -284,6 +284,31 @@ def write_manifest(output_dir: Path, manifest: dict[str, object]) -> None:
     temporary.replace(path)
 
 
+def failure_summary(log_path: Path) -> str:
+    """Extract a concise actionable failure from a compiler log."""
+    if not log_path.is_file():
+        return "Firmware build failed"
+    ansi_escape = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+    lines = [
+        ansi_escape.sub("", line).strip()
+        for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    ]
+    meaningful = [
+        line for line in lines
+        if line
+        and not line.startswith(("XIAOZHI_STAGE ", "XIAOZHI_SOURCE_REVISION "))
+    ]
+    patterns = (
+        re.compile(r"(?:fatal error|error:|ValueError:|RuntimeError:|FileNotFoundError:)", re.I),
+        re.compile(r"(?:Kconfig rejected|Unsupported build option|build stopped|failed with exit code)", re.I),
+    )
+    for pattern in patterns:
+        for line in reversed(meaningful):
+            if pattern.search(line):
+                return line[:500]
+    return meaningful[-1][:500] if meaningful else "Firmware build failed"
+
+
 def is_retryable_oss_error(error: Exception, oss2: Any) -> bool:
     exceptions = getattr(oss2, "exceptions", None)
     request_error = getattr(exceptions, "RequestError", None)
@@ -447,6 +472,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             manifest["exit_code"] = return_code
     else:
         manifest["status"] = "failed"
+        manifest["error"] = failure_summary(log_path)
 
     write_manifest(args.output_dir, manifest)
     if upload_config is not None:

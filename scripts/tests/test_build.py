@@ -930,6 +930,16 @@ class BuildOptionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid wake word"):
             build._wake_word_sdkconfig_options("jarvis", "esp32s3")
 
+    def test_board_wake_word_support_obeys_psram_dependency(self):
+        self.assertTrue(build._board_supports_wake_word("esp32c3", []))
+        self.assertFalse(build._board_supports_wake_word("esp32", []))
+        self.assertTrue(
+            build._board_supports_wake_word("esp32", ["CONFIG_SPIRAM=y"])
+        )
+        self.assertFalse(
+            build._board_supports_wake_word("esp32s3", ["CONFIG_SPIRAM=n"])
+        )
+
     def test_user_options_override_board_options(self):
         merged = build._merge_sdkconfig_options(
             [
@@ -1045,6 +1055,12 @@ class BuildOptionTests(unittest.TestCase):
         )
         sdkconfig = build._build_options_sdkconfig(definitions, normalized, {})
         self.assertIn("CONFIG_LCD_CUSTOM=n", sdkconfig)
+
+    def test_bread_compact_esp32_config_supports_sh1106(self):
+        config_header = (
+            ROOT / "main/boards/bread-compact-esp32/config.h"
+        ).read_text(encoding="utf-8")
+        self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
 
     def test_non_default_style_disables_multiline_chat(self):
         definitions = [

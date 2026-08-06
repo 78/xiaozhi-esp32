@@ -135,6 +135,23 @@ sys.exit(%d)
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual(manifest["status"], "failed")
             self.assertEqual(manifest["exit_code"], 7)
+            self.assertEqual(manifest["error"], "fake compiler output")
+
+    def test_failure_summary_prefers_compiler_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            log_path = Path(temporary) / "build.log"
+            log_path.write_text(
+                "FAILED: component.o\n"
+                "config.h:48:2: error: OLED display type is not selected\n"
+                "ninja: build stopped: subcommand failed.\n"
+                "XIAOZHI_STAGE uploading\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                firmware_builder.failure_summary(log_path),
+                "config.h:48:2: error: OLED display type is not selected",
+            )
 
     def test_success_uploads_outputs_and_manifest_last(self) -> None:
         uploads: list[tuple[str, str]] = []

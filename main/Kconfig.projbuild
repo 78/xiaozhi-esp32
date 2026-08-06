@@ -577,6 +577,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WDMOMO_CGC_144
         bool "WDMomo ESP32-CGC-144"
         depends on IDF_TARGET_ESP32
+    config BOARD_TYPE_WK_ESP32S3_DEV
+        bool "WK ESP32-S3 Dev Board (维控智能开发板)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_XMINI_C3
         bool "Xmini C3"
         depends on IDF_TARGET_ESP32C3
@@ -606,9 +609,6 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ZHENGCHEN_CAM
         bool "Zhengchen AI Camera Wi-Fi (征辰科技)"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_WK_ESP32S3_DEV
-        bool "维控智能开发板"
         depends on IDF_TARGET_ESP32S3
 endchoice
 

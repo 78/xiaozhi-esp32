@@ -296,6 +296,31 @@ def _enabled_default_wake_word_symbols(target: str) -> list[str]:
     return symbols
 
 
+def _board_supports_wake_word(
+    target: str,
+    sdkconfig_append: list[str],
+) -> bool:
+    """Return whether one board variant satisfies the wake-word Kconfig deps."""
+    if target in _LITE_WAKE_WORD_TARGETS:
+        return True
+    if target not in _AFE_WAKE_WORD_TARGETS | {"esp32"}:
+        return False
+
+    defaults: list[str] = []
+    for path in (Path("sdkconfig.defaults"), Path(f"sdkconfig.defaults.{target}")):
+        if not path.exists():
+            continue
+        defaults.extend(
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip().startswith("CONFIG_") and "=" in line
+        )
+    assignments = _sdkconfig_assignments(
+        _merge_sdkconfig_options(defaults, sdkconfig_append)
+    )
+    return assignments.get("CONFIG_SPIRAM") == "y"
+
+
 def _wake_word_sdkconfig_options(
     wake_word: str,
     target: str,
@@ -925,6 +950,10 @@ def _collect_variants(
         )
         variant["config"] = config_symbol
         variant["display_name"] = _get_board_display_name(config_symbol)
+        variant["wake_word_supported"] = _board_supports_wake_word(
+            variant["target"],
+            sdkconfig_append,
+        )
         variant["build_options"] = _build_option_definitions(
             variant["board"],
             variant["target"],
@@ -1432,26 +1461,32 @@ def build_board(
         # Process sdkconfig_append
         build_sdkconfig_append = build.get("sdkconfig_append", [])
         explicit_board_cfg = _extract_board_config_from_sdkconfig_append(build_sdkconfig_append)
-        if explicit_board_cfg:
+        board_type_config = _resolve_board_config(
+            board_type,
+            target,
+            build_sdkconfig_append,
+            variant_name=name,
+        )
+        if explicit_board_cfg == board_type_config:
             print(
                 f"[INFO] Board config explicitly set in config.json: {explicit_board_cfg}, "
                 "skip auto-select.",
             )
             sdkconfig_append = list(build_sdkconfig_append)
         else:
-            board_type_config = _resolve_board_config(
-                board_type,
-                target,
-                build_sdkconfig_append,
-                variant_name=name,
-            )
+            # Replace a stale/misspelled explicit symbol with the canonical
+            # Kconfig symbol. Listing and building must resolve board identity
+            # through the same path or their exposed options can diverge.
             sdkconfig_append = [f"{board_type_config}=y"]
-            sdkconfig_append.extend(build_sdkconfig_append)
+            sdkconfig_append.extend(
+                item for item in build_sdkconfig_append
+                if item.strip() != f"{explicit_board_cfg}=y"
+            )
 
         option_definitions = _build_option_definitions(
             board_type,
             target,
-            board_type_config if not explicit_board_cfg else explicit_board_cfg,
+            board_type_config,
             build,
         )
 
