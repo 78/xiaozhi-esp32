@@ -971,6 +971,45 @@ class BuildOptionTests(unittest.TestCase):
         finally:
             os.chdir(previous_cwd)
 
+    def test_disabled_build_options_accept_symbols_hidden_by_kconfig(self):
+        previous_cwd = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                Path("sdkconfig").write_text(
+                    "CONFIG_SELECTED_STYLE=y\n"
+                    "# CONFIG_EXPLICITLY_DISABLED is not set\n",
+                    encoding="utf-8",
+                )
+
+                build._validate_configured_options(
+                    [
+                        "CONFIG_SELECTED_STYLE=y",
+                        "CONFIG_EXPLICITLY_DISABLED=n",
+                        "CONFIG_HIDDEN_BY_DEPENDENCY=n",
+                    ],
+                    "--build-options-json",
+                )
+
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "CONFIG_SELECTED_STYLE=n",
+                ):
+                    build._validate_configured_options(
+                        ["CONFIG_SELECTED_STYLE=n"],
+                        "--build-options-json",
+                    )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "CONFIG_HIDDEN_BY_DEPENDENCY=y",
+                ):
+                    build._validate_configured_options(
+                        ["CONFIG_HIDDEN_BY_DEPENDENCY=y"],
+                        "--build-options-json",
+                    )
+        finally:
+            os.chdir(previous_cwd)
+
     def test_lcd_board_exposes_curated_display_options(self):
         config = json.loads(
             (ROOT / "main/boards/bread-compact-esp32-lcd/config.json").read_text(
@@ -1048,6 +1087,41 @@ class BuildOptionTests(unittest.TestCase):
         self.assertIn("CONFIG_USE_DEFAULT_MESSAGE_STYLE=n", options)
         self.assertIn("CONFIG_USE_WECHAT_MESSAGE_STYLE=y", options)
         self.assertNotIn("CONFIG_USE_EMOTE_MESSAGE_STYLE=n", options)
+
+    def test_esp_vocat_default_style_overrides_emote_board_defaults(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp-vocat/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp-vocat",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_style": "default", "multiline_chat": True},
+        )
+        options = build._build_options_sdkconfig(
+            definitions,
+            normalized,
+            build._sdkconfig_assignments(build_config["sdkconfig_append"]),
+        )
+
+        self.assertIn("CONFIG_USE_DEFAULT_MESSAGE_STYLE=y", options)
+        self.assertIn("CONFIG_USE_EMOTE_MESSAGE_STYLE=n", options)
+        self.assertIn("CONFIG_FLASH_DEFAULT_ASSETS=y", options)
+        self.assertIn("CONFIG_FLASH_EXPRESSION_ASSETS=n", options)
+        self.assertIn("CONFIG_USE_MULTILINE_CHAT_MESSAGE=y", options)
 
     def test_camera_mirror_guard_is_settable_by_build_defaults(self):
         kconfig = (ROOT / "main/Kconfig.projbuild").read_text(

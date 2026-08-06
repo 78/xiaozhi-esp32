@@ -1354,8 +1354,11 @@ def _validate_configured_options(options: list[str], option_name: str) -> None:
         if expected == "y":
             accepted = bool(re.search(rf"^{re.escape(key)}=y$", content, re.MULTILINE))
         elif expected == "n":
-            accepted = bool(re.search(
-                rf"^(?:# {re.escape(key)} is not set|{re.escape(key)}=n)$",
+            # Kconfig may omit a disabled symbol entirely when its dependency
+            # is not satisfied. Absence is equivalent to "not set"; only an
+            # accepted y value contradicts a requested n value.
+            accepted = not bool(re.search(
+                rf"^{re.escape(key)}=y$",
                 content,
                 re.MULTILINE,
             ))

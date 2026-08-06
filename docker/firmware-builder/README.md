@@ -67,7 +67,10 @@ FIRMWARE_JOB_ID=<unique-safe-job-id>
 
 The builder uploads the two firmware images, `build.log`, and `manifest.json`
 to `custom_firmwares/<job-id>/`. The manifest is uploaded last so consumers do
-not observe a completed job before its other objects are available.
+not observe a completed job before its other objects are available. Transient
+OSS connection, timeout, throttling, and server errors are retried up to four
+times with exponential backoff; authentication and other permanent errors fail
+immediately.
 
 Use a unique empty output directory for each job. In ECI, pass the same inputs
 as container environment variables and upload the output directory to OSS after
