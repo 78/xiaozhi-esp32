@@ -365,6 +365,12 @@ _DYNAMIC_CAMERA_MIRROR_BOARD_CONFIGS = {
     "CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE",
     "CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER",
 }
+_OPTIONAL_CAMERA_ENABLE_SYMBOLS = {
+    # ESP-VOCAT only constructs EspVideo when its optional USB UVC transport
+    # is enabled. Do not advertise mirror controls for the camera-less default
+    # build, but expose them automatically for an explicitly enabled variant.
+    "CONFIG_BOARD_TYPE_ESP_VOCAT": "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE",
+}
 
 
 def _sdkconfig_assignments(options: list[str]) -> dict[str, str]:
@@ -539,7 +545,14 @@ def _build_option_definitions(
             ],
         })
 
-    has_common_camera = "new Esp32Camera" in source or "new EspVideo" in source
+    camera_enable_symbol = _OPTIONAL_CAMERA_ENABLE_SYMBOLS.get(board_config)
+    has_common_camera = (
+        ("new Esp32Camera" in source or "new EspVideo" in source)
+        and (
+            camera_enable_symbol is None
+            or assignments.get(camera_enable_symbol) == "y"
+        )
+    )
     if has_common_camera and board_config not in _DYNAMIC_CAMERA_MIRROR_BOARD_CONFIGS:
         definitions.extend((
             {"key": "camera_hmirror", "type": "boolean", "default": False},

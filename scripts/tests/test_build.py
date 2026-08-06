@@ -1117,6 +1117,47 @@ class BuildOptionTests(unittest.TestCase):
         self.assertFalse(defaults["camera_hmirror"])
         self.assertTrue(defaults["camera_vflip"])
 
+    def test_optional_usb_camera_options_require_camera_to_be_enabled(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp-vocat/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp-vocat",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+
+        definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        keys = {definition["key"] for definition in definitions}
+        self.assertNotIn("camera_hmirror", keys)
+        self.assertNotIn("camera_vflip", keys)
+
+        camera_build = dict(build_config)
+        camera_build["sdkconfig_append"] = [
+            *build_config["sdkconfig_append"],
+            "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE=y",
+        ]
+        camera_definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            camera_build,
+        )
+        camera_keys = {
+            definition["key"] for definition in camera_definitions
+        }
+        self.assertIn("camera_hmirror", camera_keys)
+        self.assertIn("camera_vflip", camera_keys)
+
     def test_unknown_semantic_build_option_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported build option"):
             build._normalize_build_options([], {"raw_sdkconfig": "CONFIG_FOO=y"})
