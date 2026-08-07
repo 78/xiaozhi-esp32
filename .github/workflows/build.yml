@@ -29,22 +29,21 @@ jobs:
       - name: Test build tooling
         run: python -m unittest discover -s scripts/tests -v
 
-      - id: list
-        name: Get all variant list
-        run: |
-          echo "all_variants=$(python scripts/build.py --list-boards --json)" >> $GITHUB_OUTPUT
-
       - id: select
         name: Select variants based on changes
         shell: bash
-        env:
-          ALL_VARIANTS: ${{ steps.list.outputs.all_variants }}
         run: |
           EVENT_NAME="${{ github.event_name }}"
 
           # push 到 main 分支，编译全部变体
           if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
+            # Keep the full matrix out of an environment variable. A single
+            # Linux environment entry is limited to 128 KiB, and the variant
+            # JSON can exceed that as boards are added.
+            {
+              printf 'variants='
+              python scripts/build.py --list-boards --json
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
