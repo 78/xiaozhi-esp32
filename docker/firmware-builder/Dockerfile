@@ -20,7 +20,6 @@ RUN chmod 0755 \
       docker/firmware-builder/entrypoint.sh \
       docker/firmware-builder/firmware_builder.py \
     && . "${IDF_PATH}/export.sh" >/dev/null \
-    && python3 -m pip install --no-cache-dir oss2==2.19.1 \
     && idf.py --version \
     && python3 scripts/build.py --list-boards --json >/tmp/xiaozhi-boards.json \
     && python3 scripts/build.py --list-languages --json >/tmp/xiaozhi-languages.json
