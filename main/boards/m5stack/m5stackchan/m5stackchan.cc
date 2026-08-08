@@ -8,6 +8,7 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "i2c_device.h"
+#include "settings.h"
 #include "axp2101.h"
 
 #include <esp_log.h>
@@ -16,11 +17,26 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_ili9341.h>
 #include <esp_timer.h>
-#include "esp_video.h"
+#include <cstring>
+#include "preview_camera.h"
 
 #define TAG "M5StackChanBoard"
 
 void InitializeStackChanController(BodyIoExpander* io_expander);
+
+// StackChan is a face, not a chat log. The speaking animation is already
+// driven by SetStatus, so only the activation code still needs text.
+class SilentEmoteDisplay : public emote::EmoteDisplay {
+public:
+    using emote::EmoteDisplay::EmoteDisplay;
+
+    void SetChatMessage(const char* role, const char* content) override {
+        if (role != nullptr && content != nullptr && strcmp(role, "system") == 0 &&
+            strstr(content, "xiaozhi.me") != nullptr) {
+            emote::EmoteDisplay::SetChatMessage(role, content);
+        }
+    }
+};
 
 class Pmic : public Axp2101 {
 public:
@@ -158,7 +174,7 @@ private:
     Ft6336* ft6336_;
     BodyIoExpander* body_io_ = nullptr;
     Display* display_;
-    EspVideo* camera_;
+    PreviewCamera* camera_;
     esp_timer_handle_t touchpad_timer_;
     PowerSaveTimer* power_save_timer_;
 
@@ -336,10 +352,17 @@ private:
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        // EmoteDisplay does not turn the panel on by itself.
+        esp_lcd_panel_disp_on_off(panel, true);
 
 #if CONFIG_USE_EMOTE_MESSAGE_STYLE
-        display_ = new emote::EmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        display_ = new SilentEmoteDisplay(panel, panel_io, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 #else
+        // The robot GIFs sit on a dark canvas; later runtime changes still win.
+        Settings settings("display", true);
+        if (settings.GetString("theme").empty()) {
+            settings.SetString("theme", "dark");
+        }
         auto* lcd_display = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
                                     DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
@@ -348,7 +371,6 @@ private:
         display_ = lcd_display;
 #endif
     }
-
     void InitializeCamera() {
         static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
             .data_width = CAM_CTLR_DATA_WIDTH_8,
@@ -386,7 +408,8 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new EspVideo(video_config);
+        camera_ = new PreviewCamera(video_config);
+        camera_->RegisterMcpTools();
     }
 
 public:

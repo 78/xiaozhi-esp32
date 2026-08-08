@@ -11,7 +11,6 @@
             },
             "sdkconfig_append": [
                 "CONFIG_BOARD_TYPE_M5STACKCHAN=y",
-                "CONFIG_USE_EMOTE_MESSAGE_STYLE=y",
                 "CONFIG_SPIRAM_MODE_QUAD=y",
                 "CONFIG_CAMERA_GC0308=y",
                 "CONFIG_CAMERA_GC0308_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",

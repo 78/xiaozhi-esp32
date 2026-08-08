@@ -3,7 +3,7 @@
 官方 M5StackChan AI 桌面机器人：CoreS3 主机 + 舵机机身。
 
 主机部分（屏幕、触摸、摄像头、音频、AXP2101 电源）与 `m5stack/core-s3` 一致，
-本板在其基础上增加机身外设、动画表情和状态灯。
+本板在其基础上增加机身外设、机器人表情、状态灯和摄像头取景器。
 
 ## 机身硬件
 
@@ -22,12 +22,17 @@
 
 ## 显示
 
-采用 `USE_EMOTE_MESSAGE_STYLE` 全屏动画表情（320×240，20 fps），
-不显示对话字幕。资源来自 `esp_emote_assets` 组件。
+采用 `SpiLcdDisplay`（320×240）配 `otto-gif` 机器人动态表情，并隐藏对话字幕栏。
+GIF 素材为 240×240，居中显示，因此板子在首次启动时把主题默认写成深色，
+避免两侧露出白边。主题之后可通过 `self.screen.set_theme` 修改并持久化。
 
-该组件自带的 assets 分区里打包了它自己的唤醒词模型，会把唤醒词改成「你好喵伴」。
-为保留项目默认的「你好小智」，`main/CMakeLists.txt` 通过 `EMOTE_EXTERNAL_PATH`
-扩展点，在构建时从 `esp-sr` 组件取模型重新打包并覆盖：
+也可以改用 `USE_EMOTE_MESSAGE_STYLE` 全屏动画表情（20 fps）：在 `config.json`
+的 `sdkconfig_append` 里加回 `CONFIG_USE_EMOTE_MESSAGE_STYLE=y` 即可。注意该模式
+下 `SetPreviewImage` 是空实现，**摄像头预览和取景器都不会显示**。
+
+该模式还有个坑：`esp_emote_assets` 组件的 assets 分区里打包了它自己的唤醒词模型，
+会把唤醒词改成「你好喵伴」。为保留项目默认的「你好小智」，`main/CMakeLists.txt`
+通过 `EMOTE_EXTERNAL_PATH` 扩展点，在构建时从 `esp-sr` 组件取模型重新打包并覆盖：
 
 ```
 build/m5stackchan-assets/wakenet/srmodels.bin   ← 构建时生成，优先于组件自带
@@ -35,9 +40,6 @@ build/m5stackchan-assets/wakenet/srmodels.bin   ← 构建时生成，优先于�
 
 打包脚本按「先查 external、再回退组件」的顺序取资源，所以动画、字体、布局
 仍然全部使用组件默认值。若 `esp-sr` 路径缺失，构建只告警并回退到组件唤醒词。
-
-切回静态 emoji：删除 `config.json` 里的 `CONFIG_USE_EMOTE_MESSAGE_STYLE=y`
-即可，此时改用 `SpiLcdDisplay` 并隐藏字幕栏。
 
 ## 状态灯
 
@@ -62,8 +64,20 @@ build/m5stackchan-assets/wakenet/srmodels.bin   ← 构建时生成，优先于�
 | `self.head.nod` | 点头 |
 | `self.head.shake` | 摇头 |
 | `self.body.set_rgb_color` | 设置机身 12 颗 RGB 灯颜色 |
+| `self.camera.start_preview` | 打开实时取景（duration 秒，默认 30） |
+| `self.camera.stop_preview` | 关闭实时取景 |
 
 动作在独立任务的队列里串行执行并阻塞等待完成，MCP 回调只入队，不会阻塞主事件循环。
+
+## 取景器
+
+`PreviewCamera` 在 `EspVideo` 之上加了一个循环抓帧的低优先级任务，把画面送进
+`Display::SetPreviewImage()`，实测约 3 fps（`EspVideo::Capture()` 每次要丢弃 2 帧
+以取到最新画面，本身就要 200 ms 左右）。
+
+取景和拍照共用同一个 V4L2 设备，所以 `Capture()` 被覆写成「先停取景、再加锁抓帧」，
+通用的 `self.camera.take_photo` 因此会自动结束取景，核心代码无需改动。
+取景到时限、抓帧失败或显式停止时都会主动清掉预览画面。
 
 ## 编译
 
