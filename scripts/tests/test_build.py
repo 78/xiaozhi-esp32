@@ -1062,6 +1062,15 @@ class BuildOptionTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
 
+    def test_bread_compact_nt26_supports_sh1106(self):
+        board_dir = ROOT / "main/boards/bread-compact-nt26"
+        config_header = (board_dir / "config.h").read_text(encoding="utf-8")
+        board_source = (board_dir / "compact_nt26_board.cc").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
+        self.assertIn("esp_lcd_new_panel_sh1106", board_source)
+
     def test_non_default_style_disables_multiline_chat(self):
         definitions = [
             {
