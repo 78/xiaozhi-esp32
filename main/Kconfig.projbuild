@@ -331,6 +331,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACKCHAN
+        bool "M5Stack StackChan"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_STICK_S3
         bool "M5Stack StickS3"
         depends on IDF_TARGET_ESP32S3
@@ -769,7 +772,7 @@ choice WK_BOARD_TYPE
     config BOARD_HAVE_MOTOR_CONTROL
         bool "带电机驱动"
     config BOARD_NO_MOTOR_CONTROL
-        bool "不带电机驱动"    
+        bool "不带电机驱动"
 endchoice
 
 
@@ -845,7 +848,7 @@ choice DISPLAY_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP32_S3_BOX || BOARD_TYPE_ESP32_S3_BOX_3 \
             || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
-            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE || BOARD_TYPE_M5STACKCHAN
 endchoice
 
 config USE_MULTILINE_CHAT_MESSAGE

@@ -216,6 +216,14 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACKCHAN)
+    set(BOARD_DIR "m5stack/m5stackchan")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    set(M5STACKCHAN_WAKENET_MODEL "wn9_nihaoxiaozhi_tts")
+    set(M5STACKCHAN_ASSETS_STAGING "${CMAKE_BINARY_DIR}/m5stackchan-assets")
+    set(EMOTE_EXTERNAL_PATH "${M5STACKCHAN_ASSETS_STAGING}")
 elseif(CONFIG_BOARD_TYPE_M5STACK_STICK_S3)
     set(BOARD_DIR "m5stack/stick-s3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -1162,6 +1170,31 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
         )
     else()
         message(WARNING "esp_emote_assets component not found; ESP-VoCat custom emotes will be skipped")
+    endif()
+endif()
+
+# The stock emote assets bundle their own wake word, so restage one that keeps
+# the project default while reusing the component's animations.
+if(CONFIG_BOARD_TYPE_M5STACKCHAN AND CONFIG_USE_EMOTE_MESSAGE_STYLE)
+    if(ESP_SR_MODEL_PATH AND EXISTS "${ESP_SR_MODEL_PATH}/wakenet_model/${M5STACKCHAN_WAKENET_MODEL}")
+        file(REMOVE_RECURSE "${M5STACKCHAN_ASSETS_STAGING}")
+        file(REMOVE
+            "${CMAKE_BINARY_DIR}/expression_assets.bin"
+            "${CMAKE_BINARY_DIR}/expression_assets.bin.validated"
+        )
+        file(MAKE_DIRECTORY "${M5STACKCHAN_ASSETS_STAGING}/wakenet")
+        file(COPY "${ESP_SR_MODEL_PATH}/wakenet_model/${M5STACKCHAN_WAKENET_MODEL}"
+             DESTINATION "${M5STACKCHAN_ASSETS_STAGING}/wakenet")
+        execute_process(
+            COMMAND python "${ESP_SR_MODEL_PATH}/pack_model.py"
+                    -m "${M5STACKCHAN_ASSETS_STAGING}/wakenet" -o srmodels.bin
+            RESULT_VARIABLE M5STACKCHAN_PACK_RESULT
+        )
+        if(NOT M5STACKCHAN_PACK_RESULT EQUAL 0)
+            message(WARNING "Failed to pack ${M5STACKCHAN_WAKENET_MODEL}; the emote wake word will be used")
+        endif()
+    else()
+        message(WARNING "${M5STACKCHAN_WAKENET_MODEL} not found in esp-sr; the emote wake word will be used")
     endif()
 endif()
 

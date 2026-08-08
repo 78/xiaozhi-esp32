@@ -1,0 +1,22 @@
+{
+    "manufacturer": "m5stack",
+    "type": "m5stackchan",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "m5stackchan",
+            "build_options": {
+                "camera_hmirror": false,
+                "camera_vflip": false
+            },
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_M5STACKCHAN=y",
+                "CONFIG_USE_EMOTE_MESSAGE_STYLE=y",
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_CAMERA_GC0308=y",
+                "CONFIG_CAMERA_GC0308_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_GC0308_DVP_YUV422_320X240_20FPS=y"
+            ]
+        }
+    ]
+}
