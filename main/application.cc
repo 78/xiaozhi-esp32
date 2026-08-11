@@ -433,11 +433,22 @@ void Application::CheckNewVersion() {
             }
 
             char error_message[128];
-            snprintf(error_message, sizeof(error_message), "code=%d, url=%s", err,
-                     ota_->GetCheckVersionUrl().c_str());
-            char buffer[256];
-            snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED, retry_delay,
-                     error_message);
+            int error_message_length =
+                snprintf(error_message, sizeof(error_message), "code=%d, url=%s", err,
+                         ota_->GetCheckVersionUrl().c_str());
+            if (error_message_length < 0 ||
+                error_message_length >= static_cast<int>(sizeof(error_message))) {
+                snprintf(error_message, sizeof(error_message), "code=%d", err);
+            }
+
+            char buffer[320];
+            int alert_message_length =
+                snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED,
+                         retry_delay, error_message);
+            if (alert_message_length < 0 ||
+                alert_message_length >= static_cast<int>(sizeof(buffer))) {
+                snprintf(buffer, sizeof(buffer), "code=%d", err);
+            }
             Alert(Lang::Strings::ERROR, buffer, "cloud_off", Lang::Sounds::OGG_EXCLAMATION);
 
             ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay,
