@@ -7,6 +7,7 @@ import zipfile
 import argparse
 import re
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Any, Optional
 
@@ -55,13 +56,40 @@ def get_project_version() -> Optional[str]:
 
 
 def _run_idf(*args: str, preview: bool = False) -> None:
-    command = ["idf.py"]
+    """Run ESP-IDF idf.py reliably on Windows."""
+    idf_exe = None
+
+    for candidate in ("idf.py.exe", "idf.py"):
+        resolved = shutil.which(candidate)
+        if resolved and os.path.isfile(resolved):
+            idf_exe = resolved
+            break
+
+    if not idf_exe:
+        standard_candidate = r"C:\Espressif\tools\idf-exe\1.0.3\idf.py.exe"
+        if os.path.isfile(standard_candidate):
+            idf_exe = standard_candidate
+
+    if not idf_exe:
+        print("ERROR: Could not locate a usable ESP-IDF idf.py executable. Run the ESP-IDF export script first.", file=sys.stderr)
+        sys.exit(1)
+
+    command = [idf_exe]
     if preview:
         command.append("--preview")
     command.extend(args)
-    if subprocess.run(command, check=False).returncode != 0:
-        print(f"{' '.join(command)} failed", file=sys.stderr)
+
+    print(f"[INFO] Running: {' '.join(command)}", flush=True)
+
+    try:
+        result = subprocess.run(command, check=False)
+    except OSError as error:
+        print(f"ERROR: Failed to execute ESP-IDF: {idf_exe}\n{error}", file=sys.stderr)
         sys.exit(1)
+
+    if result.returncode != 0:
+        print(f"{' '.join(command)} failed with exit code {result.returncode}", file=sys.stderr)
+        sys.exit(result.returncode)
 
 
 def merge_bin(preview: bool = False) -> None:
@@ -726,8 +754,20 @@ def _detect_idf_version() -> tuple[int, int, int]:
                 return values["MAJOR"], values["MINOR"], values["PATCH"]
 
     try:
+        idf_exe = None
+        for candidate in ("idf.py.exe", "idf.py"):
+            resolved = shutil.which(candidate)
+            if resolved and os.path.isfile(resolved):
+                idf_exe = resolved
+                break
+        if not idf_exe:
+            standard_candidate = r"C:\Espressif\tools\idf-exe\1.0.3\idf.py.exe"
+            if os.path.isfile(standard_candidate):
+                idf_exe = standard_candidate
+        if not idf_exe:
+            raise FileNotFoundError("ESP-IDF idf.py executable not found")
         output = subprocess.run(
-            ["idf.py", "--version"],
+            [idf_exe, "--version"],
             check=True,
             capture_output=True,
             text=True,
