@@ -28,7 +28,7 @@ As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabiliti
 - Speaker recognition, identifies the current speaker [3D Speaker](https://github.com/modelscope/3D-Speaker)
 - OLED / LCD displays with emoji and rich expression support, plus camera vision input on supported boards
 - Battery display and power management
-- 38 interface languages, with localized voice prompts where available and English fallback — **plus Marathi (mr-IN) Language from INDIA in this fork**
+- 39 interface languages, with localized voice prompts where available and English fallback
 - ESP32, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-S3, and ESP32-P4 chip platforms
 - Wi-Fi provisioning through hotspot or BluFi
 - Device-side MCP for device control (Speaker, LED, Servo, GPIO, etc.)
