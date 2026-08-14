@@ -16,6 +16,8 @@ jobs:
   prepare:
     name: Determine variants to build
     runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0.2
     outputs:
       variants: ${{ steps.select.outputs.variants }}
     steps:
@@ -24,63 +26,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - id: list
-        name: Get all variant list
-        run: |
-          echo "all_variants=$(python scripts/release.py --list-boards --json)" >> $GITHUB_OUTPUT
+      - name: Test build tooling
+        run: python -m unittest discover -s scripts/tests -v
 
       - id: select
         name: Select variants based on changes
-        env:
-          ALL_VARIANTS: ${{ steps.list.outputs.all_variants }}
+        shell: bash
         run: |
           EVENT_NAME="${{ github.event_name }}"
 
           # push 到 main 分支，编译全部变体
           if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
+            # Keep the full matrix out of an environment variable. A single
+            # Linux environment entry is limited to 128 KiB, and the variant
+            # JSON can exceed that as boards are added.
+            {
+              printf 'variants='
+              python scripts/build.py --list-boards --json
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           # pull_request 场景
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          echo "Base: $BASE_SHA, Head: $HEAD_SHA"
+          # actions/checkout checks out GitHub's synthetic PR merge commit. Its
+          # first and second parents are the exact base and head commits used
+          # for this run, even when the event SHAs are not exposed as refs in
+          # the job container.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          BASE_SHA="HEAD^1"
+          HEAD_SHA="HEAD^2"
+          echo "Base: $(git rev-parse "$BASE_SHA"), Head: $(git rev-parse "$HEAD_SHA")"
 
-          CHANGED=$(git diff --name-only $BASE_SHA $HEAD_SHA || true)
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           echo -e "Changed files:\n$CHANGED"
 
-          NEED_ALL=0
-          declare -A AFFECTED
-          while IFS= read -r file; do
-            if [[ "$file" == main/* && "$file" != main/boards/* ]]; then
-              NEED_ALL=1
-            fi
-
-            if [[ "$file" == main/boards/common/* ]]; then
-              NEED_ALL=1
-            fi
-
-            if [[ "$file" == main/boards/* ]]; then
-              board=$(echo "$file" | cut -d '/' -f3)
-              AFFECTED[$board]=1
-            fi
-          done <<< "$CHANGED"
-
-          if [[ "$NEED_ALL" -eq 1 ]]; then
-            echo "variants=$ALL_VARIANTS" >> $GITHUB_OUTPUT
-          else
-            if [[ ${#AFFECTED[@]} -eq 0 ]]; then
-              echo "variants=[]" >> $GITHUB_OUTPUT
-            else
-              BOARDS_JSON=$(printf '%s\n' "${!AFFECTED[@]}" | sort -u | jq -R -s -c 'split("\n")[:-1]')
-              FILTERED=$(echo "$ALL_VARIANTS" | jq -c --argjson boards "$BOARDS_JSON" 'map(select(.board as $b | $boards | index($b)))')
-              echo "variants=$FILTERED" >> $GITHUB_OUTPUT
-            fi
-          fi
+          SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/build.py --select-changed)
+          echo "variants=$SELECTED" >> $GITHUB_OUTPUT
 
   build:
     name: Build ${{ matrix.full_name }}
@@ -92,7 +73,7 @@ jobs:
         include: ${{ fromJson(needs.prepare.outputs.variants) }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v5.5.2
+      image: espressif/idf:v6.0.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,9 +82,41 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/release.py ${{ matrix.board }} --name ${{ matrix.name }}
+          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
 
       - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+
+  esp32s31-idf61:
+    name: Build ${{ matrix.full_name }} with IDF 6.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: espressif/esp32-s31-function-coreboard-1
+            name: esp32-s31-function-coreboard-1
+            full_name: espressif-esp32-s31-function-coreboard-1
+          - board: espressif/esp32-s31-korvo-1
+            name: esp32-s31-korvo-1
+            full_name: espressif-esp32-s31-korvo-1
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ESP32-S31 variant
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}

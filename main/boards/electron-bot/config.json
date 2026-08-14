@@ -1,9 +1,12 @@
 {
+    "type": "electron-bot",
     "target": "esp32s3",
     "builds": [
         {
             "name": "electron-bot",
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_HTTPD_WS_SUPPORT=y"
+            ]
         }
     ]
 }

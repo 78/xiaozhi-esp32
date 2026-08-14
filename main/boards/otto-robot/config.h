@@ -1,7 +1,7 @@
 #ifndef _BOARD_CONFIG_H_
 #define _BOARD_CONFIG_H_
 
-#include <driver/adc.h>
+#include <esp_adc/adc_oneshot.h>
 #include <driver/gpio.h>
 
 #define OTTO_VERSION_AUTO 0

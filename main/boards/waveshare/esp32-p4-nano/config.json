@@ -1,5 +1,6 @@
 {
     "manufacturer": "waveshare",
+    "type": "esp32-p4-nano",
     "target": "esp32p4",
     "builds": [
         {
@@ -15,7 +16,8 @@
             ]
         },
         {
-            "name": "esp32-p4-nano-10.1-a-p4x",
+            "name": "esp32-p4x-nano-10.1-a",
+            "legacy_names": ["esp32-p4-nano-10.1-a-p4x"],
             "sdkconfig_append": [
                 "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
                 "CONFIG_CAMERA_OV5647=y",

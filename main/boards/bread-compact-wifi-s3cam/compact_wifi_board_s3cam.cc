@@ -151,7 +151,6 @@ private:
         config.fb_location = CAMERA_FB_IN_PSRAM;
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
         camera_ = new Esp32Camera(config);
-        camera_->SetHMirror(false);
     }
 
     void InitializeButtons() {

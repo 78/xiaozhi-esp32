@@ -1,0 +1,21 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp-s3-lcd-ev-board",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-s3-lcd-ev-board-1p4",
+            "legacy_names": ["esp-s3-lcd-ev-board"],
+            "sdkconfig_append": [
+                "CONFIG_ESP32_S3_LCD_EV_BOARD_V1_4=y"
+            ]
+        },
+        {
+            "name": "esp-s3-lcd-ev-board-1p5",
+            "legacy_names": ["esp-s3-lcd-ev-board"],
+            "sdkconfig_append": [
+                "CONFIG_ESP32_S3_LCD_EV_BOARD_V1_5=y"
+            ]
+        }
+    ]
+} 

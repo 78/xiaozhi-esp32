@@ -7,7 +7,7 @@ BluFi
 ## 前置条件
 
 - 需要支持 BLE 的芯片与固件配置。
-- 在 `idf.py menuconfig` 中启用 `WiFi Configuration Method -> Esp Blufi`（`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`
+- 在 `idf.py menuconfig` 中启用 `WiFi Configuration Method -> ESP-BluFi`（`CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y`
   ）。如果想使用 BluFi，必须关闭同一菜单下的 Hotspot 选项，否则默认使用 Hotspot 配网模式。
 
 - 保持默认的 NVS 与事件循环初始化（项目的 `app_main` 已处理）。
@@ -21,7 +21,7 @@ BluFi
 
 ## 使用步骤
 
-1. 配置：在 menuconfig 开启 `Esp Blufi`。编译并烧录固件。
+1. 配置：在 menuconfig 开启 `ESP-BluFi`。编译并烧录固件。
 2. 触发配网：设备首次启动且没有已保存的 Wi‑Fi 时会自动进入配网。
 3. 手机端操作：打开 EspBlufi App（或其他 BluFi 客户端），搜索并连接设备，可以选择是否加密，按提示输入 Wi‑Fi SSID/密码并发送。
 4. 观察结果：

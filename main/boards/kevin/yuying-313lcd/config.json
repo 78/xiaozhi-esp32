@@ -1,0 +1,11 @@
+{
+    "manufacturer": "kevin",
+    "type": "kevin-yuying-313lcd",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kevin-yuying-313lcd",
+            "sdkconfig_append": []
+        }
+    ]
+}

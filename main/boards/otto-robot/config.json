@@ -1,8 +1,13 @@
 {
+    "type": "otto-robot",
     "target": "esp32s3",
     "builds": [
         {
             "name": "otto-robot",
+            "build_options": {
+                "camera_hmirror": true,
+                "camera_vflip": true
+            },
             "sdkconfig_append": [
                 "CONFIG_HTTPD_WS_SUPPORT=y",
                 "CONFIG_CAMERA_OV2640=y",

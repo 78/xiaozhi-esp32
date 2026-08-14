@@ -1,0 +1,6 @@
+{
+    "manufacturer": "alientek",
+    "type": "atk-dnesp32s3m-4g",
+    "target": "esp32s3",
+    "builds": []
+}

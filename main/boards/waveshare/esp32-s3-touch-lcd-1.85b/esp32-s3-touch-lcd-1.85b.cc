@@ -495,7 +495,7 @@ private:
 
         esp_lcd_panel_io_spi_config_t io_config = {
             .cs_gpio_num = QSPI_PIN_NUM_LCD_CS,               
-            .dc_gpio_num = -1,                  
+            .dc_gpio_num = GPIO_NUM_NC,
             .spi_mode = 0,                     
             .pclk_hz = 3 * 1000 * 1000,      
             .trans_queue_depth = 10,            
@@ -558,12 +558,11 @@ private:
         }
         printf("------------------------------------- End of version selection------------------------------------- \r\n");
  
-        const esp_lcd_panel_dev_config_t panel_config = {
-            .reset_gpio_num = QSPI_PIN_NUM_LCD_RST,
-            .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,     // Implemented by LCD command `36h`
-            .bits_per_pixel = QSPI_LCD_BIT_PER_PIXEL,    // Implemented by LCD command `3Ah` (16/18)
-            .vendor_config = &vendor_config,
-        };
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = QSPI_LCD_BIT_PER_PIXEL;
+        panel_config.reset_gpio_num = QSPI_PIN_NUM_LCD_RST;
+        panel_config.vendor_config = &vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st77916(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);

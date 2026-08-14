@@ -1,0 +1,13 @@
+{
+    "manufacturer": "lckfb",
+    "type": "lichuang-dev",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lichuang-dev",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        }
+    ]
+}

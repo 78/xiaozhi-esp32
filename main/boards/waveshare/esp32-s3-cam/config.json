@@ -1,9 +1,14 @@
 {
 "manufacturer": "waveshare",
+    "type": "esp32-s3-cam",
 "target": "esp32s3",
 "builds": [
     {
         "name": "esp32-s3-cam-2",
+        "build_options": {
+            "camera_hmirror": false,
+            "camera_vflip": true
+        },
         "sdkconfig_append": [
             "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX=y",
             "CONFIG_USE_DEVICE_AEC=y",
@@ -12,6 +17,10 @@
     },
     {
         "name": "esp32-s3-cam-2.8",
+        "build_options": {
+            "camera_hmirror": false,
+            "camera_vflip": true
+        },
         "sdkconfig_append": [
             "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX=y",
             "CONFIG_USE_DEVICE_AEC=y",
@@ -20,6 +29,10 @@
     },
     {
         "name": "esp32-s3-cam-3.5",
+        "build_options": {
+            "camera_hmirror": false,
+            "camera_vflip": true
+        },
         "sdkconfig_append": [
             "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX=y",
             "CONFIG_USE_DEVICE_AEC=y",
@@ -28,6 +41,10 @@
     },
     {
         "name": "esp32-s3-cam-1.83",
+        "build_options": {
+            "camera_hmirror": false,
+            "camera_vflip": true
+        },
         "sdkconfig_append": [
             "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX=y",
             "CONFIG_USE_DEVICE_AEC=y",
