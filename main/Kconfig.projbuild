@@ -67,6 +67,8 @@ choice
         bool "Arabic"
     config LANGUAGE_HI_IN
         bool "Hindi"
+    config LANGUAGE_MR_IN
+        bool "Marathi"
     config LANGUAGE_PT_PT
         bool "Portuguese"
     config LANGUAGE_PL_PL
