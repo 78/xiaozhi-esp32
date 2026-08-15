@@ -164,10 +164,10 @@ If you have any ideas or suggestions, please feel free to raise Issues or join o
 
 ## Star History
 
-<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
+<a href="https://star-history.dera.page/#78/xiaozhi-esp32&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=78/xiaozhi-esp32&type=Date" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=78/xiaozhi-esp32&type=Date" />
  </picture>
 </a>
