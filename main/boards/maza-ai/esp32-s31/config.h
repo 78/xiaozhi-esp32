@@ -20,34 +20,24 @@
 
 #define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR
 
-#define POWER_GPIO              GPIO_NUM_12
+#define POWER_GPIO              GPIO_NUM_6
 #define BUILTIN_LED_GPIO        GPIO_NUM_5
 #define BOOT_BUTTON_GPIO        GPIO_NUM_1
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_10
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_12
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_4
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_61
 
-#define DISPLAY_SDA_PIN GPIO_NUM_40
-#define DISPLAY_SCL_PIN GPIO_NUM_42
+/*EPD port Init*/
+#define EPD_SPI_NUM        SPI3_HOST
+
+#define EPD_DC_PIN    GPIO_NUM_17
+#define EPD_CS_PIN    GPIO_NUM_15
+#define EPD_SCK_PIN   GPIO_NUM_14
+#define EPD_MOSI_PIN  GPIO_NUM_13
+#define EPD_RST_PIN   GPIO_NUM_18
+#define EPD_BUSY_PIN  GPIO_NUM_21
+
 #define DISPLAY_WIDTH   128
-
-#if CONFIG_OLED_SSD1306_128X32
-#define DISPLAY_HEIGHT  32
-#elif CONFIG_OLED_SSD1306_128X64
-#define DISPLAY_HEIGHT  64
-#elif CONFIG_OLED_SH1106_128X64
-#define DISPLAY_HEIGHT  64
-#define SH1106
-#else
-//#error "OLED display type is not selected"
-#define DISPLAY_HEIGHT  32
-#endif
-
-#define DISPLAY_MIRROR_X true
-#define DISPLAY_MIRROR_Y true
-
-
-// A MCP Test: Control a lamp
-#define LAMP_GPIO GPIO_NUM_43
+#define DISPLAY_HEIGHT  296
 
 #endif // _BOARD_CONFIG_H_
