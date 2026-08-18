@@ -31,7 +31,7 @@
 #define EPD_SPI_NUM        SPI3_HOST
 
 #define EPD_DC_PIN    GPIO_NUM_17
-#define EPD_CS_PIN    GPIO_NUM_15
+#define EPD_CS_PIN    GPIO_NUM_46
 #define EPD_SCK_PIN   GPIO_NUM_14
 #define EPD_MOSI_PIN  GPIO_NUM_13
 #define EPD_RST_PIN   GPIO_NUM_18

@@ -30,12 +30,12 @@
 /*EPD port Init*/
 #define EPD_SPI_NUM        SPI3_HOST
 
-#define EPD_DC_PIN    GPIO_NUM_17
-#define EPD_CS_PIN    GPIO_NUM_15
-#define EPD_SCK_PIN   GPIO_NUM_14
-#define EPD_MOSI_PIN  GPIO_NUM_13
-#define EPD_RST_PIN   GPIO_NUM_18
-#define EPD_BUSY_PIN  GPIO_NUM_21
+#define EPD_DC_PIN    GPIO_NUM_35
+#define EPD_CS_PIN    GPIO_NUM_17
+#define EPD_SCK_PIN   GPIO_NUM_34
+#define EPD_MOSI_PIN  GPIO_NUM_33
+#define EPD_RST_PIN   GPIO_NUM_0
+#define EPD_BUSY_PIN  GPIO_NUM_3
 
 #define DISPLAY_WIDTH   128
 #define DISPLAY_HEIGHT  296
