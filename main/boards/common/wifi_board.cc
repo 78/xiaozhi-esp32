@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 
 #include "display.h"
+#include "button.h"
 #include "application.h"
 #include "system_info.h"
 #include "settings.h"
@@ -351,4 +352,17 @@ std::string WifiBoard::GetDeviceStatusJson() {
     cJSON_free(str);
     cJSON_Delete(root);
     return result;
+}
+
+void WifiBoard::SetupDoubleClickForConfigMode(Button& button) {
+    button.OnDoubleClick([this]() {
+        auto& app = Application::GetInstance();
+        auto state = app.GetDeviceState();
+        // Only enter config mode when device is running (not during startup,
+        // since startup already uses single-click for config mode)
+        if (state == kDeviceStateIdle || state == kDeviceStateListening ||
+            state == kDeviceStateSpeaking) {
+            EnterWifiConfigMode();
+        }
+    });
 }
