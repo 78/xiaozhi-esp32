@@ -1483,6 +1483,28 @@ class BoardSourceTests(unittest.TestCase):
 
         self.assertEqual(missing, [])
 
+    def test_m5stack_tab5_resets_lcd_before_st7123_init(self):
+        """ST7123 stays black unless LCD_RST/TP_RST are pulsed via PI4IO first."""
+        board_cc = (
+            ROOT / "main/boards/m5stack/tab5/m5stack_tab5.cc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("ResetLcdAndTouch", board_cc)
+        self.assertIn("clrbit(value, 4)", board_cc)
+        self.assertIn("clrbit(value, 5)", board_cc)
+        self.assertIn("esp_lcd_dpi_panel_enable_dma2d", board_cc)
+
+        config = json.loads(
+            (ROOT / "main/boards/m5stack/tab5/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        for build_config in config["builds"]:
+            self.assertIn(
+                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y",
+                build_config["sdkconfig_append"],
+                msg=build_config["name"],
+            )
+
 
 class ZipTests(unittest.TestCase):
     def test_zip_is_always_recreated(self):

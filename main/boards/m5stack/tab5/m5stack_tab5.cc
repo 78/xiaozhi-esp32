@@ -15,6 +15,7 @@
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_ldo_regulator.h"
+#include <esp_idf_version.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
@@ -22,6 +23,8 @@
 #include "esp_lcd_touch_gt911.h"
 #include "esp_lcd_touch_st7123.h"
 #include <cstring>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define TAG "M5StackTab5Board"
 
@@ -145,6 +148,25 @@ private:
         pi4ioe2_ = new Pi4ioe2(i2c_bus_, 0x44);
     }
 
+    // ST7123/ILI9881C LCD_RST is on PI4IOE1 P4 and TP_RST on P5.
+    // M5Stack UserDemo pulses both before MIPI panel init; without this the
+    // ST7123 reports a successful DBI init sequence but the panel stays black.
+    void ResetLcdAndTouch() {
+        if (!pi4ioe1_) {
+            return;
+        }
+        ESP_LOGI(TAG, "Reset LCD and touch via PI4IOE");
+        uint8_t value = pi4ioe1_->ReadOutSet();
+        clrbit(value, 4);  // P4 = LCD_RST
+        clrbit(value, 5);  // P5 = TP_RST
+        pi4ioe1_->WriteOutSet(value);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        setbit(value, 4);
+        setbit(value, 5);
+        pi4ioe1_->WriteOutSet(value);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
@@ -259,6 +281,9 @@ private:
         lcd_dev_config.vendor_config = &vendor_config;
 
         ESP_ERROR_CHECK(esp_lcd_new_panel_ili9881c(panel_io, &lcd_dev_config, &panel));
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        ESP_ERROR_CHECK(esp_lcd_dpi_panel_enable_dma2d(panel));
+#endif
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
@@ -345,6 +370,16 @@ private:
             goto err;
         }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        // IDF 6 removed dpi_config.flags.use_dma2d; enable DMA2D on the panel
+        // handle instead (same pattern as esp32-p4-function-ev-board).
+        ret = esp_lcd_dpi_panel_enable_dma2d(disp_panel);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Enable DPI DMA2D failed");
+            goto err;
+        }
+#endif
+
         ret = esp_lcd_panel_reset(disp_panel);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "LCD panel reset failed");
@@ -416,8 +451,9 @@ private:
     }
 
     void InitializeDisplay() {
-        // after tp reset, wait for 100ms to ensure the I2C bus is stable
-        vTaskDelay(pdMS_TO_TICKS(100));
+        // Hardware-reset LCD + touch via the PI4IO expander before probing or
+        // sending MIPI DBI init commands (required for ST7123).
+        ResetLcdAndTouch();
         // 检测 ST7123 触摸屏 (I2C地址 0x55)
         esp_err_t ret = i2c_master_probe(i2c_bus_, ST7123_TOUCH_I2C_ADDRESS, 200);
         if (ret == ESP_OK) {

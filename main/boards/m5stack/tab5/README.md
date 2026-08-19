@@ -17,8 +17,11 @@
 - `m5stack-tab5` 面向 Rev < 3，并包含 `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` 和 `CONFIG_ESP32P4_REV_MIN_100=y`。
 - `m5stack-tab5-p4x` 面向 Rev >= 3。
 - ESP-IDF 6 构建需要 `esp-sr` 2.4.7 或更高版本，两个芯片修订版均可用。
+- 两个 variant 都启用 `CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y`，避免 ESP-IDF 6 上 onboard C6 SDIO 缓冲池耗尽 internal RAM 导致启动失败。
 
 不要把 `m5stack-tab5-p4x` 固件强制刷入 Rev 1.x 芯片；应改用无后缀的 `m5stack-tab5` 固件。误用 P4X 固件时，正常情况下烧录工具会报告：`bootloader/bootloader.bin requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)`。
+
+ST7123 面板的 `LCD_RST`/`TP_RST` 由 PI4IOE 扩展芯片控制。板级初始化会在 MIPI 面板 init 前脉冲这两个复位脚；缺少该步骤时驱动日志可能显示 init 成功，但屏幕会一直黑屏（背光正常）。
 
 1. 使用 build.py 编译
 
