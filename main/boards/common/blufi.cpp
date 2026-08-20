@@ -1,23 +1,66 @@
 #include "blufi.h"
 #include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
-#include "esp_bt.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/task.h"
+#include "system_info.h"
 #include "wifi_manager.h"
 
-#define BLUFI_DEVICE_NAME "Xiaozhi-Blufi"
+// True on boards with a local BT radio, where BLE runs on-chip and this class
+// must drive the controller directly (esp_bt_controller_init/enable). False
+// when BLE instead runs on an ESP-Hosted co-processor (e.g. ESP32-P4 host +
+// ESP32-C6 slave) and Bluedroid talks to it over the hosted VHCI transport -
+// see CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID, which has no local controller to
+// initialize and no esp_bt.h (controller API header) for its target.
+#define BLUFI_USE_LOCAL_BT_CONTROLLER \
+    ((CONFIG_BT_CONTROLLER_ENABLED || !CONFIG_BT_NIMBLE_ENABLED) && !CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID)
+
+#if BLUFI_USE_LOCAL_BT_CONTROLLER
+#include "esp_bt.h"
+#endif
+
+#define BLUFI_DEVICE_NAME_PREFIX "TUNI_"
+
+// BLE device name advertised during provisioning, e.g. "TUNI_A1B2C3" (last 3
+// MAC bytes) - the TUNI app matches devices by this prefix (case-insensitive).
+static std::string GetBlufiDeviceName() {
+    auto mac = SystemInfo::GetMacAddress();
+    std::string suffix;
+    for (char c : mac) {
+        if (c != ':') {
+            suffix += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+    }
+    if (suffix.size() > 6) {
+        suffix = suffix.substr(suffix.size() - 6);
+    }
+    return std::string(BLUFI_DEVICE_NAME_PREFIX) + suffix;
+}
 
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 #include "esp_bt_device.h"
 #include "esp_bt_main.h"
 #include "esp_gap_ble_api.h"
+#endif
+
+#if CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#include "esp_bluedroid_hci.h"
+// esp_hosted_bt.h (managed_components/espressif__esp_hosted) declares its C
+// functions without an extern "C" guard, so a plain #include from this .cpp
+// file would C++-mangle them and fail to link against the plain-C vhci_drv.c
+// symbols. Force C linkage at the include site instead of patching the
+// vendored header.
+extern "C" {
+#include "esp_hosted_bt.h"
+}
 #endif
 
 #ifdef CONFIG_BT_NIMBLE_ENABLED
@@ -120,7 +163,7 @@ esp_err_t Blufi::init() {
         return ret;
     }
 
-#if CONFIG_BT_CONTROLLER_ENABLED || !CONFIG_BT_NIMBLE_ENABLED
+#if BLUFI_USE_LOCAL_BT_CONTROLLER
     ret = _controller_init();
     if (ret) {
         ESP_LOGE(BLUFI_TAG, "BLUFI controller init failed: %s", esp_err_to_name(ret));
@@ -150,7 +193,7 @@ esp_err_t Blufi::deinit() {
         if (ret) {
             ESP_LOGE(BLUFI_TAG, "Host deinit failed: %s", esp_err_to_name(ret));
         }
-#if CONFIG_BT_CONTROLLER_ENABLED || !CONFIG_BT_NIMBLE_ENABLED
+#if BLUFI_USE_LOCAL_BT_CONTROLLER
         ret = _controller_deinit();
         if (ret) {
             ESP_LOGE(BLUFI_TAG, "Controller deinit failed: %s", esp_err_to_name(ret));
@@ -162,6 +205,22 @@ esp_err_t Blufi::deinit() {
 
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 esp_err_t Blufi::_host_init() {
+#if CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+    // No local controller: bridge Bluedroid's HCI to the ESP-Hosted co-processor
+    // over VHCI before esp_bluedroid_init() so the host stack has a transport.
+    hosted_hci_bluedroid_open();
+    static const esp_bluedroid_hci_driver_operations_t hosted_hci_ops = {
+        .send = hosted_hci_bluedroid_send,
+        .check_send_available = hosted_hci_bluedroid_check_send_available,
+        .register_host_callback = hosted_hci_bluedroid_register_host_callback,
+    };
+    esp_err_t hci_ret = esp_bluedroid_attach_hci_driver(&hosted_hci_ops);
+    if (hci_ret) {
+        ESP_LOGE(BLUFI_TAG, "%s attach hosted HCI driver failed: %s", __func__,
+                 esp_err_to_name(hci_ret));
+        return ESP_FAIL;
+    }
+#endif
     esp_err_t ret = esp_bluedroid_init();
     if (ret) {
         ESP_LOGE(BLUFI_TAG, "%s init bluedroid failed: %s", __func__, esp_err_to_name(ret));
@@ -191,6 +250,9 @@ esp_err_t Blufi::_host_deinit() {
         ESP_LOGE(BLUFI_TAG, "%s deinit bluedroid failed: %s", __func__, esp_err_to_name(ret));
         return ESP_FAIL;
     }
+#if CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+    hosted_hci_bluedroid_close();
+#endif
     return ESP_OK;
 }
 
@@ -308,7 +370,7 @@ esp_err_t Blufi::_host_and_cb_init() {
 }
 #endif /* CONFIG_BT_NIMBLE_ENABLED */
 
-#if CONFIG_BT_CONTROLLER_ENABLED || !CONFIG_BT_NIMBLE_ENABLED
+#if BLUFI_USE_LOCAL_BT_CONTROLLER
 esp_err_t Blufi::_controller_init() {
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_err_t ret = esp_bt_controller_init(&bt_cfg);
@@ -663,7 +725,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
     switch (event) {
         case ESP_BLUFI_EVENT_INIT_FINISH:
             ESP_LOGI(BLUFI_TAG, "BLUFI init finish");
-            esp_ble_gap_set_device_name(BLUFI_DEVICE_NAME);
+            esp_ble_gap_set_device_name(GetBlufiDeviceName().c_str());
             esp_blufi_adv_start();
             break;
         case ESP_BLUFI_EVENT_DEINIT_FINISH:
@@ -723,9 +785,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             std::string ssid(reinterpret_cast<const char*>(m_sta_config.sta.ssid));
             std::string password(reinterpret_cast<const char*>(m_sta_config.sta.password));
 
-            SsidManager::GetInstance().AddSsid(ssid, password);
             m_scan_should_save_ssid = false;
-
             m_sta_ssid_len = static_cast<int>(std::min(ssid.size(), sizeof(m_sta_ssid)));
             memcpy(m_sta_ssid, ssid.c_str(), m_sta_ssid_len);
             memset(m_sta_bssid, 0, sizeof(m_sta_bssid));
@@ -736,29 +796,56 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
             m_sta_conn_info.sta_ssid = m_sta_ssid;
             m_sta_conn_info.sta_ssid_len = m_sta_ssid_len;
 
-            auto& wifi_manager = WifiManager::GetInstance();
-
-            if (wifi_manager.IsInitialized()) {
-                if (wifi_manager.IsConfigMode()) {
-                    wifi_manager.StopConfigAp();
-                }
-                wifi_manager.StopStation();
-            }
-
-            if (!wifi_manager.IsInitialized() && !wifi_manager.Initialize()) {
-                ESP_LOGE(BLUFI_TAG, "Failed to initialize WifiManager");
-                break;
-            }
-
-            vTaskDelay(pdMS_TO_TICKS(500));
-
-            wifi_manager.StartStation();
+            // Everything below (NVS write + WiFi driver stop/init/restart) is slow -
+            // hundreds of ms to a few seconds. Running it inline in this BLE
+            // GATT-write callback blocked the Bluedroid/host BLE stack long enough
+            // that the phone's own BLE supervision timeout fired and dropped the
+            // link right after sending credentials, before the device ever got a
+            // chance to report success/failure back over BLE (hardware-observed:
+            // app log shows the native disconnect callback firing immediately after
+            // the last credential write, not after the multi-second WiFi connect).
+            // Move all of it into the background task, off the BLE callback path.
+            struct ConnectTaskCtx {
+                Blufi* self;
+                std::string ssid;
+                std::string password;
+            };
+            auto* task_ctx = new ConnectTaskCtx{this, std::move(ssid), std::move(password)};
 
             xTaskCreate(
-                [](void* ctx) {
-                    auto* self = static_cast<Blufi*>(ctx);
+                [](void* ctx_raw) {
+                    std::unique_ptr<ConnectTaskCtx> owned_ctx(static_cast<ConnectTaskCtx*>(ctx_raw));
+                    auto* self = owned_ctx->self;
                     auto& wifi = WifiManager::GetInstance();
-                    constexpr int kConnectTimeoutMs = 10000;
+
+                    SsidManager::GetInstance().AddSsid(owned_ctx->ssid, owned_ctx->password);
+
+                    if (wifi.IsInitialized()) {
+                        if (wifi.IsConfigMode()) {
+                            wifi.StopConfigAp();
+                        }
+                        wifi.StopStation();
+                    }
+
+                    if (!wifi.IsInitialized() && !wifi.Initialize()) {
+                        ESP_LOGE(BLUFI_TAG, "Failed to initialize WifiManager");
+                        self->m_sta_is_connecting = false;
+                        vTaskDelete(nullptr);
+                        return;
+                    }
+
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                    wifi.StartStation();
+
+                    // Stay comfortably under the app's end-to-end provisioning timeout
+                    // (BluFiProvisioningService.ts: 60s) so a slow router (WPA retry, DHCP
+                    // lease negotiation) gets a fair chance before we give up - 30s was still
+                    // cutting connects off by a second or two on a multi-BSSID mesh network
+                    // (scan-for-matching-AP alone can eat a big chunk of the budget), surfacing
+                    // a premature "WiFi connection failed" to the user despite the ESP32
+                    // actually connecting moments later. Leave ~10s margin under the app's
+                    // 60s for the BLE round-trip + report handling.
+                    constexpr int kConnectTimeoutMs = 50000;
                     constexpr TickType_t kDelayTick = pdMS_TO_TICKS(200);
                     int waited_ms = 0;
 
@@ -797,9 +884,17 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
                                                         softap_conn_num, &info);
                         ESP_LOGI(BLUFI_TAG, "connected to WiFi");
 
-                        if (self->m_ble_is_connected) {
-                            esp_blufi_disconnect();
-                        }
+                        // Don't proactively disconnect BLE here (unlike the upstream
+                        // ESP-IDF blufi example, which only disconnects in response to
+                        // ESP_BLUFI_EVENT_RECV_SLAVE_DISCONNECT_BLE - a client request).
+                        // Calling esp_blufi_disconnect() immediately after queuing the
+                        // success notification races the BLE stack: the link can tear
+                        // down before the notification actually goes out over the air,
+                        // so the app never sees the success report and spins until its
+                        // own 60s provisioning timeout - even though the robot actually
+                        // connected. The app (BluFiProvisioningService/useProvisioning)
+                        // already disconnects BLE itself once provision() resolves, so
+                        // the device doesn't need to force it.
                     } else {
                         self->m_sta_is_connecting = false;
                         self->m_sta_connected = false;
@@ -814,7 +909,7 @@ void Blufi::_handle_event(esp_blufi_cb_event_t event, esp_blufi_cb_param_t* para
                     }
                     vTaskDelete(nullptr);
                 },
-                "blufi_wifi_conn", 4096, this, 5, nullptr);
+                "blufi_wifi_conn", 4096, task_ctx, 5, nullptr);
             break;
         }
         case ESP_BLUFI_EVENT_REQ_DISCONNECT_FROM_AP:

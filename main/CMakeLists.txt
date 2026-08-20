@@ -987,6 +987,14 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     )
 endif()
 
+# blufi.cpp calls into esp_hosted's Bluedroid-over-VHCI bridge (hosted_hci_bluedroid_*)
+# when BLE runs on an ESP-Hosted co-processor instead of a local BT radio; without this
+# explicit requirement the linker doesn't know to place libespressif__esp_hosted.a where
+# it can satisfy those references from libmain.a.
+if(CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__esp_hosted)
+endif()
+
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}

@@ -108,10 +108,20 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
         case NetworkEvent::Connected:
             // Stop timeout timer
             esp_timer_stop(connect_timer_);
-#ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
-            // make sure blufi resources has been released
-            Blufi::GetInstance().deinit();
-#endif
+            // Don't deinit blufi here. With BLUFI provisioning, WiFi only ever
+            // connects via blufi's own REQ_CONNECT_TO_AP flow (blufi.init() never
+            // calls StartStation() itself) - so this fired the instant WifiEvent::
+            // Connected propagated, racing blufi's own background task that polls
+            // for the connection and sends the BLE success report. This call won
+            // the race every time (hardware-observed: "BLUFI deinit finish" logged
+            // ~190ms before "BLUFI_CLASS: connected to WiFi"), tearing down the BLE
+            // host/link before the success notification could ever be sent - the
+            // app then correctly saw a real BLE disconnect and failed with
+            // BLE_DISCONNECTED, even though WiFi provisioning had actually
+            // succeeded. Blufi already manages its own teardown correctly: it
+            // reports success, the app disconnects BLE once provision() resolves,
+            // and blufi's own ESP_BLUFI_EVENT_BLE_DISCONNECT handler deinits itself
+            // once m_provisioned is set.
             in_config_mode_ = false;
             ESP_LOGI(TAG, "Connected to WiFi: %s", data.c_str());
             break;
@@ -178,6 +188,13 @@ void WifiBoard::StartWifiConfigMode() {
     auto &blufi = Blufi::GetInstance();
     // initialize esp-blufi protocol
     blufi.init();
+
+    // Unlike the hotspot path above, there's no AP/URL to read out here -
+    // just let the child know to go ask a parent to pair via the app.
+    Application::GetInstance().Schedule([]() {
+        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, Lang::Strings::ENTERING_WIFI_CONFIG_MODE,
+                                          "gear", Lang::Sounds::OGG_WIFICONFIG);
+    });
 #endif
 #if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
     // Start acoustic provisioning task

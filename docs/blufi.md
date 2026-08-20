@@ -31,4 +31,4 @@ This document explains how to enable and use BluFi (BLE-based WiFi provisioning)
 - When running repeated tests, clear or overwrite the stored SSID (`wifi` NVS namespace) to avoid stale credentials interfering with the next run.
 - If you write your own BluFi client, follow the official protocol frame format linked above.
 - The EspBlufi app download links are listed in the official documentation.
-- Because the BluFi API changed in IDF 5.5.2, firmware built with 5.5.2 advertises the Bluetooth name as `"Xiaozhi-Blufi"`, while 5.5.1 uses `"BLUFI_DEVICE"`.
+- The device advertises as `TUNI_<MAC suffix>` (the last 3 bytes of the WiFi MAC, uppercase hex, e.g. `TUNI_A1B2C3`) — unique per unit, so the app can discover it by filtering on the `TUNI_` prefix.

@@ -5,6 +5,7 @@
 #include "display/display.h"   // NoDisplay
 #include "button.h"
 #include "config.h"
+#include "ssid_manager.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -32,17 +33,30 @@ private:
     }
 
     void InitializeButtons() {
-        // No press-to-talk. BOOT only enters Wi-Fi config while still starting.
+        // No press-to-talk. Short click only enters Wi-Fi config while still starting.
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
             }
         });
+
+        // Long-press (any state) forgets the stored network(s) and re-enters BLE
+        // pairing - a full re-provision, not just a temporary config-mode visit.
+        // Scoped to the "wifi" NVS namespace only (SsidManager::Clear()), so the
+        // device identity keypair / JWT state survive - this is not a factory
+        // reset. EnterWifiConfigMode() already handles the graceful teardown
+        // when already connected (closes the audio channel, stops station,
+        // then starts BLE advertising).
+        boot_button_.OnLongPress([this]() {
+            ESP_LOGW(TAG, "BOOT long-press: forgetting WiFi credentials");
+            SsidManager::GetInstance().Clear();
+            EnterWifiConfigMode();
+        });
     }
 
 public:
-    TuniP4() : boot_button_(BOOT_BUTTON_GPIO) {
+    TuniP4() : boot_button_(BOOT_BUTTON_GPIO, false, 5000) {
         InitializeCodecI2c();
         InitializeButtons();
         display_ = new NoDisplay();
