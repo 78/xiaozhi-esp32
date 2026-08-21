@@ -1,0 +1,15 @@
+{
+    "type": "cyberai-speaker",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "cyberai-spk-s3-wifi",
+            "sdkconfig_append": [
+                "CONFIG_FATFS_LFN_HEAP=y",
+                "CONFIG_FATFS_CODEPAGE_936=y",
+                "CONFIG_FATFS_API_ENCODING_UTF_8=y",
+                "CONFIG_OTA_URL=\"https://xiaozhi.cyberai.top/api/ota/\""
+            ]
+        }
+    ]
+}
