@@ -47,6 +47,13 @@ constexpr float kBlinkMaxS = 6.5f;
 
 // Eased toward the target at this fraction per frame. Separate rate for the
 // mouth so speech tracks the audio envelope instead of lagging behind it.
+// How large the face is drawn relative to the reference layout. Everything that
+// has a size in pixels is multiplied by this, so the proportions hold.
+// 1.0 fills a 320x240 panel comfortably. Raising it enlarges the whole face;
+// on that panel 1.40 is the practical ceiling, beyond which the brows slide up
+// behind the status bar.
+constexpr float kFaceScale = 1.00f;
+
 constexpr float kEase = 0.28f;
 constexpr float kMouthEase = 0.55f;
 
@@ -64,7 +71,7 @@ inline float Approach(float current, float target, float k) {
 
 const RobotFaceDisplay::FaceParams& RobotFaceDisplay::ParamsForEmotion(const std::string& emotion) {
     //                     eyeHL eyeHR eyeW  rad  gazeX gazeY browL browR browDy browOpa mouthW mouthOpen curve
-    static const FaceParams kNeutral    = { 76, 76, 66, 22,   0,   0,    0,    0,    0,     0, 84,  0,  0.00f};
+    static const FaceParams kNeutral    = { 68, 68, 66, 22,   0,   0,    0,    0,    0,     0, 70,  0,  0.45f};
     static const std::map<std::string, FaceParams> kTable = {
         {"neutral",      kNeutral},
         {"happy",        { 58, 58, 70, 26,   0,   0,   -8,   -8,   -4,   140, 88,  6,  1.00f}},
@@ -94,6 +101,23 @@ const RobotFaceDisplay::FaceParams& RobotFaceDisplay::ParamsForEmotion(const std
 
 // ---------------------------------------------------------------------------
 
+// The expression table is authored at 1.0; every pixel-valued field is scaled
+// here so a single constant resizes the whole face. Angles and opacities are
+// dimensionless and must not be touched.
+RobotFaceDisplay::FaceParams RobotFaceDisplay::ScaledParams(const std::string& emotion) {
+    FaceParams p = ParamsForEmotion(emotion);
+    p.eye_h_l *= kFaceScale;
+    p.eye_h_r *= kFaceScale;
+    p.eye_w *= kFaceScale;
+    p.eye_radius *= kFaceScale;
+    p.gaze_x *= kFaceScale;
+    p.gaze_y *= kFaceScale;
+    p.brow_dy *= kFaceScale;
+    p.mouth_w *= kFaceScale;
+    p.mouth_open *= kFaceScale;
+    return p;
+}
+
 RobotFaceDisplay::RobotFaceDisplay(esp_lcd_panel_io_handle_t panel_io,
                                    esp_lcd_panel_handle_t panel, int width, int height,
                                    int offset_x, int offset_y, bool mirror_x, bool mirror_y,
@@ -115,19 +139,29 @@ RobotFaceDisplay::RobotFaceDisplay(esp_lcd_panel_io_handle_t panel_io,
     constexpr int kAboveEyes = 58;
     constexpr int kBelowMouth = 22;
     const int bias = (kAboveEyes - kBelowMouth) / 2;
-    const int gap = static_cast<int>(avail * 0.32f);  // eye centre -> mouth centre
+    const int gap = static_cast<int>(avail * 0.32f * kFaceScale);  // eye centre -> mouth centre
 
     face_cx_ = width_ / 2;
     eyes_cy_ = cy + bias - gap / 2;
     mouth_cy_ = cy + bias + gap / 2;
-    eye_gap_ = static_cast<int>(width_ * 0.21f);
-    brow_len_ = static_cast<int>(width_ * 0.19f);
-    mouth_arc_r_ = static_cast<int>(width_ * 0.16f);
+    eye_gap_ = static_cast<int>(width_ * 0.21f * kFaceScale);
+    brow_len_ = static_cast<int>(width_ * 0.19f * kFaceScale);
+    // The mouth lives entirely below the eyes: its cutter is painted in the
+    // background colour, so it must never reach up into them.
+    const int eye_bottom = eyes_cy_ + static_cast<int>(76 * kFaceScale) / 2;
+    mouth_bottom_ = height_ - 12;
+    // Proportional to the mouth's own width so the curve keeps its shape at any
+    // scale, then clipped to whatever room is actually left under the eyes.
+    mouth_h_ = std::min(static_cast<int>(70 * kFaceScale * 0.45f),
+                        mouth_bottom_ - eye_bottom - 4);
 
-    face_color_ = lv_color_hex(0x22D3EE);   // cyan, reads well on the ST7789
-    shine_color_ = lv_color_hex(0xE6FBFF);
+    // Near-white outer, blue iris inside, and a light smile - the friendly
+    // "glowing panel" look rather than a saturated cyan one.
+    face_color_ = lv_color_hex(0xE9F7FF);   // eye ring and smile, barely-blue white
+    iris_color_ = lv_color_hex(0x17306E);   // iris, deep blue
+    shine_color_ = lv_color_hex(0xFFFFFF);  // catch-light
 
-    current_ = ParamsForEmotion("neutral");
+    current_ = ScaledParams("neutral");
     target_ = current_;
     next_blink_us_ = esp_timer_get_time() + 1500000;
 }
@@ -191,26 +225,24 @@ void RobotFaceDisplay::SetupUI() {
 }
 
 void RobotFaceDisplay::BuildFace() {
-    auto mk_eye = [&](lv_obj_t** eye, lv_obj_t** shine) {
-        *eye = lv_obj_create(face_root_);
-        lv_obj_set_style_bg_color(*eye, face_color_, 0);
-        lv_obj_set_style_bg_opa(*eye, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(*eye, 0, 0);
-        lv_obj_set_style_pad_all(*eye, 0, 0);
-        lv_obj_remove_flag(*eye, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_scrollbar_mode(*eye, LV_SCROLLBAR_MODE_OFF);
-
-        // Cartoon catch-light in the upper-left of each eye.
-        *shine = lv_obj_create(*eye);
-        lv_obj_set_style_bg_color(*shine, shine_color_, 0);
-        lv_obj_set_style_bg_opa(*shine, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(*shine, 0, 0);
-        lv_obj_set_style_pad_all(*shine, 0, 0);
-        lv_obj_remove_flag(*shine, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_scrollbar_mode(*shine, LV_SCROLLBAR_MODE_OFF);
+    auto mk_circle = [&](lv_obj_t* parent, lv_color_t colour) {
+        lv_obj_t* o = lv_obj_create(parent);
+        lv_obj_set_style_bg_color(o, colour, 0);
+        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(o, 0, 0);
+        lv_obj_set_style_pad_all(o, 0, 0);
+        lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+        lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollbar_mode(o, LV_SCROLLBAR_MODE_OFF);
+        return o;
     };
-    mk_eye(&eye_l_, &shine_l_);
-    mk_eye(&eye_r_, &shine_r_);
+    auto mk_eye = [&](lv_obj_t** eye, lv_obj_t** iris, lv_obj_t** shine) {
+        *eye = mk_circle(face_root_, face_color_);       // bright ring
+        *iris = mk_circle(*eye, iris_color_);            // dark iris, clipped by the eye
+        *shine = mk_circle(*iris, shine_color_);         // catch-light on the iris
+    };
+    mk_eye(&eye_l_, &iris_l_, &shine_l_);
+    mk_eye(&eye_r_, &iris_r_, &shine_r_);
 
     auto mk_brow = [&](lv_obj_t** brow) {
         *brow = lv_line_create(face_root_);
@@ -224,26 +256,12 @@ void RobotFaceDisplay::BuildFace() {
     mk_brow(&brow_l_);
     mk_brow(&brow_r_);
 
-    // Mouth while talking: a pill whose height follows the speech envelope.
-    mouth_pill_ = lv_obj_create(face_root_);
-    lv_obj_set_style_bg_color(mouth_pill_, face_color_, 0);
-    lv_obj_set_style_bg_opa(mouth_pill_, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(mouth_pill_, 0, 0);
-    lv_obj_set_style_pad_all(mouth_pill_, 0, 0);
-    lv_obj_remove_flag(mouth_pill_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(mouth_pill_, LV_SCROLLBAR_MODE_OFF);
-
-    // Mouth while quiet: an arc, curving up to smile or down to frown.
-    mouth_arc_ = lv_arc_create(face_root_);
-    lv_obj_remove_style(mouth_arc_, NULL, LV_PART_KNOB);
-    lv_obj_remove_flag(mouth_arc_, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_opa(mouth_arc_, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_arc_width(mouth_arc_, 0, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(mouth_arc_, LV_OPA_TRANSP, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(mouth_arc_, face_color_, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(mouth_arc_, 9, LV_PART_MAIN);
-    lv_obj_set_style_arc_rounded(mouth_arc_, true, LV_PART_MAIN);
-    lv_obj_add_flag(mouth_arc_, LV_OBJ_FLAG_HIDDEN);
+    // The mouth is one filled ellipse with a second, background-coloured ellipse
+    // cutting into it. The overlap of two curves gives a crescent that is thick
+    // in the middle and tapers to points, like a real mouth, and sliding the
+    // cutter opens and closes it continuously instead of swapping shapes.
+    mouth_body_ = mk_circle(face_root_, face_color_);
+    mouth_mask_ = mk_circle(face_root_, lv_color_hex(0x060A10));
 }
 
 void RobotFaceDisplay::BuildStatusBar() {
@@ -406,7 +424,7 @@ void RobotFaceDisplay::DumpSnapshot() {
     report("face_root", face_root_);
     report("eye_l", eye_l_);
     report("eye_r", eye_r_);
-    report("mouth_pill", mouth_pill_);
+    report("mouth_body", mouth_body_);
     report("top_bar", top_bar_);
     ESP_LOGI(TAG, "FACE frames rendered=%u  screen children=%d", (unsigned)frame_,
              (int)lv_obj_get_child_count(lv_screen_active()));
@@ -526,7 +544,7 @@ void RobotFaceDisplay::SetEmotion(const char* emotion) {
     }
     DisplayLockGuard lock(this);
     emotion_ = emotion;
-    target_ = ParamsForEmotion(emotion_);
+    target_ = ScaledParams(emotion_);
 }
 
 void RobotFaceDisplay::DispEventCb(lv_event_t* e) {
@@ -672,27 +690,34 @@ void RobotFaceDisplay::RenderFace() {
     const int gy = static_cast<int>(std::lround(current_.gaze_y));
     const int ew = std::max(8, static_cast<int>(std::lround(current_.eye_w)));
 
-    auto place_eye = [&](lv_obj_t* eye, lv_obj_t* shine, float h_param, int cx) {
+    auto place_eye = [&](lv_obj_t* eye, lv_obj_t* iris, lv_obj_t* shine, float h_param, int cx) {
         const int eh = std::max(4, static_cast<int>(std::lround(h_param * blink_)));
-        const int r = std::min(static_cast<int>(std::lround(current_.eye_radius)),
-                               std::min(ew, eh) / 2);
+        // The eye itself holds still; the iris does the looking, which reads far
+        // better than sliding the whole eye around.
         lv_obj_set_size(eye, ew, eh);
-        lv_obj_set_style_radius(eye, r, 0);
-        lv_obj_set_pos(eye, cx - ew / 2 + gx, eyes_cy_ - eh / 2 + gy);
+        lv_obj_set_pos(eye, cx - ew / 2, eyes_cy_ - eh / 2);
 
-        // The catch-light only makes sense while the eye is actually open.
-        if (eh > 26) {
-            const int s = std::max(6, ew / 5);
-            lv_obj_set_size(shine, s, s);
-            lv_obj_set_style_radius(shine, s / 2, 0);
-            lv_obj_set_pos(shine, ew / 6, eh / 6);
+        const int ir = std::max(4, static_cast<int>(ew * 0.52f));
+        lv_obj_set_size(iris, ir, ir);
+        // Keep the iris inside the ring so it never clips oddly at the edge.
+        const int slack_x = (ew - ir) / 2;
+        const int slack_y = (eh - ir) / 2;
+        const int ix = std::clamp(gx, -slack_x, slack_x);
+        const int iy = std::clamp(gy, -slack_y, slack_y);
+        lv_obj_set_pos(iris, (ew - ir) / 2 + ix, (eh - ir) / 2 + iy);
+
+        if (eh > ir / 2) {
+            const int sd = std::max(4, ir / 4);
+            lv_obj_set_size(shine, sd, sd);
+            lv_obj_set_pos(shine, ir / 5, ir / 5);
             lv_obj_remove_flag(shine, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(iris, LV_OBJ_FLAG_HIDDEN);
         } else {
-            lv_obj_add_flag(shine, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(iris, LV_OBJ_FLAG_HIDDEN);   // mid-blink: just the ring
         }
     };
-    place_eye(eye_l_, shine_l_, current_.eye_h_l, face_cx_ - eye_gap_);
-    place_eye(eye_r_, shine_r_, current_.eye_h_r, face_cx_ + eye_gap_);
+    place_eye(eye_l_, iris_l_, shine_l_, current_.eye_h_l, face_cx_ - eye_gap_);
+    place_eye(eye_r_, iris_r_, shine_r_, current_.eye_h_r, face_cx_ + eye_gap_);
 
     // Brows. Positive angle drops the inner end, which is what reads as angry.
     const lv_opa_t brow_opa =
@@ -724,33 +749,29 @@ void RobotFaceDisplay::RenderFace() {
     place_brow(brow_r_, brow_pts_r_, current_.brow_angle_r, current_.eye_h_r,
                face_cx_ + eye_gap_, false);
 
-    // Mouth: pill while open or flat, arc while clearly smiling or frowning.
-    const int mo = static_cast<int>(std::lround(current_.mouth_open));
+    // Mouth. The visible crescent is whatever the cutter leaves uncovered, so its
+    // height is the aperture: a thin curve at rest, a wide opening while talking.
     const float curve = current_.mouth_curve;
     const int mgx = static_cast<int>(std::lround(current_.gaze_x * 0.4f));
-    const int mgy = static_cast<int>(std::lround(current_.gaze_y * 0.5f));
+    const int mw = std::max(16, static_cast<int>(std::lround(current_.mouth_w)));
+    // A fraction of the mouth height rather than a pixel count, so the resting
+    // smile looks the same whatever kFaceScale is set to.
+    const int aperture = std::clamp(
+        static_cast<int>(std::lround(mouth_h_ * (0.30f + std::fabs(curve) * 0.16f) +
+                                     current_.mouth_open)),
+        5, mouth_h_ - 4);
 
-    if (mo < 10 && std::fabs(curve) > 0.18f) {
-        const int R = mouth_arc_r_;
-        lv_obj_set_size(mouth_arc_, 2 * R, 2 * R);
-        if (curve > 0.0f) {
-            // Bottom of the circle sits on the mouth line -> a smile.
-            lv_arc_set_bg_angles(mouth_arc_, 35, 145);
-            lv_obj_set_pos(mouth_arc_, face_cx_ - R + mgx, mouth_cy_ - 2 * R + mgy);
-        } else {
-            // Top of the circle sits on the mouth line -> a frown.
-            lv_arc_set_bg_angles(mouth_arc_, 215, 325);
-            lv_obj_set_pos(mouth_arc_, face_cx_ - R + mgx, mouth_cy_ + mgy);
-        }
-        lv_obj_remove_flag(mouth_arc_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN);
+    const int bx = face_cx_ - mw / 2 + mgx;
+    lv_obj_set_size(mouth_body_, mw, mouth_h_);
+    lv_obj_set_pos(mouth_body_, bx, mouth_bottom_ - mouth_h_);
+    lv_obj_set_size(mouth_mask_, mw + 4, mouth_h_);
+
+    if (curve >= 0.0f) {
+        // Cutter sits above: the uncovered strip is the bottom of the ellipse,
+        // which curves upward at the ends -> a smile.
+        lv_obj_set_pos(mouth_mask_, bx - 2, mouth_bottom_ - mouth_h_ - aperture);
     } else {
-        const int mh = std::max(5, mo);
-        const int mw = std::max(12, static_cast<int>(std::lround(current_.mouth_w)));
-        lv_obj_set_size(mouth_pill_, mw, mh);
-        lv_obj_set_style_radius(mouth_pill_, mh / 2, 0);
-        lv_obj_set_pos(mouth_pill_, face_cx_ - mw / 2 + mgx, mouth_cy_ - mh / 2 + mgy);
-        lv_obj_remove_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(mouth_arc_, LV_OBJ_FLAG_HIDDEN);
+        // Cutter below: the top edge shows instead -> a frown.
+        lv_obj_set_pos(mouth_mask_, bx - 2, mouth_bottom_ - mouth_h_ + aperture);
     }
 }

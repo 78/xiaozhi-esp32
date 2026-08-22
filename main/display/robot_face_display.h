@@ -58,6 +58,7 @@ private:
     };
 
     static const FaceParams& ParamsForEmotion(const std::string& emotion);
+    static FaceParams ScaledParams(const std::string& emotion);
 
     void BuildStatusBar();
     void BuildFace();
@@ -75,17 +76,20 @@ private:
     int eye_gap_ = 0;
     int brow_len_ = 0;
     int mouth_cy_ = 0;
-    int mouth_arc_r_ = 0;
+    int mouth_h_ = 0;        // height of the mouth ellipse
+    int mouth_bottom_ = 0;   // y of the mouth's lowest point
 
     lv_obj_t* face_root_ = nullptr;
     lv_obj_t* eye_l_ = nullptr;
     lv_obj_t* eye_r_ = nullptr;
+    lv_obj_t* iris_l_ = nullptr;
+    lv_obj_t* iris_r_ = nullptr;
     lv_obj_t* shine_l_ = nullptr;
     lv_obj_t* shine_r_ = nullptr;
     lv_obj_t* brow_l_ = nullptr;
     lv_obj_t* brow_r_ = nullptr;
-    lv_obj_t* mouth_pill_ = nullptr;
-    lv_obj_t* mouth_arc_ = nullptr;
+    lv_obj_t* mouth_body_ = nullptr;   // filled mouth shape
+    lv_obj_t* mouth_mask_ = nullptr;   // background-coloured cutter that shapes it
     lv_obj_t* system_label_ = nullptr;
 
     // lv_line does not copy its point array, so these must outlive the widget.
@@ -109,6 +113,7 @@ private:
     uint32_t frame_ = 0;
 
     lv_color_t face_color_{};
+    lv_color_t iris_color_{};
     lv_color_t shine_color_{};
 };
 
