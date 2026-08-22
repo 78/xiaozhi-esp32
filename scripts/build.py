@@ -9,6 +9,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
+from pathlib import Path
 
 # Switch to project root directory
 os.chdir(Path(__file__).resolve().parent.parent)
@@ -53,9 +54,22 @@ def get_project_version() -> Optional[str]:
                 return line.split("\"")[1]
     return None
 
+def _get_idf_command() -> list[str]:
+    """Get the command used to invoke the active ESP-IDF."""
+    idf_path = os.environ.get("IDF_PATH")
+
+    if idf_path:
+        idf_py = Path(idf_path) / "tools" / "idf.py"
+        if idf_py.is_file():
+            return [sys.executable, str(idf_py)]
+
+    raise RuntimeError(
+        "ESP-IDF environment is not initialized correctly. "
+        "IDF_PATH/tools/idf.py was not found."
+    )
 
 def _run_idf(*args: str, preview: bool = False) -> None:
-    command = ["idf.py"]
+    command = _get_idf_command()
     if preview:
         command.append("--preview")
     command.extend(args)
