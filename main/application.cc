@@ -534,8 +534,8 @@ void Application::CheckNewVersion() {
             // If upgrade failed, continue to normal operation
 #elif CONFIG_OTA_UPDATE_POLICY_NOTIFY
             Settings update_settings("firmware", true);
-            update_settings.SetBool("update_available", true);
-            update_settings.SetString("available_version", ota_->GetFirmwareVersion());
+            update_settings.SetBool("ota_ready", true);
+            update_settings.SetString("ota_version", ota_->GetFirmwareVersion());
             std::string message = "Firmware " + ota_->GetFirmwareVersion() + " available";
             display->ShowNotification(message.c_str(), 30'000);
             ESP_LOGI(TAG, "Firmware %s is available; automatic update is disabled",
@@ -545,8 +545,8 @@ void Application::CheckNewVersion() {
 #endif
         } else {
             Settings update_settings("firmware", true);
-            update_settings.SetBool("update_available", false);
-            update_settings.EraseKey("available_version");
+            update_settings.SetBool("ota_ready", false);
+            update_settings.EraseKey("ota_version");
         }
 
         // No new version, mark the current version as valid
