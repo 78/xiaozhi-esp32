@@ -36,6 +36,38 @@ void TestNoSimAndRegistrationDeniedDoNotDropWifi() {
     }
 }
 
+void TestCellularFailuresOpenRetryBreakerUntilPositiveProbe() {
+    NetworkPolicy policy;
+    policy.SetMode(NetworkMode::Auto, 0);
+    policy.RecordCellularStartFailure(0);
+    assert(!policy.CanRetryCellular(29'999));
+    assert(policy.CanRetryCellular(30'000));
+    policy.RecordCellularStartFailure(30'000);
+    policy.RecordCellularStartFailure(60'000);
+    auto limited = policy.GetSnapshot();
+    assert(limited.cellular_start_failures == 3);
+    assert(limited.cellular_retry_limited);
+    assert(!policy.CanRetryCellular(359'999));
+    assert(policy.CanRetryCellular(360'000));
+
+    // Link-up is not enough to close the breaker. The candidate must prove internet access.
+    policy.ReportHealth(NetworkTransport::Cellular, NetworkHealth::LinkUp, 360'000);
+    assert(policy.GetSnapshot().cellular_retry_limited);
+    policy.ReportHealth(NetworkTransport::Cellular, NetworkHealth::InternetReady, 361'000);
+    assert(policy.GetSnapshot().cellular_start_failures == 0);
+    assert(!policy.GetSnapshot().cellular_retry_limited);
+}
+
+void TestManualCellularModeClearsRetryBreaker() {
+    NetworkPolicy policy;
+    policy.RecordCellularStartFailure(0);
+    policy.RecordCellularStartFailure(30'000);
+    policy.RecordCellularStartFailure(60'000);
+    policy.SetMode(NetworkMode::Cellular, 61'000);
+    assert(policy.CanRetryCellular(61'000));
+    assert(policy.GetSnapshot().cellular_start_failures == 0);
+}
+
 void TestGlobalServerFailureDoesNotFlap() {
     NetworkPolicy policy;
     policy.SetMode(NetworkMode::Auto, 0);
@@ -101,6 +133,8 @@ void TestModeParsing() {
 int main() {
     TestWifiFailureUsesReadyCellular();
     TestNoSimAndRegistrationDeniedDoNotDropWifi();
+    TestCellularFailuresOpenRetryBreakerUntilPositiveProbe();
+    TestManualCellularModeClearsRetryBreaker();
     TestGlobalServerFailureDoesNotFlap();
     TestWifiRecoveryRequiresDwellAndTwoSpacedSuccesses();
     TestSwitchRateLimitAndCooldown();

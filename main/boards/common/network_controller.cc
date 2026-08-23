@@ -262,7 +262,7 @@ void NetworkController::StartCellular() {
     std::function<bool(bool)> power_callback;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (cellular_started_) {
+        if (cellular_started_ || !policy_.CanRetryCellular(NowMs())) {
             return;
         }
         power_callback = cellular_power_control_;
@@ -276,10 +276,13 @@ void NetworkController::StartCellular() {
     }
 
     vTaskDelay(pdMS_TO_TICKS(kCellularPowerStabilizeMs));
+    if (cellular_.IsNetworkRunning()) {
+        return;
+    }
     uint32_t generation = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (cellular_started_) {
+        if (cellular_started_ || !policy_.CanRetryCellular(NowMs())) {
             return;
         }
         cellular_started_ = true;
@@ -296,12 +299,14 @@ void NetworkController::StartCellular() {
 void NetworkController::StopCellularAndPowerOff() {
     std::function<bool(bool)> power_callback;
     bool should_stop = false;
+    bool was_powered = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (cellular_probe_in_progress_) {
             return;
         }
-        should_stop = cellular_started_;
+        should_stop = cellular_started_ || cellular_powered_;
+        was_powered = cellular_powered_;
         cellular_started_ = false;
         ++cellular_generation_;
         power_callback = cellular_power_control_;
@@ -312,12 +317,17 @@ void NetworkController::StopCellularAndPowerOff() {
         cellular_started_ = true;
         return;
     }
-    if (cellular_powered_) {
-        if (!power_callback || power_callback(false)) {
-            cellular_powered_ = false;
-        }
+    bool power_disabled = !was_powered;
+    if (was_powered && (!power_callback || power_callback(false))) {
+        power_disabled = true;
     }
-    ReportHealth(NetworkTransport::Cellular, NetworkHealth::Down);
+    if (was_powered && power_disabled) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        cellular_powered_ = false;
+    }
+    if (should_stop) {
+        ReportHealth(NetworkTransport::Cellular, NetworkHealth::Down);
+    }
 }
 
 void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t generation,
@@ -334,6 +344,7 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
         }
     }
 
+    bool cellular_start_failed = false;
     switch (event) {
         case NetworkEvent::Scanning:
         case NetworkEvent::Connecting:
@@ -349,15 +360,34 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
         case NetworkEvent::ModemErrorRegDenied:
         case NetworkEvent::ModemErrorInitFailed:
         case NetworkEvent::ModemErrorTimeout:
-            ReportHealth(transport, NetworkHealth::Down);
+            if (transport == NetworkTransport::Cellular) {
+                cellular_start_failed = true;
+            } else {
+                ReportHealth(transport, NetworkHealth::Down);
+            }
             break;
         case NetworkEvent::WifiConfigModeEnter:
         case NetworkEvent::WifiConfigModeExit:
             break;
     }
 
+    if (cellular_start_failed) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            policy_.RecordCellularStartFailure(NowMs());
+            cellular_started_ = false;
+            ++cellular_generation_;
+        }
+        EvaluatePolicy();
+    }
+
+    const auto status = GetStatus();
+    const bool preferred_while_starting =
+        status.active == NetworkTransport::None &&
+        ((status.mode == NetworkMode::Cellular && transport == NetworkTransport::Cellular) ||
+         (status.mode != NetworkMode::Cellular && transport == NetworkTransport::Wifi));
     if (event != NetworkEvent::Connected &&
-        (transport == GetStatus().active || GetStatus().active == NetworkTransport::None)) {
+        (transport == status.active || preferred_while_starting)) {
         NotifyNetworkEvent(event, data);
     }
 }

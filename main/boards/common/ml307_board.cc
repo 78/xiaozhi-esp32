@@ -78,19 +78,25 @@ void Ml307Board::NetworkTask() {
     // Notify modem detection started
     OnNetworkEvent(NetworkEvent::ModemDetecting);
 
-    const int64_t detect_deadline = esp_timer_get_time() + MODEM_DETECT_TIMEOUT_MS * 1000LL;
-    int detect_attempt = 0;
-    while (!cancel_requested_ && esp_timer_get_time() < detect_deadline) {
-        const int target_baud = (detect_attempt++ % 2 == 0) ? 921600 : 115200;
-        const int remaining_ms = static_cast<int>((detect_deadline - esp_timer_get_time()) / 1000);
-        modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, target_baud,
-                                 std::min(remaining_ms, MODEM_OPERATION_SLICE_MS));
-        if (modem_ != nullptr) {
-            break;
+    if (modem_ == nullptr) {
+        const int64_t detect_deadline =
+            esp_timer_get_time() + MODEM_DETECT_TIMEOUT_MS * 1000LL;
+        int detect_attempt = 0;
+        while (!cancel_requested_ && esp_timer_get_time() < detect_deadline) {
+            const int target_baud = (detect_attempt++ % 2 == 0) ? 921600 : 115200;
+            const int remaining_ms =
+                static_cast<int>((detect_deadline - esp_timer_get_time()) / 1000);
+            modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, target_baud,
+                                     std::min(remaining_ms, MODEM_OPERATION_SLICE_MS));
+            if (modem_ != nullptr) {
+                break;
+            }
+            if (!cancel_requested_) {
+                vTaskDelay(pdMS_TO_TICKS(250));
+            }
         }
-        if (!cancel_requested_) {
-            vTaskDelay(pdMS_TO_TICKS(250));
-        }
+    } else {
+        ESP_LOGI(TAG, "Reusing detected modem to check for a newly inserted SIM");
     }
 
     if (cancel_requested_) {
@@ -129,10 +135,10 @@ void Ml307Board::NetworkTask() {
             break;
         } else if (result == NetworkStatus::ErrorInsertPin) {
             OnNetworkEvent(NetworkEvent::ModemErrorNoSim);
+            return;
         } else if (result == NetworkStatus::ErrorRegistrationDenied) {
             OnNetworkEvent(NetworkEvent::ModemErrorRegDenied);
-        } else if (result == NetworkStatus::ErrorTimeout) {
-            OnNetworkEvent(NetworkEvent::ModemErrorTimeout);
+            return;
         }
         if (!cancel_requested_) {
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -157,8 +163,13 @@ void Ml307Board::NetworkTask() {
 }
 
 void Ml307Board::StartNetwork() {
-    if (network_task_handle_ != nullptr || (modem_ != nullptr && modem_->network_ready())) {
+    if (modem_ != nullptr && modem_->network_ready()) {
         ESP_LOGI(TAG, "Cellular network is already started");
+        return;
+    }
+    bool expected = false;
+    if (!task_running_.compare_exchange_strong(expected, true)) {
+        ESP_LOGI(TAG, "Cellular network task is already running");
         return;
     }
     cancel_requested_ = false;
@@ -168,17 +179,19 @@ void Ml307Board::StartNetwork() {
         board->NetworkTask();
         xEventGroupSetBits(board->lifecycle_events_, NETWORK_TASK_STOPPED);
         board->network_task_handle_ = nullptr;
+        board->task_running_ = false;
         vTaskDelete(NULL);
     }, "ml307_net", 4096, this, 5, &network_task_handle_);
     if (created != pdPASS) {
         network_task_handle_ = nullptr;
+        task_running_ = false;
         OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
     }
 }
 
 bool Ml307Board::StopNetwork() {
     cancel_requested_ = true;
-    if (network_task_handle_ != nullptr) {
+    if (task_running_) {
         const auto bits = xEventGroupWaitBits(lifecycle_events_, NETWORK_TASK_STOPPED, pdTRUE,
                                               pdFALSE, pdMS_TO_TICKS(6'000));
         if ((bits & NETWORK_TASK_STOPPED) == 0) {

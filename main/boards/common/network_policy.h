@@ -17,6 +17,9 @@ struct NetworkPolicyConfig {
     uint64_t switch_window_ms = 600'000;
     int max_switches_per_window = 2;
     uint64_t switch_cooldown_ms = 300'000;
+    uint64_t cellular_retry_interval_ms = 30'000;
+    int cellular_retry_limit = 3;
+    uint64_t cellular_limited_probe_interval_ms = 300'000;
 };
 
 struct NetworkDecision {
@@ -34,6 +37,9 @@ public:
     void ReportHealth(NetworkTransport transport, NetworkHealth health, uint64_t now_ms);
     NetworkDecision Evaluate(uint64_t now_ms);
     void RecordSwitch(NetworkTransport transport, NetworkSwitchReason reason, uint64_t now_ms);
+    void RecordCellularStartFailure(uint64_t now_ms);
+    bool CanRetryCellular(uint64_t now_ms) const;
+    void ClearCellularStartFailures();
 
     NetworkStatusSnapshot GetSnapshot() const;
     uint64_t NextWifiProbeAtMs() const { return next_wifi_probe_at_ms_; }
@@ -68,6 +74,9 @@ private:
     std::deque<uint64_t> switch_times_ms_;
     uint64_t cooldown_until_ms_ = 0;
     uint32_t generation_ = 0;
+    int cellular_start_failures_ = 0;
+    uint64_t cellular_retry_at_ms_ = 0;
+    bool cellular_retry_limited_ = false;
 
     HealthState& StateFor(NetworkTransport transport);
     const HealthState& StateFor(NetworkTransport transport) const;

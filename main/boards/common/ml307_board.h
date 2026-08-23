@@ -15,6 +15,7 @@ protected:
     gpio_num_t dtr_pin_;
     NetworkEventCallback network_event_callback_;
     std::atomic<bool> cancel_requested_{false};
+    std::atomic<bool> task_running_{false};
     TaskHandle_t network_task_handle_ = nullptr;
     EventGroupHandle_t lifecycle_events_ = nullptr;
 
@@ -40,7 +41,7 @@ public:
     virtual AudioCodec* GetAudioCodec() override { return nullptr; }
     virtual std::string GetDeviceStatusJson() override;
 
-    bool IsNetworkRunning() const { return network_task_handle_ != nullptr; }
+    bool IsNetworkRunning() const { return task_running_.load(); }
 };
 
 #endif // ML307_BOARD_H

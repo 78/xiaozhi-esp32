@@ -40,6 +40,10 @@ void DualNetworkBoard::InitializeNetworkTools() {
                                     ToString(status.last_switch_reason));
             cJSON_AddBoolToObject(root, "offline", status.offline);
             cJSON_AddNumberToObject(root, "generation", status.generation);
+            cJSON_AddNumberToObject(root, "cellular_start_failures",
+                                    status.cellular_start_failures);
+            cJSON_AddBoolToObject(root, "cellular_retry_limited",
+                                  status.cellular_retry_limited);
             return root;
         });
     mcp_server.AddTool(

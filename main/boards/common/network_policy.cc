@@ -89,6 +89,9 @@ void NetworkPolicy::SetMode(NetworkMode mode, uint64_t now_ms) {
     candidate_ = NetworkTransport::None;
     wifi_start_deadline_ms_ = now_ms + config_.wifi_start_window_ms;
     ResetRecoveryEvidence();
+    if (mode == NetworkMode::Cellular) {
+        ClearCellularStartFailures();
+    }
 }
 
 void NetworkPolicy::SetActive(NetworkTransport transport, uint64_t now_ms) {
@@ -128,6 +131,9 @@ void NetworkPolicy::ReportHealth(NetworkTransport transport, NetworkHealth healt
                 ++wifi_recovery_successes_;
                 last_wifi_recovery_success_at_ms_ = now_ms;
             }
+        } else if (transport == NetworkTransport::Cellular &&
+                   health == NetworkHealth::InternetReady) {
+            ClearCellularStartFailures();
         }
     }
 }
@@ -198,6 +204,25 @@ void NetworkPolicy::RecordSwitch(NetworkTransport transport, NetworkSwitchReason
     ResetRecoveryEvidence();
 }
 
+void NetworkPolicy::RecordCellularStartFailure(uint64_t now_ms) {
+    ++cellular_start_failures_;
+    cellular_retry_limited_ = cellular_start_failures_ >= config_.cellular_retry_limit;
+    cellular_retry_at_ms_ =
+        now_ms + (cellular_retry_limited_ ? config_.cellular_limited_probe_interval_ms
+                                         : config_.cellular_retry_interval_ms);
+    cellular_.value = NetworkHealth::Down;
+}
+
+bool NetworkPolicy::CanRetryCellular(uint64_t now_ms) const {
+    return now_ms >= cellular_retry_at_ms_;
+}
+
+void NetworkPolicy::ClearCellularStartFailures() {
+    cellular_start_failures_ = 0;
+    cellular_retry_at_ms_ = 0;
+    cellular_retry_limited_ = false;
+}
+
 NetworkStatusSnapshot NetworkPolicy::GetSnapshot() const {
     const bool wifi_ready = wifi_.value == NetworkHealth::InternetReady;
     const bool cellular_ready = cellular_.value == NetworkHealth::InternetReady;
@@ -209,8 +234,10 @@ NetworkStatusSnapshot NetworkPolicy::GetSnapshot() const {
         .cellular_health = cellular_.value,
         .last_switch_reason = last_switch_reason_,
         .generation = generation_,
+        .cellular_start_failures = cellular_start_failures_,
         .offline = !wifi_ready && !cellular_ready,
         .switch_rate_limited = cooldown_until_ms_ != 0,
+        .cellular_retry_limited = cellular_retry_limited_,
     };
 }
 

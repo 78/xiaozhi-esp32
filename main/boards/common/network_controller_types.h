@@ -44,8 +44,10 @@ struct NetworkStatusSnapshot {
     NetworkHealth cellular_health = NetworkHealth::Down;
     NetworkSwitchReason last_switch_reason = NetworkSwitchReason::None;
     uint32_t generation = 0;
+    int cellular_start_failures = 0;
     bool offline = true;
     bool switch_rate_limited = false;
+    bool cellular_retry_limited = false;
 };
 
 const char* ToString(NetworkMode mode);
