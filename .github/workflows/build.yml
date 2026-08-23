@@ -91,6 +91,52 @@ jobs:
           path: build/merged-binary.bin
           if-no-files-found: error
 
+  local-device-regression:
+    name: Local device regression (${{ matrix.full_name }})
+    if: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: kevin/box-2
+            name: kevin-box-2
+            full_name: kevin-box-2
+          - board: minsi-k08-dual
+            name: minsi-k08-dual
+            full_name: minsi-k08-dual
+          - board: yunliao-s3
+            name: yunliao-s3
+            full_name: yunliao-s3
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.0.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build dual-network regression variant
+        shell: bash
+        run: |
+          source $IDF_PATH/export.sh
+          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
+
+      - name: Check application and assets partition capacity
+        run: |
+          python scripts/check_partition_sizes.py \
+            --partition-table build/partition_table/partition-table.bin \
+            --artifact ota_0=build/xiaozhi.bin \
+            --artifact assets=build/generated_assets.bin
+
+      - name: Upload regression artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_local-regression_${{ matrix.full_name }}_${{ github.sha }}
+          path: |
+            build/xiaozhi.bin
+            build/generated_assets.bin
+            build/merged-binary.bin
+          if-no-files-found: error
+
   esp32s31-idf61:
     name: Build ${{ matrix.full_name }} with IDF 6.1
     strategy:
