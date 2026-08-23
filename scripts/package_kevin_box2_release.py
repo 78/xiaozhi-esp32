@@ -22,6 +22,8 @@ ARTIFACTS = {
     ),
     "ota_data_initial.bin": ("ota_data_initial.bin", "0xd000", "Initial OTA metadata"),
 }
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+DEFAULT_README = PROJECT_ROOT / "docs/kevin-box2-local.md"
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -40,6 +42,8 @@ def package_release(
     upstream_commit: str,
     idf_version: str,
     validation_status: str,
+    dependencies_lock: pathlib.Path | None = None,
+    readme: pathlib.Path = DEFAULT_README,
 ) -> dict:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError(f"Output directory is not empty: {output_dir}")
@@ -62,6 +66,14 @@ def package_release(
             }
         )
 
+    dependencies_lock = dependencies_lock or build_dir.parent / "dependencies.lock"
+    if not dependencies_lock.is_file():
+        raise ValueError(f"Dependency lock is missing: {dependencies_lock}")
+    if not readme.is_file():
+        raise ValueError(f"Release documentation is missing: {readme}")
+    shutil.copy2(dependencies_lock, output_dir / "dependencies.lock")
+    shutil.copy2(readme, output_dir / "README.md")
+
     manifest = {
         "release": release_name,
         "validation_status": validation_status,
@@ -69,6 +81,8 @@ def package_release(
         "source_commit": source_commit,
         "upstream_commit": upstream_commit,
         "esp_idf": idf_version,
+        "dependencies": "dependencies.lock",
+        "documentation": "README.md",
         "artifacts": manifest_artifacts,
     }
     (output_dir / "manifest.json").write_text(
@@ -78,6 +92,8 @@ def package_release(
         f"{artifact['sha256']}  {artifact['name']}" for artifact in manifest_artifacts
     ]
     checksum_lines.append(f"{sha256(output_dir / 'manifest.json')}  manifest.json")
+    checksum_lines.append(f"{sha256(output_dir / 'dependencies.lock')}  dependencies.lock")
+    checksum_lines.append(f"{sha256(output_dir / 'README.md')}  README.md")
     (output_dir / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
     return manifest
 
@@ -90,6 +106,8 @@ def main() -> int:
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--upstream-commit", required=True)
     parser.add_argument("--idf-version", default="6.0.2")
+    parser.add_argument("--dependencies-lock", type=pathlib.Path)
+    parser.add_argument("--readme", type=pathlib.Path, default=DEFAULT_README)
     parser.add_argument(
         "--validation-status",
         choices=("hardware-validation-pending", "hardware-validated"),
@@ -105,6 +123,8 @@ def main() -> int:
             args.upstream_commit,
             args.idf_version,
             args.validation_status,
+            args.dependencies_lock,
+            args.readme,
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))

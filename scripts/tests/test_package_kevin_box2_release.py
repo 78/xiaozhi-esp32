@@ -18,6 +18,7 @@ class KevinBoxReleasePackageTest(unittest.TestCase):
                 path = build / source
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(bytes([index]) * index)
+            (root / "dependencies.lock").write_text("dependencies:\n", encoding="utf-8")
 
             output = root / "release"
             manifest = package_kevin_box2_release.package_release(
@@ -36,6 +37,8 @@ class KevinBoxReleasePackageTest(unittest.TestCase):
             checksums = (output / "SHA256SUMS").read_text(encoding="utf-8")
             self.assertIn("  xiaozhi.bin", checksums)
             self.assertIn("  manifest.json", checksums)
+            self.assertIn("  dependencies.lock", checksums)
+            self.assertIn("  README.md", checksums)
 
     def test_refuses_to_mix_with_existing_output(self):
         with tempfile.TemporaryDirectory() as directory:
