@@ -392,6 +392,7 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
     }
 
     bool cellular_start_failed = false;
+    bool cellular_sim_missing = false;
     switch (event) {
         case NetworkEvent::Scanning:
         case NetworkEvent::Connecting:
@@ -403,7 +404,6 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
             ScheduleProbe(transport);
             break;
         case NetworkEvent::Disconnected:
-        case NetworkEvent::ModemErrorNoSim:
         case NetworkEvent::ModemErrorRegDenied:
         case NetworkEvent::ModemErrorInitFailed:
         case NetworkEvent::ModemErrorTimeout:
@@ -411,6 +411,12 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
                 cellular_start_failed = true;
             } else {
                 ReportHealth(transport, NetworkHealth::Down);
+            }
+            break;
+        case NetworkEvent::ModemErrorNoSim:
+            if (transport == NetworkTransport::Cellular) {
+                cellular_start_failed = true;
+                cellular_sim_missing = true;
             }
             break;
         case NetworkEvent::WifiConfigModeEnter:
@@ -423,14 +429,22 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
         bool retry_limited = false;
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            policy_.RecordCellularStartFailure(NowMs());
+            if (cellular_sim_missing) {
+                policy_.RecordCellularNoSim(NowMs());
+            } else {
+                policy_.RecordCellularStartFailure(NowMs());
+            }
             const auto status = policy_.GetSnapshot();
             failure_count = status.cellular_start_failures;
             retry_limited = status.cellular_retry_limited;
             cellular_started_ = false;
             ++cellular_generation_;
         }
-        if (retry_limited) {
+        if (cellular_sim_missing) {
+            ESP_LOGW(TAG,
+                     "No SIM detected; cellular switching is paused and SIM presence will be "
+                     "checked again in 300 seconds");
+        } else if (retry_limited) {
             ESP_LOGW(TAG,
                      "Cellular switching inhibited after %d failed starts; waiting 300 seconds "
                      "before the next SIM presence check",

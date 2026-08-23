@@ -48,6 +48,7 @@ struct NetworkStatusSnapshot {
     bool offline = true;
     bool switch_rate_limited = false;
     bool cellular_retry_limited = false;
+    bool cellular_sim_missing = false;
 };
 
 const char* ToString(NetworkMode mode);

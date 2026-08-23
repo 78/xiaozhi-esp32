@@ -17,11 +17,12 @@ modify a backend.
 - If both paths are unavailable, Wi-Fi local services and offline commands remain
   available. The device does not reboot in a loop.
 
-No-SIM handling is intentionally conservative. A missing SIM ends the current modem
-attempt immediately. The first three failed starts are separated by 30 seconds. After
-the third failure, AUTO inhibits 4G switching and performs only one low-frequency SIM
-presence check every five minutes. A successful HTTPS check clears the failure counter.
-Explicitly selecting 4G is the user override that clears the breaker and retries at once.
+No-SIM handling is intentionally conservative. A confirmed missing SIM ends the current
+modem attempt and pauses 4G switching immediately; the device performs only one
+low-frequency SIM-presence check every five minutes. Other initialization or registration
+failures are separated by 30 seconds and open the same five-minute limiter after the third
+failure. A successful HTTPS check clears the failure state. Explicitly selecting 4G is the
+user override that clears the breaker and retries at once.
 
 ## Device controls
 

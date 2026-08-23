@@ -134,6 +134,8 @@ private:
                                 status.cellular_start_failures);
         cJSON_AddBoolToObject(network, "cellular_retry_limited",
                               status.cellular_retry_limited);
+        cJSON_AddBoolToObject(network, "cellular_sim_missing",
+                              status.cellular_sim_missing);
         cJSON_AddBoolToObject(network, "offline", status.offline);
         cJSON_AddItemToObject(root, "network", network);
         return root;

@@ -1102,8 +1102,10 @@ void Application::HandleLocalCommand(const std::string& action, const std::strin
     } else if (action == "network_status" && controller != nullptr) {
         const auto status = controller->GetStatus();
         result = std::string("当前网络：") + ToString(status.active);
-        if (status.cellular_retry_limited) {
+        if (status.cellular_sim_missing) {
             result += "，SIM 等待插卡";
+        } else if (status.cellular_retry_limited) {
+            result += "，4G 暂停重试";
         }
     } else if (action == "battery_status") {
         int level = 0;

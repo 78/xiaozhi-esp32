@@ -206,10 +206,19 @@ void NetworkPolicy::RecordSwitch(NetworkTransport transport, NetworkSwitchReason
 
 void NetworkPolicy::RecordCellularStartFailure(uint64_t now_ms) {
     ++cellular_start_failures_;
+    cellular_sim_missing_ = false;
     cellular_retry_limited_ = cellular_start_failures_ >= config_.cellular_retry_limit;
     cellular_retry_at_ms_ =
         now_ms + (cellular_retry_limited_ ? config_.cellular_limited_probe_interval_ms
                                          : config_.cellular_retry_interval_ms);
+    cellular_.value = NetworkHealth::Down;
+}
+
+void NetworkPolicy::RecordCellularNoSim(uint64_t now_ms) {
+    ++cellular_start_failures_;
+    cellular_sim_missing_ = true;
+    cellular_retry_limited_ = true;
+    cellular_retry_at_ms_ = now_ms + config_.cellular_limited_probe_interval_ms;
     cellular_.value = NetworkHealth::Down;
 }
 
@@ -221,6 +230,7 @@ void NetworkPolicy::ClearCellularStartFailures() {
     cellular_start_failures_ = 0;
     cellular_retry_at_ms_ = 0;
     cellular_retry_limited_ = false;
+    cellular_sim_missing_ = false;
 }
 
 NetworkStatusSnapshot NetworkPolicy::GetSnapshot() const {
@@ -238,6 +248,7 @@ NetworkStatusSnapshot NetworkPolicy::GetSnapshot() const {
         .offline = !wifi_ready && !cellular_ready,
         .switch_rate_limited = cooldown_until_ms_ != 0,
         .cellular_retry_limited = cellular_retry_limited_,
+        .cellular_sim_missing = cellular_sim_missing_,
     };
 }
 

@@ -44,6 +44,8 @@ void DualNetworkBoard::InitializeNetworkTools() {
                                     status.cellular_start_failures);
             cJSON_AddBoolToObject(root, "cellular_retry_limited",
                                   status.cellular_retry_limited);
+            cJSON_AddBoolToObject(root, "cellular_sim_missing",
+                                  status.cellular_sim_missing);
             return root;
         });
     mcp_server.AddTool(

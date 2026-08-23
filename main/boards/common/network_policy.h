@@ -38,6 +38,7 @@ public:
     NetworkDecision Evaluate(uint64_t now_ms);
     void RecordSwitch(NetworkTransport transport, NetworkSwitchReason reason, uint64_t now_ms);
     void RecordCellularStartFailure(uint64_t now_ms);
+    void RecordCellularNoSim(uint64_t now_ms);
     bool CanRetryCellular(uint64_t now_ms) const;
     void ClearCellularStartFailures();
 
@@ -77,6 +78,7 @@ private:
     int cellular_start_failures_ = 0;
     uint64_t cellular_retry_at_ms_ = 0;
     bool cellular_retry_limited_ = false;
+    bool cellular_sim_missing_ = false;
 
     HealthState& StateFor(NetworkTransport transport);
     const HealthState& StateFor(NetworkTransport transport) const;
