@@ -8,16 +8,26 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <material_symbols.h>
+#include <algorithm>
 #include <utility>
 
 static const char *TAG = "Ml307Board";
 
 // Maximum retry count for modem detection
-static constexpr int MODEM_DETECT_MAX_RETRIES = 30;
-// Maximum retry count for network registration
-static constexpr int NETWORK_REG_MAX_RETRIES = 6;
+static constexpr int MODEM_DETECT_TIMEOUT_MS = 15'000;
+static constexpr int NETWORK_REG_TIMEOUT_MS = 60'000;
+static constexpr int MODEM_OPERATION_SLICE_MS = 3'000;
+static constexpr EventBits_t NETWORK_TASK_STOPPED = BIT0;
 
 Ml307Board::Ml307Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin) : tx_pin_(tx_pin), rx_pin_(rx_pin), dtr_pin_(dtr_pin) {
+    lifecycle_events_ = xEventGroupCreate();
+}
+
+Ml307Board::~Ml307Board() {
+    StopNetwork();
+    if (lifecycle_events_ != nullptr) {
+        vEventGroupDelete(lifecycle_events_);
+    }
 }
 
 std::string Ml307Board::GetBoardType() {
@@ -68,20 +78,28 @@ void Ml307Board::NetworkTask() {
     // Notify modem detection started
     OnNetworkEvent(NetworkEvent::ModemDetecting);
 
-    // Try to detect modem with retry limit
-    int detect_retries = 0;
-    while (detect_retries < MODEM_DETECT_MAX_RETRIES) {
-        modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, 921600);
+    const int64_t detect_deadline = esp_timer_get_time() + MODEM_DETECT_TIMEOUT_MS * 1000LL;
+    int detect_attempt = 0;
+    while (!cancel_requested_ && esp_timer_get_time() < detect_deadline) {
+        const int target_baud = (detect_attempt++ % 2 == 0) ? 921600 : 115200;
+        const int remaining_ms = static_cast<int>((detect_deadline - esp_timer_get_time()) / 1000);
+        modem_ = AtModem::Detect(tx_pin_, rx_pin_, dtr_pin_, target_baud,
+                                 std::min(remaining_ms, MODEM_OPERATION_SLICE_MS));
         if (modem_ != nullptr) {
             break;
         }
-        detect_retries++;
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (!cancel_requested_) {
+            vTaskDelay(pdMS_TO_TICKS(250));
+        }
     }
 
+    if (cancel_requested_) {
+        modem_.reset();
+        return;
+    }
     if (modem_ == nullptr) {
-        ESP_LOGE(TAG, "Failed to detect modem after %d retries", MODEM_DETECT_MAX_RETRIES);
-        OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
+        ESP_LOGE(TAG, "Failed to detect modem within %d ms", MODEM_DETECT_TIMEOUT_MS);
+        OnNetworkEvent(NetworkEvent::ModemErrorTimeout);
         return;
     }
 
@@ -90,6 +108,9 @@ void Ml307Board::NetworkTask() {
     // Set up network state change callback
     // Note: Don't call GetCarrierName() here as it sends AT command and will block ReceiveTask
     modem_->OnNetworkStateChanged([this](bool network_ready) {
+        if (cancel_requested_) {
+            return;
+        }
         if (network_ready) {
             OnNetworkEvent(NetworkEvent::Connected);
         } else {
@@ -100,10 +121,10 @@ void Ml307Board::NetworkTask() {
     // Notify network registration started
     OnNetworkEvent(NetworkEvent::Connecting);
 
-    // Wait for network ready with retry limit
-    int reg_retries = 0;
-    while (reg_retries < NETWORK_REG_MAX_RETRIES) {
-        auto result = modem_->WaitForNetworkReady();
+    const int64_t registration_deadline = esp_timer_get_time() + NETWORK_REG_TIMEOUT_MS * 1000LL;
+    while (!cancel_requested_ && esp_timer_get_time() < registration_deadline) {
+        const int remaining_ms = static_cast<int>((registration_deadline - esp_timer_get_time()) / 1000);
+        auto result = modem_->WaitForNetworkReady(std::min(remaining_ms, 5'000));
         if (result == NetworkStatus::Ready) {
             break;
         } else if (result == NetworkStatus::ErrorInsertPin) {
@@ -113,31 +134,63 @@ void Ml307Board::NetworkTask() {
         } else if (result == NetworkStatus::ErrorTimeout) {
             OnNetworkEvent(NetworkEvent::ModemErrorTimeout);
         }
-        reg_retries++;
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        if (!cancel_requested_) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
     }
 
+    if (cancel_requested_) {
+        modem_->OnNetworkStateChanged({});
+        modem_.reset();
+        return;
+    }
     if (!modem_->network_ready()) {
-        ESP_LOGE(TAG, "Failed to register network after %d retries", NETWORK_REG_MAX_RETRIES);
+        ESP_LOGE(TAG, "Failed to register network within %d ms", NETWORK_REG_TIMEOUT_MS);
+        OnNetworkEvent(NetworkEvent::ModemErrorTimeout);
         return;
     }
 
-    // Print the ML307 modem information
+    // Module revision is useful for diagnostics. Subscriber identifiers are intentionally
+    // not written to ordinary logs.
     std::string module_revision = modem_->GetModuleRevision();
-    std::string imei = modem_->GetImei();
-    std::string iccid = modem_->GetIccid();
     ESP_LOGI(TAG, "ML307 Revision: %s", module_revision.c_str());
-    ESP_LOGI(TAG, "ML307 IMEI: %s", imei.c_str());
-    ESP_LOGI(TAG, "ML307 ICCID: %s", iccid.c_str());
 }
 
 void Ml307Board::StartNetwork() {
-    // Create network initialization task and return immediately
-    xTaskCreate([](void* arg) {
+    if (network_task_handle_ != nullptr || (modem_ != nullptr && modem_->network_ready())) {
+        ESP_LOGI(TAG, "Cellular network is already started");
+        return;
+    }
+    cancel_requested_ = false;
+    xEventGroupClearBits(lifecycle_events_, NETWORK_TASK_STOPPED);
+    BaseType_t created = xTaskCreate([](void* arg) {
         Ml307Board* board = static_cast<Ml307Board*>(arg);
         board->NetworkTask();
+        xEventGroupSetBits(board->lifecycle_events_, NETWORK_TASK_STOPPED);
+        board->network_task_handle_ = nullptr;
         vTaskDelete(NULL);
-    }, "ml307_net", 4096, this, 5, NULL);
+    }, "ml307_net", 4096, this, 5, &network_task_handle_);
+    if (created != pdPASS) {
+        network_task_handle_ = nullptr;
+        OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
+    }
+}
+
+bool Ml307Board::StopNetwork() {
+    cancel_requested_ = true;
+    if (network_task_handle_ != nullptr) {
+        const auto bits = xEventGroupWaitBits(lifecycle_events_, NETWORK_TASK_STOPPED, pdTRUE,
+                                              pdFALSE, pdMS_TO_TICKS(6'000));
+        if ((bits & NETWORK_TASK_STOPPED) == 0) {
+            ESP_LOGE(TAG, "Timed out waiting for cellular task cancellation");
+            return false;
+        }
+    }
+    if (modem_ != nullptr) {
+        modem_->OnNetworkStateChanged({});
+        modem_.reset();
+    }
+    return true;
 }
 
 NetworkInterface* Ml307Board::GetNetwork() {
@@ -166,6 +219,10 @@ const char* Ml307Board::GetNetworkStateIcon() {
 }
 
 std::string Ml307Board::GetBoardJson() {
+    if (modem_ == nullptr) {
+        return std::string("{\"type\":\"" BOARD_TYPE "\",\"name\":\"" BOARD_NAME
+                           "\",\"manufacturer\":\"" BOARD_MANUFACTURER "\"}");
+    }
     // Set the board type for OTA
     std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
     board_json += "\"name\":\"" BOARD_NAME "\",";

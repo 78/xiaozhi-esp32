@@ -39,6 +39,7 @@ WifiBoard::WifiBoard() {
 }
 
 WifiBoard::~WifiBoard() {
+    StopNetwork();
     if (connect_timer_) {
         esp_timer_stop(connect_timer_);
         esp_timer_delete(connect_timer_);
@@ -50,6 +51,12 @@ std::string WifiBoard::GetBoardType() {
 }
 
 void WifiBoard::StartNetwork() {
+    bool expected = false;
+    if (!network_started_.compare_exchange_strong(expected, true)) {
+        ESP_LOGI(TAG, "WiFi network is already started");
+        return;
+    }
+
     auto& wifi_manager = WifiManager::GetInstance();
 
     // Initialize WiFi manager
@@ -97,6 +104,22 @@ void WifiBoard::StartNetwork() {
     TryWifiConnect();
 }
 
+bool WifiBoard::StopNetwork() {
+    if (!network_started_.exchange(false)) {
+        return true;
+    }
+
+    if (connect_timer_) {
+        esp_timer_stop(connect_timer_);
+    }
+#ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
+    Blufi::GetInstance().deinit();
+#endif
+    in_config_mode_ = false;
+    WifiManager::GetInstance().StopStation();
+    return true;
+}
+
 void WifiBoard::TryWifiConnect() {
     auto& ssid_manager = SsidManager::GetInstance();
     bool have_ssid = !ssid_manager.GetSsidList().empty();
@@ -115,6 +138,9 @@ void WifiBoard::TryWifiConnect() {
 }
 
 void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
+    if (!network_started_) {
+        return;
+    }
     switch (event) {
         case NetworkEvent::Connected:
             // Stop timeout timer

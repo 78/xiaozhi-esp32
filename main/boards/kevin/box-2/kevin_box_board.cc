@@ -8,6 +8,7 @@
 #include "power_save_timer.h"
 #include "axp2101.h"
 #include "assets/lang_config.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <driver/gpio.h>
@@ -66,8 +67,7 @@ private:
         power_save_timer_->SetEnabled(true);
     }
 
-    void Enable4GModule() {
-        // Make GPIO HIGH to enable the 4G module
+    void Initialize4GPowerControl() {
         gpio_config_t ml307_enable_config = {
             .pin_bit_mask = (1ULL << 4),
             .mode = GPIO_MODE_OUTPUT,
@@ -76,7 +76,12 @@ private:
             .intr_type = GPIO_INTR_DISABLE,
         };
         gpio_config(&ml307_enable_config);
-        gpio_set_level(GPIO_NUM_4, 1);
+        gpio_set_level(GPIO_NUM_4, 0);
+        SetCellularPowerControl([](bool enabled) {
+            ESP_LOGI(TAG, "Turning cellular module %s", enabled ? "on" : "off");
+            return gpio_set_level(GPIO_NUM_4, enabled ? 1 : 0) == ESP_OK;
+        });
+        SetExternalPowerProvider([this]() { return !pmic_->IsDischarging(); });
     }
 
     void InitializeDisplayI2c() {
@@ -171,20 +176,27 @@ private:
         });
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
-            if (GetNetworkType() == NetworkType::WIFI) {
-                if (app.GetDeviceState() == kDeviceStateStarting) {
-                    // cast to WifiBoard
-                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
-                    wifi_board.EnterWifiConfigMode();
-                }
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                EnterMaintenanceMode();
             }
         });
         boot_button_.OnDoubleClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
-                SwitchNetworkType();
+                SetNetworkMode(NetworkMode::Auto);
+                GetDisplay()->ShowNotification("Network mode: AUTO");
             }
         });
+        boot_button_.OnMultipleClick([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                Settings settings("local_admin", true);
+                settings.EraseAll();
+                EnterMaintenanceMode();
+            }
+        }, 3);
 
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
@@ -199,6 +211,13 @@ private:
 
         volume_up_button_.OnLongPress([this]() {
             power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SetNetworkMode(NetworkMode::Wifi);
+                GetDisplay()->ShowNotification("Network mode: WiFi");
+                return;
+            }
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
@@ -216,6 +235,13 @@ private:
 
         volume_down_button_.OnLongPress([this]() {
             power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting ||
+                app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SetNetworkMode(NetworkMode::Cellular);
+                GetDisplay()->ShowNotification("Network mode: 4G");
+                return;
+            }
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
@@ -231,7 +257,7 @@ public:
         InitializeCodecI2c();
         pmic_ = new Pmic(codec_i2c_bus_, AXP2101_I2C_ADDR);
 
-        Enable4GModule();
+        Initialize4GPowerControl();
 
         InitializeButtons();
         InitializePowerSaveTimer();
@@ -259,6 +285,7 @@ public:
         discharging = pmic_->IsDischarging();
         if (discharging != last_discharging) {
             power_save_timer_->SetEnabled(discharging);
+            RefreshNetworkPowerPolicy();
             last_discharging = discharging;
         }
 

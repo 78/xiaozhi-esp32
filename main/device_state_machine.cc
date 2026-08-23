@@ -18,6 +18,7 @@ static const char* const STATE_STRINGS[] = {
     "upgrading",
     "activating",
     "audio_testing",
+    "network_switching",
     "fatal_error",
     "invalid_state"
 };
@@ -62,7 +63,8 @@ bool DeviceStateMachine::IsValidTransition(DeviceState from, DeviceState to) con
             // Can go to upgrading, idle, or back to wifi configuring (on error)
             return to == kDeviceStateUpgrading ||
                    to == kDeviceStateIdle ||
-                   to == kDeviceStateWifiConfiguring;
+                   to == kDeviceStateWifiConfiguring ||
+                   to == kDeviceStateNetworkSwitching;
 
         case kDeviceStateUpgrading:
             // Can go to idle (upgrade failed) or activating
@@ -77,25 +79,32 @@ bool DeviceStateMachine::IsValidTransition(DeviceState from, DeviceState to) con
                    to == kDeviceStateNotifying ||
                    to == kDeviceStateActivating ||
                    to == kDeviceStateUpgrading ||
-                   to == kDeviceStateWifiConfiguring;
+                   to == kDeviceStateWifiConfiguring ||
+                   to == kDeviceStateNetworkSwitching;
 
         case kDeviceStateConnecting:
             // Can go to idle (failed) or listening (success)
             return to == kDeviceStateIdle ||
-                   to == kDeviceStateListening;
+                   to == kDeviceStateListening ||
+                   to == kDeviceStateNetworkSwitching;
 
         case kDeviceStateListening:
             // Can go to speaking or idle
             return to == kDeviceStateSpeaking ||
-                   to == kDeviceStateIdle;
+                   to == kDeviceStateIdle ||
+                   to == kDeviceStateNetworkSwitching;
 
         case kDeviceStateSpeaking:
             // Can go to listening or idle
             return to == kDeviceStateListening ||
-                   to == kDeviceStateIdle;
+                   to == kDeviceStateIdle ||
+                   to == kDeviceStateNetworkSwitching;
 
         case kDeviceStateNotifying:
-            return to == kDeviceStateIdle;
+            return to == kDeviceStateIdle || to == kDeviceStateNetworkSwitching;
+
+        case kDeviceStateNetworkSwitching:
+            return to == kDeviceStateIdle || to == kDeviceStateActivating;
 
         case kDeviceStateFatalError:
             // Cannot transition out of fatal error

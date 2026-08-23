@@ -1,98 +1,141 @@
 #include "dual_network_board.h"
-#include "application.h"
-#include "display.h"
-#include "assets/lang_config.h"
-#include "settings.h"
+
 #include <esp_log.h>
 
-static const char *TAG = "DualNetworkBoard";
+#include "mcp_server.h"
 
-DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, gpio_num_t ml307_dtr_pin, int32_t default_net_type) 
-    : Board(), 
-      ml307_tx_pin_(ml307_tx_pin), 
-      ml307_rx_pin_(ml307_rx_pin), 
-      ml307_dtr_pin_(ml307_dtr_pin) {
-    
-    // 从Settings加载网络类型
-    network_type_ = LoadNetworkTypeFromSettings(default_net_type);
-    
-    // 只初始化当前网络类型对应的板卡
-    InitializeCurrentBoard();
+namespace {
+const char* TAG = "DualNetworkBoard";
 }
 
-NetworkType DualNetworkBoard::LoadNetworkTypeFromSettings(int32_t default_net_type) {
-    Settings settings("network", true);
-    int network_type = settings.GetInt("type", default_net_type); // 默认使用ML307 (1)
-    return network_type == 1 ? NetworkType::ML307 : NetworkType::WIFI;
+DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin,
+                                   gpio_num_t ml307_dtr_pin, int32_t default_net_type)
+    : Board(),
+      wifi_board_(std::make_unique<WifiBoard>()),
+      cellular_board_(
+          std::make_unique<Ml307Board>(ml307_tx_pin, ml307_rx_pin, ml307_dtr_pin)),
+      network_controller_(
+          std::make_unique<NetworkController>(*wifi_board_, *cellular_board_)) {
+    // New devices use AUTO. The controller migrates an existing network/type value and therefore
+    // preserves the user's fixed selection. This parameter remains for source compatibility.
+    (void)default_net_type;
+    InitializeNetworkTools();
 }
 
-void DualNetworkBoard::SaveNetworkTypeToSettings(NetworkType type) {
-    Settings settings("network", true);
-    int network_type = (type == NetworkType::ML307) ? 1 : 0;
-    settings.SetInt("type", network_type);
-}
-
-void DualNetworkBoard::InitializeCurrentBoard() {
-    if (network_type_ == NetworkType::ML307) {
-        ESP_LOGI(TAG, "Initialize ML307 board");
-        current_board_ = std::make_unique<Ml307Board>(ml307_tx_pin_, ml307_rx_pin_, ml307_dtr_pin_);
-    } else {
-        ESP_LOGI(TAG, "Initialize WiFi board");
-        current_board_ = std::make_unique<WifiBoard>();
-    }
+void DualNetworkBoard::InitializeNetworkTools() {
+    auto& mcp_server = McpServer::GetInstance();
+    mcp_server.AddTool(
+        "self.network.get_status",
+        "Get the selected network mode, active and candidate transports, health, offline state, "
+        "and the most recent switch reason.",
+        PropertyList(), [this](const PropertyList&) -> ReturnValue {
+            const auto status = network_controller_->GetStatus();
+            auto* root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "mode", ToString(status.mode));
+            cJSON_AddStringToObject(root, "active", ToString(status.active));
+            cJSON_AddStringToObject(root, "candidate", ToString(status.candidate));
+            cJSON_AddStringToObject(root, "wifi_health", ToString(status.wifi_health));
+            cJSON_AddStringToObject(root, "cellular_health", ToString(status.cellular_health));
+            cJSON_AddStringToObject(root, "last_switch_reason",
+                                    ToString(status.last_switch_reason));
+            cJSON_AddBoolToObject(root, "offline", status.offline);
+            cJSON_AddNumberToObject(root, "generation", status.generation);
+            return root;
+        });
+    mcp_server.AddTool(
+        "self.network.set_mode",
+        "Set network mode to auto, wifi, or cellular. The current conversation may be ended while "
+        "the device switches transports without rebooting.",
+        PropertyList({Property("mode", kPropertyTypeString)}),
+        [this](const PropertyList& properties) -> ReturnValue {
+            NetworkMode mode;
+            if (!ParseNetworkMode(properties["mode"].value<std::string>(), mode)) {
+                return false;
+            }
+            return SetNetworkMode(mode);
+        });
 }
 
 void DualNetworkBoard::SwitchNetworkType() {
-    auto display = GetDisplay();
-    if (network_type_ == NetworkType::WIFI) {    
-        SaveNetworkTypeToSettings(NetworkType::ML307);
-        display->ShowNotification(Lang::Strings::SWITCH_TO_4G_NETWORK);
-    } else {
-        SaveNetworkTypeToSettings(NetworkType::WIFI);
-        display->ShowNotification(Lang::Strings::SWITCH_TO_WIFI_NETWORK);
-    }
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    auto& app = Application::GetInstance();
-    app.Reboot();
+    const auto active = network_controller_->GetStatus().active;
+    SetNetworkMode(active == NetworkTransport::Cellular ? NetworkMode::Wifi
+                                                        : NetworkMode::Cellular);
 }
 
- 
+NetworkType DualNetworkBoard::GetNetworkType() const {
+    const auto status = network_controller_->GetStatus();
+    if (status.mode == NetworkMode::Cellular || status.active == NetworkTransport::Cellular) {
+        return NetworkType::ML307;
+    }
+    return NetworkType::WIFI;
+}
+
+Board& DualNetworkBoard::GetCurrentBoard() const {
+    return network_controller_->GetStatus().active == NetworkTransport::Cellular
+               ? static_cast<Board&>(*cellular_board_)
+               : static_cast<Board&>(*wifi_board_);
+}
+
+bool DualNetworkBoard::SetNetworkMode(NetworkMode mode) {
+    return network_controller_->SetMode(mode);
+}
+
+void DualNetworkBoard::CommitNetworkSwitch(NetworkTransport target,
+                                           NetworkSwitchReason reason) {
+    network_controller_->CommitSwitch(target, reason);
+}
+
+void DualNetworkBoard::SetCellularPowerControl(std::function<bool(bool)> callback) {
+    network_controller_->SetCellularPowerControl(std::move(callback));
+}
+
+void DualNetworkBoard::SetExternalPowerProvider(std::function<bool()> callback) {
+    network_controller_->SetExternalPowerProvider(std::move(callback));
+}
+
+void DualNetworkBoard::RefreshNetworkPowerPolicy() {
+    network_controller_->RefreshPowerPolicy();
+}
+
+void DualNetworkBoard::EnterMaintenanceMode() {
+    wifi_board_->EnterWifiConfigMode();
+}
+
 std::string DualNetworkBoard::GetBoardType() {
-    return current_board_->GetBoardType();
+    return GetCurrentBoard().GetBoardType();
 }
 
 void DualNetworkBoard::StartNetwork() {
-    auto display = Board::GetInstance().GetDisplay();
-    
-    if (network_type_ == NetworkType::WIFI) {
-        display->SetStatus(Lang::Strings::CONNECTING);
-    } else {
-        display->SetStatus(Lang::Strings::DETECTING_MODULE);
-    }
-    current_board_->StartNetwork();
+    ESP_LOGI(TAG, "Starting dual-network controller in %s mode",
+             ToString(network_controller_->GetMode()));
+    network_controller_->Start();
+}
+
+bool DualNetworkBoard::StopNetwork() {
+    network_controller_->Stop();
+    return true;
 }
 
 void DualNetworkBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
-    // Forward the callback to the current board
-    current_board_->SetNetworkEventCallback(std::move(callback));
+    network_controller_->SetNetworkEventCallback(std::move(callback));
 }
 
 NetworkInterface* DualNetworkBoard::GetNetwork() {
-    return current_board_->GetNetwork();
+    return network_controller_->GetNetwork();
 }
 
 const char* DualNetworkBoard::GetNetworkStateIcon() {
-    return current_board_->GetNetworkStateIcon();
+    return network_controller_->GetNetworkStateIcon();
 }
 
 void DualNetworkBoard::SetPowerSaveLevel(PowerSaveLevel level) {
-    current_board_->SetPowerSaveLevel(level);
+    network_controller_->SetPowerSaveLevel(level);
 }
 
-std::string DualNetworkBoard::GetBoardJson() {   
-    return current_board_->GetBoardJson();
+std::string DualNetworkBoard::GetBoardJson() {
+    return GetCurrentBoard().GetBoardJson();
 }
 
 std::string DualNetworkBoard::GetDeviceStatusJson() {
-    return current_board_->GetDeviceStatusJson();
+    return GetCurrentBoard().GetDeviceStatusJson();
 }

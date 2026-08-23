@@ -20,6 +20,7 @@
 #include "device_state.h"
 #include "device_state_machine.h"
 #include "notify/notify_player.h"
+#include "network_controller_types.h"
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -162,6 +163,7 @@ private:
     void HandleStopListeningEvent();
     void HandleNetworkConnectedEvent();
     void HandleNetworkDisconnectedEvent();
+    void HandleNetworkSwitchRequest(NetworkTransport target, NetworkSwitchReason reason);
     void HandleActivationDoneEvent();
     void HandleWakeWordDetectedEvent();
     void ContinueOpenAudioChannel(ListeningMode mode);

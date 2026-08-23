@@ -6,6 +6,7 @@
 #include "display.h"
 #include "mcp_server.h"
 #include "mqtt_protocol.h"
+#include "network_controller.h"
 #include "settings.h"
 #include "system_info.h"
 #include "text_glyph_payload.h"
@@ -162,6 +163,13 @@ void Application::Initialize() {
                 break;
         }
     });
+
+    if (auto* controller = board.GetNetworkController()) {
+        controller->SetSwitchRequestCallback(
+            [this](NetworkTransport target, NetworkSwitchReason reason) {
+                Schedule([this, target, reason]() { HandleNetworkSwitchRequest(target, reason); });
+            });
+    }
 
     // Start network asynchronously
     board.StartNetwork();
@@ -327,6 +335,45 @@ void Application::HandleNetworkDisconnectedEvent() {
     display->UpdateStatusBar(true);
 }
 
+void Application::HandleNetworkSwitchRequest(NetworkTransport target,
+                                             NetworkSwitchReason reason) {
+    auto& board = Board::GetInstance();
+    auto* controller = board.GetNetworkController();
+    if (controller == nullptr) {
+        return;
+    }
+
+    const auto state = GetDeviceState();
+    if (state == kDeviceStateUpgrading || state == kDeviceStateFatalError ||
+        state == kDeviceStateWifiConfiguring || state == kDeviceStateAudioTesting) {
+        ESP_LOGW(TAG, "Deferring network switch while device is in %s",
+                 DeviceStateMachine::GetStateName(state));
+        controller->CancelPendingSwitch();
+        return;
+    }
+    if (!SetDeviceState(kDeviceStateNetworkSwitching)) {
+        controller->CancelPendingSwitch();
+        return;
+    }
+
+    ESP_LOGI(TAG, "Switching network to %s because %s", ToString(target), ToString(reason));
+    if (state == kDeviceStateNotifying) {
+        StopNotification();
+    }
+    audio_service_.EnableVoiceProcessing(false);
+    audio_service_.EnableWakeWordDetection(false);
+    while (audio_service_.PopPacketFromSendQueue()) {
+    }
+    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        protocol_->CloseAudioChannel();
+    }
+    protocol_.reset();
+
+    controller->CommitSwitch(target, reason);
+    InitializeProtocol();
+    SetDeviceState(kDeviceStateIdle);
+}
+
 void Application::HandleActivationDoneEvent() {
     ESP_LOGI(TAG, "Activation done");
 
@@ -480,10 +527,26 @@ void Application::CheckNewVersion() {
         retry_delay = 10;  // Reset retry delay
 
         if (ota_->HasNewVersion()) {
+#if CONFIG_OTA_UPDATE_POLICY_AUTO
             if (UpgradeFirmware(ota_->GetFirmwareUrl(), ota_->GetFirmwareVersion())) {
                 return;  // This line will never be reached after reboot
             }
             // If upgrade failed, continue to normal operation
+#elif CONFIG_OTA_UPDATE_POLICY_NOTIFY
+            Settings update_settings("firmware", true);
+            update_settings.SetBool("update_available", true);
+            update_settings.SetString("available_version", ota_->GetFirmwareVersion());
+            std::string message = "Firmware " + ota_->GetFirmwareVersion() + " available";
+            display->ShowNotification(message.c_str(), 30'000);
+            ESP_LOGI(TAG, "Firmware %s is available; automatic update is disabled",
+                     ota_->GetFirmwareVersion().c_str());
+#else
+            ESP_LOGI(TAG, "A firmware update is available but update checks are disabled");
+#endif
+        } else {
+            Settings update_settings("firmware", true);
+            update_settings.SetBool("update_available", false);
+            update_settings.EraseKey("available_version");
         }
 
         // No new version, mark the current version as valid
@@ -524,18 +587,33 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
-    if (ota_->HasMqttConfig()) {
+    Settings mqtt_settings("mqtt", false);
+    Settings websocket_settings("websocket", false);
+    const bool has_mqtt_config =
+        ota_ ? ota_->HasMqttConfig() : !mqtt_settings.GetString("endpoint").empty();
+    const bool has_websocket_config =
+        ota_ ? ota_->HasWebsocketConfig() : !websocket_settings.GetString("url").empty();
+
+    if (has_mqtt_config) {
         protocol_ = std::make_unique<MqttProtocol>();
-    } else if (ota_->HasWebsocketConfig()) {
+    } else if (has_websocket_config) {
         protocol_ = std::make_unique<WebsocketProtocol>();
     } else {
         ESP_LOGW(TAG, "No protocol specified in the OTA config, using MQTT");
         protocol_ = std::make_unique<MqttProtocol>();
     }
 
-    protocol_->OnConnected([this]() { DismissAlert(); });
+    protocol_->OnConnected([this]() {
+        if (auto* controller = Board::GetInstance().GetNetworkController()) {
+            controller->ReportProtocolConnected();
+        }
+        DismissAlert();
+    });
 
     protocol_->OnNetworkError([this](const std::string& message) {
+        if (auto* controller = Board::GetInstance().GetNetworkController()) {
+            controller->ReportProtocolFailure();
+        }
         last_error_message_ = message;
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
@@ -1037,6 +1115,11 @@ void Application::HandleStateChangedEvent() {
             audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             break;
         case kDeviceStateWifiConfiguring:
+            audio_service_.EnableVoiceProcessing(false);
+            audio_service_.EnableWakeWordDetection(false);
+            break;
+        case kDeviceStateNetworkSwitching:
+            display->SetStatus("Switching network");
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(false);
             break;

@@ -6,7 +6,9 @@
         {
             "name": "kevin-box-2",
             "legacy_names": ["tudouzi"],
-            "sdkconfig_append": []
+            "sdkconfig_append": [
+                "CONFIG_OTA_UPDATE_POLICY_NOTIFY=y"
+            ]
         }
     ]
 }

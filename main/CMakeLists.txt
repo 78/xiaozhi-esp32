@@ -52,6 +52,8 @@ list(APPEND SOURCES
     "boards/common/ml307_board.cc"
     "boards/common/nt26_board.cc"
     "boards/common/dual_network_board.cc"
+    "boards/common/network_controller.cc"
+    "boards/common/network_policy.cc"
     "boards/common/adc_battery_monitor.cc"
     "boards/common/axp2101.cc"
     "boards/common/backlight.cc"

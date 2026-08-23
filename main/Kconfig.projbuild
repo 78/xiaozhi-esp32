@@ -6,6 +6,21 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+choice OTA_UPDATE_POLICY
+    prompt "Firmware update policy"
+    default OTA_UPDATE_POLICY_AUTO
+    help
+        The version endpoint is still used for activation and protocol configuration in every
+        mode. This choice controls only whether a discovered firmware image is installed.
+
+    config OTA_UPDATE_POLICY_AUTO
+        bool "Automatically install discovered firmware"
+    config OTA_UPDATE_POLICY_NOTIFY
+        bool "Notify only; install through a controlled local build"
+    config OTA_UPDATE_POLICY_DISABLED
+        bool "Ignore discovered firmware versions"
+endchoice
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
