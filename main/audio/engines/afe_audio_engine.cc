@@ -25,6 +25,7 @@ AfeAudioEngine::AfeAudioEngine() {
 }
 
 AfeAudioEngine::~AfeAudioEngine() {
+    local_command_detector_.reset();
     custom_wake_word_.reset();
     if (afe_data_ != nullptr) {
         afe_iface_->destroy(afe_data_);
@@ -73,7 +74,22 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
         }
     }
 
-    if (multinet_model_name != nullptr) {
+    if (wakenet_model_name != nullptr) {
+        wake_detector_ = WakeDetector::kWakeNet;
+        auto words = esp_srmodel_get_wake_words(models_, wakenet_model_name);
+        if (words != nullptr) {
+            std::stringstream stream(words);
+            std::string word;
+            while (std::getline(stream, word, ';')) {
+                wake_words_.push_back(word);
+            }
+        }
+#if CONFIG_SEND_WAKE_WORD_DATA
+        if (!wake_word_audio_cache_.Initialize(16000 * 2)) {
+            ESP_LOGW(TAG, "Wake-word audio upload disabled: PSRAM cache allocation failed");
+        }
+#endif
+    } else if (multinet_model_name != nullptr) {
         wake_detector_ = WakeDetector::kMultiNet;
         custom_wake_word_ = std::make_unique<CustomWakeWord>();
         custom_wake_word_->OnWakeWordDetected([this](const std::string& wake_word) {
@@ -90,22 +106,27 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
             wake_detector_ = WakeDetector::kNone;
             return false;
         }
-    } else if (wakenet_model_name != nullptr) {
-        wake_detector_ = WakeDetector::kWakeNet;
-        auto words = esp_srmodel_get_wake_words(models_, wakenet_model_name);
-        if (words != nullptr) {
-            std::stringstream stream(words);
-            std::string word;
-            while (std::getline(stream, word, ';')) {
-                wake_words_.push_back(word);
-            }
-        }
-#if CONFIG_SEND_WAKE_WORD_DATA
-        if (!wake_word_audio_cache_.Initialize(16000 * 2)) {
-            ESP_LOGW(TAG, "Wake-word audio upload disabled: PSRAM cache allocation failed");
-        }
-#endif
     }
+
+#if CONFIG_ENABLE_LOCAL_COMMANDS
+    if (multinet_model_name == nullptr) {
+        ESP_LOGE(TAG, "Local commands enabled but no MultiNet model was loaded");
+    } else {
+        local_command_detector_ = std::make_unique<CustomWakeWord>();
+        local_command_detector_->OnCommandDetected(
+            [this](const std::string& action, const std::string& text) {
+                xEventGroupClearBits(event_group_, kLocalCommandEnabled);
+                UpdateActiveState();
+                if (local_command_detected_callback_) {
+                    local_command_detected_callback_(action, text);
+                }
+            });
+        if (!local_command_detector_->Initialize(codec_, models_)) {
+            ESP_LOGE(TAG, "Failed to initialize offline MultiNet command detector");
+            local_command_detector_.reset();
+        }
+    }
+#endif
 
     const bool needs_afe = kUseAfeForVoiceProcessing || wake_detector_ != WakeDetector::kNone;
     if (!needs_afe) {
@@ -251,6 +272,20 @@ void AfeAudioEngine::EnableDeviceAec(bool enable) {
     UpdateAecState();
 }
 
+void AfeAudioEngine::EnableLocalCommandDetection(bool enable) {
+    if (local_command_detector_ == nullptr) {
+        return;
+    }
+    if (enable) {
+        local_command_detector_->Start();
+        xEventGroupSetBits(event_group_, kLocalCommandEnabled);
+    } else {
+        xEventGroupClearBits(event_group_, kLocalCommandEnabled);
+        local_command_detector_->Stop();
+    }
+    UpdateActiveState();
+}
+
 bool AfeAudioEngine::HasWakeWord() const {
     return wake_detector_ != WakeDetector::kNone;
 }
@@ -279,10 +314,16 @@ void AfeAudioEngine::OnVadStateChange(std::function<void(bool speaking)> callbac
     vad_state_change_callback_ = std::move(callback);
 }
 
+void AfeAudioEngine::OnLocalCommandDetected(
+    std::function<void(const std::string& action, const std::string& text)> callback) {
+    local_command_detected_callback_ = std::move(callback);
+}
+
 void AfeAudioEngine::UpdateActiveState() {
     EventBits_t bits = xEventGroupGetBits(event_group_);
     const bool afe_active = afe_data_ != nullptr &&
         ((bits & kWakeWordEnabled) ||
+         (bits & kLocalCommandEnabled) ||
          (kUseAfeForVoiceProcessing && (bits & kVoiceProcessingEnabled)));
     if (afe_active) {
         xEventGroupSetBits(event_group_, kAfeActive);
@@ -324,7 +365,7 @@ void AfeAudioEngine::ApplyAfeControls() {
         }
     }
     if (codec_->input_reference()) {
-        const bool enable_aec = (bits & kWakeWordEnabled) ||
+        const bool enable_aec = (bits & (kWakeWordEnabled | kLocalCommandEnabled)) ||
             (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
         if (enable_aec) {
             afe_iface_->enable_aec(afe_data_);
@@ -374,6 +415,10 @@ void AfeAudioEngine::ProcessingTask() {
         }
 
         EventBits_t bits = xEventGroupGetBits(event_group_);
+        if ((bits & kLocalCommandEnabled) && local_command_detector_ != nullptr) {
+            local_command_detector_->FeedMono(
+                result->data, result->data_size / sizeof(int16_t));
+        }
         if (bits & kWakeWordEnabled) {
             HandleWakeWordResult(result);
         }

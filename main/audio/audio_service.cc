@@ -105,6 +105,13 @@ void AudioService::Initialize(AudioCodec* codec) {
             callbacks_.on_wake_word_detected(wake_word);
         }
     });
+    audio_engine_->OnLocalCommandDetected(
+        [this](const std::string& action, const std::string& text) {
+            xEventGroupClearBits(event_group_, AS_EVENT_LOCAL_COMMAND_RUNNING);
+            if (callbacks_.on_local_command_detected) {
+                callbacks_.on_local_command_detected(action, text);
+            }
+        });
 
     esp_timer_create_args_t audio_power_timer_args = {
         .callback = [](void* arg) {
@@ -122,7 +129,8 @@ void AudioService::Initialize(AudioCodec* codec) {
 void AudioService::Start() {
     service_stopped_.store(false);
     xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING | AS_EVENT_WAKE_WORD_RUNNING |
-        AS_EVENT_AUDIO_PROCESSOR_RUNNING | AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
+        AS_EVENT_AUDIO_PROCESSOR_RUNNING | AS_EVENT_LOCAL_COMMAND_RUNNING |
+        AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
 
     esp_timer_start_periodic(audio_power_timer_, 1000000);
 
@@ -169,7 +177,8 @@ void AudioService::Stop() {
     service_stopped_.store(true);
     xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
         AS_EVENT_WAKE_WORD_RUNNING |
-        AS_EVENT_AUDIO_PROCESSOR_RUNNING);
+        AS_EVENT_AUDIO_PROCESSOR_RUNNING |
+        AS_EVENT_LOCAL_COMMAND_RUNNING);
 
     bool notify_drained = false;
     {
@@ -235,7 +244,8 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
 void AudioService::AudioInputTask() {
     constexpr EventBits_t kAudioInputActiveBits = AS_EVENT_AUDIO_TESTING_RUNNING |
-        AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING;
+        AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING |
+        AS_EVENT_LOCAL_COMMAND_RUNNING;
 
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, kAudioInputActiveBits |
@@ -295,7 +305,8 @@ void AudioService::AudioInputTask() {
         }
 
         /* Feed the selected audio engine */
-        if (bits & (AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING)) {
+        if (bits & (AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING |
+                    AS_EVENT_LOCAL_COMMAND_RUNNING)) {
             int samples = 160; // 10ms
             std::vector<int16_t> data;
             if (ReadAudioData(data, 16000, samples)) {
@@ -709,6 +720,23 @@ void AudioService::EnableVoiceProcessing(bool enable) {
     }
 }
 
+void AudioService::EnableLocalCommandDetection(bool enable) {
+    ESP_LOGD(TAG, "%s local command detection", enable ? "Enabling" : "Disabling");
+    if (enable) {
+        if (!InitializeAudioEngine() || !audio_engine_->HasLocalCommands()) {
+            xEventGroupClearBits(event_group_, AS_EVENT_LOCAL_COMMAND_RUNNING);
+            return;
+        }
+        audio_engine_->EnableLocalCommandDetection(true);
+        xEventGroupSetBits(event_group_, AS_EVENT_LOCAL_COMMAND_RUNNING);
+    } else {
+        if (audio_engine_initialized_) {
+            audio_engine_->EnableLocalCommandDetection(false);
+        }
+        xEventGroupClearBits(event_group_, AS_EVENT_LOCAL_COMMAND_RUNNING);
+    }
+}
+
 void AudioService::EnableAudioTesting(bool enable) {
     ESP_LOGI(TAG, "%s audio testing", enable ? "Enabling" : "Disabling");
     if (enable) {
@@ -838,6 +866,10 @@ void AudioService::SetModelsList(srmodel_list_t* models_list) {
 
 bool AudioService::IsAfeWakeWord() {
     return audio_engine_initialized_ && audio_engine_->IsAfeWakeWord();
+}
+
+bool AudioService::HasLocalCommands() {
+    return InitializeAudioEngine() && audio_engine_->HasLocalCommands();
 }
 
 bool AudioService::InitializeAudioEngine() {

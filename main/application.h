@@ -154,6 +154,9 @@ private:
     bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
+    esp_timer_handle_t local_command_timer_handle_ = nullptr;
+    bool local_command_active_ = false;
+    int local_saved_volume_ = 50;
 
 
     // Event handlers
@@ -169,6 +172,10 @@ private:
     void ContinueOpenAudioChannel(ListeningMode mode);
     void BeginWakeWordInvoke(const std::string& wake_word);
     void ContinueWakeWordInvoke(const std::string& wake_word);
+    bool ShouldUseLocalCommands() const;
+    void BeginLocalCommandWindow();
+    void EndLocalCommandWindow(const std::string& message = "");
+    void HandleLocalCommand(const std::string& action, const std::string& text);
     void StartListeningAudio();
     void ConfigureWakeWordForListening();
     void StartNotification(std::string audio_url, std::vector<NotifySubtitle> subtitles);

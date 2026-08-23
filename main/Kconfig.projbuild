@@ -911,6 +911,15 @@ choice WAKE_WORD_TYPE
 
 endchoice
 
+config ENABLE_LOCAL_COMMANDS
+    bool "Enable offline fixed commands after WakeNet"
+    default n
+    depends on USE_AFE_WAKE_WORD && (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
+    help
+        Keep WakeNet as the normal wake-word engine and load a separate MultiNet
+        model for a five-second, device-only command window when the cloud is
+        unavailable. Recognized audio is handled locally and is never uploaded.
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "xiao tu dou"

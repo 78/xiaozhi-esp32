@@ -50,6 +50,7 @@
 #define AS_EVENT_AUDIO_TESTING_RUNNING      (1 << 0)
 #define AS_EVENT_WAKE_WORD_RUNNING          (1 << 1)
 #define AS_EVENT_AUDIO_PROCESSOR_RUNNING    (1 << 2)
+#define AS_EVENT_LOCAL_COMMAND_RUNNING      (1 << 3)
 #define AS_EVENT_AUDIO_INPUT_STOP_REQUEST   (1 << 4)
 
 #define AS_OPUS_GET_FRAME_DRU_ENUM(duration_ms)                   \
@@ -78,6 +79,8 @@
 struct AudioServiceCallbacks {
     std::function<void(void)> on_send_queue_available;
     std::function<void(const std::string&)> on_wake_word_detected;
+    std::function<void(const std::string& action, const std::string& text)>
+        on_local_command_detected;
     std::function<void(bool)> on_vad_change;
     std::function<void(void)> on_audio_testing_queue_full;
     // Fired when the decode/playback queues and their in-flight work are drained.
@@ -125,10 +128,12 @@ public:
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
     bool IsAfeWakeWord();
+    bool HasLocalCommands();
 
     void EnableWakeWordDetection(bool enable);
     void ReleaseWakeWordResources();
     void EnableVoiceProcessing(bool enable);
+    void EnableLocalCommandDetection(bool enable);
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
 

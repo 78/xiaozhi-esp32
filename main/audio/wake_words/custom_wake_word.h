@@ -29,6 +29,8 @@ public:
     void Feed(const std::vector<int16_t>& data);
     void FeedMono(const int16_t* data, size_t samples);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
+    void OnCommandDetected(
+        std::function<void(const std::string& action, const std::string& text)> callback);
     void Start();
     void Stop();
     size_t GetFeedSize();
@@ -55,6 +57,8 @@ private:
     std::deque<Command> commands_;
  
     std::function<void(const std::string& wake_word)> wake_word_detected_callback_;
+    std::function<void(const std::string& action, const std::string& text)>
+        command_detected_callback_;
     AudioCodec* codec_ = nullptr;
     std::string last_detected_wake_word_;
     std::atomic<bool> running_ = false;

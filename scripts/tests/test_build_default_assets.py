@@ -14,6 +14,25 @@ SPEC.loader.exec_module(BUILD)
 
 
 class BuildDefaultAssetsTest(unittest.TestCase):
+    def test_local_commands_are_detected_and_use_multinet_pinyin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sdkconfig = Path(directory) / "sdkconfig"
+            sdkconfig.write_text(
+                "CONFIG_ENABLE_LOCAL_COMMANDS=y\n"
+                "CONFIG_SR_MN_CN_MULTINET6_QUANT=y\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(BUILD.read_local_commands_enabled(sdkconfig))
+            self.assertEqual(len(BUILD.LOCAL_COMMANDS), 7)
+            self.assertEqual(
+                BUILD.LOCAL_COMMANDS[2],
+                {
+                    "command": "shi yong si ji wang luo",
+                    "text": "使用四G网络",
+                    "action": "network_cellular",
+                },
+            )
+
     def test_text_font_metadata_uses_bundle_charset_size_and_bpp(self):
         with tempfile.TemporaryDirectory() as directory:
             assets = Path(directory)

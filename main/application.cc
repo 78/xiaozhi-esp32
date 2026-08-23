@@ -45,6 +45,20 @@ Application::Application() : notify_player_(audio_service_) {
                                                 .name = "clock_timer",
                                                 .skip_unhandled_events = true};
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+
+#if CONFIG_ENABLE_LOCAL_COMMANDS
+    esp_timer_create_args_t local_command_timer_args = {
+        .callback = [](void* arg) {
+            auto* app = static_cast<Application*>(arg);
+            app->Schedule([app]() { app->EndLocalCommandWindow("本地命令已超时"); });
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "local_command",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_create(&local_command_timer_args, &local_command_timer_handle_);
+#endif
 }
 
 Application::~Application() {
@@ -52,6 +66,10 @@ Application::~Application() {
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
+    }
+    if (local_command_timer_handle_ != nullptr) {
+        esp_timer_stop(local_command_timer_handle_);
+        esp_timer_delete(local_command_timer_handle_);
     }
     vEventGroupDelete(event_group_);
 }
@@ -80,6 +98,10 @@ void Application::Initialize() {
     callbacks.on_wake_word_detected = [this](const std::string& wake_word) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
     };
+    callbacks.on_local_command_detected =
+        [this](const std::string& action, const std::string& text) {
+            Schedule([this, action, text]() { HandleLocalCommand(action, text); });
+        };
     callbacks.on_vad_change = [this](bool speaking) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
@@ -957,13 +979,18 @@ void Application::HandleStopListeningEvent() {
 }
 
 void Application::HandleWakeWordDetectedEvent() {
-    if (!protocol_) {
-        return;
-    }
-
     auto state = GetDeviceState();
     auto wake_word = audio_service_.GetLastWakeWord();
     ESP_LOGI(TAG, "Wake word detected: %s (state: %d)", wake_word.c_str(), (int)state);
+
+    if (state == kDeviceStateIdle && ShouldUseLocalCommands()) {
+        BeginLocalCommandWindow();
+        return;
+    }
+    if (!protocol_) {
+        audio_service_.EnableWakeWordDetection(true);
+        return;
+    }
 
     if (state == kDeviceStateIdle) {
         BeginWakeWordInvoke(wake_word);
@@ -991,6 +1018,111 @@ void Application::HandleWakeWordDetectedEvent() {
         // Restart the activation check if the wake word is detected during activation
         SetDeviceState(kDeviceStateIdle);
     }
+}
+
+bool Application::ShouldUseLocalCommands() const {
+#if CONFIG_ENABLE_LOCAL_COMMANDS
+    auto* controller = Board::GetInstance().GetNetworkController();
+    if (controller == nullptr) {
+        return protocol_ == nullptr;
+    }
+    const auto status = controller->GetStatus();
+    const auto active_health = status.active == NetworkTransport::Wifi
+                                   ? status.wifi_health
+                                   : status.cellular_health;
+    return protocol_ == nullptr || status.active == NetworkTransport::None ||
+           active_health != NetworkHealth::InternetReady;
+#else
+    return false;
+#endif
+}
+
+void Application::BeginLocalCommandWindow() {
+    if (!audio_service_.HasLocalCommands()) {
+        audio_service_.EnableWakeWordDetection(true);
+        return;
+    }
+    local_command_active_ = true;
+    audio_service_.EnableVoiceProcessing(false);
+    audio_service_.EnableLocalCommandDetection(true);
+    auto* display = Board::GetInstance().GetDisplay();
+    display->SetStatus("本地命令 5 秒");
+    display->SetChatMessage("system", "请说网络、电量或静音命令");
+    audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    if (local_command_timer_handle_ != nullptr) {
+        esp_timer_stop(local_command_timer_handle_);
+        esp_timer_start_once(local_command_timer_handle_, 5'000'000);
+    }
+}
+
+void Application::EndLocalCommandWindow(const std::string& message) {
+    if (!local_command_active_) {
+        return;
+    }
+    local_command_active_ = false;
+    if (local_command_timer_handle_ != nullptr) {
+        esp_timer_stop(local_command_timer_handle_);
+    }
+    audio_service_.EnableLocalCommandDetection(false);
+    auto* display = Board::GetInstance().GetDisplay();
+    display->SetStatus(Lang::Strings::STANDBY);
+    display->SetChatMessage("system", "");
+    if (!message.empty()) {
+        display->ShowNotification(message, 3000);
+    }
+    audio_service_.EnableWakeWordDetection(true);
+}
+
+void Application::HandleLocalCommand(const std::string& action, const std::string& text) {
+    if (!local_command_active_) {
+        return;
+    }
+
+    auto& board = Board::GetInstance();
+    auto* controller = board.GetNetworkController();
+    auto* codec = board.GetAudioCodec();
+    std::string result = text;
+
+    if (action == "network_auto" && controller != nullptr) {
+        controller->SetMode(NetworkMode::Auto);
+        result = "网络模式：自动";
+    } else if (action == "network_wifi" && controller != nullptr) {
+        controller->SetMode(NetworkMode::Wifi);
+        result = "网络模式：WiFi";
+    } else if (action == "network_cellular" && controller != nullptr) {
+        controller->SetMode(NetworkMode::Cellular);
+        result = "网络模式：4G";
+    } else if (action == "network_status" && controller != nullptr) {
+        const auto status = controller->GetStatus();
+        result = std::string("当前网络：") + ToString(status.active);
+        if (status.cellular_retry_limited) {
+            result += "，SIM 等待插卡";
+        }
+    } else if (action == "battery_status") {
+        int level = 0;
+        bool charging = false;
+        bool discharging = false;
+        if (board.GetBatteryLevel(level, charging, discharging)) {
+            result = "当前电量：" + std::to_string(level) + "%";
+        } else {
+            result = "无法读取电量";
+        }
+    } else if (action == "speaker_mute") {
+        if (codec->output_volume() > 0) {
+            local_saved_volume_ = codec->output_volume();
+        }
+        codec->SetOutputVolume(0);
+        result = "扬声器已静音";
+    } else if (action == "speaker_restore") {
+        codec->SetOutputVolume(local_saved_volume_ > 0 ? local_saved_volume_ : 50);
+        result = "声音已恢复";
+    } else {
+        result = "未识别的本地命令";
+    }
+
+    ESP_LOGI(TAG, "Handled local command action=%s", action.c_str());
+    audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    EndLocalCommandWindow(result);
 }
 
 void Application::BeginWakeWordInvoke(const std::string& wake_word) {

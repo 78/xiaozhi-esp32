@@ -31,16 +31,20 @@ public:
     void EnableWakeWordDetection(bool enable) override;
     void EnableVoiceProcessing(bool enable) override;
     void EnableDeviceAec(bool enable) override;
+    void EnableLocalCommandDetection(bool enable) override;
 
     bool HasWakeWord() const override;
     bool IsWakeWordDetectionEnabled() const override;
     bool IsVoiceProcessingEnabled() const override;
     bool IsAfeWakeWord() const override { return HasWakeWord(); }
+    bool HasLocalCommands() const override { return local_command_detector_ != nullptr; }
     size_t GetFeedSize() const override;
 
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) override;
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) override;
     void OnVadStateChange(std::function<void(bool speaking)> callback) override;
+    void OnLocalCommandDetected(
+        std::function<void(const std::string& action, const std::string& text)> callback) override;
 
     void EncodeWakeWordData() override;
     bool GetWakeWordOpus(std::vector<uint8_t>& opus) override;
@@ -56,6 +60,7 @@ private:
     static constexpr EventBits_t kWakeWordEnabled = 1 << 0;
     static constexpr EventBits_t kVoiceProcessingEnabled = 1 << 1;
     static constexpr EventBits_t kAfeActive = 1 << 2;
+    static constexpr EventBits_t kLocalCommandEnabled = 1 << 3;
 
     AudioCodec* codec_ = nullptr;
     srmodel_list_t* models_ = nullptr;
@@ -79,6 +84,7 @@ private:
     WakeDetector wake_detector_ = WakeDetector::kNone;
 
     std::unique_ptr<CustomWakeWord> custom_wake_word_;
+    std::unique_ptr<CustomWakeWord> local_command_detector_;
     std::vector<std::string> wake_words_;
     std::string last_detected_wake_word_;
     std::vector<int16_t> input_buffer_;
@@ -88,6 +94,8 @@ private:
     std::function<void(const std::string&)> wake_word_detected_callback_;
     std::function<void(std::vector<int16_t>&&)> output_callback_;
     std::function<void(bool)> vad_state_change_callback_;
+    std::function<void(const std::string& action, const std::string& text)>
+        local_command_detected_callback_;
 
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t* wake_word_encode_task_buffer_ = nullptr;

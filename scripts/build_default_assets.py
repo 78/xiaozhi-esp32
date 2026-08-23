@@ -21,6 +21,19 @@ import struct
 from datetime import datetime
 
 
+# Fixed commands for the device-only five-second MultiNet window. Chinese
+# commands use the space-separated pinyin format required by ESP-SR MultiNet6.
+LOCAL_COMMANDS = [
+    {"command": "zi dong xuan ze wang luo", "text": "自动选择网络", "action": "network_auto"},
+    {"command": "shi yong wu xian wang luo", "text": "使用无线网络", "action": "network_wifi"},
+    {"command": "shi yong si ji wang luo", "text": "使用四G网络", "action": "network_cellular"},
+    {"command": "dang qian wang luo zhuang tai", "text": "当前网络状态", "action": "network_status"},
+    {"command": "dang qian dian liang", "text": "当前电量", "action": "battery_status"},
+    {"command": "yang sheng qi jing yin", "text": "扬声器静音", "action": "speaker_mute"},
+    {"command": "hui fu sheng yin", "text": "恢复声音", "action": "speaker_restore"},
+]
+
+
 # =============================================================================
 # Pack model functions (from pack_model.py)
 # =============================================================================
@@ -618,6 +631,14 @@ def read_custom_wake_word_from_sdkconfig(sdkconfig_path):
     return None
 
 
+def read_local_commands_enabled(sdkconfig_path):
+    """Return whether the separate offline MultiNet command window is enabled."""
+    if not os.path.exists(sdkconfig_path):
+        return False
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as config:
+        return any(line.strip() == "CONFIG_ENABLE_LOCAL_COMMANDS=y" for line in config)
+
+
 def get_language_from_multinet_models(multinet_models):
     """
     Determine language from multinet model names
@@ -835,6 +856,7 @@ def main():
     
     # Read wake word type configuration from sdkconfig
     wake_word_config = read_wake_word_type_from_sdkconfig(args.sdkconfig)
+    local_commands_enabled = read_local_commands_enabled(args.sdkconfig)
     
     # Read SR models from sdkconfig
     wakenet_model_names = read_wakenet_from_sdkconfig(args.sdkconfig)
@@ -850,14 +872,14 @@ def main():
     elif wakenet_model_names:
         print(f"  Note: Found wakenet models {wakenet_model_names} but wake word type is not ESP/AFE, skipping")
     
-    # 2. Error check: if USE_CUSTOM_WAKE_WORD=y but no multinet models selected, report error
-    if wake_word_config['use_custom_wake_word'] and not multinet_model_names:
-        print("Error: USE_CUSTOM_WAKE_WORD is enabled but no multinet models are selected in sdkconfig")
-        print("Please select appropriate CONFIG_SR_MN_* options in menuconfig, or disable USE_CUSTOM_WAKE_WORD")
+    # 2. MultiNet is required by both custom wake words and local commands.
+    if (wake_word_config['use_custom_wake_word'] or local_commands_enabled) and not multinet_model_names:
+        print("Error: MultiNet is enabled but no multinet model is selected in sdkconfig")
+        print("Please select an appropriate CONFIG_SR_MN_* option")
         sys.exit(1)
     
-    # 3. Only package multinet models if USE_CUSTOM_WAKE_WORD=y
-    if wake_word_config['use_custom_wake_word']:
+    # 3. Package MultiNet for either custom wake words or the offline command window.
+    if wake_word_config['use_custom_wake_word'] or local_commands_enabled:
         multinet_model_paths = get_multinet_model_paths(multinet_model_names, args.esp_sr_model_path)
     elif multinet_model_names:
         print(f"  Note: Found multinet models {multinet_model_names} but USE_CUSTOM_WAKE_WORD is disabled, skipping")
@@ -891,7 +913,15 @@ def main():
     custom_wake_word_config = read_custom_wake_word_from_sdkconfig(args.sdkconfig)
     multinet_model_info = None
     
-    if custom_wake_word_config and multinet_model_paths:
+    if local_commands_enabled and multinet_model_paths:
+        multinet_model_info = {
+            "language": "cn",
+            "duration": 5000,
+            "threshold": 0.25,
+            "commands": LOCAL_COMMANDS,
+        }
+        print(f"  local commands: {len(LOCAL_COMMANDS)} (five-second offline window)")
+    elif custom_wake_word_config and multinet_model_paths:
         # Determine language from multinet models
         language = get_language_from_multinet_models(multinet_model_names)
         
