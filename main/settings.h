@@ -2,6 +2,7 @@
 #define SETTINGS_H
 
 #include <string>
+#include <vector>
 #include <nvs_flash.h>
 
 class Settings {
@@ -15,6 +16,9 @@ public:
     void SetInt(const std::string& key, int32_t value);
     bool GetBool(const std::string& key, bool default_value = false);
     void SetBool(const std::string& key, bool value);
+    std::vector<uint8_t> GetBlob(const std::string& key);
+    void SetBlob(const std::string& key, const uint8_t* data, size_t size);
+    void SetBlob(const std::string& key, const std::vector<uint8_t>& value);
     void EraseKey(const std::string& key);
     void EraseAll();
 

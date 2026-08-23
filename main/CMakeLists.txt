@@ -137,6 +137,7 @@ elseif(CONFIG_BOARD_TYPE_ESP32_S3_BOX_LITE)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
 elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
     set(BOARD_DIR "kevin/box-2")
+    list(APPEND SOURCES "boards/common/local_control_panel.cc")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
     set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
@@ -1060,6 +1061,12 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         esp_driver_sdmmc
         sdmmc
+    )
+endif()
+if(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        esp_http_server
+        esp_wifi
     )
 endif()
 idf_component_register(SRCS ${SOURCES}

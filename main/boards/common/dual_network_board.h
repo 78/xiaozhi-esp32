@@ -35,8 +35,12 @@ public:
     void CommitNetworkSwitch(NetworkTransport target, NetworkSwitchReason reason);
     void SetCellularPowerControl(std::function<bool(bool enabled)> callback);
     void SetExternalPowerProvider(std::function<bool()> callback);
+    void SetWifiConfigModeHandler(std::function<void()> callback);
     void RefreshNetworkPowerPolicy();
-    void EnterMaintenanceMode();
+    virtual void EnterMaintenanceMode();
+
+    int GetWifiRssi() const;
+    int GetCellularSignalQuality() const;
 
     std::string GetBoardType() override;
     void StartNetwork() override;

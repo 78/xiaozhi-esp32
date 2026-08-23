@@ -9,12 +9,23 @@
 #include "axp2101.h"
 #include "assets/lang_config.h"
 #include "settings.h"
+#include "local_control_panel.h"
+#include "secure_maintenance_ap.h"
+#include "system_info.h"
+#include "device_state_machine.h"
 
+#include <atomic>
+#include <memory>
+#include <cJSON.h>
 #include <esp_log.h>
+#include <esp_app_desc.h>
+#include <esp_timer.h>
 #include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <ssid_manager.h>
+#include <wifi_manager.h>
 
 #define TAG "KevinBoxBoard"
 
@@ -57,7 +68,162 @@ private:
     Button boot_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-    PowerSaveTimer* power_save_timer_;
+    PowerSaveTimer* power_save_timer_ = nullptr;
+    std::unique_ptr<LocalControlPanel> local_panel_;
+    std::unique_ptr<SecureMaintenanceAccessPoint> maintenance_ap_;
+    esp_timer_handle_t panel_monitor_timer_ = nullptr;
+    std::atomic<bool> panel_reconcile_pending_{false};
+    std::atomic<bool> maintenance_pending_{false};
+
+    cJSON* BuildLocalPanelStatus() {
+        auto* root = cJSON_CreateObject();
+        const auto* app_desc = esp_app_get_description();
+        auto* firmware = cJSON_CreateObject();
+        cJSON_AddStringToObject(firmware, "version", app_desc->version);
+        cJSON_AddStringToObject(firmware, "idf_version", app_desc->idf_ver);
+        char sha256[65] = {};
+        for (size_t i = 0; i < sizeof(app_desc->app_elf_sha256); ++i) {
+            snprintf(sha256 + i * 2, sizeof(sha256) - i * 2, "%02x",
+                     app_desc->app_elf_sha256[i]);
+        }
+        cJSON_AddStringToObject(firmware, "commit", sha256);
+        cJSON_AddItemToObject(root, "firmware", firmware);
+
+        auto& app = Application::GetInstance();
+        cJSON_AddNumberToObject(root, "uptime_seconds", esp_timer_get_time() / 1000000);
+        cJSON_AddStringToObject(root, "device_state",
+                                DeviceStateMachine::GetStateName(app.GetDeviceState()));
+        cJSON_AddNumberToObject(root, "wifi_rssi", GetWifiRssi());
+        cJSON_AddNumberToObject(root, "cellular_csq", GetCellularSignalQuality());
+        cJSON_AddNumberToObject(root, "free_heap", SystemInfo::GetFreeHeapSize());
+        cJSON_AddNumberToObject(root, "minimum_free_heap",
+                                SystemInfo::GetMinimumFreeHeapSize());
+#if CONFIG_USE_AFE_WAKE_WORD
+#if CONFIG_ENABLE_LOCAL_COMMANDS
+        cJSON_AddStringToObject(root, "wake_engine", "WakeNet + MultiNet");
+#else
+        cJSON_AddStringToObject(root, "wake_engine", "WakeNet");
+#endif
+#else
+        cJSON_AddStringToObject(root, "wake_engine", "disabled");
+#endif
+        cJSON_AddStringToObject(root, "recent_error",
+                                app.GetLastErrorMessage().empty() ? "" : "network_or_protocol_error");
+
+        int battery_level = 0;
+        bool charging = false;
+        bool discharging = false;
+        auto* battery = cJSON_CreateObject();
+        if (GetBatteryLevel(battery_level, charging, discharging)) {
+            cJSON_AddNumberToObject(battery, "level", battery_level);
+            cJSON_AddBoolToObject(battery, "charging", charging);
+            cJSON_AddBoolToObject(battery, "discharging", discharging);
+        }
+        cJSON_AddItemToObject(root, "battery", battery);
+
+        const auto status = GetNetworkController()->GetStatus();
+        auto* network = cJSON_CreateObject();
+        cJSON_AddStringToObject(network, "mode", ToString(status.mode));
+        cJSON_AddStringToObject(network, "active", ToString(status.active));
+        cJSON_AddStringToObject(network, "candidate", ToString(status.candidate));
+        cJSON_AddStringToObject(network, "wifi_health", ToString(status.wifi_health));
+        cJSON_AddStringToObject(network, "cellular_health", ToString(status.cellular_health));
+        cJSON_AddStringToObject(network, "last_switch_reason",
+                                ToString(status.last_switch_reason));
+        cJSON_AddNumberToObject(network, "cellular_start_failures",
+                                status.cellular_start_failures);
+        cJSON_AddBoolToObject(network, "cellular_retry_limited",
+                              status.cellular_retry_limited);
+        cJSON_AddBoolToObject(network, "offline", status.offline);
+        cJSON_AddItemToObject(root, "network", network);
+        return root;
+    }
+
+    void ReconcileLocalPanel() {
+        if (!local_panel_ || (maintenance_ap_ && maintenance_ap_->IsRunning())) {
+            return;
+        }
+        const auto status = GetNetworkController()->GetStatus();
+        const bool wifi_active = status.active == NetworkTransport::Wifi &&
+                                 (status.wifi_health == NetworkHealth::LinkUp ||
+                                  status.wifi_health == NetworkHealth::InternetReady) &&
+                                 WifiManager::GetInstance().IsConnected();
+        const bool should_run = wifi_active && local_panel_->IsLanEnabled() &&
+                                local_panel_->HasAdminPassword();
+        if (should_run) {
+            local_panel_->Start(LocalControlPanel::Exposure::Lan);
+        } else {
+            // In particular, stop the listening socket before cellular becomes active so the
+            // management surface is never bound while 4G is the selected WAN transport.
+            local_panel_->Stop();
+        }
+    }
+
+    void StartPanelMonitor() {
+        if (panel_monitor_timer_ == nullptr) {
+            esp_timer_create_args_t timer_args = {
+                .callback = [](void* arg) {
+                    auto* board = static_cast<KevinBoxBoard*>(arg);
+                    bool expected = false;
+                    if (!board->panel_reconcile_pending_.compare_exchange_strong(expected, true)) {
+                        return;
+                    }
+                    Application::GetInstance().Schedule([board]() {
+                        board->panel_reconcile_pending_ = false;
+                        board->ReconcileLocalPanel();
+                    });
+                },
+                .arg = this,
+                .dispatch_method = ESP_TIMER_TASK,
+                .name = "local_panel",
+                .skip_unhandled_events = true,
+            };
+            ESP_ERROR_CHECK(esp_timer_create(&timer_args, &panel_monitor_timer_));
+        }
+        if (!esp_timer_is_active(panel_monitor_timer_)) {
+            ESP_ERROR_CHECK(esp_timer_start_periodic(panel_monitor_timer_, 2'000'000));
+        }
+    }
+
+    void StopPanelMonitor() {
+        panel_reconcile_pending_ = false;
+        if (panel_monitor_timer_ != nullptr && esp_timer_is_active(panel_monitor_timer_)) {
+            esp_timer_stop(panel_monitor_timer_);
+        }
+    }
+
+    void InitializeLocalPanel() {
+        local_panel_ = std::make_unique<LocalControlPanel>(
+            [this]() { return BuildLocalPanelStatus(); },
+            [this](NetworkMode mode) { return SetNetworkMode(mode); },
+            [this](const LocalPanelSettingsUpdate& update, std::string& error) {
+                (void)error;
+                if (update.has_lan_enabled) {
+                    Settings settings("local_panel", true);
+                    settings.SetBool("lan_enabled", update.lan_enabled);
+                }
+                if (update.has_speaker_volume) {
+                    GetAudioCodec()->SetOutputVolume(update.speaker_volume);
+                }
+                if (update.has_wifi_credentials) {
+                    SsidManager::GetInstance().AddSsid(update.wifi_ssid,
+                                                       update.wifi_password);
+                }
+                if (update.restart_requested) {
+                    Application::GetInstance().Schedule(
+                        []() { Application::GetInstance().Reboot(); });
+                }
+                return true;
+            });
+        maintenance_ap_ = std::make_unique<SecureMaintenanceAccessPoint>(*local_panel_);
+        SetWifiConfigModeHandler([this]() {
+            bool expected = false;
+            if (!maintenance_pending_.compare_exchange_strong(expected, true)) {
+                return;
+            }
+            Application::GetInstance().Schedule([this]() { EnterMaintenanceMode(); });
+        });
+    }
 
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(-1, -1, 600);
@@ -192,8 +358,7 @@ private:
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting ||
                 app.GetDeviceState() == kDeviceStateWifiConfiguring) {
-                Settings settings("local_admin", true);
-                settings.EraseAll();
+                local_panel_->ResetAdminPassword();
                 EnterMaintenanceMode();
             }
         }, 3);
@@ -259,8 +424,64 @@ public:
 
         Initialize4GPowerControl();
 
-        InitializeButtons();
         InitializePowerSaveTimer();
+        InitializeLocalPanel();
+        InitializeButtons();
+    }
+
+    void EnterMaintenanceMode() override {
+        maintenance_pending_ = false;
+        if (maintenance_ap_ && maintenance_ap_->IsRunning()) {
+            const std::string message = "SSID: " + maintenance_ap_->GetSsid() +
+                                        "\n密码: " + maintenance_ap_->GetPassword() +
+                                        "\nhttp://192.168.4.1";
+            GetDisplay()->SetStatus("维护热点");
+            GetDisplay()->SetChatMessage("system", message.c_str());
+            return;
+        }
+
+        auto& app = Application::GetInstance();
+        app.ResetProtocol();
+        StopPanelMonitor();
+        if (local_panel_) {
+            local_panel_->Stop();
+        }
+        DualNetworkBoard::StopNetwork();
+        app.SetDeviceState(kDeviceStateWifiConfiguring);
+        if (!maintenance_ap_ || !maintenance_ap_->Start()) {
+            GetDisplay()->ShowNotification("维护热点启动失败");
+            DualNetworkBoard::StartNetwork();
+            StartPanelMonitor();
+            return;
+        }
+
+        const std::string message = "SSID: " + maintenance_ap_->GetSsid() +
+                                    "\n密码: " + maintenance_ap_->GetPassword() +
+                                    "\nhttp://192.168.4.1";
+        GetDisplay()->SetStatus("维护热点");
+        GetDisplay()->SetChatMessage("system", message.c_str());
+    }
+
+    void StartNetwork() override {
+        if (maintenance_ap_ && maintenance_ap_->IsRunning()) {
+            maintenance_ap_->Stop();
+        }
+        DualNetworkBoard::StartNetwork();
+        StartPanelMonitor();
+    }
+
+    bool StopNetwork() override {
+        StopPanelMonitor();
+        if (local_panel_ && (!maintenance_ap_ || !maintenance_ap_->IsRunning())) {
+            local_panel_->Stop();
+        }
+        return DualNetworkBoard::StopNetwork();
+    }
+
+    void OnNetworkSwitching() override {
+        if (local_panel_ && (!maintenance_ap_ || !maintenance_ap_->IsRunning())) {
+            local_panel_->Stop();
+        }
     }
 
     virtual Led* GetLed() override {

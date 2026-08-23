@@ -219,7 +219,8 @@ void Application::Run() {
                 StopNotification();
             }
             SetDeviceState(kDeviceStateIdle);
-            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "cancel",
+            const auto last_error = GetLastErrorMessage();
+            Alert(Lang::Strings::ERROR, last_error.c_str(), "cancel",
                   Lang::Sounds::OGG_EXCLAMATION);
         }
 
@@ -378,6 +379,7 @@ void Application::HandleNetworkSwitchRequest(NetworkTransport target,
         return;
     }
 
+    board.OnNetworkSwitching();
     ESP_LOGI(TAG, "Switching network to %s because %s", ToString(target), ToString(reason));
     if (state == kDeviceStateNotifying) {
         StopNotification();
@@ -636,7 +638,10 @@ void Application::InitializeProtocol() {
         if (auto* controller = Board::GetInstance().GetNetworkController()) {
             controller->ReportProtocolFailure();
         }
-        last_error_message_ = message;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            last_error_message_ = message;
+        }
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
 
@@ -1551,6 +1556,11 @@ void Application::SetAecMode(AecMode mode) {
 }
 
 void Application::PlaySound(const std::string_view& sound) { audio_service_.PlaySound(sound); }
+
+std::string Application::GetLastErrorMessage() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return last_error_message_;
+}
 
 void Application::ResetProtocol() {
     Schedule([this]() {

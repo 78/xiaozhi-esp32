@@ -185,6 +185,10 @@ void WifiBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
     network_event_callback_ = std::move(callback);
 }
 
+void WifiBoard::SetConfigModeHandler(std::function<void()> handler) {
+    config_mode_handler_ = std::move(handler);
+}
+
 void WifiBoard::OnWifiConnectTimeout(void* arg) {
     auto* board = static_cast<WifiBoard*>(arg);
     ESP_LOGW(TAG, "WiFi connection timeout, entering config mode");
@@ -197,6 +201,10 @@ void WifiBoard::StartWifiConfigMode() {
     in_config_mode_ = true;
     // Transition to wifi configuring state
     Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
+    if (config_mode_handler_) {
+        config_mode_handler_();
+        return;
+    }
 #ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
     auto& wifi_manager = WifiManager::GetInstance();
 
@@ -262,6 +270,10 @@ void WifiBoard::EnterWifiConfigMode() {
 
 bool WifiBoard::IsInWifiConfigMode() const {
     return WifiManager::GetInstance().IsConfigMode();
+}
+
+int WifiBoard::GetSignalStrength() const {
+    return WifiManager::GetInstance().GetRssi();
 }
 
 NetworkInterface* WifiBoard::GetNetwork() {

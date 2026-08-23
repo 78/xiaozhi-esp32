@@ -97,12 +97,24 @@ void DualNetworkBoard::SetExternalPowerProvider(std::function<bool()> callback) 
     network_controller_->SetExternalPowerProvider(std::move(callback));
 }
 
+void DualNetworkBoard::SetWifiConfigModeHandler(std::function<void()> callback) {
+    wifi_board_->SetConfigModeHandler(std::move(callback));
+}
+
 void DualNetworkBoard::RefreshNetworkPowerPolicy() {
     network_controller_->RefreshPowerPolicy();
 }
 
 void DualNetworkBoard::EnterMaintenanceMode() {
     wifi_board_->EnterWifiConfigMode();
+}
+
+int DualNetworkBoard::GetWifiRssi() const {
+    return wifi_board_->GetSignalStrength();
+}
+
+int DualNetworkBoard::GetCellularSignalQuality() const {
+    return cellular_board_->GetSignalQuality();
 }
 
 std::string DualNetworkBoard::GetBoardType() {

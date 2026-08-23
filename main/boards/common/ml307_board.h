@@ -16,6 +16,7 @@ protected:
     NetworkEventCallback network_event_callback_;
     std::atomic<bool> cancel_requested_{false};
     std::atomic<bool> task_running_{false};
+    std::atomic<int> cached_csq_{-1};
     TaskHandle_t network_task_handle_ = nullptr;
     EventGroupHandle_t lifecycle_events_ = nullptr;
 
@@ -42,6 +43,7 @@ public:
     virtual std::string GetDeviceStatusJson() override;
 
     bool IsNetworkRunning() const { return task_running_.load(); }
+    int GetSignalQuality() const { return cached_csq_.load(); }
 };
 
 #endif // ML307_BOARD_H

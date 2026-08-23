@@ -159,6 +159,7 @@ void Ml307Board::NetworkTask() {
     // Module revision is useful for diagnostics. Subscriber identifiers are intentionally
     // not written to ordinary logs.
     std::string module_revision = modem_->GetModuleRevision();
+    cached_csq_ = modem_->GetCsq();
     ESP_LOGI(TAG, "ML307 Revision: %s", module_revision.c_str());
 }
 
@@ -173,6 +174,7 @@ void Ml307Board::StartNetwork() {
         return;
     }
     cancel_requested_ = false;
+    cached_csq_ = -1;
     xEventGroupClearBits(lifecycle_events_, NETWORK_TASK_STOPPED);
     BaseType_t created = xTaskCreate([](void* arg) {
         Ml307Board* board = static_cast<Ml307Board*>(arg);
@@ -203,6 +205,7 @@ bool Ml307Board::StopNetwork() {
         modem_->OnNetworkStateChanged({});
         modem_.reset();
     }
+    cached_csq_ = -1;
     return true;
 }
 
@@ -215,6 +218,7 @@ const char* Ml307Board::GetNetworkStateIcon() {
         return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     }
     int csq = modem_->GetCsq();
+    cached_csq_ = csq;
     if (csq == -1) {
         return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     } else if (csq >= 0 && csq <= 9) {

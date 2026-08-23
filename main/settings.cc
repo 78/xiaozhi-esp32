@@ -88,6 +88,37 @@ void Settings::SetBool(const std::string& key, bool value) {
     }
 }
 
+std::vector<uint8_t> Settings::GetBlob(const std::string& key) {
+    if (nvs_handle_ == 0) {
+        return {};
+    }
+
+    size_t length = 0;
+    if (nvs_get_blob(nvs_handle_, key.c_str(), nullptr, &length) != ESP_OK || length == 0) {
+        return {};
+    }
+
+    std::vector<uint8_t> value(length);
+    if (nvs_get_blob(nvs_handle_, key.c_str(), value.data(), &length) != ESP_OK) {
+        return {};
+    }
+    value.resize(length);
+    return value;
+}
+
+void Settings::SetBlob(const std::string& key, const uint8_t* data, size_t size) {
+    if (read_write_) {
+        ESP_ERROR_CHECK(nvs_set_blob(nvs_handle_, key.c_str(), data, size));
+        dirty_ = true;
+    } else {
+        ESP_LOGW(TAG, "Namespace %s is not open for writing", ns_.c_str());
+    }
+}
+
+void Settings::SetBlob(const std::string& key, const std::vector<uint8_t>& value) {
+    SetBlob(key, value.data(), value.size());
+}
+
 void Settings::EraseKey(const std::string& key) {
     if (read_write_) {
         auto ret = nvs_erase_key(nvs_handle_, key.c_str());

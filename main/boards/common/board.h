@@ -77,6 +77,7 @@ public:
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual bool StopNetwork() { return true; }
+    virtual void OnNetworkSwitching() {}
     virtual NetworkController* GetNetworkController() { return nullptr; }
     virtual void SetNetworkEventCallback(NetworkEventCallback callback) { (void)callback; }
     virtual const char* GetNetworkStateIcon() = 0;

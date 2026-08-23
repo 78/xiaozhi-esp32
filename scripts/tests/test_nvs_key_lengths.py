@@ -5,7 +5,7 @@ import unittest
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SETTINGS_KEY_CALL = re.compile(
-    r"\.(?:Get|Set|Erase)(?:Bool|Int|String|Key)\(\s*\"([^\"]+)\""
+    r"\.(?:Get|Set|Erase)(?:Blob|Bool|Int|String|Key)\(\s*\"([^\"]+)\""
 )
 
 
