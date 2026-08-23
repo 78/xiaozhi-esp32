@@ -13,6 +13,7 @@
 #include "backlight.h"
 #include "camera.h"
 #include "assets.h"
+#include "network_controller_types.h"
 
 /**
  * Network events for unified callback
@@ -77,7 +78,11 @@ public:
     virtual NetworkInterface* GetNetwork() = 0;
     virtual void StartNetwork() = 0;
     virtual bool StopNetwork() { return true; }
-    virtual void OnNetworkSwitching() {}
+    virtual void OnNetworkSwitching(NetworkTransport target, NetworkSwitchReason reason) {
+        (void)target;
+        (void)reason;
+    }
+    virtual std::string GetIdleStatusText() { return {}; }
     virtual NetworkController* GetNetworkController() { return nullptr; }
     virtual void SetNetworkEventCallback(NetworkEventCallback callback) { (void)callback; }
     virtual const char* GetNetworkStateIcon() = 0;

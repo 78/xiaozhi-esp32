@@ -1,5 +1,7 @@
 #include "single_led.h"
 #include "application.h"
+#include "board.h"
+#include "network_controller.h"
 #include <esp_log.h> 
 
 #define TAG "SingleLed"
@@ -133,7 +135,21 @@ void SingleLed::OnStateChanged() {
             StartContinuousBlink(500);
             break;
         case kDeviceStateIdle:
-            TurnOff();
+            if (auto* controller = Board::GetInstance().GetNetworkController()) {
+                const auto status = controller->GetStatus();
+                if (status.offline || status.active == NetworkTransport::None) {
+                    SetColor(LOW_BRIGHTNESS, LOW_BRIGHTNESS, 0);
+                    StartContinuousBlink(1000);
+                } else if (status.active == NetworkTransport::Wifi) {
+                    SetColor(0, 0, LOW_BRIGHTNESS);
+                    TurnOn();
+                } else {
+                    SetColor(LOW_BRIGHTNESS, 0, LOW_BRIGHTNESS);
+                    TurnOn();
+                }
+            } else {
+                TurnOff();
+            }
             break;
         case kDeviceStateConnecting:
             SetColor(0, 0, DEFAULT_BRIGHTNESS);
@@ -160,6 +176,10 @@ void SingleLed::OnStateChanged() {
         case kDeviceStateActivating:
             SetColor(0, DEFAULT_BRIGHTNESS, 0);
             StartContinuousBlink(500);
+            break;
+        case kDeviceStateNetworkSwitching:
+            SetColor(DEFAULT_BRIGHTNESS, DEFAULT_BRIGHTNESS, 0);
+            StartContinuousBlink(250);
             break;
         default:
             ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);

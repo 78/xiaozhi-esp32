@@ -152,10 +152,12 @@ void Application::Initialize() {
                 std::string msg = Lang::Strings::CONNECTED_TO;
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
+                Board::GetInstance().GetLed()->OnStateChanged();
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
             }
             case NetworkEvent::Disconnected:
+                Board::GetInstance().GetLed()->OnStateChanged();
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
             case NetworkEvent::WifiConfigModeEnter:
@@ -379,7 +381,7 @@ void Application::HandleNetworkSwitchRequest(NetworkTransport target,
         return;
     }
 
-    board.OnNetworkSwitching();
+    board.OnNetworkSwitching(target, reason);
     ESP_LOGI(TAG, "Switching network to %s because %s", ToString(target), ToString(reason));
     if (state == kDeviceStateNotifying) {
         StopNotification();
@@ -1206,7 +1208,11 @@ void Application::HandleStateChangedEvent() {
     switch (new_state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
-            display->SetStatus(Lang::Strings::STANDBY);
+            {
+                const auto idle_status = board.GetIdleStatusText();
+                display->SetStatus(idle_status.empty() ? Lang::Strings::STANDBY
+                                                       : idle_status.c_str());
+            }
             display->ClearChatMessages();    // Clear messages first
             display->SetEmotion("neutral");  // Then set emotion (wechat mode checks child count)
             audio_service_.EnableVoiceProcessing(false);

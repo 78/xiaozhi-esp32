@@ -478,10 +478,26 @@ public:
         return DualNetworkBoard::StopNetwork();
     }
 
-    void OnNetworkSwitching() override {
+    void OnNetworkSwitching(NetworkTransport target, NetworkSwitchReason reason) override {
         if (local_panel_ && (!maintenance_ap_ || !maintenance_ap_->IsRunning())) {
             local_panel_->Stop();
         }
+        const auto status = GetNetworkController()->GetStatus();
+        const std::string message = std::string(ToString(status.active)) + " → " +
+                                    ToString(target) + "\n原因: " + ToString(reason);
+        GetDisplay()->SetChatMessage("system", message.c_str());
+    }
+
+    std::string GetIdleStatusText() override {
+        if (Application::GetInstance().GetDeviceState() != kDeviceStateIdle) {
+            return {};
+        }
+        const auto status = GetNetworkController()->GetStatus();
+        if (status.offline || status.active == NetworkTransport::None) {
+            return "离线 · 唤醒就绪";
+        }
+        return std::string(status.active == NetworkTransport::Wifi ? "Wi-Fi" : "4G") +
+               " · 唤醒就绪";
     }
 
     virtual Led* GetLed() override {
