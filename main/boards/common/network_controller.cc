@@ -10,8 +10,14 @@ namespace {
 
 constexpr int kCellularPowerStabilizeMs = 1'000;
 constexpr int kHealthCheckTimeoutMs = 5'000;
+constexpr int kLifecycleStopTimeoutMs = 7'000;
 constexpr const char* kDefaultHealthCheckUrl = "https://api.tenclass.net/";
 constexpr int kProbeConnectId = 3;
+constexpr EventBits_t kWorkerStopped = BIT0;
+constexpr EventBits_t kWifiProbeStopped = BIT1;
+constexpr EventBits_t kCellularProbeStopped = BIT2;
+constexpr EventBits_t kAllTasksStopped =
+    kWorkerStopped | kWifiProbeStopped | kCellularProbeStopped;
 const char* TAG = "NetworkController";
 
 uint64_t NowMs() {
@@ -22,11 +28,18 @@ uint64_t NowMs() {
 
 NetworkController::NetworkController(WifiBoard& wifi, Ml307Board& cellular)
     : wifi_(wifi), cellular_(cellular) {
+    lifecycle_events_ = xEventGroupCreate();
+    if (lifecycle_events_ != nullptr) {
+        xEventGroupSetBits(lifecycle_events_, kAllTasksStopped);
+    }
     LoadAndMigrateSettings();
 }
 
 NetworkController::~NetworkController() {
     Stop();
+    if (lifecycle_events_ != nullptr) {
+        vEventGroupDelete(lifecycle_events_);
+    }
 }
 
 void NetworkController::Start() {
@@ -34,29 +47,44 @@ void NetworkController::Start() {
     if (!running_.compare_exchange_strong(expected, true)) {
         return;
     }
+    if (lifecycle_events_ == nullptr) {
+        running_ = false;
+        ESP_LOGE(TAG, "Cannot start without lifecycle event group");
+        return;
+    }
 
     StartWifi();
 
+    xEventGroupClearBits(lifecycle_events_, kWorkerStopped);
     if (xTaskCreate(WorkerTaskEntry, "network_ctl", 4096, this, 4, &worker_task_) != pdPASS) {
         worker_task_ = nullptr;
         running_ = false;
+        if (lifecycle_events_ != nullptr) {
+            xEventGroupSetBits(lifecycle_events_, kWorkerStopped);
+        }
         ESP_LOGE(TAG, "Failed to create network controller task");
     }
 }
 
 void NetworkController::Stop() {
-    if (!running_.exchange(false)) {
-        return;
+    running_.exchange(false);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++wifi_generation_;
+        ++cellular_generation_;
+        switch_request_pending_ = false;
     }
-    if (worker_task_ != nullptr) {
-        for (int i = 0; i < 20 && worker_task_ != nullptr; ++i) {
-            vTaskDelay(pdMS_TO_TICKS(50));
-        }
-    }
-    ++wifi_generation_;
-    ++cellular_generation_;
     wifi_.SetNetworkEventCallback({});
     cellular_.SetNetworkEventCallback({});
+    if (lifecycle_events_ != nullptr) {
+        const auto bits = xEventGroupWaitBits(lifecycle_events_, kAllTasksStopped, pdFALSE,
+                                              pdTRUE,
+                                              pdMS_TO_TICKS(kLifecycleStopTimeoutMs));
+        if ((bits & kAllTasksStopped) != kAllTasksStopped) {
+            ESP_LOGE(TAG, "Timed out waiting for network tasks to stop (bits=0x%lx)",
+                     static_cast<unsigned long>(bits));
+        }
+    }
     if (wifi_started_) {
         wifi_.StopNetwork();
         wifi_started_ = false;
@@ -170,7 +198,13 @@ void NetworkController::ReportProtocolFailure() {
 void NetworkController::WorkerTaskEntry(void* arg) {
     auto* controller = static_cast<NetworkController*>(arg);
     controller->WorkerTask();
-    controller->worker_task_ = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(controller->mutex_);
+        controller->worker_task_ = nullptr;
+    }
+    if (controller->lifecycle_events_ != nullptr) {
+        xEventGroupSetBits(controller->lifecycle_events_, kWorkerStopped);
+    }
     vTaskDelete(nullptr);
 }
 
@@ -202,7 +236,14 @@ void NetworkController::WorkerTask() {
 
 void NetworkController::ProbeTaskEntry(void* arg) {
     std::unique_ptr<ProbeContext> context(static_cast<ProbeContext*>(arg));
-    context->controller->Probe(context->transport, context->generation);
+    auto* controller = context->controller;
+    const auto transport = context->transport;
+    controller->Probe(transport, context->generation);
+    if (controller->lifecycle_events_ != nullptr) {
+        xEventGroupSetBits(controller->lifecycle_events_,
+                           transport == NetworkTransport::Wifi ? kWifiProbeStopped
+                                                               : kCellularProbeStopped);
+    }
     vTaskDelete(nullptr);
 }
 
@@ -242,6 +283,9 @@ void NetworkController::Probe(NetworkTransport transport, uint32_t generation) {
 }
 
 void NetworkController::StartWifi() {
+    if (!running_) {
+        return;
+    }
     uint32_t generation = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -259,6 +303,9 @@ void NetworkController::StartWifi() {
 }
 
 void NetworkController::StartCellular() {
+    if (!running_) {
+        return;
+    }
     std::function<bool(bool)> power_callback;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -282,7 +329,7 @@ void NetworkController::StartCellular() {
     uint32_t generation = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (cellular_started_ || !policy_.CanRetryCellular(NowMs())) {
+        if (!running_ || cellular_started_ || !policy_.CanRetryCellular(NowMs())) {
             return;
         }
         cellular_started_ = true;
@@ -372,11 +419,26 @@ void NetworkController::OnTransportEvent(NetworkTransport transport, uint32_t ge
     }
 
     if (cellular_start_failed) {
+        int failure_count = 0;
+        bool retry_limited = false;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             policy_.RecordCellularStartFailure(NowMs());
+            const auto status = policy_.GetSnapshot();
+            failure_count = status.cellular_start_failures;
+            retry_limited = status.cellular_retry_limited;
             cellular_started_ = false;
             ++cellular_generation_;
+        }
+        if (retry_limited) {
+            ESP_LOGW(TAG,
+                     "Cellular switching inhibited after %d failed starts; waiting 300 seconds "
+                     "before the next SIM presence check",
+                     failure_count);
+        } else {
+            ESP_LOGW(TAG, "Cellular start failed (%d/3); SIM presence will be checked again in "
+                          "30 seconds",
+                     failure_count);
         }
         EvaluatePolicy();
     }
@@ -431,7 +493,11 @@ void NetworkController::EvaluatePolicy() {
 }
 
 void NetworkController::ScheduleProbe(NetworkTransport transport) {
+    if (!running_) {
+        return;
+    }
     uint32_t generation = 0;
+    EventBits_t stopped_bit = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         bool& in_progress = transport == NetworkTransport::Wifi ? wifi_probe_in_progress_
@@ -442,6 +508,11 @@ void NetworkController::ScheduleProbe(NetworkTransport transport) {
         in_progress = true;
         generation = transport == NetworkTransport::Wifi ? wifi_generation_
                                                           : cellular_generation_;
+        stopped_bit = transport == NetworkTransport::Wifi ? kWifiProbeStopped
+                                                           : kCellularProbeStopped;
+        if (lifecycle_events_ != nullptr) {
+            xEventGroupClearBits(lifecycle_events_, stopped_bit);
+        }
     }
 
     auto* context = new ProbeContext{this, transport, generation};
@@ -452,6 +523,9 @@ void NetworkController::ScheduleProbe(NetworkTransport transport) {
             wifi_probe_in_progress_ = false;
         } else {
             cellular_probe_in_progress_ = false;
+        }
+        if (lifecycle_events_ != nullptr) {
+            xEventGroupSetBits(lifecycle_events_, stopped_bit);
         }
     }
 }

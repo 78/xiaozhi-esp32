@@ -7,6 +7,7 @@
 #include <string>
 
 #include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
 #include <freertos/task.h>
 
 #include "board.h"
@@ -59,6 +60,7 @@ private:
     std::function<bool()> external_power_provider_;
     std::string health_check_url_;
     std::atomic<bool> running_{false};
+    EventGroupHandle_t lifecycle_events_ = nullptr;
     TaskHandle_t worker_task_ = nullptr;
     uint32_t wifi_generation_ = 0;
     uint32_t cellular_generation_ = 0;
