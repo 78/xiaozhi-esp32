@@ -5,6 +5,7 @@
 #include <thread>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -23,6 +24,8 @@ class Esp32Camera : public Camera
 {
 private:
     bool streaming_on_ = false;
+    bool initialized_ = false;
+    camera_config_t init_config_{};
     bool swap_bytes_enabled_ = true;  // Swap pixel byte order for RGB565, enabled by default
     std::string explain_url_;
     std::string explain_token_;
@@ -30,12 +33,17 @@ private:
     camera_fb_t *current_fb_ = nullptr;
     uint8_t *encode_buf_ = nullptr;  // Buffer for JPEG encoding (with optional byte swap)
     size_t encode_buf_size_ = 0;
+    std::function<void(const uint8_t *jpeg_data, size_t jpeg_len)> photo_callback_;
 
 public:
     Esp32Camera(const camera_config_t &config);
     ~Esp32Camera();
 
     virtual void SetExplainUrl(const std::string &url, const std::string &token) override;
+    bool EnsureInitialized();
+    void SetPhotoCallback(std::function<void(const uint8_t *jpeg_data, size_t jpeg_len)> cb) {
+        photo_callback_ = std::move(cb);
+    }
     virtual bool Capture() override;
     virtual bool SetHMirror(bool enabled) override;
     virtual bool SetVFlip(bool enabled) override;

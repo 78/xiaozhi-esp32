@@ -35,7 +35,7 @@ config CUSTOM_ASSETS_FILE
 
 choice
     prompt "Default Language"
-    default LANGUAGE_ZH_CN
+    default LANGUAGE_EN_US
     help
         Select device display language
 
@@ -176,6 +176,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "Bread Compact Wi-Fi + LCD + Camera (面包板)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_S3CAM_VOICE_WITH_TG
+        bool "S3CAM Voice Assistant with Telegram & Relay"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI Camera Module"

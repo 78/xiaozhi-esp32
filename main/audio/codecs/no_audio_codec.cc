@@ -250,6 +250,9 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
     samples = bytes_read / sizeof(int32_t);
     for (int i = 0; i < samples; i++) {
         int32_t value = bit32_buffer[i] >> 12;
+        if (input_gain_ > 0) {
+            value = (int32_t)(value * input_gain_);
+        }
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
     }
     return samples;

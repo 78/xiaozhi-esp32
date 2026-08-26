@@ -114,6 +114,8 @@ public:
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
     void RegisterMcpBroadcastCallback(std::function<void(const std::string&)> callback);
+    using ChatMessageCallback = std::function<void(const char* role, const std::string& text)>;
+    void RegisterChatMessageCallback(ChatMessageCallback callback) { chat_message_callback_ = std::move(callback); }
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
@@ -145,6 +147,7 @@ private:
     std::unique_ptr<Ota> ota_;
 
     std::function<void(const std::string&)> mcp_broadcast_callback_;
+    ChatMessageCallback chat_message_callback_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;

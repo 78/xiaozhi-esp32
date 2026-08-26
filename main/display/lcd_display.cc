@@ -1,4 +1,5 @@
 #include "lcd_display.h"
+#include "application.h"
 #include "assets/lang_config.h"
 #include "gif/lvgl_gif.h"
 #include "lvgl_theme.h"
@@ -499,7 +500,7 @@ void LcdDisplay::SetupUI() {
     emoji_label_ = lv_label_create(screen);
     lv_obj_center(emoji_label_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
+    if (emoji_label_ != nullptr) lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);
 }
 #if CONFIG_IDF_TARGET_ESP32P4
@@ -567,7 +568,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         }
     } else {
         // Hide the centered AI logo
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        if (emoji_label_ != nullptr) lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
     }
 
     // Avoid empty message boxes
@@ -847,22 +848,58 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_border_color(container_, lvgl_theme->border_color(), 0);
 
-    /* Bottom layer: emoji_box_ - centered display */
-    emoji_box_ = lv_obj_create(screen);
-    lv_obj_set_size(emoji_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(emoji_box_, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_pad_all(emoji_box_, 0, 0);
-    lv_obj_set_style_border_width(emoji_box_, 0, 0);
-    lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, 0);
+    /* Wall-E Face */
+    face_container_ = lv_obj_create(screen);
+    lv_obj_set_size(face_container_, 128, 120);
+    lv_obj_set_style_bg_opa(face_container_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(face_container_, 0, 0);
+    lv_obj_align(face_container_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_clear_flag(face_container_, LV_OBJ_FLAG_SCROLLABLE);
 
-    emoji_label_ = lv_label_create(emoji_box_);
-    lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
-    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);
+    lv_color_t eye_color = lv_color_hex(0x00FFFF);
 
-    emoji_image_ = lv_img_create(emoji_box_);
-    lv_obj_center(emoji_image_);
-    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    left_eye_ = lv_obj_create(face_container_);
+    lv_obj_set_size(left_eye_, 24, 56);
+    lv_obj_set_style_radius(left_eye_, 50, 0);
+    lv_obj_set_style_bg_color(left_eye_, eye_color, 0);
+    lv_obj_set_style_border_width(left_eye_, 0, 0);
+    lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -16);
+    lv_obj_clear_flag(left_eye_, LV_OBJ_FLAG_SCROLLABLE);
+
+    right_eye_ = lv_obj_create(face_container_);
+    lv_obj_set_size(right_eye_, 24, 56);
+    lv_obj_set_style_radius(right_eye_, 50, 0);
+    lv_obj_set_style_bg_color(right_eye_, eye_color, 0);
+    lv_obj_set_style_border_width(right_eye_, 0, 0);
+    lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -16);
+    lv_obj_clear_flag(right_eye_, LV_OBJ_FLAG_SCROLLABLE);
+
+    mouth_arc_ = lv_arc_create(face_container_);
+    lv_obj_remove_style(mouth_arc_, NULL, LV_PART_KNOB);
+    lv_obj_clear_flag(mouth_arc_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(mouth_arc_, 30, 20);
+    lv_arc_set_bg_angles(mouth_arc_, 0, 180);
+    lv_arc_set_angles(mouth_arc_, 0, 180);
+    lv_obj_set_style_arc_color(mouth_arc_, eye_color, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(mouth_arc_, 4, LV_PART_MAIN);
+    lv_obj_align(mouth_arc_, LV_ALIGN_CENTER, 0, 26);
+
+    mouth_pill_ = lv_obj_create(face_container_);
+    lv_obj_set_size(mouth_pill_, 20, 6);
+    lv_obj_set_style_radius(mouth_pill_, 50, 0);
+    lv_obj_set_style_bg_color(mouth_pill_, eye_color, 0);
+    lv_obj_set_style_border_width(mouth_pill_, 0, 0);
+    lv_obj_align(mouth_pill_, LV_ALIGN_CENTER, 0, 26);
+    lv_obj_clear_flag(mouth_pill_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN);
+
+    eye_anim_timer_ = lv_timer_create([](lv_timer_t* t) {
+        LcdDisplay* display = static_cast<LcdDisplay*>(lv_timer_get_user_data(t));
+        display->UpdateEyeAnimation();
+    }, 100, this);
+
+    emoji_label_ = nullptr;
+    emoji_image_ = nullptr;
 
     /* Middle layer: preview_image_ - centered display */
     preview_image_ = lv_image_create(screen);
@@ -1097,93 +1134,6 @@ void LcdDisplay::ClearChatMessages() {
 }
 #endif
 
-void LcdDisplay::SetEmotion(const char* emotion) {
-    if (!setup_ui_called_) {
-        ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!",
-                 emotion);
-    }
-    if (emoji_image_ == nullptr) {
-        if (setup_ui_called_) {
-            ESP_LOGW(TAG,
-                     "SetEmotion('%s') failed: emoji_image_ is nullptr (SetupUI() was called but "
-                     "emoji image not created)",
-                     emotion);
-        }
-        return;
-    }
-
-    auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
-    auto image = emoji_collection != nullptr ? emoji_collection->GetEmojiImage(emotion) : nullptr;
-    if (image == nullptr) {
-        auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
-        const char* utf8 = noto_emoji_get_utf8(emotion);
-        const lv_font_t* emotion_font = lvgl_theme->emoji_font()->font();
-        if (utf8 == nullptr) {
-            utf8 = material_symbols_get_utf8(emotion);
-            emotion_font = lvgl_theme->large_icon_font()->font();
-        }
-        if (utf8 != nullptr && emoji_label_ != nullptr) {
-            DisplayLockGuard lock(this);
-            if (gif_controller_) {
-                gif_controller_->Stop();
-                gif_controller_.reset();
-            }
-            lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
-            lv_label_set_text(emoji_label_, utf8);
-            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        }
-        return;
-    }
-
-    DisplayLockGuard lock(this);
-    // Stop any running GIF animation in the same lock scope as setting new image
-    // to prevent LVGL from accessing freed image data between operations
-    if (gif_controller_) {
-        gif_controller_->Stop();
-        gif_controller_.reset();
-    }
-    if (image->IsGif()) {
-        // Create new GIF controller
-        gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
-
-        if (gif_controller_->IsLoaded()) {
-            // Set up frame update callback
-            gif_controller_->SetFrameCallback(
-                [this]() { lv_image_set_src(emoji_image_, gif_controller_->image_dsc()); });
-
-            // Set initial frame and start animation
-            lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
-            gif_controller_->Start();
-
-            // Show GIF, hide others
-            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            ESP_LOGE(TAG, "Failed to load GIF for emotion: %s", emotion);
-            gif_controller_.reset();
-        }
-    } else {
-        lv_image_set_src(emoji_image_, image->image_dsc());
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-    }
-
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-    // In WeChat message style, if emotion is neutral, don't display it
-    uint32_t child_count = lv_obj_get_child_cnt(content_);
-    if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
-        // Stop GIF animation if running
-        if (gif_controller_) {
-            gif_controller_->Stop();
-            gif_controller_.reset();
-        }
-
-        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-    }
-#endif
-}
 
 void LcdDisplay::SetTheme(Theme* theme) {
     DisplayLockGuard lock(this);
@@ -1232,7 +1182,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     lv_obj_set_style_text_color(notification_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(mute_label_, lvgl_theme->text_color(), 0);
     lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
+    if (emoji_label_ != nullptr) lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
 
     // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
@@ -1312,7 +1262,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
     }
 
     if (emoji_label_ != nullptr) {
-        lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
+        if (emoji_label_ != nullptr) lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     }
 
     // Update bottom bar background color with 50% opacity
@@ -1346,4 +1296,141 @@ void LcdDisplay::SetHideSubtitle(bool hide) {
             }
         }
     }
+}
+
+
+void LcdDisplay::SetEmotion(const char* emotion) {
+    if (!setup_ui_called_ || face_container_ == nullptr) return;
+    DisplayLockGuard lock(this);
+
+    lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -16);
+    lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -16);
+    lv_obj_set_size(left_eye_, 24, 56);
+    lv_obj_set_size(right_eye_, 24, 56);
+    if (mouth_arc_ != nullptr) {
+        lv_arc_set_bg_angles(mouth_arc_, 0, 180);
+        lv_arc_set_angles(mouth_arc_, 0, 180);
+        lv_obj_set_size(mouth_arc_, 30, 20);
+        lv_obj_align(mouth_arc_, LV_ALIGN_CENTER, 0, 26);
+    }
+
+    if (strcmp(emotion, "neutral") == 0) {
+        current_eye_state_ = 0;
+    } else if (strcmp(emotion, "speaking") == 0) {
+        current_eye_state_ = 1;
+    } else if (strcmp(emotion, "happy") == 0) {
+        current_eye_state_ = 2;
+        lv_obj_set_size(left_eye_, 24, 30);
+        lv_obj_set_size(right_eye_, 24, 30);
+        lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -26);
+        lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -26);
+        if (mouth_arc_) {
+            lv_obj_set_size(mouth_arc_, 36, 24);
+            lv_obj_align(mouth_arc_, LV_ALIGN_CENTER, 0, 20);
+        }
+    } else if (strcmp(emotion, "sad") == 0) {
+        current_eye_state_ = 3;
+        lv_obj_set_size(left_eye_, 24, 30);
+        lv_obj_set_size(right_eye_, 24, 30);
+        lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -6);
+        lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -6);
+        if (mouth_arc_) {
+            lv_arc_set_bg_angles(mouth_arc_, 180, 360);
+            lv_arc_set_angles(mouth_arc_, 180, 360);
+            lv_obj_set_size(mouth_arc_, 30, 20);
+            lv_obj_align(mouth_arc_, LV_ALIGN_CENTER, 0, 30);
+        }
+    } else if (strcmp(emotion, "angry") == 0) {
+        current_eye_state_ = 4;
+        lv_obj_align(left_eye_, LV_ALIGN_CENTER, -28, -10);
+        lv_obj_align(right_eye_, LV_ALIGN_CENTER, 28, -10);
+        lv_obj_set_size(left_eye_, 24, 20);
+        lv_obj_set_size(right_eye_, 24, 20);
+        if (mouth_arc_) {
+            lv_arc_set_bg_angles(mouth_arc_, 180, 360);
+            lv_arc_set_angles(mouth_arc_, 180, 360);
+            lv_obj_set_size(mouth_arc_, 20, 10);
+            lv_obj_align(mouth_arc_, LV_ALIGN_CENTER, 0, 20);
+        }
+    } else {
+        current_eye_state_ = 0;
+    }
+
+    eye_idle_timer_ = 0;
+    eyes_open_ = true;
+}
+
+void LcdDisplay::UpdateEyeAnimation() {
+    DisplayLockGuard lock(this);
+    if (!face_container_ || !left_eye_ || !right_eye_) return;
+
+    eye_idle_timer_++;
+
+    auto& app = Application::GetInstance();
+    if (app.GetDeviceState() == kDeviceStateSpeaking) {
+        if (mouth_arc_) lv_obj_add_flag(mouth_arc_, LV_OBJ_FLAG_HIDDEN);
+        if (mouth_pill_) lv_obj_clear_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN);
+
+        int cycle = eye_idle_timer_ % 10;
+        int height = 56;
+        if (cycle < 5) height = 56 + cycle * 2;
+        else height = 56 + (10 - cycle) * 2;
+        
+        lv_obj_set_size(left_eye_, 24, height);
+        lv_obj_set_size(right_eye_, 24, height);
+
+        if (eye_idle_timer_ % 2 == 0) {
+            int r = rand() % 100;
+            if (r < 20) speak_mouth_target_ = 4;
+            else if (r < 50) speak_mouth_target_ = 10;
+            else if (r < 80) speak_mouth_target_ = 16;
+            else speak_mouth_target_ = 24;
+        }
+
+        if (speak_mouth_current_ < speak_mouth_target_) speak_mouth_current_ += 2;
+        else if (speak_mouth_current_ > speak_mouth_target_) speak_mouth_current_ -= 2;
+
+        if (mouth_pill_ != nullptr) {
+            lv_obj_set_size(mouth_pill_, 20, speak_mouth_current_);
+            lv_obj_align(mouth_pill_, LV_ALIGN_CENTER, 0, 26);
+        }
+
+        eyes_open_ = true;
+    } else {
+        if (current_eye_state_ == 1 || (mouth_pill_ && !lv_obj_has_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN))) {
+            current_eye_state_ = 0;
+            lv_obj_set_size(left_eye_, 24, 56);
+            lv_obj_set_size(right_eye_, 24, 56);
+            if (mouth_arc_) lv_obj_clear_flag(mouth_arc_, LV_OBJ_FLAG_HIDDEN);
+            if (mouth_pill_) lv_obj_add_flag(mouth_pill_, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        if (eye_idle_timer_ % 35 == 0) {
+            eyes_open_ = false;
+            lv_obj_set_size(left_eye_, 24, 10);
+            lv_obj_set_size(right_eye_, 24, 10);
+        } else if (!eyes_open_ && (eye_idle_timer_ % 35 == 2)) {
+            eyes_open_ = true;
+            lv_obj_set_size(left_eye_, 24, current_eye_state_ == 2 || current_eye_state_ == 3 ? 30 : 56);
+            lv_obj_set_size(right_eye_, 24, current_eye_state_ == 2 || current_eye_state_ == 3 ? 30 : 56);
+        }
+
+        if (eyes_open_ && current_eye_state_ == 0) {
+            if (eye_idle_timer_ % 90 == 0) {
+                lv_obj_align(left_eye_, LV_ALIGN_CENTER, -28, -16);
+                lv_obj_align(right_eye_, LV_ALIGN_CENTER, 20, -16);
+            } else if (eye_idle_timer_ % 90 == 25) {
+                lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -16);
+                lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -16);
+            } else if (eye_idle_timer_ % 90 == 45) {
+                lv_obj_align(left_eye_, LV_ALIGN_CENTER, -20, -16);
+                lv_obj_align(right_eye_, LV_ALIGN_CENTER, 28, -16);
+            } else if (eye_idle_timer_ % 90 == 70) {
+                lv_obj_align(left_eye_, LV_ALIGN_CENTER, -24, -16);
+                lv_obj_align(right_eye_, LV_ALIGN_CENTER, 24, -16);
+            }
+        }
+    }
+
+    lv_obj_invalidate(lv_screen_active());
 }

@@ -69,6 +69,9 @@ void WifiBoard::StartNetwork() {
     }
     wifi_manager.Initialize(config);
 
+    // Allow boards to adjust WiFi driver settings before the interface starts
+    OnWiFiDriverReady();
+
     // Set unified event callback - forward to NetworkEvent with SSID data
     wifi_manager.SetEventCallback([this](WifiEvent event, const std::string& data) {
         switch (event) {
@@ -161,8 +164,18 @@ void WifiBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
 
 void WifiBoard::OnWifiConnectTimeout(void* arg) {
     auto* board = static_cast<WifiBoard*>(arg);
-    ESP_LOGW(TAG, "WiFi connection timeout, entering config mode");
 
+    // If saved credentials exist, keep retrying instead of dropping into config
+    // mode. The station already re-scans with backoff (10s..5min) on its own, so
+    // we just re-arm the timer and let it recover when the AP comes back.
+    auto& ssid_manager = SsidManager::GetInstance();
+    if (!ssid_manager.GetSsidList().empty()) {
+        ESP_LOGW(TAG, "WiFi connection timeout, but credentials are saved; keep retrying");
+        esp_timer_start_once(board->connect_timer_, CONNECT_TIMEOUT_SEC * 1000000ULL);
+        return;
+    }
+
+    ESP_LOGW(TAG, "WiFi connection timeout, entering config mode");
     WifiManager::GetInstance().StopStation();
     board->StartWifiConfigMode();
 }

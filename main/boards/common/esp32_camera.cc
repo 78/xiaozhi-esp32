@@ -31,14 +31,42 @@ static constexpr bool kConfiguredVFlip = false;
 #endif
 
 Esp32Camera::Esp32Camera(const camera_config_t &config) {
-    esp_err_t err = esp_camera_init(&config);
+    init_config_ = config;
+}
+
+bool Esp32Camera::EnsureInitialized() {
+    if (initialized_) {
+        return true;
+    }
+
+    esp_err_t err = esp_camera_init(&init_config_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_camera_init failed with error 0x%x", err);
-        return;
+        return false;
     }
 
     sensor_t *s = esp_camera_sensor_get();
     if (s) {
+        s->set_whitebal(s, 1);       // Auto White Balance
+        s->set_awb_gain(s, 1);       // Auto White Balance Gain
+        s->set_wb_mode(s, 0);        // Auto WB mode (0 = Auto)
+        s->set_exposure_ctrl(s, 1);  // Auto Exposure
+        s->set_aec2(s, 0);           // Disable AEC2 tone-mapping (removes plastic posterization)
+        s->set_ae_level(s, 0);       // Exposure level 0
+        s->set_gain_ctrl(s, 1);      // Auto Gain Control
+        s->set_agc_gain(s, 0);
+        s->set_gainceiling(s, GAINCEILING_2X);
+        s->set_bpc(s, 1);            // Enable BPC
+        s->set_wpc(s, 1);            // Enable WPC
+        s->set_raw_gma(s, 1);        // Enable raw gamma for natural image brightness
+        s->set_lenc(s, 1);           // Enable lens shading correction
+        s->set_dcw(s, 1);            // Advanced Auto White Balance / Color Matrix Correction
+        s->set_special_effect(s, 0); // No special effect (normal color)
+        s->set_brightness(s, 0);     // Normal brightness
+        s->set_contrast(s, 0);       // Normal contrast
+        s->set_saturation(s, 0);     // Normal saturation
+        s->set_sharpness(s, 0);      // Normal sharpness
+
         if (s->id.PID == GC0308_PID) {
             s->set_hmirror(s, 0); // Control camera mirror: 1 for mirror, 0 for normal
         }
@@ -46,10 +74,12 @@ Esp32Camera::Esp32Camera(const camera_config_t &config) {
         s->set_hmirror(s, kConfiguredHMirror ? 1 : 0);
         s->set_vflip(s, kConfiguredVFlip ? 1 : 0);
 #endif
-        ESP_LOGI(TAG, "Camera initialized: format=%d", config.pixel_format);
+        ESP_LOGI(TAG, "Camera initialized: format=%d, PID=0x%x", init_config_.pixel_format, s->id.PID);
     }
 
+    initialized_ = true;
     streaming_on_ = true;
+    return true;
 }
 
 Esp32Camera::~Esp32Camera() {
@@ -78,12 +108,16 @@ bool Esp32Camera::Capture() {
         encoder_thread_.join();
     }
 
+    if (!EnsureInitialized()) {
+        return false;
+    }
+
     if (!streaming_on_) {
         return false;
     }
 
-    // Get the latest frame, discard old frames for real-time performance
-    for (int i = 0; i < 2; i++) {
+    // Get latest frame after warming up sensor and discarding stale frames (15 frames for AWB to settle)
+    for (int i = 0; i < 15; i++) {
         if (current_fb_) {
             esp_camera_fb_return(current_fb_);
         }
@@ -116,13 +150,13 @@ bool Esp32Camera::Capture() {
         // Copy data to encode buffer with optional byte swapping
         uint16_t *src = (uint16_t *)current_fb_->buf;
         uint16_t *dst = (uint16_t *)encode_buf_;
+        size_t bytes_to_copy = current_fb_->len;
+        if (bytes_to_copy > data_size) bytes_to_copy = data_size;
+        
         if (swap_bytes_enabled_) {
-            for (size_t i = 0; i < pixel_count; i++) {
-                dst[i] = __builtin_bswap16(src[i]);
-            }
-        } else {
-            memcpy(encode_buf_, current_fb_->buf, data_size);
+            // swap_bytes enabled but not needed: encoder handles byte order natively
         }
+        memcpy(encode_buf_, current_fb_->buf, bytes_to_copy);
 
         // Allocate separate buffer for preview display
         uint8_t *preview_data = (uint8_t *)heap_caps_malloc(data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -147,6 +181,9 @@ bool Esp32Camera::Capture() {
 }
 
 bool Esp32Camera::SetHMirror(bool enabled) {
+    if (!EnsureInitialized()) {
+        return false;
+    }
     sensor_t *s = esp_camera_sensor_get();
     if (!s) {
         return false;
@@ -156,6 +193,9 @@ bool Esp32Camera::SetHMirror(bool enabled) {
 }
 
 bool Esp32Camera::SetVFlip(bool enabled) {
+    if (!EnsureInitialized()) {
+        return false;
+    }
     sensor_t *s = esp_camera_sensor_get();
     if (!s) {
         return false;
@@ -247,7 +287,7 @@ std::string Esp32Camera::Explain(const std::string &question) {
             xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
         }
         int64_t end_time = esp_timer_get_time();
-        ESP_LOGI(TAG, "JPEG encoding time: %ld ms", int((end_time - start_time) / 1000));
+        ESP_LOGI(TAG, "JPEG encoding time: %d ms", int((end_time - start_time) / 1000));
     });
 
     auto network = Board::GetInstance().GetNetwork();
@@ -295,6 +335,8 @@ std::string Esp32Camera::Explain(const std::string &question) {
 
     size_t total_sent = 0;
     bool saw_terminator = false;
+    uint8_t *photo_buf = nullptr;
+    size_t photo_len = 0, photo_cap = 0;
     while (true) {
         JpegChunk chunk;
         if (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) != pdPASS) {
@@ -307,7 +349,35 @@ std::string Esp32Camera::Explain(const std::string &question) {
         }
         http->Write((const char *)chunk.data, chunk.len);
         total_sent += chunk.len;
+        if (photo_callback_) {
+            if (photo_len + chunk.len > photo_cap) {
+                size_t new_cap = photo_cap ? photo_cap * 2 : 8192;
+                if (new_cap < photo_len + chunk.len) {
+                    new_cap = photo_len + chunk.len;
+                }
+                uint8_t *new_buf = (uint8_t *)heap_caps_realloc(photo_buf, new_cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (new_buf != nullptr) {
+                    photo_buf = new_buf;
+                    photo_cap = new_cap;
+                } else {
+                    heap_caps_free(photo_buf);
+                    photo_buf = nullptr;
+                    photo_cap = 0;
+                    photo_len = 0;
+                }
+            }
+            if (photo_buf != nullptr) {
+                memcpy(photo_buf + photo_len, chunk.data, chunk.len);
+                photo_len += chunk.len;
+            }
+        }
         heap_caps_free(chunk.data);
+    }
+    if (photo_buf != nullptr && photo_len > 0 && photo_callback_) {
+        photo_callback_(photo_buf, photo_len);
+    }
+    if (photo_buf != nullptr) {
+        heap_caps_free(photo_buf);
     }
     encoder_thread_.join();
     vQueueDelete(jpeg_queue);
