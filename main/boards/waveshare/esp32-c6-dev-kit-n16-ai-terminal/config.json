@@ -1,13 +1,15 @@
 {
-    "manufacturer": "waveshare",
-    "type": "esp32-c6-dev-kit-n16-ai-terminal",
-    "target": "esp32c6",
-    "builds": [
-        {
-            "name": "esp32-c6-dev-kit-n16-ai-terminal",
-            "sdkconfig_append": [
-                "CONFIG_USE_ESP_WAKE_WORD=y"
-            ]
-        }
-    ]
+  "manufacturer": "Waveshare",
+  "type": "waveshare/esp32-c6-dev-kit-n16-ai-terminal",
+  "name": "Waveshare ESP32-C6-DEV-KIT-N16 AI Terminal",
+  "version": "0.1",
+  "pins": {
+    "i2s_mclk": 19,
+    "i2s_bclk": 21,
+    "i2s_lrclk": 22,
+    "i2s_din": 20,
+    "i2s_dout": 23,
+    "ir_rx": 4,
+    "ir_tx": 5
+  }
 }
