@@ -1,40 +1,35 @@
-name: Build Boards
+.github/workflows/build.yml
+
+name: Build ESP32-C6 AI Terminal
 
 on:
   push:
     branches:
-      - main
-      - ci/* # for ci test
-  pull_request:
-    branches:
-      - main
-
-permissions:
-  contents: read
+      - "**"
 
 jobs:
+
   prepare:
-    name: Determine variants to build
-    runs-on: ubuntu-latest
-    container:
-      image: espressif/idf:v6.0.2
     outputs:
-      variants: ${{ steps.select.outputs.variants }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+      variants: ...
 
-      - name: Test build tooling
-        run: python -m unittest discover -s scripts/tests -v
+  build:
+    needs: prepare
 
-      - id: select
-        name: Select variants based on changes
-        shell: bash
-        run: |
-          EVENT_NAME="${{ github.event_name }}"
+    matrix:
+      include:
+        - board:
+            waveshare/esp32-c6-dev-kit-n16-ai-terminal
+          name:
+            esp32-c6-dev-kit-n16-ai-terminal
 
+    build:
+      python scripts/build.py \
+      waveshare/esp32-c6-dev-kit-n16-ai-terminal \
+      --name esp32-c6-dev-kit-n16-ai-terminal
+
+    upload:
+      build/merged-binary.bin
           # push 到 main 分支，编译全部变体
           if [[ "$EVENT_NAME" == "push" ]]; then
             # Keep the full matrix out of an environment variable. A single
