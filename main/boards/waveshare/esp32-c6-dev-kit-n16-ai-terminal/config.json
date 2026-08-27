@@ -3,6 +3,13 @@
   "type": "waveshare-esp32-c6-dev-kit-n16-ai-terminal",
   "name": "Waveshare ESP32-C6-DEV-KIT-N16 AI Terminal",
   "version": "0.1",
+  "target": "esp32c6",
+  "builds": [
+    {
+      "name": "esp32-c6-dev-kit-n16-ai-terminal",
+      "sdkconfig_append": []
+    }
+  ],
   "pins": {
     "i2s_mclk": 19,
     "i2s_bclk": 21,
