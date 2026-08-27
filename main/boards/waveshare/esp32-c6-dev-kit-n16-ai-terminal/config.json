@@ -1,0 +1,13 @@
+{
+    "manufacturer": "waveshare",
+    "type": "esp32-c6-dev-kit-n16-ai-terminal",
+    "target": "esp32c6",
+    "builds": [
+        {
+            "name": "esp32-c6-dev-kit-n16-ai-terminal",
+            "sdkconfig_append": [
+                "CONFIG_USE_ESP_WAKE_WORD=y"
+            ]
+        }
+    ]
+}
