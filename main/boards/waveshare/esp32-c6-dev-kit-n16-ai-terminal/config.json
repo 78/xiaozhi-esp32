@@ -1,6 +1,6 @@
 {
   "manufacturer": "Waveshare",
-  "type": "waveshare/esp32-c6-dev-kit-n16-ai-terminal",
+  "type": "waveshare-esp32-c6-dev-kit-n16-ai-terminal",
   "name": "Waveshare ESP32-C6-DEV-KIT-N16 AI Terminal",
   "version": "0.1",
   "pins": {
