@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <stdint.h>
 #include "esp_err.h"
 #include "driver/gpio.h"
+#include "driver/rmt.h"
 
 class IrController {
 public:
