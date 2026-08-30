@@ -1,10 +1,13 @@
 {
+    "manufacturer": "maza-ai",
+    "type": "maza-ai-esp32-s31",
     "target": "esp32s31",
+    "preview": true,
     "builds": [
         {
             "name": "maza-ai-esp32-s31",
-            "sdkconfig_append": [
-            ]
+            "idf_version": ">=6.1",
+            "sdkconfig_append": []
         }
     ]
 }
