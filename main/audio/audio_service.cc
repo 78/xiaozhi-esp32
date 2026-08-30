@@ -237,10 +237,15 @@ void AudioService::AudioInputTask() {
     constexpr EventBits_t kAudioInputActiveBits = AS_EVENT_AUDIO_TESTING_RUNNING |
         AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING;
 
+    ESP_LOGI(TAG, "AudioInputTask: started, waiting for event bits (testing=0x%x wake=0x%x processor=0x%x)",
+             AS_EVENT_AUDIO_TESTING_RUNNING, AS_EVENT_WAKE_WORD_RUNNING, AS_EVENT_AUDIO_PROCESSOR_RUNNING);
+
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, kAudioInputActiveBits |
             AS_EVENT_AUDIO_INPUT_STOP_REQUEST,
             pdFALSE, pdFALSE, portMAX_DELAY);
+
+        ESP_LOGD(TAG, "AudioInputTask: woke up, bits=0x%x", bits);
 
         if (service_stopped_.load()) {
             // ADC continuous mode keeps its hardware mutex from start until stop,
@@ -637,9 +642,11 @@ std::unique_ptr<AudioStreamPacket> AudioService::PopWakeWordPacket() {
 }
 
 void AudioService::EnableWakeWordDetection(bool enable) {
-    ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
+    ESP_LOGI(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
-        if (!InitializeAudioEngine()) {
+        bool engine_ok = InitializeAudioEngine();
+        if (!engine_ok) {
+            ESP_LOGI(TAG, "EnableWakeWordDetection: engine_ok=%d", engine_ok);
             xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
             return;
         }
@@ -650,7 +657,9 @@ void AudioService::EnableWakeWordDetection(bool enable) {
             return;
         }
 #endif
-        if (!audio_engine_->HasWakeWord()) {
+        bool has_wake = audio_engine_->HasWakeWord();
+        ESP_LOGI(TAG, "EnableWakeWordDetection: engine_ok=%d has_wake_word=%d", engine_ok, has_wake);
+        if (!has_wake) {
             xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
             return;
         }
@@ -841,10 +850,14 @@ bool AudioService::IsAfeWakeWord() {
 }
 
 bool AudioService::InitializeAudioEngine() {
+    ESP_LOGI(TAG, "InitializeAudioEngine: engine=%p initialized=%d models=%p",
+             audio_engine_.get(), audio_engine_initialized_, models_list_);
     if (!audio_engine_) {
+        ESP_LOGW(TAG, "InitializeAudioEngine: audio_engine_ is null");
         return false;
     }
     if (audio_engine_initialized_) {
+        ESP_LOGI(TAG, "InitializeAudioEngine: already initialized");
         return true;
     }
     if (!audio_engine_->Initialize(codec_, OPUS_FRAME_DURATION_MS, models_list_)) {
@@ -853,5 +866,6 @@ bool AudioService::InitializeAudioEngine() {
     }
     audio_engine_initialized_ = true;
     audio_engine_->EnableDeviceAec(device_aec_enabled_);
+    ESP_LOGI(TAG, "InitializeAudioEngine: success");
     return true;
 }

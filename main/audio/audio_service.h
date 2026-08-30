@@ -132,6 +132,9 @@ public:
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
 
+    void SetPlaybackMute(bool mute) { playback_muted_.store(mute); }
+    bool IsPlaybackMuted() const { return playback_muted_.load(); }
+
     void SetCallbacks(AudioServiceCallbacks& callbacks);
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
@@ -164,6 +167,7 @@ private:
     DebugStatistics debug_statistics_;
     int64_t last_encode_drop_log_time_ = 0;
     srmodel_list_t* models_list_ = nullptr;
+    std::atomic<bool> playback_muted_{false};
 
     EventGroupHandle_t event_group_;
 

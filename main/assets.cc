@@ -523,7 +523,7 @@ bool Assets::Download(std::string url,
         return false;
     }
 
-    const size_t SECTOR_SIZE = esp_partition_get_main_flash_sector_size();
+    const size_t SECTOR_SIZE = SPI_FLASH_SEC_SIZE;
     using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
 
     BufferPtr buffer(static_cast<char*>(heap_caps_malloc(SECTOR_SIZE, MALLOC_CAP_INTERNAL)),

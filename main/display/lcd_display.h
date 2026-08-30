@@ -33,6 +33,19 @@ protected:
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
 
+    // Wall-E Face UI
+    lv_obj_t* face_container_ = nullptr;
+    lv_obj_t* left_eye_ = nullptr;
+    lv_obj_t* right_eye_ = nullptr;
+    lv_obj_t* mouth_arc_ = nullptr;
+    lv_obj_t* mouth_pill_ = nullptr;
+    lv_timer_t* eye_anim_timer_ = nullptr;
+    uint32_t eye_idle_timer_ = 0;
+    int current_eye_state_ = 0; // 0=neutral, 1=speaking, 2=happy, 3=sad, 4=angry
+    bool eyes_open_ = true;
+    int speak_mouth_target_ = 4;
+    int speak_mouth_current_ = 4;
+
     void InitializeLcdThemes();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -54,6 +67,9 @@ public:
 
     // Set whether to hide chat messages/subtitles
     void SetHideSubtitle(bool hide);
+
+    // Face Animation Updater
+    void UpdateEyeAnimation();
 };
 
 // SPI LCD display

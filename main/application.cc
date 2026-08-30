@@ -429,7 +429,7 @@ void Application::CheckAssetsVersion() {
 }
 
 void Application::CheckNewVersion() {
-    const int MAX_RETRY = 10;
+    const int MAX_RETRY = 3;
     int retry_count = 0;
     int retry_delay = 10;  // Initial retry delay in seconds
 
@@ -541,7 +541,7 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
-        if (GetDeviceState() == kDeviceStateSpeaking) {
+        if (GetDeviceState() == kDeviceStateSpeaking && !audio_service_.IsPlaybackMuted()) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -635,9 +635,12 @@ void Application::InitializeProtocol() {
                     }
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     Schedule([display, message = std::string(text->valuestring),
-                              glyphs = std::move(glyphs), bpp]() {
+                              glyphs = std::move(glyphs), bpp, this]() {
                         display->AddTextGlyphs(glyphs, bpp);
                         display->SetChatMessage("assistant", message.c_str());
+                        if (chat_message_callback_) {
+                            chat_message_callback_("assistant", message);
+                        }
                     });
                 }
             }
@@ -651,9 +654,12 @@ void Application::InitializeProtocol() {
                 }
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([display, message = std::string(text->valuestring),
-                          glyphs = std::move(glyphs), bpp]() {
+                          glyphs = std::move(glyphs), bpp, this]() {
                     display->AddTextGlyphs(glyphs, bpp);
                     display->SetChatMessage("user", message.c_str());
+                    if (chat_message_callback_) {
+                        chat_message_callback_("user", message);
+                    }
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -723,7 +729,15 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
          digit_sound{'8', Lang::Sounds::OGG_8}, digit_sound{'9', Lang::Sounds::OGG_9}}};
 
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-    Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);
+    std::string full_message;
+    if (!message.empty()) {
+        full_message = message;
+        if (!code.empty()) {
+            full_message += "\n";
+        }
+    }
+    full_message += code;
+    Alert(Lang::Strings::ACTIVATION, full_message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);
 
     for (const auto& digit : code) {
         auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
@@ -994,6 +1008,7 @@ void Application::HandleStateChangedEvent() {
             display->SetStatus(Lang::Strings::STANDBY);
             display->ClearChatMessages();    // Clear messages first
             display->SetEmotion("neutral");  // Then set emotion (wechat mode checks child count)
+            ESP_LOGI(TAG, "State: idle — disabling voice processing, enabling wake word");
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(true);
             break;
@@ -1026,8 +1041,8 @@ void Application::HandleStateChangedEvent() {
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
-                // Only AFE wake word can be detected in speaking mode
-                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
+                // Wake word can always be detected to interrupt or recover state
+                audio_service_.EnableWakeWordDetection(true);
             }
             audio_service_.ResetDecoder();
             break;

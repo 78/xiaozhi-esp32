@@ -56,9 +56,11 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
     frame_samples_ = frame_duration_ms * 16000 / 1000;
     output_buffer_.reserve(frame_samples_);
 
+    ESP_LOGI(TAG, "AfeAudioEngine::Initialize: models_list=%p", models_list);
     if (models_list == nullptr) {
         models_ = esp_srmodel_init("model");
         owns_models_ = models_ != nullptr;
+        ESP_LOGI(TAG, "AfeAudioEngine::Initialize: fallback esp_srmodel_init => %p", models_);
     } else {
         models_ = models_list;
     }
@@ -68,9 +70,14 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
     if (models_ != nullptr && models_->num > 0) {
         wakenet_model_name = esp_srmodel_filter(models_, ESP_WN_PREFIX, nullptr);
         multinet_model_name = esp_srmodel_filter(models_, ESP_MN_PREFIX, nullptr);
+        ESP_LOGI(TAG, "AfeAudioEngine::Initialize: wakenet=%s multinet=%s",
+                 wakenet_model_name ? wakenet_model_name : "null",
+                 multinet_model_name ? multinet_model_name : "null");
         for (int i = 0; i < models_->num; ++i) {
             ESP_LOGI(TAG, "Model %d: %s", i, models_->model_name[i]);
         }
+    } else {
+        ESP_LOGW(TAG, "AfeAudioEngine::Initialize: no models loaded (models_=%p)", models_);
     }
 
     if (multinet_model_name != nullptr) {
@@ -135,7 +142,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
     afe_config->aec_nlp_level = AEC_NLP_LEVEL_VERYAGGR;
-    afe_config->ns_init = false;
+    afe_config->ns_init = true;
     afe_config->vad_init = kUseAfeForVoiceProcessing;
     afe_config->vad_mode = VAD_MODE_0;
     afe_config->vad_min_noise_ms = 100;
@@ -186,7 +193,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
     const char* detector = wake_detector_ == WakeDetector::kWakeNet
         ? "WakeNet"
         : (wake_detector_ == WakeDetector::kMultiNet ? "MultiNet" : "none");
-    ESP_LOGI(TAG, "Initialized FD AFE, detector: %s, NS: off, feed: %d, fetch: %d",
+    ESP_LOGI(TAG, "Initialized FD AFE, detector: %s, NS: on, feed: %d, fetch: %d",
         detector, afe_iface_->get_feed_chunksize(afe_data_), afe_iface_->get_fetch_chunksize(afe_data_));
     return true;
 }

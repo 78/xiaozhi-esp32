@@ -27,6 +27,14 @@ protected:
     void TryWifiConnect();
 
     /**
+     * Called after the WiFi driver has been initialized (esp_wifi_init) but
+     * before the station/softAP interface is started. Override to apply
+     * driver settings that require the interface to be disabled, e.g. a
+     * custom station MAC address via esp_wifi_set_mac().
+     */
+    virtual void OnWiFiDriverReady() {}
+
+    /**
      * Enter WiFi configuration mode
      */
     void StartWifiConfigMode();

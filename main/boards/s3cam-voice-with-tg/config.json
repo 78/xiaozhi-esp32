@@ -1,0 +1,9 @@
+{
+    "type": "s3cam-voice-with-tg",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "s3cam-voice-with-tg"
+        }
+    ]
+}

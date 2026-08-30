@@ -2,7 +2,18 @@
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
+#include <sys/types.h>
+
+extern "C" {
+#ifndef PROT_READ
+#define PROT_READ 0x1
+#define PROT_WRITE 0x2
+#define MAP_SHARED 0x1
+#define MAP_FAILED ((void *)-1)
+#endif
+    void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+    int munmap(void *addr, size_t length);
+}
 #include <sys/param.h>
 #include <unistd.h>
 #include <errno.h>

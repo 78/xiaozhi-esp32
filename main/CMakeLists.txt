@@ -56,7 +56,6 @@ list(APPEND SOURCES
     "boards/common/axp2101.cc"
     "boards/common/backlight.cc"
     "boards/common/button.cc"
-    "boards/common/i2c_device.cc"
     "boards/common/knob.cc"
     "boards/common/power_save_timer.cc"
     "boards/common/press_to_talk_mcp_tool.cc"
@@ -182,6 +181,10 @@ elseif(CONFIG_BOARD_TYPE_EDA_ROBOT_PRO)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
 elseif(CONFIG_BOARD_TYPE_EDA_SUPER_BEAR)
     set(BOARD_DIR "lceda-course-examples/eda-super-bear")
+elseif(CONFIG_BOARD_TYPE_S3CAM_VOICE_WITH_TG)
+    set(BOARD_DIR "s3cam-voice-with-tg")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_MAGICLICK_S3_2P4)
     set(BOARD_DIR "magiclick/2p4")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -781,6 +784,10 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_CAM)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_S3CAM_VOICE_WITH_TG)
+    set(BOARD_DIR "s3cam-voice-with-tg")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_JIUCHUAN)
     set(BOARD_DIR "jiuchuan-s3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -1020,11 +1027,11 @@ if(CONFIG_IDF_TARGET_ESP32)
                              )
 endif()
 
-# Include EspVideo if target is ESP32S3 or ESP32P4
+if(CONFIG_IDF_TARGET_ESP32P4)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
+endif()
 if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
-    list(APPEND SOURCES "boards/common/esp_video.cc"
-                        "boards/common/rndis_board.cc"
-                        )
+    list(APPEND SOURCES "boards/common/rndis_board.cc")
 endif()
 
 # Include EspVideo if target is ESP32S31
@@ -1069,6 +1076,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_netif
                         esp_eth
+                        esp_http_client
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi
