@@ -1,5 +1,6 @@
 #include "circular_strip.h"
 #include "application.h"
+#include "morse_code.h"
 #include <esp_log.h>
 #include <algorithm>
 
@@ -173,6 +174,30 @@ void CircularStrip::Scroll(StripColor low, StripColor high, int length, int inte
         }
         led_strip_refresh(led_strip_);
         offset = (offset + 1) % max_leds_;
+    });
+}
+
+void CircularStrip::Morse(StripColor color, const std::string& text, int wpm) {
+    morse_ticks_ = EncodeMorseTicks(text);
+    morse_index_ = 0;
+    morse_color_ = color;
+    if (morse_ticks_.empty()) {
+        return;
+    }
+    StartStripTask(MorseUnitMs(wpm), [this]() {
+        if (morse_index_ >= morse_ticks_.size()) {
+            led_strip_clear(led_strip_);
+            esp_timer_stop(strip_timer_);
+            return;
+        }
+        if (morse_ticks_[morse_index_++]) {
+            for (int i = 0; i < max_leds_; i++) {
+                led_strip_set_pixel(led_strip_, i, morse_color_.red, morse_color_.green, morse_color_.blue);
+            }
+            led_strip_refresh(led_strip_);
+        } else {
+            led_strip_clear(led_strip_);
+        }
     });
 }
 

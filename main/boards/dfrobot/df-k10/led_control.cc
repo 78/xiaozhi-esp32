@@ -2,6 +2,7 @@
 #include "settings.h"
 #include "mcp_server.h"
 #include <esp_log.h>
+#include <stdexcept>
 
 #define TAG "LedStripControl"
 
@@ -121,4 +122,20 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             return true;
         });
 
+    mcp_server.AddTool("self.led_strip.morse",
+        "Convert text to Morse code and blink it on the led strip.\n"
+        "Supports A-Z, 0-9, spaces, and common punctuation.",
+        PropertyList({
+            Property("text", kPropertyTypeString),
+            Property("wpm", kPropertyTypeInteger, 8, 3, 40),
+        }), [this](const PropertyList& properties) -> ReturnValue {
+            auto text = properties["text"].value<std::string>();
+            auto wpm = properties["wpm"].value<int>();
+            if (text.empty()) {
+                throw std::runtime_error("text must not be empty");
+            }
+            ESP_LOGI(TAG, "Morse led strip: \"%s\" at %d wpm", text.c_str(), wpm);
+            led_strip_->Morse(StripColor{255, 255, 255}, text, wpm);
+            return true;
+        });
 }
