@@ -105,7 +105,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             Property("red", kPropertyTypeInteger, 0, 255),
             Property("green", kPropertyTypeInteger, 0, 255),
             Property("blue", kPropertyTypeInteger, 0, 255),
-            Property("length", kPropertyTypeInteger, 1, 7),
+            Property("length", kPropertyTypeInteger, 1, 3),
             Property("interval", kPropertyTypeInteger, 0, 1000)
         }), [this](const PropertyList& properties) -> ReturnValue {
             int red = properties["red"].value<int>();
