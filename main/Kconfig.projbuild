@@ -348,6 +348,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_S3_2P5
         bool "Magiclick 2.5 (神奇按钮)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OSTB_2ST_WIFI_DOUBLE_MIC_EN
+        bool "OSTB 2ST WiFi Double Mic EN"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_MAGICLICK_C3
         bool "Magiclick C3 (神奇按钮)"
         depends on IDF_TARGET_ESP32C3
