@@ -189,6 +189,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_DU_CHATX
         bool "Du ChatX Wi-Fi (嘟嘟开发板)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CYBERAI_SPEAKER
+        bool "CyberAI Speaker (赛博AI音箱)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot"
         depends on IDF_TARGET_ESP32S3
