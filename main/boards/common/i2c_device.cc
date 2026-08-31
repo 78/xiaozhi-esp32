@@ -1,6 +1,8 @@
 #include "i2c_device.h"
 
 #include <esp_log.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define TAG "I2cDevice"
 
@@ -23,6 +25,17 @@ I2cDevice::I2cDevice(i2c_master_bus_handle_t i2c_bus, uint8_t addr)
 void I2cDevice::WriteReg(uint8_t reg, uint8_t value) {
     uint8_t buffer[2] = {reg, value};
     ESP_ERROR_CHECK(i2c_master_transmit(i2c_device_, buffer, 2, 100));
+}
+
+void I2cDevice::WriteRegs(uint8_t reg, const uint8_t* buffer, size_t length) {
+    uint8_t* tx = (uint8_t*)malloc(length + 1);
+    if (tx == nullptr) {
+        return;
+    }
+    tx[0] = reg;
+    memcpy(tx + 1, buffer, length);
+    ESP_ERROR_CHECK(i2c_master_transmit(i2c_device_, tx, length + 1, 100));
+    free(tx);
 }
 
 uint8_t I2cDevice::ReadReg(uint8_t reg) {
