@@ -295,6 +295,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_DECK_MAX
+        bool "LilyGo T-Deck MAX"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_DECK_PRO_A7682E
+        bool "LilyGo T-Deck Pro A7682E"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro MVSR LoRa"
         depends on IDF_TARGET_ESP32S3
