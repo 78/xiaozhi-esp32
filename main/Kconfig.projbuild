@@ -273,6 +273,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LABPLUS_MPYTHON_V3
         bool "Labplus mPython V3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LCDWIKI_ES3C28P
+        bool "LCDWiki ES3C28P 2.8-inch ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LCDWIKI_ES3C35P
         bool "LCDWiki ES3C35P 3.5-inch ESP32-S3"
         depends on IDF_TARGET_ESP32S3
