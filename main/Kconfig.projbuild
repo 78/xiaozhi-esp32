@@ -846,6 +846,14 @@ choice DISPLAY_STYLE
     config USE_WECHAT_MESSAGE_STYLE
         bool "Enable WeChat Message Style"
 
+    config USE_ROBOT_FACE_STYLE
+        bool "Robot face style"
+        help
+            Draw an animated robot face (eyes, brows and mouth) with LVGL
+            primitives instead of showing emoji images. The mouth opens in
+            step with the amplitude of the speech being played, and the eyes
+            react to the device state. Requires an LCD display.
+
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP32_S3_BOX || BOARD_TYPE_ESP32_S3_BOX_3 \
