@@ -22,7 +22,8 @@ static const std::unordered_map<std::string, std::string> emoji_asset_name_map =
     {"asking", "asking.aaf"},
     {"happy_loop", "happy_loop.aaf"},
     {"sad_loop", "sad_loop.aaf"},
-    {"anger_loop", "anger_loop.aaf"},
+    // Upstream image_player asset uses capital A in the filename.
+    {"anger_loop", "Anger_loop.aaf"},
     {"panic_loop", "panic_loop.aaf"},
     {"blink_quick", "blink_quick.aaf"},
     {"scorn_loop", "scorn_loop.aaf"}
@@ -30,8 +31,7 @@ static const std::unordered_map<std::string, std::string> emoji_asset_name_map =
 
 bool EmojiPlayer::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
-    auto* disp_drv = static_cast<anim_player_handle_t*>(user_ctx);
-    anim_player_flush_ready(disp_drv);
+    anim_player_flush_ready(static_cast<anim_player_handle_t>(user_ctx));
     return true;
 }
 

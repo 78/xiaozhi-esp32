@@ -741,7 +741,7 @@ def get_emoji_collection_path(default_emoji_collection, noto_fonts_path, project
 
 def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path,
                             emoji_collection_path, extra_files_path, output_path,
-                            multinet_model_info=None, font_bundle_id=None):
+                            multinet_model_info=None, font_bundle_id=None, max_size=None):
     """
     Build assets using integrated functions (no external dependencies)
     """
@@ -788,6 +788,13 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
             # Show size information
             total_size = os.path.getsize(output_path)
             print(f"Assets file size: {total_size / 1024:.2f}K ({total_size} bytes)")
+
+            if max_size is not None and total_size > max_size:
+                print(
+                    f"Error: assets.bin size {total_size} bytes exceeds partition limit "
+                    f"{max_size} bytes ({max_size / 1024:.2f}K)"
+                )
+                return False
             
             return True
         else:
@@ -812,6 +819,8 @@ def main():
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
     parser.add_argument('--noto_fonts_path', help='Path to noto-fonts component directory')
     parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
+    parser.add_argument('--max_size', type=lambda v: int(v, 0), default=None,
+                        help='Fail if assets.bin exceeds this many bytes (decimal or 0x hex)')
     
     args = parser.parse_args()
     
@@ -925,7 +934,7 @@ def main():
     # Build the assets
     success = build_assets_integrated(
         wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path,
-        extra_files_path, args.output, multinet_model_info, font_bundle_id)
+        extra_files_path, args.output, multinet_model_info, font_bundle_id, args.max_size)
     
     if not success:
         sys.exit(1)
