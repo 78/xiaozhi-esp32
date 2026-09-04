@@ -3,6 +3,7 @@
 #include "assets/lang_config.h"
 #include "audio_codec.h"
 #include "board.h"
+#include "board_protocol.h"
 #include "display.h"
 #include "mcp_server.h"
 #include "mqtt_protocol.h"
@@ -272,6 +273,10 @@ void Application::Run() {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
+            if (auto protocol_handler = Board::GetInstance().GetProtocolHandler();
+                protocol_handler != nullptr) {
+                protocol_handler->OnApplicationTick();
+            }
 
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
@@ -519,8 +524,23 @@ void Application::CheckNewVersion() {
 
 void Application::InitializeProtocol() {
     auto& board = Board::GetInstance();
+    auto protocol_handler = board.GetProtocolHandler();
     auto display = board.GetDisplay();
     auto codec = board.GetAudioCodec();
+
+    if (protocol_handler != nullptr) {
+        BoardProtocolContext context;
+        context.schedule = [this](std::function<void()>&& callback) {
+            Schedule(std::move(callback));
+        };
+        context.on_speech_finished = [this]() {
+            if (GetDeviceState() == kDeviceStateSpeaking) {
+                SetDeviceState(listening_mode_ == kListeningModeManualStop ? kDeviceStateIdle
+                                                                           : kDeviceStateListening);
+            }
+        };
+        protocol_handler->SetApplicationContext(std::move(context));
+    }
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
@@ -540,7 +560,10 @@ void Application::InitializeProtocol() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
 
-    protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+    protocol_->OnIncomingAudio([this, protocol_handler](std::unique_ptr<AudioStreamPacket> packet) {
+        if (protocol_handler != nullptr && protocol_handler->HandleIncomingAudio(packet)) {
+            return;
+        }
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
@@ -556,7 +579,10 @@ void Application::InitializeProtocol() {
         }
     });
 
-    protocol_->OnAudioChannelClosed([this, &board]() {
+    protocol_->OnAudioChannelClosed([this, &board, protocol_handler]() {
+        if (protocol_handler != nullptr) {
+            protocol_handler->OnAudioChannelClosed();
+        }
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
@@ -565,7 +591,10 @@ void Application::InitializeProtocol() {
         });
     });
 
-    protocol_->OnIncomingJson([this, display](const cJSON* root) {
+    protocol_->OnIncomingJson([this, display, protocol_handler](const cJSON* root) {
+        if (protocol_handler != nullptr && protocol_handler->HandleIncomingJson(root)) {
+            return;
+        }
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
         if (!cJSON_IsString(type)) {
@@ -1153,6 +1182,10 @@ void Application::Schedule(std::function<void()>&& callback) {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    if (auto protocol_handler = Board::GetInstance().GetProtocolHandler();
+        protocol_handler != nullptr) {
+        protocol_handler->OnAbortSpeaking();
+    }
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);
     }
