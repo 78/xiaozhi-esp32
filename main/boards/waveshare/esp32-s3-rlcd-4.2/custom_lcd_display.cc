@@ -80,7 +80,14 @@ height_(height)
     Set_ResetIOLevel(1);
 
     DisplayLen                = transfer >> 3; //(1byte 8ipex)
-    DispBuffer                = (uint8_t *) heap_caps_malloc(DisplayLen, MALLOC_CAP_SPIRAM);
+    // 显存必须放在 DMA 可访问的内部内存：若放在 PSRAM，spi_master 每次
+    // tx_color 都要临时申请一块等大的内部 DMA 缓冲并 memcpy（见 setup_dma_priv_buffer），
+    // 对话时刷屏频繁，该临时分配会在内存紧张时失败。
+    DispBuffer                = (uint8_t *) heap_caps_malloc(DisplayLen, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (DispBuffer == nullptr) {
+        ESP_LOGW(TAG, "内部 DMA 显存分配失败(%d 字节)，回退到 PSRAM", (int)DisplayLen);
+        DispBuffer            = (uint8_t *) heap_caps_malloc(DisplayLen, MALLOC_CAP_SPIRAM);
+    }
     assert(DispBuffer);
 	PixelIndexLUT = (uint16_t (*)[300])heap_caps_malloc(transfer * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
 	PixelBitLUT   = (uint8_t (*)[300])heap_caps_malloc(transfer * sizeof(uint8_t), MALLOC_CAP_SPIRAM);
@@ -178,7 +185,12 @@ void CustomLcdDisplay::RLCD_SendData(uint8_t Data) {
 }
 
 void CustomLcdDisplay::RLCD_Sendbuffera(uint8_t *Data, int len) {
-    ESP_ERROR_CHECK(esp_lcd_panel_io_tx_color(io_handle, -1, Data, len));
+    // 不用 ESP_ERROR_CHECK：DMA 缓冲分配失败是可恢复的瞬时状态，
+    // 丢一帧画面远好过 abort() 重启整机。
+    esp_err_t err = esp_lcd_panel_io_tx_color(io_handle, -1, Data, len);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "刷屏失败，跳过本帧: %s", esp_err_to_name(err));
+    }
 }
 
 void CustomLcdDisplay::RLCD_Reset(void) {
