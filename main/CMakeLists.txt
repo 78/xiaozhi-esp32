@@ -1173,21 +1173,25 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
 endif()
 
 if(CONFIG_BOARD_TYPE_ESP_HI)
-set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
+# Pin AAF assets to a fixed image_player commit so builds stay reproducible.
+# Only pack AAF files referenced by emoji_display.cc — the full test_8bit set
+# plus wakenet models overflows the 1MB assets partition on the 4MB ESP-HI
+# flash map (see #2228).
+set(URL "https://github.com/espressif2022/image_player/raw/d61e0ccb1d7b0a2a214d0c90f5451fd683f41682/test_apps/test_8bit")
 set(EMOJI_DIR "${CMAKE_BINARY_DIR}/emoji")
 file(MAKE_DIRECTORY ${EMOJI_DIR})
 
-# List all files to download
-set(FILES_TO_DOWNLOAD "")
-list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
-list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
-list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
+set(FILES_TO_DOWNLOAD
+    "Anger_loop.aaf"
+    "asking.aaf"
+    "blink_quick.aaf"
+    "connecting.aaf"
+    "happy_loop.aaf"
+    "panic_loop.aaf"
+    "sad_loop.aaf"
+    "scorn_loop.aaf"
+    "wake.aaf"
+)
 
 foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
@@ -1254,6 +1258,12 @@ function(build_default_assets_bin)
 
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
     list(APPEND BUILD_ARGS "--noto_fonts_path" "${NOTO_FONTS_PATH}")
+
+    # Enforce assets.bin fits the flash partition (e.g. ESP-HI 4MB map uses 1MB assets).
+    partition_table_get_partition_info(assets_partition_size "--partition-name assets" "size")
+    if(assets_partition_size)
+        list(APPEND BUILD_ARGS "--max_size" "${assets_partition_size}")
+    endif()
 
     # Create custom command to build assets
     add_custom_command(
