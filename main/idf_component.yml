@@ -149,3 +149,5 @@ dependencies:
     - if: target in [esp32p4]
   m5stack/m5ioe1: ^1.0.8
   m5stack/m5pm1: ^1.0.5
+
+  cube32esp/xpowerslib: ^0.3.3
