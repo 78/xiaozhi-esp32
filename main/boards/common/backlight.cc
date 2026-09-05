@@ -3,6 +3,7 @@
 
 #include <esp_log.h>
 #include <driver/ledc.h>
+#include <driver/gpio.h>
 
 #define TAG "Backlight"
 
@@ -119,3 +120,25 @@ void PwmBacklight::SetBrightnessImpl(uint8_t brightness) {
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
 }
 
+
+GpioBacklight::GpioBacklight(gpio_num_t pin, bool output_invert)
+    : Backlight(), pin_(pin), output_invert_(output_invert) {
+    gpio_config_t bk_gpio_config = {
+        .pin_bit_mask = 1ULL << pin,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
+    gpio_set_level(pin_, output_invert_ ? 1 : 0);
+}
+
+GpioBacklight::~GpioBacklight() {
+    gpio_set_level(pin_, output_invert_ ? 1 : 0);
+}
+
+void GpioBacklight::SetBrightnessImpl(uint8_t brightness) {
+    uint32_t level = brightness > 0 ? 1 : 0;
+    gpio_set_level(pin_, output_invert_ ? !level : level);
+}

@@ -34,3 +34,18 @@ public:
 
     void SetBrightnessImpl(uint8_t brightness) override;
 };
+
+
+// On-off backlight for pins LEDC refuses to drive (e.g. GPIO 23 on JC8012P4A1C).
+// Any brightness > 0 turns the panel fully on; 0 turns it off.
+class GpioBacklight : public Backlight {
+public:
+    GpioBacklight(gpio_num_t pin, bool output_invert = false);
+    ~GpioBacklight();
+
+    void SetBrightnessImpl(uint8_t brightness) override;
+
+private:
+    gpio_num_t pin_;
+    bool output_invert_;
+};
