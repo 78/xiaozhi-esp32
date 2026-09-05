@@ -1483,6 +1483,44 @@ class BoardSourceTests(unittest.TestCase):
 
         self.assertEqual(missing, [])
 
+    def test_m5stack_tab5_supports_st7121_and_st7123_panels(self):
+        board_dir = ROOT / "main/boards/m5stack/tab5"
+        board_cc = (board_dir / "m5stack_tab5.cc").read_text(encoding="utf-8")
+
+        initialize_display = board_cc[
+            board_cc.index("void InitializeDisplay()") : board_cc.index(
+                "void InitializeCamera()"
+            )
+        ]
+        self.assertLess(
+            initialize_display.index("ResetLcdAndTouch();"),
+            initialize_display.index("i2c_master_probe"),
+        )
+        self.assertIn("DetectSt712xPanel()", initialize_display)
+        self.assertIn("InitializeSt712xDisplay(panel_type)", initialize_display)
+
+        self.assertIn("firmware_version == 1", board_cc)
+        self.assertIn("St712xPanel::kSt7121", board_cc)
+        self.assertIn("esp_lcd_new_panel_st7121", board_cc)
+        self.assertIn("esp_lcd_new_panel_st7123", board_cc)
+        self.assertIn("is_st7121 ? 20 : 2", board_cc)
+        self.assertIn("is_st7121 ? 24 : 8", board_cc)
+        self.assertIn("is_st7121 ? 200 : 220", board_cc)
+
+        st7121_driver = (board_dir / "esp_lcd_st7121.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("esp_lcd_new_panel_st7121", st7121_driver)
+        self.assertIn("{0x71, 0x21, 0xA2}", st7121_driver)
+
+        config = json.loads((board_dir / "config.json").read_text(encoding="utf-8"))
+        for build_config in config["builds"]:
+            self.assertIn(
+                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y",
+                build_config["sdkconfig_append"],
+                msg=build_config["name"],
+            )
+
 
 class ZipTests(unittest.TestCase):
     def test_zip_is_always_recreated(self):
