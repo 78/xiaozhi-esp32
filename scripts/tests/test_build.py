@@ -337,6 +337,110 @@ class BoardSelectionTests(unittest.TestCase):
             "Alientek ATK-DNESP32S3 Development Board (正点原子)",
         )
 
+    def test_board_target_matching_uses_complete_kconfig_symbols(self):
+        self.assertTrue(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI",
+                "esp32s3",
+            )
+        )
+        self.assertFalse(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI",
+                "esp32",
+            )
+        )
+        self.assertTrue(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1",
+                "esp32s31",
+            )
+        )
+        self.assertFalse(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1",
+                "esp32s3",
+            )
+        )
+
+    def test_explicit_board_config_rejects_incompatible_target(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support target 'esp32c3'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32c3",
+                ["CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI=y"],
+            )
+
+    def test_explicit_board_config_rejects_different_board_directory(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not select board directory 'bread-compact-wifi'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32s3",
+                ["CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y"],
+            )
+
+    def test_inferred_board_config_rejects_incompatible_target(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support target 'esp32c3'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32c3",
+                [],
+            )
+
+    def test_rejected_board_selection_stops_before_build(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            board_dir = Path(temp_dir) / "test-board"
+            board_dir.mkdir()
+            (board_dir / "config.json").write_text(
+                json.dumps({
+                    "target": "esp32s3",
+                    "type": "test-board",
+                    "builds": [{"name": "test-board"}],
+                }),
+                encoding="utf-8",
+            )
+
+            with (
+                mock.patch.object(build, "_BOARDS_DIR", Path(temp_dir)),
+                mock.patch.object(build, "get_project_version", return_value="1.0.0"),
+                mock.patch.object(
+                    build,
+                    "_resolve_board_config",
+                    return_value="CONFIG_BOARD_TYPE_TEST",
+                ),
+                mock.patch.object(build, "_build_option_definitions", return_value=[]),
+                mock.patch.object(build, "_prepare_target"),
+                mock.patch.object(build, "_configure_build"),
+                mock.patch.object(
+                    build,
+                    "_validate_configured_symbols",
+                    side_effect=ValueError("Kconfig rejected board selection"),
+                ) as validate_symbols,
+                mock.patch.object(build, "_run_idf") as run_idf,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                with self.assertRaisesRegex(ValueError, "Kconfig rejected"):
+                    build.build_board(
+                        "test-board",
+                        name_filter="test-board",
+                        idf_version=(6, 0, 2),
+                    )
+
+            validate_symbols.assert_called_once_with(
+                ["CONFIG_BOARD_TYPE_TEST"],
+                "board selection",
+            )
+            run_idf.assert_not_called()
+
     def test_variant_name_disambiguates_shared_board_directory(self):
         board = "lilygo/t-cameraplus-s3"
         self.assertEqual(
