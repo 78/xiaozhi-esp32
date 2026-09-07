@@ -71,6 +71,8 @@ choice
         bool "Marathi"
     config LANGUAGE_PT_PT
         bool "Portuguese"
+    config LANGUAGE_PT_BR
+        bool "Portuguese (Brazil)"
     config LANGUAGE_PL_PL
         bool "Polish"
     config LANGUAGE_CS_CZ
