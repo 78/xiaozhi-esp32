@@ -231,7 +231,8 @@ private:
                 // 如果当前是聆听状态，切换到待命状态
                 ESP_LOGI(TAG, "从聆听状态切换到待命状态");
                 app.ToggleChatState(); // 切换到待命状态
-            } else if (current_state == kDeviceStateSpeaking) {
+            } else if (current_state == kDeviceStateSpeaking ||
+                       current_state == kDeviceStateNotifying) {
                 // 如果当前是说话状态，终止说话并切换到待命状态
                 ESP_LOGI(TAG, "从说话状态切换到待命状态");
                 app.ToggleChatState(); // 终止说话

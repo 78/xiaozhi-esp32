@@ -306,10 +306,6 @@ private:
         };
 
         camera_ = new EspVideo(video_config);
-
-        // 方向是板级特定配置，见 config.h 的 CAMERA_VFLIP / CAMERA_HMIRROR
-        camera_->SetVFlip(CAMERA_VFLIP);
-        camera_->SetHMirror(CAMERA_HMIRROR);
     }
 
 public:

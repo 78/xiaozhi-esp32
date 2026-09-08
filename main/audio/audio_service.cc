@@ -333,6 +333,10 @@ void AudioService::AudioOutputTask() {
             codec_->EnableOutput(true);
         }
 
+        if (task->playback_id != 0 && callbacks_.on_playback_progress) {
+            callbacks_.on_playback_progress(task->playback_id, task->media_position_ms);
+        }
+
         codec_->OutputData(task->pcm);
 
         /* Update the last output time */
@@ -384,6 +388,8 @@ void AudioService::OpusCodecTask() {
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
             task->timestamp = packet->timestamp;
+            task->playback_id = packet->playback_id;
+            task->media_position_ms = packet->media_position_ms;
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             bool decoded = false;
@@ -579,17 +585,19 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
 
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+    const uint32_t generation = playback_generation_;
     if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
         if (wait) {
-            audio_queue_cv_.wait(lock, [this]() {
+            audio_queue_cv_.wait(lock, [this, generation]() {
                 return service_stopped_.load() ||
-                    audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE;
+                       generation != playback_generation_ ||
+                       audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE;
             });
         } else {
             return false;
         }
     }
-    if (service_stopped_.load()) {
+    if (service_stopped_.load() || generation != playback_generation_) {
         return false;
     }
     playback_drained_notified_ = false;
@@ -631,7 +639,18 @@ std::unique_ptr<AudioStreamPacket> AudioService::PopWakeWordPacket() {
 void AudioService::EnableWakeWordDetection(bool enable) {
     ESP_LOGD(TAG, "%s wake word detection", enable ? "Enabling" : "Disabling");
     if (enable) {
-        if (!InitializeAudioEngine() || !audio_engine_->HasWakeWord()) {
+        if (!InitializeAudioEngine()) {
+            xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
+            return;
+        }
+#if !(CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31)
+        auto* lite_engine = static_cast<LiteAudioEngine*>(audio_engine_.get());
+        if (!lite_engine->RestoreWakeWordResources()) {
+            xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
+            return;
+        }
+#endif
+        if (!audio_engine_->HasWakeWord()) {
             xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
             return;
         }
@@ -649,6 +668,20 @@ void AudioService::EnableWakeWordDetection(bool enable) {
         }
         xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
     }
+}
+
+void AudioService::ReleaseWakeWordResources() {
+#if !(CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31)
+    if (!audio_engine_initialized_) {
+        return;
+    }
+    if (xEventGroupGetBits(event_group_) &
+        (AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING)) {
+        ESP_LOGW(TAG, "Cannot release WakeNet while the audio engine is active");
+        return;
+    }
+    static_cast<LiteAudioEngine*>(audio_engine_.get())->ReleaseWakeWordResources();
+#endif
 }
 
 void AudioService::EnableVoiceProcessing(bool enable) {
@@ -718,10 +751,10 @@ void AudioService::PlaySound(const std::string_view& ogg) {
     size_t size = ogg.size();
 
     auto demuxer = std::make_unique<OggDemuxer>();
-    demuxer->OnDemuxerFinished([this](const uint8_t* data, int sample_rate, size_t size){
+    demuxer->OnPacket([this](const uint8_t* data, int sample_rate, int frame_duration_ms, size_t size){
         auto packet = std::make_unique<AudioStreamPacket>();
         packet->sample_rate = sample_rate;
-        packet->frame_duration = 60;
+        packet->frame_duration = frame_duration_ms;
         packet->payload.resize(size);
         std::memcpy(packet->payload.data(), data, size);
         PushPacketToDecodeQueue(std::move(packet), true);

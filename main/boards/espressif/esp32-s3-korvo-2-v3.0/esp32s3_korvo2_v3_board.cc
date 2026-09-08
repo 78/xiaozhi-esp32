@@ -385,9 +385,6 @@ private:
         };
 
         camera_ = new Esp32Camera(camera_config);
-        if(camera_ != nullptr) {
-            camera_->SetVFlip(true);
-        }
     }
 
 public:

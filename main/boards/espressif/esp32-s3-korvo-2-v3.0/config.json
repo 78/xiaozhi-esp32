@@ -5,6 +5,10 @@
     "builds": [
         {
             "name": "esp32s3-korvo2-v3",
+            "build_options": {
+                "camera_hmirror": false,
+                "camera_vflip": true
+            },
             "sdkconfig_append": [
             ]
         }

@@ -11,12 +11,15 @@
 #include <deque>
 #include <memory>
 #include <functional>
+#include <cstdint>
+#include <vector>
 
 #include "protocol.h"
 #include "ota.h"
 #include "audio_service.h"
 #include "device_state.h"
 #include "device_state_machine.h"
+#include "notify/notify_player.h"
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -137,6 +140,8 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+    NotifyPlayer notify_player_;
+    uint32_t notification_playback_id_ = 0;
     std::unique_ptr<Ota> ota_;
 
     std::function<void(const std::string&)> mcp_broadcast_callback_;
@@ -164,6 +169,9 @@ private:
     void ContinueWakeWordInvoke(const std::string& wake_word);
     void StartListeningAudio();
     void ConfigureWakeWordForListening();
+    void StartNotification(std::string audio_url, std::vector<NotifySubtitle> subtitles);
+    void StopNotification();
+    void HandleNotificationFinished(uint32_t playback_id, bool success);
 
     // Activation task (runs in background)
     void ActivationTask();

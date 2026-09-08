@@ -65,6 +65,17 @@ class VersionTests(unittest.TestCase):
         self.assertIn("espressif-esp32-s31-function-coreboard-1", idf61_names)
         self.assertIn("rymcu-bigsmart", idf61_names)
         self.assertNotIn("rymcu-rymcu-bigsmart", idf61_names)
+        atk = next(
+            variant for variant in idf61
+            if variant["board"] == "alientek/atk-dnesp32s3"
+        )
+        self.assertEqual(atk["type"], "atk-dnesp32s3")
+        self.assertEqual(atk["target"], "esp32s3")
+        self.assertEqual(atk["config"], "CONFIG_BOARD_TYPE_ATK_DNESP32S3")
+        self.assertEqual(
+            atk["display_name"],
+            "Alientek ATK-DNESP32S3 Development Board (正点原子)",
+        )
         self.assertEqual(
             build._get_release_full_name(
                 "espressif",
@@ -316,6 +327,26 @@ class BoardSelectionTests(unittest.TestCase):
         self.assertEqual(
             build._resolve_board_config(board, "esp32s3", []),
             "CONFIG_BOARD_TYPE_ESP32_S3_BOX_3",
+        )
+
+    def test_board_display_name_comes_from_kconfig_prompt(self):
+        self.assertEqual(
+            build._get_board_display_name(
+                "CONFIG_BOARD_TYPE_ATK_DNESP32S3"
+            ),
+            "Alientek ATK-DNESP32S3 Development Board (正点原子)",
+        )
+
+    def test_variant_name_disambiguates_shared_board_directory(self):
+        board = "lilygo/t-cameraplus-s3"
+        self.assertEqual(
+            build._resolve_board_config(
+                board,
+                "esp32s3",
+                [],
+                variant_name="lilygo-t-cameraplus-s3-v1.2",
+            ),
+            "CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2",
         )
 
     def test_m5stack_directory_can_omit_manufacturer_prefix(self):
@@ -601,6 +632,27 @@ class InvalidConfigTests(unittest.TestCase):
 
 
 class PreviewTargetTests(unittest.TestCase):
+    def test_stage_marker_is_only_emitted_when_enabled(self):
+        output = io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            contextlib.redirect_stdout(output),
+        ):
+            build._emit_build_stage("compiling")
+        self.assertEqual(output.getvalue(), "")
+
+        output = io.StringIO()
+        with (
+            mock.patch.dict(
+                os.environ,
+                {"XIAOZHI_BUILD_STAGES": "true"},
+                clear=True,
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            build._emit_build_stage("compiling")
+        self.assertEqual(output.getvalue(), "XIAOZHI_STAGE compiling\n")
+
     def test_merge_bin_enables_preview_mode(self):
         with mock.patch.object(build, "_run_idf") as run_idf:
             build.merge_bin(preview=True)
@@ -609,31 +661,60 @@ class PreviewTargetTests(unittest.TestCase):
 
 
 class TargetConfigurationTests(unittest.TestCase):
-    def test_same_target_skips_set_target(self):
+    def test_sync_vscode_target_preserves_other_settings(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Path(temp_dir) / "settings.json"
+            settings.write_text(
+                '{\n'
+                '  "idf.customExtraVars": {\n'
+                '    "IDF_TARGET": "esp32c3"\n'
+                '  },\n'
+                '  "editor.formatOnSave": true\n'
+                '}\n',
+                encoding="utf-8",
+            )
+
+            self.assertTrue(build._sync_vscode_target("esp32s3", settings))
+            self.assertEqual(
+                settings.read_text(encoding="utf-8"),
+                '{\n'
+                '  "idf.customExtraVars": {\n'
+                '    "IDF_TARGET": "esp32s3"\n'
+                '  },\n'
+                '  "editor.formatOnSave": true\n'
+                '}\n',
+            )
+            self.assertFalse(build._sync_vscode_target("esp32s3", settings))
+
+    def test_sync_vscode_target_skips_missing_settings(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Path(temp_dir) / "settings.json"
+            self.assertFalse(build._sync_vscode_target("esp32s3", settings))
+
+    def test_same_target_does_not_clean_build_directory(self):
         with (
+            mock.patch.object(build, "_target_from_cmake_cache", return_value="esp32s3"),
             mock.patch.object(build, "_configured_target", return_value="esp32s3"),
             mock.patch.object(build, "_run_idf") as run_idf,
         ):
-            changed = build._ensure_target("esp32s3", preview=False)
+            build._prepare_target("esp32s3", preview=False)
 
         run_idf.assert_not_called()
-        self.assertFalse(changed)
 
-    def test_changed_target_calls_set_target(self):
+    def test_changed_cmake_target_runs_fullclean_only(self):
         with (
-            mock.patch.object(build, "_configured_target", return_value="esp32c3"),
+            mock.patch.object(build, "_target_from_cmake_cache", return_value="esp32c3"),
+            mock.patch.object(build, "_configured_target", return_value=None),
             mock.patch.object(build, "_run_idf") as run_idf,
         ):
-            changed = build._ensure_target("esp32s3", preview=True)
+            build._prepare_target("esp32s3", preview=True)
 
         run_idf.assert_called_once_with(
-            "set-target",
-            "esp32s3",
+            "fullclean",
             preview=True,
         )
-        self.assertTrue(changed)
 
-    def test_regenerate_sdkconfig_uses_clean_variant_fragment(self):
+    def test_configure_build_uses_all_cmake_values_in_one_run(self):
         previous_cwd = Path.cwd()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -648,9 +729,10 @@ class TargetConfigurationTests(unittest.TestCase):
                 )
 
                 with mock.patch.object(build, "_run_idf") as run_idf:
-                    build._regenerate_sdkconfig(
+                    build._configure_build(
                         "esp32s3",
                         ["CONFIG_BOARD_TYPE_TEST=y", "CONFIG_FEATURE=y"],
+                        "test-board",
                         preview=False,
                     )
 
@@ -670,13 +752,14 @@ class TargetConfigurationTests(unittest.TestCase):
                     "-DIDF_TARGET=esp32s3",
                     "-DSDKCONFIG_DEFAULTS="
                     "sdkconfig.defaults;build/xiaozhi-build.sdkconfig.defaults",
+                    "-DBOARD_NAME=test-board",
                     "reconfigure",
                     preview=False,
                 )
         finally:
             os.chdir(previous_cwd)
 
-    def test_target_change_preserves_set_target_backup(self):
+    def test_configure_build_replaces_stale_sdkconfig_backup(self):
         previous_cwd = Path.cwd()
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -691,17 +774,17 @@ class TargetConfigurationTests(unittest.TestCase):
                 )
 
                 with mock.patch.object(build, "_run_idf"):
-                    build._regenerate_sdkconfig(
+                    build._configure_build(
                         "esp32s3",
                         ["CONFIG_BOARD_TYPE_TEST=y"],
+                        "test-board",
                         preview=False,
-                        target_changed=True,
                     )
 
                 self.assertFalse(Path("sdkconfig").exists())
                 self.assertEqual(
                     Path("sdkconfig.old").read_text(encoding="utf-8"),
-                    "CONFIG_USER_PREVIOUS_VALUE=y\n",
+                    'CONFIG_IDF_TARGET="esp32s3"\n',
                 )
         finally:
             os.chdir(previous_cwd)
@@ -847,6 +930,16 @@ class BuildOptionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid wake word"):
             build._wake_word_sdkconfig_options("jarvis", "esp32s3")
 
+    def test_board_wake_word_support_obeys_psram_dependency(self):
+        self.assertTrue(build._board_supports_wake_word("esp32c3", []))
+        self.assertFalse(build._board_supports_wake_word("esp32", []))
+        self.assertTrue(
+            build._board_supports_wake_word("esp32", ["CONFIG_SPIRAM=y"])
+        )
+        self.assertFalse(
+            build._board_supports_wake_word("esp32s3", ["CONFIG_SPIRAM=n"])
+        )
+
     def test_user_options_override_board_options(self):
         merged = build._merge_sdkconfig_options(
             [
@@ -887,6 +980,286 @@ class BuildOptionTests(unittest.TestCase):
                     )
         finally:
             os.chdir(previous_cwd)
+
+    def test_disabled_build_options_accept_symbols_hidden_by_kconfig(self):
+        previous_cwd = Path.cwd()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                os.chdir(temp_dir)
+                Path("sdkconfig").write_text(
+                    "CONFIG_SELECTED_STYLE=y\n"
+                    "# CONFIG_EXPLICITLY_DISABLED is not set\n",
+                    encoding="utf-8",
+                )
+
+                build._validate_configured_options(
+                    [
+                        "CONFIG_SELECTED_STYLE=y",
+                        "CONFIG_EXPLICITLY_DISABLED=n",
+                        "CONFIG_HIDDEN_BY_DEPENDENCY=n",
+                    ],
+                    "--build-options-json",
+                )
+
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "CONFIG_SELECTED_STYLE=n",
+                ):
+                    build._validate_configured_options(
+                        ["CONFIG_SELECTED_STYLE=n"],
+                        "--build-options-json",
+                    )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "CONFIG_HIDDEN_BY_DEPENDENCY=y",
+                ):
+                    build._validate_configured_options(
+                        ["CONFIG_HIDDEN_BY_DEPENDENCY=y"],
+                        "--build-options-json",
+                    )
+        finally:
+            os.chdir(previous_cwd)
+
+    def test_lcd_board_exposes_curated_display_options(self):
+        config = json.loads(
+            (ROOT / "main/boards/bread-compact-esp32-lcd/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "bread-compact-esp32-lcd",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "bread-compact-esp32-lcd",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        by_key = {definition["key"]: definition for definition in definitions}
+
+        self.assertEqual(by_key["display_model"]["default"], "LCD_ST7789_240X240_7PIN")
+        self.assertNotIn(
+            "LCD_CUSTOM",
+            {choice["value"] for choice in by_key["display_model"]["choices"]},
+        )
+        self.assertIn("display_style", by_key)
+        self.assertIn("multiline_chat", by_key)
+
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_model": "LCD_ST7789_240X320"},
+        )
+        sdkconfig = build._build_options_sdkconfig(definitions, normalized, {})
+        self.assertIn("CONFIG_LCD_CUSTOM=n", sdkconfig)
+
+    def test_bread_compact_esp32_config_supports_sh1106(self):
+        config_header = (
+            ROOT / "main/boards/bread-compact-esp32/config.h"
+        ).read_text(encoding="utf-8")
+        self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
+
+    def test_bread_compact_nt26_supports_sh1106(self):
+        board_dir = ROOT / "main/boards/bread-compact-nt26"
+        config_header = (board_dir / "config.h").read_text(encoding="utf-8")
+        board_source = (board_dir / "compact_nt26_board.cc").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
+        self.assertIn("esp_lcd_new_panel_sh1106", board_source)
+
+    def test_non_default_style_disables_multiline_chat(self):
+        definitions = [
+            {
+                "key": "display_style",
+                "type": "select",
+                "default": "default",
+                "choices": [
+                    {"value": "default", "label": "Default"},
+                    {"value": "wechat", "label": "WeChat"},
+                ],
+            },
+            {"key": "multiline_chat", "type": "boolean", "default": True},
+        ]
+
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_style": "wechat", "multiline_chat": True},
+        )
+
+        self.assertFalse(normalized["multiline_chat"])
+
+    def test_display_style_only_writes_board_supported_choices(self):
+        definitions = [{
+            "key": "display_style",
+            "type": "select",
+            "default": "default",
+            "choices": [
+                {"value": "default", "label": "Default"},
+                {"value": "wechat", "label": "WeChat"},
+            ],
+        }]
+
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"display_style": "wechat"},
+            {},
+        )
+
+        self.assertIn("CONFIG_USE_DEFAULT_MESSAGE_STYLE=n", options)
+        self.assertIn("CONFIG_USE_WECHAT_MESSAGE_STYLE=y", options)
+        self.assertNotIn("CONFIG_USE_EMOTE_MESSAGE_STYLE=n", options)
+
+    def test_esp_vocat_default_style_overrides_emote_board_defaults(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp-vocat/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp-vocat",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        normalized = build._normalize_build_options(
+            definitions,
+            {"display_style": "default", "multiline_chat": True},
+        )
+        options = build._build_options_sdkconfig(
+            definitions,
+            normalized,
+            build._sdkconfig_assignments(build_config["sdkconfig_append"]),
+        )
+
+        self.assertIn("CONFIG_USE_DEFAULT_MESSAGE_STYLE=y", options)
+        self.assertIn("CONFIG_USE_EMOTE_MESSAGE_STYLE=n", options)
+        self.assertIn("CONFIG_FLASH_DEFAULT_ASSETS=y", options)
+        self.assertIn("CONFIG_FLASH_EXPRESSION_ASSETS=n", options)
+        self.assertIn("CONFIG_USE_MULTILINE_CHAT_MESSAGE=y", options)
+
+    def test_camera_mirror_guard_is_settable_by_build_defaults(self):
+        kconfig = (ROOT / "main/Kconfig.projbuild").read_text(
+            encoding="utf-8"
+        )
+        guard = kconfig.split(
+            "config XIAOZHI_CAMERA_MIRROR_CONFIGURED\n",
+            1,
+        )[1].split("config XIAOZHI_CAMERA_HMIRROR\n", 1)[0]
+
+        self.assertIn('bool "Override camera mirror settings"', guard)
+
+        definitions = [
+            {"key": "camera_hmirror", "type": "boolean", "default": False},
+            {"key": "camera_vflip", "type": "boolean", "default": True},
+        ]
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"camera_hmirror": False, "camera_vflip": True},
+            {},
+        )
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y", options)
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_HMIRROR=n", options)
+        self.assertIn("CONFIG_XIAOZHI_CAMERA_VFLIP=y", options)
+
+    def test_blufi_expansion_disables_hotspot(self):
+        definitions = [{
+            "key": "wifi_provisioning",
+            "type": "select",
+            "default": "hotspot",
+            "choices": [
+                {"value": "hotspot", "label": "Wi-Fi hotspot"},
+                {"value": "blufi", "label": "ESP-BluFi"},
+            ],
+        }]
+
+        options = build._build_options_sdkconfig(
+            definitions,
+            {"wifi_provisioning": "blufi"},
+            {},
+        )
+
+        self.assertIn("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=n", options)
+        self.assertIn("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y", options)
+
+    def test_camera_board_defaults_are_declared_by_board_config(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp32-s3-korvo-2-v3.0/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp32-s3-korvo-2-v3.0",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "espressif/esp32-s3-korvo-2-v3.0",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        defaults = {definition["key"]: definition["default"] for definition in definitions}
+
+        self.assertFalse(defaults["camera_hmirror"])
+        self.assertTrue(defaults["camera_vflip"])
+
+    def test_optional_usb_camera_options_require_camera_to_be_enabled(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp-vocat/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "espressif/esp-vocat",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+
+        definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        keys = {definition["key"] for definition in definitions}
+        self.assertNotIn("camera_hmirror", keys)
+        self.assertNotIn("camera_vflip", keys)
+
+        camera_build = dict(build_config)
+        camera_build["sdkconfig_append"] = [
+            *build_config["sdkconfig_append"],
+            "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE=y",
+        ]
+        camera_definitions = build._build_option_definitions(
+            "espressif/esp-vocat",
+            config["target"],
+            board_config,
+            camera_build,
+        )
+        camera_keys = {
+            definition["key"] for definition in camera_definitions
+        }
+        self.assertIn("camera_hmirror", camera_keys)
+        self.assertIn("camera_vflip", camera_keys)
+
+    def test_unknown_semantic_build_option_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported build option"):
+            build._normalize_build_options([], {"raw_sdkconfig": "CONFIG_FOO=y"})
 
 
 class VariantSelectionTests(unittest.TestCase):
@@ -1025,6 +1398,7 @@ class CliTests(unittest.TestCase):
             create_zip=False,
             language=None,
             wake_word=None,
+            build_options=None,
             idf_version=(6, 0, 2),
         )
 
@@ -1066,6 +1440,24 @@ class CliTests(unittest.TestCase):
         self.assertEqual(
             build_board.call_args.kwargs["wake_word"],
             "wn9_jarvis_tts",
+        )
+
+    def test_build_options_json_is_forwarded(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 0, 2)),
+            mock.patch.object(build, "_board_type_exists", return_value=True),
+            mock.patch.object(build, "_collect_variants", return_value=self.variants),
+            mock.patch.object(build, "build_board") as build_board,
+        ):
+            build.main([
+                "bread-compact-wifi",
+                "--build-options-json",
+                '{"wifi_provisioning":"blufi"}',
+            ])
+
+        self.assertEqual(
+            build_board.call_args.kwargs["build_options"],
+            {"wifi_provisioning": "blufi"},
         )
 
 

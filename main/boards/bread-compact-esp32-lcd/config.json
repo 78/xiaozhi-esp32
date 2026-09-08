@@ -5,7 +5,7 @@
         {
             "name": "bread-compact-esp32-lcd",
             "sdkconfig_append": [
-                "LCD_ST7789_240X240_7PIN=y"
+                "CONFIG_LCD_ST7789_240X240_7PIN=y"
             ]
         }
     ]

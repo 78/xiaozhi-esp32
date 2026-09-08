@@ -56,6 +56,19 @@
 
 #define TAG "EspVideo"
 
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+#if CONFIG_XIAOZHI_CAMERA_HMIRROR
+static constexpr bool kConfiguredHMirror = true;
+#else
+static constexpr bool kConfiguredHMirror = false;
+#endif
+#if CONFIG_XIAOZHI_CAMERA_VFLIP
+static constexpr bool kConfiguredVFlip = true;
+#else
+static constexpr bool kConfiguredVFlip = false;
+#endif
+#endif
+
 #if defined(CONFIG_CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER) || defined(CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP)
 #pragma message("CAMERA_SENSOR_SWAP_PIXEL_BYTE_ORDER or CONFIG_XIAOZHI_ENABLE_CAMERA_ENDIANNESS_SWAP is enabled; verify YUV422 image integrity")
 #endif
@@ -198,6 +211,7 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
             case V4L2_PIX_FMT_RGB24:
                 return 0;
             case V4L2_PIX_FMT_RGB565:
+            case V4L2_PIX_FMT_RGB565X:  // byte-swapped to RGB565 in Capture()
                 return 1;
 #ifdef CONFIG_XIAOZHI_ENABLE_HARDWARE_JPEG_ENCODER
             case V4L2_PIX_FMT_YUV420:  // 软件 JPEG 编码器不支持 YUV420 格式
@@ -220,6 +234,7 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
             case V4L2_PIX_FMT_YUV422P:
                 return 10;
             case V4L2_PIX_FMT_RGB565:
+            case V4L2_PIX_FMT_RGB565X:  // byte-swapped to RGB565 in Capture()
                 return 11;
             case V4L2_PIX_FMT_RGB24:
                 return 12;
@@ -270,6 +285,11 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
         sensor_format_ = 0;
         return;
     }
+
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+    SetHMirror(kConfiguredHMirror);
+    SetVFlip(kConfiguredVFlip);
+#endif
 
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     frame_.width = setformat.fmt.pix.height;
@@ -396,6 +416,8 @@ bool EspVideo::Capture() {
     }
 
     if (!streaming_on_ || video_fd_ < 0) {
+        ESP_LOGE(TAG, "Capture failed: camera did not initialize (streaming_on_=%d, video_fd_=%d)", streaming_on_,
+                 video_fd_);
         return false;
     }
 
