@@ -1112,7 +1112,14 @@ def _symbol_supports_target(symbol: str, target: str) -> bool:
             continue
         if in_symbol and stripped.startswith(("config ", "choice ", "endchoice", "menu ", "endmenu")):
             break
-        if in_symbol and "depends on" in stripped and target_flag in stripped:
+        if (
+            in_symbol
+            and "depends on" in stripped
+            and re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(target_flag)}(?![A-Za-z0-9_])",
+                stripped,
+            )
+        ):
             return True
     return False
 
@@ -1125,9 +1132,26 @@ def _resolve_board_config(
     variant_name: Optional[str] = None,
 ) -> str:
     """Resolve CONFIG_BOARD_TYPE_xxx for current board build."""
+    def validate_target(symbol: str) -> str:
+        if not _symbol_supports_target(symbol, target):
+            raise ValueError(
+                f"Board config {symbol} for {board_type!r} does not support "
+                f"target {target!r}"
+            )
+        return symbol
+
     explicit = _extract_board_config_from_sdkconfig_append(sdkconfig_append)
+    candidates = _find_board_config_candidates(board_type)
+    if not candidates:
+        raise ValueError(f"Cannot find board config symbol for {board_type}")
+
     if explicit and _board_config_symbol_exists(explicit):
-        return explicit
+        if explicit not in candidates:
+            raise ValueError(
+                f"Board config {explicit} does not select board directory "
+                f"{board_type!r}"
+            )
+        return validate_target(explicit)
     if explicit:
         print(
             f"[WARN] Explicit board config {explicit} does not exist in Kconfig; "
@@ -1135,11 +1159,8 @@ def _resolve_board_config(
             file=sys.stderr,
         )
 
-    candidates = _find_board_config_candidates(board_type)
-    if not candidates:
-        raise ValueError(f"Cannot find board config symbol for {board_type}")
     if len(candidates) == 1:
-        return candidates[0]
+        return validate_target(candidates[0])
 
     if variant_name:
         expected = "CONFIG_BOARD_TYPE_" + re.sub(
@@ -1149,11 +1170,11 @@ def _resolve_board_config(
         ).strip("_")
         by_variant = [candidate for candidate in candidates if candidate == expected]
         if len(by_variant) == 1:
-            return by_variant[0]
+            return validate_target(by_variant[0])
 
     by_target = [c for c in candidates if _symbol_supports_target(c, target)]
     if len(by_target) == 1:
-        return by_target[0]
+        return validate_target(by_target[0])
     if len(by_target) > 1:
         selected = by_target[0]
         print(
@@ -1161,32 +1182,12 @@ def _resolve_board_config(
             f"target-matched candidates={by_target}, selecting first: {selected}",
             file=sys.stderr,
         )
-        return selected
+        return validate_target(selected)
 
-    target_u = target.upper()
-    target_short = target_u.replace("ESP32", "")
-    by_name = [
-        c for c in candidates
-        if target_u in c or f"_{target_short}" in c
-    ]
-    if len(by_name) == 1:
-        return by_name[0]
-    if len(by_name) > 1:
-        selected = by_name[0]
-        print(
-            f"[WARN] Ambiguous board config for {board_type} (target={target}), "
-            f"name-matched candidates={by_name}, selecting first: {selected}",
-            file=sys.stderr,
-        )
-        return selected
-
-    selected = candidates[0]
-    print(
-        f"[WARN] Ambiguous board config for {board_type} (target={target}), "
-        f"candidates={candidates}, selecting first: {selected}",
-        file=sys.stderr,
+    raise ValueError(
+        f"No board config for {board_type!r} supports target {target!r}; "
+        f"candidates: {candidates}"
     )
-    return selected
 
 
 # Kconfig "select" entries are not automatically applied when we simply append
@@ -1505,7 +1506,9 @@ def build_board(
         )
 
         user_options: list[str] = []
-        validation_symbols: list[tuple[list[str], str]] = []
+        validation_symbols: list[tuple[list[str], str]] = [
+            ([board_type_config], "board selection"),
+        ]
         build_option_sdkconfig: list[str] = []
         selected_language = None
         selected_wake_word = None
