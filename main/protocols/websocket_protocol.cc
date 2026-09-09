@@ -166,9 +166,10 @@ bool WebsocketProtocol::OpenAudioChannel() {
     });
 
     ESP_LOGI(TAG, "Connecting to websocket server: %s with version: %d", url.c_str(), version_);
-    if (!websocket_->Connect(url.c_str())) {
-        ESP_LOGE(TAG, "Failed to connect to websocket server, code=%d", websocket_->GetLastError());
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+    if (auto connected = websocket_->Connect(url.c_str()); !connected) {
+        ESP_LOGE(TAG, "Failed to connect to websocket server: %s",
+                 connected.error().ToString().c_str());
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED, url);
         return false;
     }
 

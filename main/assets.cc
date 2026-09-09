@@ -511,13 +511,18 @@ bool Assets::Download(std::string url,
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
 
-    if (!http->Open("GET", url)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+    if (auto opened = http->Open("GET", url); !opened) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", opened.error().ToString().c_str());
         return false;
     }
 
-    if (http->GetStatusCode() != 200) {
-        ESP_LOGE(TAG, "Failed to get assets, status code: %d", http->GetStatusCode());
+    auto status_code = http->GetStatusCode();
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return false;
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to get assets, status code: %d", *status_code);
         return false;
     }
 
@@ -573,13 +578,14 @@ bool Assets::Download(std::string url,
     size_t header_collected = 0;
     bool success = false;
     while (true) {
-        int ret = http->Read(buffer.get(), SECTOR_SIZE);
-        if (ret < 0) {
-            ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
+        auto ret = http->Read(buffer.get(), SECTOR_SIZE);
+        if (!ret) {
+            ESP_LOGE(TAG, "Failed to read HTTP data: %s", ret.error().ToString().c_str());
             break;
         }
+        int n = *ret;
 
-        if (ret == 0) {
+        if (n == 0) {
             // End of data
             success = true;
             break;
@@ -590,15 +596,15 @@ bool Assets::Download(std::string url,
         // Collect header
         if (header_collected < HEADER_SIZE) {
             size_t need = HEADER_SIZE - header_collected;
-            size_t take = std::min(static_cast<size_t>(ret), need);
+            size_t take = std::min(static_cast<size_t>(n), need);
             memcpy(header_buf + header_collected, buffer.get(), take);
             header_collected += take;
             buf_pos += take;
         }
 
         // Write payload
-        if ((size_t)ret > buf_pos) {
-            size_t write_len = (size_t)ret - buf_pos;
+        if ((size_t)n > buf_pos) {
+            size_t write_len = (size_t)n - buf_pos;
             size_t write_end_offset = HEADER_SIZE + total_written + write_len;
             size_t needed_sectors = (write_end_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
             // Erase sectors

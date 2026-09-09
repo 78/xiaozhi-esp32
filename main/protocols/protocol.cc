@@ -55,6 +55,14 @@ void Protocol::SetError(const std::string& message) {
     }
 }
 
+void Protocol::SetError(const std::string& message, const std::string& detail) {
+    if (detail.empty()) {
+        SetError(message);
+        return;
+    }
+    SetError(message + "\n" + detail);
+}
+
 void Protocol::SendAbortSpeaking(AbortReason reason) {
     std::string message = "{\"session_id\":\"" + session_id_ + "\",\"type\":\"abort\"";
     if (reason == kAbortReasonWakeWordDetected) {

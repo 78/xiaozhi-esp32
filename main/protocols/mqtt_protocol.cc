@@ -5,6 +5,7 @@
 
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <cstring>
 #include "assets/lang_config.h"
 
@@ -145,7 +146,6 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         last_incoming_time_ = std::chrono::steady_clock::now();
     });
 
-    ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint.c_str());
     std::string broker_address;
     int broker_port = 8883;
     size_t pos = endpoint.find(':');
@@ -155,9 +155,21 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     } else {
         broker_address = endpoint;
     }
-    if (!mqtt_->Connect(broker_address, broker_port, client_id, username, password)) {
-        ESP_LOGE(TAG, "Failed to connect to endpoint, code=%d", mqtt_->GetLastError());
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+    ESP_LOGI(TAG, "Connecting to endpoint %s:%d", broker_address.c_str(), broker_port);
+    if (Board::GetInstance().GetBoardType() == "wifi") {
+        struct hostent* server = gethostbyname(broker_address.c_str());
+        if (server != nullptr && server->h_addr != nullptr) {
+            ESP_LOGI(TAG, "Resolved MQTT host %s -> %s", broker_address.c_str(),
+                     inet_ntoa(*reinterpret_cast<struct in_addr*>(server->h_addr)));
+        } else {
+            ESP_LOGW(TAG, "Failed to resolve MQTT host %s", broker_address.c_str());
+        }
+    }
+    if (auto connected = mqtt_->Connect(broker_address, broker_port, client_id, username, password);
+        !connected) {
+        ESP_LOGE(TAG, "Failed to connect to endpoint: %s", connected.error().ToString().c_str());
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED,
+                 broker_address + ":" + std::to_string(broker_port));
         return false;
     }
 
@@ -333,8 +345,9 @@ bool MqttProtocol::OpenAudioChannel() {
         }
     });
 
-    if (!udp->Connect(udp_server_, udp_port_)) {
-        ESP_LOGE(TAG, "Failed to connect UDP audio channel");
+    if (auto connected = udp->Connect(udp_server_, udp_port_); !connected) {
+        ESP_LOGE(TAG, "Failed to connect UDP audio channel: %s",
+                 connected.error().ToString().c_str());
         return false;
     }
     {

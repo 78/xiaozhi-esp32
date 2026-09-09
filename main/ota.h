@@ -3,16 +3,18 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include <esp_err.h>
 #include "board.h"
+#include "network_error.h"
 
 class Ota {
 public:
     Ota();
     ~Ota();
 
-    esp_err_t CheckVersion();
+    NetworkResult<> CheckVersion();
     esp_err_t Activate();
     bool HasActivationChallenge() { return has_activation_challenge_; }
     bool HasNewVersion() { return has_new_version_; }

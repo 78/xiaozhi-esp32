@@ -74,7 +74,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
 /* 
  * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
  */
-esp_err_t Ota::CheckVersion() {
+NetworkResult<> Ota::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
 
@@ -85,7 +85,7 @@ esp_err_t Ota::CheckVersion() {
     std::string url = GetCheckVersionUrl();
     if (url.length() < 10) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
-        return ESP_ERR_INVALID_ARG;
+        return std::unexpected(NetworkError::InvalidArgument());
     }
 
     auto http = SetupHttp();
@@ -94,16 +94,19 @@ esp_err_t Ota::CheckVersion() {
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 
-    if (!http->Open(method, url)) {
-        int last_error = http->GetLastError();
-        ESP_LOGE(TAG, "Failed to open HTTP connection, code=0x%x", last_error);
-        return last_error;
+    if (auto opened = http->Open(method, url); !opened) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", opened.error().ToString().c_str());
+        return opened;
     }
 
     auto status_code = http->GetStatusCode();
-    if (status_code != 200) {
-        ESP_LOGE(TAG, "Failed to check version, status code: %d", status_code);
-        return status_code;
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return std::unexpected(status_code.error());
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to check version, status code: %d", *status_code);
+        return std::unexpected(NetworkError::HttpFailed(*status_code));
     }
 
     data = http->ReadAll();
@@ -116,7 +119,7 @@ esp_err_t Ota::CheckVersion() {
     cJSON *root = cJSON_Parse(data.c_str());
     if (root == NULL) {
         ESP_LOGE(TAG, "Failed to parse JSON response");
-        return ESP_ERR_INVALID_RESPONSE;
+        return std::unexpected(NetworkError::ProtocolError());
     }
 
     has_activation_code_ = false;
@@ -241,7 +244,7 @@ esp_err_t Ota::CheckVersion() {
     }
 
     cJSON_Delete(root);
-    return ESP_OK;
+    return {};
 }
 
 void Ota::MarkCurrentVersionValid() {
@@ -279,13 +282,18 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
 
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
-    if (!http->Open("GET", firmware_url)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+    if (auto opened = http->Open("GET", firmware_url); !opened) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", opened.error().ToString().c_str());
         return false;
     }
 
-    if (http->GetStatusCode() != 200) {
-        ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
+    auto status_code = http->GetStatusCode();
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return false;
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to get firmware, status code: %d", *status_code);
         return false;
     }
 
@@ -306,18 +314,19 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
     size_t total_read = 0, recent_read = 0;
     auto last_calc_time = esp_timer_get_time();
     while (true) {
-        int ret = http->Read(buffer + buffer_offset, PAGE_SIZE - buffer_offset);
-        if (ret < 0) {
-            ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
+        auto ret = http->Read(buffer + buffer_offset, PAGE_SIZE - buffer_offset);
+        if (!ret) {
+            ESP_LOGE(TAG, "Failed to read HTTP data: %s", ret.error().ToString().c_str());
             heap_caps_free(buffer);
             return false;
         }
+        int n = *ret;
 
         // Calculate speed and progress every second
-        recent_read += ret;
-        total_read += ret;
-        buffer_offset += ret;
-        if (esp_timer_get_time() - last_calc_time >= 1000000 || ret == 0) {
+        recent_read += n;
+        total_read += n;
+        buffer_offset += n;
+        if (esp_timer_get_time() - last_calc_time >= 1000000 || n == 0) {
             size_t progress = total_read * 100 / content_length;
             ESP_LOGI(TAG, "Progress: %u%% (%u/%u), Speed: %uB/s", progress, total_read, content_length, recent_read);
             if (callback) {
@@ -346,7 +355,7 @@ bool Ota::Upgrade(const std::string& firmware_url, std::function<void(int progre
         }
 
         // Write to flash when buffer is full (4KB) or it's the last chunk
-        bool is_last_chunk = (ret == 0);
+        bool is_last_chunk = (n == 0);
         if (buffer_offset == PAGE_SIZE || (is_last_chunk && buffer_offset > 0)) {
             auto err = esp_ota_write(update_handle, buffer, buffer_offset);
             if (err != ESP_OK) {
@@ -473,17 +482,21 @@ esp_err_t Ota::Activate() {
     std::string data = GetActivationPayload();
     http->SetContent(std::move(data));
 
-    if (!http->Open("POST", url)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+    if (auto opened = http->Open("POST", url); !opened) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", opened.error().ToString().c_str());
         return ESP_FAIL;
     }
-    
+
     auto status_code = http->GetStatusCode();
-    if (status_code == 202) {
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return ESP_FAIL;
+    }
+    if (*status_code == 202) {
         return ESP_ERR_TIMEOUT;
     }
-    if (status_code != 200) {
-        ESP_LOGE(TAG, "Failed to activate, code: %d, body: %s", status_code, http->ReadAll().c_str());
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to activate, code: %d, body: %s", *status_code, http->ReadAll().c_str());
         return ESP_FAIL;
     }
 

@@ -208,8 +208,9 @@ void McpServer::AddUserOnlyTools() {
                 
                 auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
                 http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
-                if (!http->Open("POST", url)) {
-                    throw std::runtime_error("Failed to open URL: " + url);
+                if (auto opened = http->Open("POST", url); !opened) {
+                    throw std::runtime_error("Failed to open URL: " + url + " (" +
+                                             opened.error().ToString() + ")");
                 }
                 {
                     // 文件字段头部
@@ -232,8 +233,13 @@ void McpServer::AddUserOnlyTools() {
                 }
                 http->Write("", 0);
 
-                if (http->GetStatusCode() != 200) {
-                    throw std::runtime_error("Unexpected status code: " + std::to_string(http->GetStatusCode()));
+                auto upload_status = http->GetStatusCode();
+                if (!upload_status) {
+                    throw std::runtime_error(upload_status.error().ToString());
+                }
+                if (*upload_status != 200) {
+                    throw std::runtime_error("Unexpected status code: " +
+                                             std::to_string(*upload_status));
                 }
                 std::string result = http->ReadAll();
                 http->Close();
@@ -249,12 +255,17 @@ void McpServer::AddUserOnlyTools() {
                 auto url = properties["url"].value<std::string>();
                 auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
 
-                if (!http->Open("GET", url)) {
-                    throw std::runtime_error("Failed to open URL: " + url);
+                if (auto opened = http->Open("GET", url); !opened) {
+                    throw std::runtime_error("Failed to open URL: " + url + " (" +
+                                             opened.error().ToString() + ")");
                 }
-                int status_code = http->GetStatusCode();
-                if (status_code != 200) {
-                    throw std::runtime_error("Unexpected status code: " + std::to_string(status_code));
+                auto status_code = http->GetStatusCode();
+                if (!status_code) {
+                    throw std::runtime_error(status_code.error().ToString());
+                }
+                if (*status_code != 200) {
+                    throw std::runtime_error("Unexpected status code: " +
+                                             std::to_string(*status_code));
                 }
 
                 size_t content_length = http->GetBodyLength();
@@ -264,15 +275,15 @@ void McpServer::AddUserOnlyTools() {
                 }
                 size_t total_read = 0;
                 while (total_read < content_length) {
-                    int ret = http->Read(data + total_read, content_length - total_read);
-                    if (ret < 0) {
+                    auto ret = http->Read(data + total_read, content_length - total_read);
+                    if (!ret) {
                         heap_caps_free(data);
                         throw std::runtime_error("Failed to download image: " + url);
                     }
-                    if (ret == 0) {
+                    if (*ret == 0) {
                         break;
                     }
-                    total_read += ret;
+                    total_read += *ret;
                 }
                 http->Close();
 

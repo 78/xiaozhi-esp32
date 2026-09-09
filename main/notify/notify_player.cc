@@ -186,10 +186,10 @@ void NotifyPlayer::WorkerTask() {
         http->SetTimeout(kHttpTimeoutMs);
         http->SetHeader("Accept", "audio/ogg, application/ogg");
         http->SetHeader("Accept-Encoding", "identity");
-        const bool opened = http->Open("GET", audio_url);
+        auto opened = http->Open("GET", audio_url);
         if (opened) {
-            const int status = http->GetStatusCode();
-            if (status >= 200 && status < 300 && !IsCancelled(playback_id)) {
+            auto status = http->GetStatusCode();
+            if (status && *status >= 200 && *status < 300 && !IsCancelled(playback_id)) {
                 auto demuxer = std::make_unique<OggDemuxer>();
                 uint32_t media_position_ms = 0;
                 bool packet_error = false;
@@ -230,12 +230,13 @@ void NotifyPlayer::WorkerTask() {
 
                 std::array<char, kHttpReadBufferSize> buffer;
                 while (!packet_error && !IsCancelled(playback_id)) {
-                    int size = http->Read(buffer.data(), buffer.size());
-                    if (size < 0) {
-                        ESP_LOGE(TAG, "Notification HTTP read failed: %d", http->GetLastError());
+                    auto size = http->Read(buffer.data(), buffer.size());
+                    if (!size) {
+                        ESP_LOGE(TAG, "Notification HTTP read failed: %s",
+                                 size.error().ToString().c_str());
                         break;
                     }
-                    if (size == 0) {
+                    if (*size == 0) {
                         success = demuxer->Finish();
                         if (!success) {
                             ESP_LOGE(
@@ -244,16 +245,20 @@ void NotifyPlayer::WorkerTask() {
                         }
                         break;
                     }
-                    demuxer->Process(reinterpret_cast<const uint8_t*>(buffer.data()), size);
+                    demuxer->Process(reinterpret_cast<const uint8_t*>(buffer.data()), *size);
                     if (demuxer->HasError()) {
                         packet_error = true;
                     }
                 }
+            } else if (!status) {
+                ESP_LOGE(TAG, "Notification HTTP status failed: %s",
+                         status.error().ToString().c_str());
             } else {
-                ESP_LOGE(TAG, "Notification HTTP request returned status %d", status);
+                ESP_LOGE(TAG, "Notification HTTP request returned status %d", *status);
             }
         } else {
-            ESP_LOGE(TAG, "Failed to open notification HTTP request: %d", http->GetLastError());
+            ESP_LOGE(TAG, "Failed to open notification HTTP request: %s",
+                     opened.error().ToString().c_str());
         }
         http->Close();
         http.reset();
