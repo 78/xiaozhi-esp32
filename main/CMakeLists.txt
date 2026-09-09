@@ -1193,6 +1193,17 @@ set(FILES_TO_DOWNLOAD
     "wake.aaf"
 )
 
+# Drop leftover AAF files from previous full-set downloads so they are not packed.
+file(GLOB EXISTING_AAF "${EMOJI_DIR}/*.aaf")
+foreach(EXISTING IN LISTS EXISTING_AAF)
+    get_filename_component(EXISTING_NAME "${EXISTING}" NAME)
+    list(FIND FILES_TO_DOWNLOAD "${EXISTING_NAME}" _aaf_idx)
+    if(_aaf_idx EQUAL -1)
+        file(REMOVE "${EXISTING}")
+        message(STATUS "Removed unused ESP-HI emoji asset ${EXISTING_NAME}")
+    endif()
+endforeach()
+
 foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
     set(LOCAL_FILE "${EMOJI_DIR}/${FILENAME}")
