@@ -31,7 +31,7 @@ dependencies:
   78/xiaozhi-fonts: ~2.0.0
   espressif/led_strip: ~3.0.3
   espressif/esp_codec_dev: ~1.6.2
-  espressif/esp-sr: ~2.5.3
+  espressif/esp-sr: ==2.4.7
   espressif/button: ~4.2.1
   espressif/knob: ^1.1.0
   esphome/esp-hub75:
