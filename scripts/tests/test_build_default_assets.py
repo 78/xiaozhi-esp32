@@ -78,6 +78,44 @@ class BuildDefaultAssetsTest(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertLessEqual(output.stat().st_size, 64 * 1024)
 
+    def test_wakenet10_copy_keeps_s3_p1_slice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            src = Path(directory) / "wn10_nihaoxiaozhi"
+            dst = Path(directory) / "out"
+            src.mkdir()
+            (src / "_MODEL_INFO_p1").write_text("p1-info", encoding="utf-8")
+            (src / "_MODEL_INFO_p2").write_text("p2-info", encoding="utf-8")
+            (src / "wn10_data_p1").write_bytes(b"s3-data")
+            (src / "wn10_data_p2").write_bytes(b"p4-data")
+            (src / "extra.bin").write_bytes(b"keep")
+
+            self.assertTrue(BUILD.copy_wakenet_model(str(src), str(dst), "esp32s3"))
+            self.assertEqual((dst / "wn10_data").read_bytes(), b"s3-data")
+            self.assertEqual((dst / "_MODEL_INFO_").read_text(encoding="utf-8"), "p1-info")
+            self.assertEqual((dst / "extra.bin").read_bytes(), b"keep")
+            self.assertFalse((dst / "wn10_data_p1").exists())
+            self.assertFalse((dst / "wn10_data_p2").exists())
+
+    def test_wakenet10_copy_keeps_p4_p2_slice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            src = Path(directory) / "wn10_nihaoxiaozhi"
+            dst = Path(directory) / "out"
+            src.mkdir()
+            (src / "_MODEL_INFO_p2").write_text("p2-info", encoding="utf-8")
+            (src / "wn10_data_p2").write_bytes(b"p4-data")
+
+            self.assertTrue(BUILD.copy_wakenet_model(str(src), str(dst), "esp32p4"))
+            self.assertEqual((dst / "wn10_data").read_bytes(), b"p4-data")
+            self.assertEqual((dst / "_MODEL_INFO_").read_text(encoding="utf-8"), "p2-info")
+
+    def test_wakenet10_copy_rejects_unknown_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            src = Path(directory) / "wn10_nihaoxiaozhi"
+            src.mkdir()
+            (src / "wn10_data_p1").write_bytes(b"s3-data")
+            with self.assertRaises(ValueError):
+                BUILD.copy_wakenet_model(str(src), str(Path(directory) / "out"), "esp32c3")
+
     def test_esp_hi_emoji_pack_matches_runtime_assets(self):
         """ESP-HI must only pack AAF files that emoji_display actually loads."""
         cmake = (ROOT / "main" / "CMakeLists.txt").read_text(encoding="utf-8")
