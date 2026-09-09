@@ -71,6 +71,8 @@ void Application::Initialize() {
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
     audio_service_.Start();
+    ESP_LOGI(TAG, "After board/audio init");
+    SystemInfo::PrintHeapStats();
 
     AudioServiceCallbacks callbacks;
     callbacks.on_send_queue_available = [this]() {
