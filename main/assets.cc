@@ -69,6 +69,7 @@ void Assets::UnApplyPartition() {
 }
 
 void Assets::UseBuiltInTextFontCapability() {
+#if HAVE_LVGL
     text_font_capability_ = {
         .glyph_push = true,
         .bundle = NOTO_FONT_BUNDLE_ID,
@@ -76,6 +77,11 @@ void Assets::UseBuiltInTextFontCapability() {
         .size = TEXT_FONT_SIZE,
         .bpp = TEXT_FONT_BPP,
     };
+#else
+    // Emote does not consume pushed glyphs; advertising charset=basic makes
+    // the server embed a bitmap for every CJK character and inflates MQTT.
+    text_font_capability_ = {};
+#endif
 }
 
 void Assets::DisableTextFontGlyphPush() { text_font_capability_ = {}; }
@@ -434,6 +440,7 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
 #endif  // HAVE_LVGL
 
 bool Assets::EmoteStrategy::InitializePartition(Assets* assets) {
+    assets->DisableTextFontGlyphPush();
     assets->partition_valid_ = false;
 
     if (!Assets::FindPartition(assets)) {
@@ -493,6 +500,7 @@ bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name
 }
 
 bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
+    assets->DisableTextFontGlyphPush();
     Assets::LoadSrmodelsFromIndex(assets);
 
     auto display = Board::GetInstance().GetDisplay();
