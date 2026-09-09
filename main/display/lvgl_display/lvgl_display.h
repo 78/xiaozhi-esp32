@@ -24,13 +24,14 @@ public:
     virtual void SetStatus(const char* status);
     virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string& notification, int duration_ms = 3000);
-    virtual void SetPreviewImage(std::unique_ptr<LvglImage> image);
+    virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
     virtual void UpdateStatusBar(bool update_all = false);
     virtual void SetPowerSaveMode(bool on);
-    virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80);
+    virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80) override;
     virtual bool AddTextGlyphs(const std::vector<TextGlyph>& glyphs, uint8_t bpp) override;
     virtual void ClearTextGlyphs() override;
-    bool SetTextFont(std::shared_ptr<LvglFont> text_font);
+    virtual bool SetTextFont(std::shared_ptr<LvglFont> text_font) override;
+    virtual bool SupportsGuiOperations() const override { return true; }
 
 protected:
     esp_pm_lock_handle_t pm_lock_ = nullptr;

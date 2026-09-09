@@ -7,6 +7,8 @@
 #include <esp_log.h>
 #include <esp_rom_sys.h>
 
+#include <new>
+
 #include "application.h"
 #include "button.h"
 #include "codecs/no_audio_codec.h"
@@ -292,47 +294,42 @@ private:
             return false;
         }
 
-        try {
-            // 释放检测阶段占用的 I2C 资源，避免与 esp_camera 初始化冲突。
-            i2c_del_master_bus(i2c_bus_);
-            i2c_bus_ = nullptr;
-            // 停止检测阶段输出的 XCLK，交由 esp_camera 自行接管。
-            ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
+        // 释放检测阶段占用的 I2C 资源，避免与 esp_camera 初始化冲突。
+        i2c_del_master_bus(i2c_bus_);
+        i2c_bus_ = nullptr;
+        // 停止检测阶段输出的 XCLK，交由 esp_camera 自行接管。
+        ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
 
-            camera_config_t config = {};
-            config.ledc_channel = LEDC_CHANNEL_0;
-            config.ledc_timer = LEDC_TIMER_0;
-            config.pin_d0 = CAMERA_D0;
-            config.pin_d1 = CAMERA_D1;
-            config.pin_d2 = CAMERA_D2;
-            config.pin_d3 = CAMERA_D3;
-            config.pin_d4 = CAMERA_D4;
-            config.pin_d5 = CAMERA_D5;
-            config.pin_d6 = CAMERA_D6;
-            config.pin_d7 = CAMERA_D7;
-            config.pin_xclk = CAMERA_XCLK;
-            config.pin_pclk = CAMERA_PCLK;
-            config.pin_vsync = CAMERA_VSYNC;
-            config.pin_href = CAMERA_HSYNC;
-            config.pin_sccb_sda = CAMERA_VERSION_CONFIG.i2c_sda_pin;
-            config.pin_sccb_scl = CAMERA_VERSION_CONFIG.i2c_scl_pin;
-            config.sccb_i2c_port = 0;
-            config.pin_pwdn = CAMERA_PWDN;
-            config.pin_reset = CAMERA_RESET;
-            config.xclk_freq_hz = CAMERA_XCLK_FREQ;
-            config.pixel_format = PIXFORMAT_RGB565;
-            config.frame_size = FRAMESIZE_240X240;
-            config.jpeg_quality = 12;
-            config.fb_count = 1;
-            config.fb_location = CAMERA_FB_IN_PSRAM;
-            config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        camera_config_t config = {};
+        config.ledc_channel = LEDC_CHANNEL_0;
+        config.ledc_timer = LEDC_TIMER_0;
+        config.pin_d0 = CAMERA_D0;
+        config.pin_d1 = CAMERA_D1;
+        config.pin_d2 = CAMERA_D2;
+        config.pin_d3 = CAMERA_D3;
+        config.pin_d4 = CAMERA_D4;
+        config.pin_d5 = CAMERA_D5;
+        config.pin_d6 = CAMERA_D6;
+        config.pin_d7 = CAMERA_D7;
+        config.pin_xclk = CAMERA_XCLK;
+        config.pin_pclk = CAMERA_PCLK;
+        config.pin_vsync = CAMERA_VSYNC;
+        config.pin_href = CAMERA_HSYNC;
+        config.pin_sccb_sda = CAMERA_VERSION_CONFIG.i2c_sda_pin;
+        config.pin_sccb_scl = CAMERA_VERSION_CONFIG.i2c_scl_pin;
+        config.sccb_i2c_port = 0;
+        config.pin_pwdn = CAMERA_PWDN;
+        config.pin_reset = CAMERA_RESET;
+        config.xclk_freq_hz = CAMERA_XCLK_FREQ;
+        config.pixel_format = PIXFORMAT_RGB565;
+        config.frame_size = FRAMESIZE_240X240;
+        config.jpeg_quality = 12;
+        config.fb_count = 1;
+        config.fb_location = CAMERA_FB_IN_PSRAM;
+        config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
-            camera_ = new Esp32Camera(config);
-            return true;
-        } catch (...) {
-            camera_ = nullptr;
-            return false;
-        }
+        camera_ = new (std::nothrow) Esp32Camera(config);
+        return camera_ != nullptr;
     }
 
     void InitializeAudioCodec() {

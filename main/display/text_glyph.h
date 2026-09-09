@@ -1,10 +1,10 @@
 #pragma once
 
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -27,7 +27,7 @@ public:
             return nullptr;
         }
         if (count > std::numeric_limits<size_t>::max() / sizeof(T)) {
-            std::abort();
+            esp_system_abort("TextGlyphAllocator allocation size overflow");
         }
         uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
         if (TextGlyphStorageUsesPsram()) {
@@ -35,7 +35,7 @@ public:
         }
         auto ptr = static_cast<T*>(heap_caps_malloc(count * sizeof(T), caps));
         if (ptr == nullptr) {
-            std::abort();
+            esp_system_abort("TextGlyphAllocator failed to allocate glyph storage");
         }
         return ptr;
     }

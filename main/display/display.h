@@ -14,9 +14,14 @@
 #include <esp_timer.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
+
+class LvglFont;
+class LvglImage;
 
 class Theme {
 public:
@@ -24,6 +29,7 @@ public:
     virtual ~Theme() = default;
 
     inline std::string name() const { return name_; }
+    virtual std::shared_ptr<LvglFont> GetTextFont() const { return nullptr; }
 
 private:
     std::string name_;
@@ -48,6 +54,36 @@ public:
     virtual void ClearTextGlyphs() {}
     virtual void SetEmojiCollection(std::shared_ptr<EmojiCollection>) {}
     virtual void SetupUI() { setup_ui_called_ = true; }
+    virtual bool IsMonochrome() const { return false; }
+    virtual bool SupportsGuiOperations() const { return false; }
+    virtual void SetHideSubtitle(bool hide) { (void)hide; }
+    virtual bool InsertAnimDialog(const char* name, uint32_t duration_ms) {
+        (void)name;
+        (void)duration_ms;
+        return false;
+    }
+    virtual bool MountAssets(const char* partition_label) {
+        (void)partition_label;
+        return false;
+    }
+    virtual void UnmountAssets() {}
+    virtual bool GetAssetData(const std::string& name, const uint8_t*& data, size_t& size) {
+        (void)name;
+        (void)data;
+        (void)size;
+        return false;
+    }
+    virtual void LoadAssets() {}
+    virtual void SetPreviewImage(std::unique_ptr<LvglImage> image);
+    virtual bool SetTextFont(std::shared_ptr<LvglFont> text_font) {
+        (void)text_font;
+        return false;
+    }
+    virtual bool SnapshotToJpeg(std::string& jpeg_data, int quality = 80) {
+        (void)jpeg_data;
+        (void)quality;
+        return false;
+    }
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }
@@ -67,15 +103,26 @@ protected:
 
 class DisplayLockGuard {
 public:
-    DisplayLockGuard(Display* display) : display_(display) {
-        if (!display_->Lock(30000)) {
+    explicit DisplayLockGuard(Display* display)
+        : display_(display), locked_(display_->Lock(30000)) {
+        if (!locked_) {
             ESP_LOGE("Display", "Failed to lock display");
         }
     }
-    ~DisplayLockGuard() { display_->Unlock(); }
+    ~DisplayLockGuard() {
+        if (locked_) {
+            display_->Unlock();
+        }
+    }
+
+    DisplayLockGuard(const DisplayLockGuard&) = delete;
+    DisplayLockGuard& operator=(const DisplayLockGuard&) = delete;
+
+    explicit operator bool() const { return locked_; }
 
 private:
     Display* display_;
+    bool locked_;
 };
 
 class NoDisplay : public Display {

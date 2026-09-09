@@ -1,13 +1,11 @@
 #include "lvgl_image.h"
 #include <cbin_font.h>
 
-#include <esp_log.h>
-#include <stdexcept>
-#include <cstring>
 #include <esp_heap_caps.h>
+#include <esp_log.h>
+#include <cstring>
 
 #define TAG "LvglImage"
-
 
 LvglRawImage::LvglRawImage(void* data, size_t size) {
     bzero(&image_dsc_, sizeof(image_dsc_));
@@ -41,11 +39,13 @@ LvglAllocatedImage::LvglAllocatedImage(void* data, size_t size) {
 
     if (lv_image_decoder_get_info(&image_dsc_, &image_dsc_.header) != LV_RESULT_OK) {
         ESP_LOGE(TAG, "Failed to get image info, data: %p size: %u", data, size);
-        throw std::runtime_error("Failed to get image info");
+        return;
     }
+    valid_ = true;
 }
 
-LvglAllocatedImage::LvglAllocatedImage(void* data, size_t size, int width, int height, int stride, int color_format) {
+LvglAllocatedImage::LvglAllocatedImage(void* data, size_t size, int width, int height, int stride,
+                                       int color_format) {
     bzero(&image_dsc_, sizeof(image_dsc_));
     image_dsc_.data_size = size;
     image_dsc_.data = static_cast<uint8_t*>(data);
@@ -54,6 +54,7 @@ LvglAllocatedImage::LvglAllocatedImage(void* data, size_t size, int width, int h
     image_dsc_.header.w = width;
     image_dsc_.header.h = height;
     image_dsc_.header.stride = stride;
+    valid_ = data != nullptr && size > 0 && width > 0 && height > 0;
 }
 
 LvglAllocatedImage::~LvglAllocatedImage() {

@@ -1320,6 +1320,28 @@ class BuildOptionTests(unittest.TestCase):
         self.assertFalse(defaults["camera_hmirror"])
         self.assertTrue(defaults["camera_vflip"])
 
+    def test_nothrow_camera_constructor_exposes_mirror_options(self):
+        config = json.loads(
+            (ROOT / "main/boards/otto-robot/config.json").read_text(encoding="utf-8")
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "otto-robot",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "otto-robot",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        defaults = {definition["key"]: definition["default"] for definition in definitions}
+
+        self.assertTrue(defaults["camera_hmirror"])
+        self.assertTrue(defaults["camera_vflip"])
+
     def test_optional_usb_camera_options_require_camera_to_be_enabled(self):
         config = json.loads(
             (ROOT / "main/boards/espressif/esp-vocat/config.json").read_text(
