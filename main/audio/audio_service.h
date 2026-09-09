@@ -180,9 +180,11 @@ private:
     TaskHandle_t opus_codec_task_handle_ = nullptr;
     std::mutex audio_queue_mutex_;
     std::condition_variable audio_queue_cv_;
+    // Testing records up to AUDIO_TESTING_MAX_DURATION_MS, then swaps into the
+    // decode queue. Both queues must share this capacity so swap() is valid.
     static constexpr size_t kAudioTestingPacketCapacity =
         AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS;
-    FixedQueue<std::unique_ptr<AudioStreamPacket>, MAX_DECODE_PACKETS_IN_QUEUE> audio_decode_queue_;
+    FixedQueue<std::unique_ptr<AudioStreamPacket>, kAudioTestingPacketCapacity> audio_decode_queue_;
     FixedQueue<std::unique_ptr<AudioStreamPacket>, MAX_SEND_PACKETS_IN_QUEUE> audio_send_queue_;
     FixedQueue<std::unique_ptr<AudioStreamPacket>, kAudioTestingPacketCapacity>
         audio_testing_queue_;
