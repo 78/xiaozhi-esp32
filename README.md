@@ -14,10 +14,10 @@ As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabiliti
 
 ## Recent Updates
 
-- The mainline now targets ESP-IDF v6.0 or later, with v6.0.2 as the preferred stable SDK. The previous 157-variant baseline was validated on ESP-IDF v6.0.1; the current matrix contains 171 variants, of which 170 support IDF 6.0.x and the ESP32-S31 variant requires IDF 6.1 or later.
+- The project now requires ESP-IDF v6.0.1 or later. [ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1) is the recommended SDK. ESP-IDF 5.x is no longer supported. The current matrix contains 171 variants; ESP32-S31 builds require IDF 6.1 or later.
 - MQTT and BluFi cryptographic code has migrated to PSA Crypto. IDF 6 component splits and third-party dependency compatibility have also been addressed.
 - Audio pipeline concurrency, MQTT/UDP packet validation, and release-matrix selection have been hardened.
-- ESP-IDF v5.5 is retained only for documented legacy boards. ESP32-P4 Rev1 and Rev3 are both supported on IDF 6 with ESP-SR 2.4.7; see the [ESP-IDF 6.0 Migration Guide](docs/esp-idf-6-migration.md) for full compatibility and board-validation details.
+- ESP32-P4 Rev1 and Rev3 are both supported on IDF 6 with ESP-SR 2.4.7.
 
 ### Features Implemented
 
@@ -114,13 +114,12 @@ The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by
 ### Development Environment
 
 - Cursor or VSCode
-- Install the ESP-IDF plugin. [ESP-IDF v6.0.2](https://github.com/espressif/esp-idf/releases/tag/v6.0.2) is preferred; use a stable v6.0 or later release. ESP-IDF v5.5.2 is retained only for legacy board compatibility
+- Install the ESP-IDF plugin. The minimum SDK is [ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1); [ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1) is recommended. ESP-IDF 5.x is not supported.
 - Linux is better than Windows for faster compilation and fewer driver issues
 - This project uses Google C++ code style, please ensure compliance when submitting code
 
 ### Developer Documentation
 
-- [ESP-IDF 6.0 Migration Guide](docs/esp-idf-6-migration.md) - SDK compatibility, component changes, legacy hardware support, and board validation status
 - [Custom Board Guide](docs/custom-board.md) - Learn how to create custom boards for XiaoZhi AI
 - [MCP Protocol IoT Control Usage](docs/mcp-usage.md) - Learn how to control IoT devices via MCP protocol
 - [MCP Protocol Interaction Flow](docs/mcp-protocol.md) - Device-side MCP protocol implementation

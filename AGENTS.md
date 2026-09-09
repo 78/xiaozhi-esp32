@@ -4,7 +4,7 @@
 
 XiaoZhi is an ESP-IDF C/C++ voice-assistant firmware supporting many chips, boards, displays, audio devices, and network transports. A build selects exactly one board implementation.
 
-Use ESP-IDF v6.0.2 when possible. IDF 5.5.x is retained only for documented legacy boards.
+Use ESP-IDF v6.1 when possible. The minimum supported SDK is ESP-IDF v6.0.1. IDF 5.x is not supported.
 
 ## Architecture
 
@@ -84,7 +84,6 @@ The build script changes local `sdkconfig` and build state. Do not assume the bu
 ## Authoritative Documentation
 
 - Overview and SDK policy: `README.md`
-- SDK compatibility: `docs/esp-idf-6-migration.md`
 - Board guide: `docs/custom-board.md`
 - Audio design: `main/audio/README.md`
 - Code style: `docs/code_style.md`
