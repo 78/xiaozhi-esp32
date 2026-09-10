@@ -36,6 +36,10 @@ public:
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
+    
+    // 隐藏/显示默认界面
+    void HideDefaultUI();
+    void ShowDefaultUI();
 };
 
 #endif // OLED_DISPLAY_H
