@@ -120,6 +120,9 @@ public:
     std::unique_ptr<AudioStreamPacket> PopWakeWordPacket();
     const std::string& GetLastWakeWord() const;
     bool IsVoiceDetected() const { return voice_detected_; }
+    // Loudness of the audio currently being written to the speaker, 0.0 .. 1.0.
+    // The display reads this to drive mouth animation in sync with speech.
+    float GetPlaybackLevel() const { return playback_level_.load(std::memory_order_relaxed); }
     bool IsIdle();
     bool IsPlaybackIdle();
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
@@ -171,6 +174,9 @@ private:
     TaskHandle_t audio_input_task_handle_ = nullptr;
     TaskHandle_t audio_output_task_handle_ = nullptr;
     TaskHandle_t opus_codec_task_handle_ = nullptr;
+    std::atomic<float> playback_level_{0.0f};
+    void UpdatePlaybackLevel(const std::vector<int16_t>& pcm);
+
     std::mutex audio_queue_mutex_;
     std::condition_variable audio_queue_cv_;
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_queue_;

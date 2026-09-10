@@ -1,4 +1,6 @@
 #include "audio_service.h"
+
+#include <cmath>
 #include <esp_log.h>
 #include <cstring>
 
@@ -178,6 +180,7 @@ void AudioService::Stop() {
         audio_encode_queue_.clear();
         audio_decode_queue_.clear();
         audio_playback_queue_.clear();
+        playback_level_.store(0.0f, std::memory_order_relaxed);
         audio_testing_queue_.clear();
         notify_drained = MarkPlaybackDrainedLocked();
         audio_queue_cv_.notify_all();
@@ -337,6 +340,7 @@ void AudioService::AudioOutputTask() {
             callbacks_.on_playback_progress(task->playback_id, task->media_position_ms);
         }
 
+        UpdatePlaybackLevel(task->pcm);
         codec_->OutputData(task->pcm);
 
         /* Update the last output time */
@@ -362,6 +366,32 @@ void AudioService::AudioOutputTask() {
     }
 
     ESP_LOGW(TAG, "Audio output task stopped");
+}
+
+void AudioService::UpdatePlaybackLevel(const std::vector<int16_t>& pcm) {
+    if (pcm.empty()) {
+        return;
+    }
+    // A couple of hundred samples is plenty to follow the syllable envelope,
+    // and keeps this off the critical path of the output task.
+    const size_t step = pcm.size() > 256 ? pcm.size() / 256 : 1;
+    double sum = 0.0;
+    size_t count = 0;
+    for (size_t i = 0; i < pcm.size(); i += step) {
+        const double s = pcm[i];
+        sum += s * s;
+        count++;
+    }
+    if (count == 0) {
+        return;
+    }
+    // Conversational speech sits around 4000-8000 RMS at this gain, so 6000
+    // maps a normal talking voice to roughly full mouth travel.
+    float level = static_cast<float>(std::sqrt(sum / count)) / 6000.0f;
+    if (level > 1.0f) {
+        level = 1.0f;
+    }
+    playback_level_.store(level, std::memory_order_relaxed);
 }
 
 void AudioService::OpusCodecTask() {
@@ -786,6 +816,7 @@ void AudioService::ResetDecoder() {
         timestamp_queue_.clear();
         audio_decode_queue_.clear();
         audio_playback_queue_.clear();
+        playback_level_.store(0.0f, std::memory_order_relaxed);
         audio_testing_queue_.clear();
         notify_drained = MarkPlaybackDrainedLocked();
         audio_queue_cv_.notify_all();
