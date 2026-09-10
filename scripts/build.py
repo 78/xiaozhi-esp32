@@ -1207,6 +1207,13 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
     ],
 }
 
+# sdkconfig.defaults.esp32s3 keeps a 1MB LVGL TLSF pool for PSRAM. Without
+# PSRAM that pool becomes a .dram0.bss array and overflows internal SRAM.
+_NO_SPIRAM_LVGL_OPTIONS = [
+    "CONFIG_LV_USE_BUILTIN_MALLOC=n",
+    "CONFIG_LV_USE_CLIB_MALLOC=y",
+]
+
 
 def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
     """Apply hardcoded auto-select rules to sdkconfig_append."""
@@ -1222,6 +1229,10 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
                 # must do the same instead of keeping the earlier value.
                 items = _merge_sdkconfig_options(items, deps)
                 break
+
+    assignments = _sdkconfig_assignments(items)
+    if assignments.get("CONFIG_SPIRAM") == "n":
+        items = _merge_sdkconfig_options(items, _NO_SPIRAM_LVGL_OPTIONS)
 
     return items
 

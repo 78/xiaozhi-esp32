@@ -1296,6 +1296,18 @@ class BuildOptionTests(unittest.TestCase):
         self.assertIn("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=n", options)
         self.assertIn("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y", options)
 
+    def test_no_spiram_drops_s3_lvgl_psram_pool(self):
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=n"])
+        self.assertIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=y"])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertNotIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects([])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+
     def test_camera_board_defaults_are_declared_by_board_config(self):
         config = json.loads(
             (ROOT / "main/boards/espressif/esp32-s3-korvo-2-v3.0/config.json").read_text(
