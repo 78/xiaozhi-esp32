@@ -710,8 +710,8 @@ std::string SscmaCamera::Explain(const std::string& question) {
     }
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     http->SetHeader("Transfer-Encoding", "chunked");
-    if (!http->Open("POST", explain_url_)) {
-        ESP_LOGE(TAG, "Failed to connect to explain URL");
+    if (auto opened = http->Open("POST", explain_url_); !opened) {
+        ESP_LOGE(TAG, "Failed to connect to explain URL: %s", opened.error().ToString().c_str());
         return "{\"success\": false, \"message\": \"Failed to connect to explain URL\"}";
     }
     
@@ -730,8 +730,13 @@ std::string SscmaCamera::Explain(const std::string& question) {
     // 结束块
     http->Write("", 0);
 
-    if (http->GetStatusCode() != 200) {
-        ESP_LOGE(TAG, "Failed to upload photo, status code: %d", http->GetStatusCode());
+    auto status_code = http->GetStatusCode();
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return "{\"success\": false, \"message\": \"Failed to upload photo\"}";
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to upload photo, status code: %d", *status_code);
         return "{\"success\": false, \"message\": \"Failed to upload photo\"}";
     }
 

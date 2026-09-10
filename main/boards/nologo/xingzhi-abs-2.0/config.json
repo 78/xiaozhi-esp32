@@ -1,0 +1,12 @@
+{
+    "manufacturer": "nologo",
+    "type": "xingzhi-abs-2.0",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xingzhi-abs-2.0",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}

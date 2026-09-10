@@ -8,7 +8,7 @@ This script calls build.py with different combinations of:
 - emoji_collections
 
 And generates assets.bin files with names like:
-wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-emojis_32.bin
+wn9_nihaoxiaozhi_tts-font_noto_sans_common_20_4-noto-color-emoji_32.bin
 """
 
 import os
@@ -40,11 +40,11 @@ def build_assets(wakenet_model, text_font, emoji_collection, build_dir, final_di
         cmd.extend(["--wakenet_model", wakenet_path])
     
     if text_font != "none":
-        text_font_path = os.path.join("../../components/78__xiaozhi-fonts/cbin", f"{text_font}.bin")
+        text_font_path = os.path.join("../../components/noto-fonts/cbin", f"{text_font}.bin")
         cmd.extend(["--text_font", text_font_path])
     
     if emoji_collection != "none":
-        emoji_path = os.path.join("../../components/xiaozhi-fonts/build", emoji_collection)
+        emoji_path = os.path.join("../../components/noto-fonts/png", emoji_collection)
         cmd.extend(["--emoji_collection", emoji_path])
     
     print(f"\n正在构建: {wakenet_model}-{text_font}-{emoji_collection}")
@@ -87,16 +87,16 @@ def main():
     
     text_fonts = [
         "none",
-        "font_puhui_common_14_1",
-        "font_puhui_common_16_4", 
-        "font_puhui_common_20_4",
-        "font_puhui_common_30_4",
+        "font_noto_sans_common_14_1",
+        "font_noto_sans_common_16_4",
+        "font_noto_sans_common_20_4",
+        "font_noto_sans_common_30_4",
     ]
     
     emoji_collections = [
         "none",
-        "emojis_32",
-        "emojis_64",
+        "noto-color-emoji_32",
+        "noto-color-emoji_64",
     ]
     
     # Get script directory
@@ -144,5 +144,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

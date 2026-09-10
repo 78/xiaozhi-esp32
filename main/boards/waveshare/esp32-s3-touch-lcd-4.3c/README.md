@@ -20,13 +20,7 @@ esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 460800 --before=default_reset --aft
 idf.py set-target esp32s3
 ```
 
-2. 修改配置 
-
-```shell
-cp main/boards/esp32-s3-touch-lcd-4.3c/sdkconfig.4_3c sdkconfig
-```
-
-3. 编译烧录程序
+2. 编译烧录程序
 
 ```shell
 idf.py build flash monitor

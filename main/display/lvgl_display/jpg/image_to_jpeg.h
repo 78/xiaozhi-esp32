@@ -7,11 +7,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_IDF_TARGET_ESP32S3)
-// ESP32-P4 使用 esp_video 组件提供的 V4L2 头文件
-#include <linux/videodev2.h>
-#else
-// ESP32-S3 等其他芯片：定义常用的 V4L2 像素格式
+// Keep this lightweight header independent from esp_video's Linux compatibility
+// headers. esp_video 2.0.x and lwIP both define ioctl macros under ESP-IDF 6.
+#ifndef V4L2_PIX_FMT_RGB565
 #define V4L2_PIX_FMT_RGB565 0x50424752  // 'RGBP'
 #define V4L2_PIX_FMT_RGB565X 0x52474250 // 'PRGB'
 #define V4L2_PIX_FMT_RGB24 0x33424752   // 'RGB3'

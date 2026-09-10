@@ -2,16 +2,16 @@
 #include "sdkconfig.h"
 
 #include <lvgl.h>
-#include <thread>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
 #include "camera.h"
-#include "jpg/image_to_jpeg.h"
 #include "esp_video_init.h"
+#include "jpg/image_to_jpeg.h"
 
 struct JpegChunk {
     uint8_t* data;
@@ -21,7 +21,7 @@ struct JpegChunk {
 class EspVideo : public Camera {
 private:
     struct FrameBuffer {
-        uint8_t *data = nullptr;
+        uint8_t* data = nullptr;
         size_t len = 0;
         uint16_t width = 0;
         uint16_t height = 0;
@@ -34,7 +34,10 @@ private:
 #endif  // CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     int video_fd_ = -1;
     bool streaming_on_ = false;
-    struct MmapBuffer { void *start = nullptr; size_t length = 0; };
+    struct MmapBuffer {
+        void* start = nullptr;
+        size_t length = 0;
+    };
     std::vector<MmapBuffer> mmap_buffers_;
     std::string explain_url_;
     std::string explain_token_;
@@ -42,7 +45,7 @@ private:
 
 public:
     EspVideo(const esp_video_init_config_t& config);
-    ~EspVideo();
+    ~EspVideo() override;
 
     virtual void SetExplainUrl(const std::string& url, const std::string& token);
     virtual bool Capture();

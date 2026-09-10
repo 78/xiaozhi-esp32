@@ -1,0 +1,12 @@
+{
+    "manufacturer": "kevin",
+    "type": "kevin-box-2",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kevin-box-2",
+            "legacy_names": ["tudouzi"],
+            "sdkconfig_append": []
+        }
+    ]
+}

@@ -10,12 +10,16 @@
 #include <mutex>
 #include <deque>
 #include <memory>
+#include <functional>
+#include <cstdint>
+#include <vector>
 
 #include "protocol.h"
 #include "ota.h"
 #include "audio_service.h"
 #include "device_state.h"
 #include "device_state_machine.h"
+#include "notify/notify_player.h"
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -31,6 +35,7 @@
 #define MAIN_EVENT_START_LISTENING      (1 << 10)
 #define MAIN_EVENT_STOP_LISTENING       (1 << 11)
 #define MAIN_EVENT_STATE_CHANGED        (1 << 12)
+#define MAIN_EVENT_PLAYBACK_DRAINED     (1 << 13)
 
 
 enum AecMode {
@@ -108,6 +113,7 @@ public:
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
+    void RegisterMcpBroadcastCallback(std::function<void(const std::string&)> callback);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
@@ -134,12 +140,17 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+    NotifyPlayer notify_player_;
+    uint32_t notification_playback_id_ = 0;
     std::unique_ptr<Ota> ota_;
+
+    std::function<void(const std::string&)> mcp_broadcast_callback_;
 
     bool has_server_time_ = false;
     bool aborted_ = false;
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
+    bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
 
@@ -154,7 +165,13 @@ private:
     void HandleActivationDoneEvent();
     void HandleWakeWordDetectedEvent();
     void ContinueOpenAudioChannel(ListeningMode mode);
+    void BeginWakeWordInvoke(const std::string& wake_word);
     void ContinueWakeWordInvoke(const std::string& wake_word);
+    void StartListeningAudio();
+    void ConfigureWakeWordForListening();
+    void StartNotification(std::string audio_url, std::vector<NotifySubtitle> subtitles);
+    void StopNotification();
+    void HandleNotificationFinished(uint32_t playback_id, bool success);
 
     // Activation task (runs in background)
     void ActivationTask();

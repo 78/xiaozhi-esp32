@@ -13,6 +13,7 @@ Usage:
 import argparse
 import io
 import os
+import re
 import shutil
 import sys
 import json
@@ -154,7 +155,63 @@ def copy_directory(src, dst):
         return False
 
 
-def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets_dir):
+# WakeNet10 ships chip-specific slices. ESP-SR's runtime looks for wn10_data /
+# _MODEL_INFO_, so the unused p1/p2 siblings must be dropped and the selected
+# slice renamed before srmodels.bin is packed.
+WN10_PIE_VERSIONS = {
+    "esp32s3": "p1",
+    "esp32p4": "p2",
+    "esp32s31": "p2",
+}
+
+
+def copy_wakenet_model(src, dst, idf_target=None):
+    """Copy one wakenet model, applying WakeNet10 chip-specific file mapping."""
+    if not os.path.exists(src):
+        print(f"Warning: Source directory does not exist: {src}")
+        return False
+
+    model_name = os.path.basename(src)
+    if not model_name.startswith("wn10_"):
+        return copy_directory(src, dst)
+
+    pie = WN10_PIE_VERSIONS.get(idf_target)
+    if pie is None:
+        raise ValueError(
+            f"WakeNet10 model {model_name} requires an IDF target of "
+            f"{', '.join(sorted(WN10_PIE_VERSIONS))}, got {idf_target!r}"
+        )
+
+    os.makedirs(dst, exist_ok=True)
+    rename = {
+        f"wn10_data_{pie}": "wn10_data",
+        f"_MODEL_INFO_{pie}": "_MODEL_INFO_",
+    }
+    copied = False
+    for file_name in os.listdir(src):
+        source = os.path.join(src, file_name)
+        if file_name in rename:
+            destination = os.path.join(dst, rename[file_name])
+        elif file_name.endswith("_p1") or file_name.endswith("_p2"):
+            continue
+        else:
+            destination = os.path.join(dst, file_name)
+        if os.path.isdir(source):
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+        copied = True
+
+    if not copied or not os.path.exists(os.path.join(dst, "wn10_data")):
+        raise FileNotFoundError(
+            f"WakeNet10 model {model_name} has no {pie} slice for {idf_target}"
+        )
+    print(f"Copied WakeNet10 {model_name} ({pie}) -> {dst}")
+    return True
+
+
+def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets_dir,
+                      idf_target=None):
     """Process SR models (wakenet and multinet) and generate srmodels.bin"""
     if not wakenet_model_dirs and not multinet_model_dirs:
         return None
@@ -172,7 +229,7 @@ def process_sr_models(wakenet_model_dirs, multinet_model_dirs, build_dir, assets
         for wakenet_model_dir in wakenet_model_dirs:
             wakenet_name = os.path.basename(wakenet_model_dir)
             wakenet_dst = os.path.join(sr_models_build_dir, wakenet_name)
-            if copy_directory(wakenet_model_dir, wakenet_dst):
+            if copy_wakenet_model(wakenet_model_dir, wakenet_dst, idf_target):
                 models_processed += 1
                 print(f"Added wakenet model: {wakenet_name}")
     
@@ -222,19 +279,6 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
     
     emoji_list = []
     
-    # Check if this is otto-gif collection
-    is_otto_gif = 'otto-emoji-gif-component' in emoji_collection_dir or emoji_collection_dir.endswith('otto-gif')
-    
-    # Otto GIF emoji aliases mapping
-    otto_gif_aliases = {
-        "staticstate": ["neutral", "relaxed", "sleepy", "idle"],
-        "happy": ["laughing", "funny", "loving", "confident", "winking", "cool", "delicious", "kissy", "silly"],
-        "sad": ["crying"],
-        "anger": ["angry"],
-        "scare": ["surprised", "shocked"],
-        "buxue": ["thinking", "confused", "embarrassed"]
-    }
-    
     # Copy each image from input directory to build/assets directory
     for root, dirs, files in os.walk(emoji_collection_dir):
         for file in files:
@@ -252,13 +296,6 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
                         "file": file
                     })
                     
-                    # Add aliases for otto-gif emojis
-                    if is_otto_gif and filename_without_ext in otto_gif_aliases:
-                        for alias in otto_gif_aliases[filename_without_ext]:
-                            emoji_list.append({
-                                "name": alias,
-                                "file": file
-                            })
     
     return emoji_list
 
@@ -293,7 +330,8 @@ def process_extra_files(extra_files_dir, assets_dir):
     return extra_files_list
 
 
-def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None, multinet_model_info=None):
+def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None,
+                        multinet_model_info=None, font_bundle_id=None):
     """Generate index.json file"""
     index_data = {
         "version": 1
@@ -303,7 +341,22 @@ def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra
         index_data["srmodels"] = srmodels
     
     if text_font:
+        if not font_bundle_id:
+            raise ValueError("font_bundle_id is required when packaging a text font")
         index_data["text_font"] = text_font
+        stem = os.path.splitext(text_font)[0]
+        marker = '_common_'
+        if marker in stem:
+            match = re.fullmatch(r"(\d+)_(\d+)", stem.split(marker, 1)[1])
+            if not match:
+                raise ValueError(f"invalid Noto text font name: {text_font}")
+            text_font_meta = {
+                "charset": "common",
+                "size": int(match.group(1)),
+                "bpp": int(match.group(2)),
+                "bundle": font_bundle_id,
+            }
+            index_data["text_font_meta"] = text_font_meta
     
     if emoji_collection:
         index_data["emoji_collection"] = emoji_collection
@@ -424,7 +477,7 @@ def pack_assets_simple(target_path, include_path, out_file, assets_path, max_nam
     current_year = datetime.now().year
     asset_name = os.path.basename(assets_path)
     header_file_path = os.path.join(include_path, f'mmap_generate_{asset_name}.h')
-    with open(header_file_path, 'w') as output_header:
+    with open(header_file_path, 'w', encoding='utf-8') as output_header:
         output_header.write('/*\n')
         output_header.write(' * SPDX-FileCopyrightText: 2022-{} Espressif Systems (Shanghai) CO LTD\n'.format(current_year))
         output_header.write(' *\n')
@@ -453,6 +506,18 @@ def pack_assets_simple(target_path, include_path, out_file, assets_path, max_nam
 # Configuration and main functions
 # =============================================================================
 
+def read_idf_target_from_sdkconfig(sdkconfig_path):
+    """Read CONFIG_IDF_TARGET from sdkconfig."""
+    if not os.path.exists(sdkconfig_path):
+        return None
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("CONFIG_IDF_TARGET="):
+                return line.split("=", 1)[1].strip().strip('"')
+    return None
+
+
 def read_wakenet_from_sdkconfig(sdkconfig_path):
     """
     Read wakenet models from sdkconfig (based on movemodel.py logic)
@@ -463,7 +528,7 @@ def read_wakenet_from_sdkconfig(sdkconfig_path):
         return []
         
     models = []
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for label in f:
             label = label.strip("\n")
             if 'CONFIG_SR_WN' in label and '#' not in label[0]:
@@ -488,7 +553,7 @@ def read_multinet_from_sdkconfig(sdkconfig_path):
         print(f"Warning: sdkconfig file not found: {sdkconfig_path}")
         return []
         
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         models_string = ''
         for label in f:
             label = label.strip("\n")
@@ -549,7 +614,7 @@ def read_wake_word_type_from_sdkconfig(sdkconfig_path):
         'wake_word_disabled': False
     }
     
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip("\n")
             if line.startswith('#'):
@@ -578,7 +643,7 @@ def read_custom_wake_word_from_sdkconfig(sdkconfig_path):
         return None
         
     config_values = {}
-    with io.open(sdkconfig_path, "r") as f:
+    with io.open(sdkconfig_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip("\n")
             if line.startswith('#') or '=' not in line:
@@ -683,7 +748,7 @@ def get_multinet_model_paths(model_names, esp_sr_model_path):
     return valid_paths
 
 
-def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
+def get_text_font_path(builtin_text_font, noto_fonts_path):
     """
     Get the text font path if needed
     Returns the font file path or None if no font is needed
@@ -691,13 +756,9 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
     if not builtin_text_font or 'basic' not in builtin_text_font:
         return None
     
-    # Convert from basic to common font name
-    # e.g., font_puhui_basic_16_4 -> font_puhui_common_16_4.bin
-    if builtin_text_font.startswith('font_noto_'):
-        font_name = builtin_text_font.replace('basic', 'qwen') + '.bin'
-    else:
-        font_name = builtin_text_font.replace('basic', 'common') + '.bin'
-    font_path = os.path.join(xiaozhi_fonts_path, 'cbin', font_name)
+    # basic is linked into firmware; common is loaded from the assets partition.
+    font_name = builtin_text_font.replace('_basic_', '_common_') + '.bin'
+    font_path = os.path.join(noto_fonts_path, 'cbin', font_name)
     
     if os.path.exists(font_path):
         return font_path
@@ -706,14 +767,13 @@ def get_text_font_path(builtin_text_font, xiaozhi_fonts_path):
         return None
 
 
-def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, project_root=None):
+def get_emoji_collection_path(default_emoji_collection, noto_fonts_path, project_root=None):
     """
     Get the emoji collection path if needed
     Returns the emoji directory path or None if no emoji collection is needed
     
     Supports:
-    - PNG emoji collections from xiaozhi-fonts (e.g., emojis_32, twemoji_64)
-    - GIF emoji collections from xiaozhi-fonts (e.g., noto-emoji_128, noto-emoji_64)
+    - PNG emoji collections from noto-fonts (e.g., noto-color-emoji_32)
     - Otto GIF emoji collection (otto-gif)
     """
     if not default_emoji_collection:
@@ -733,13 +793,13 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
             print("Warning: project_root not provided, cannot locate otto-gif collection")
             return None
     
-    # Try PNG emoji collections first (e.g., emojis_32, twemoji_64)
-    emoji_path = os.path.join(xiaozhi_fonts_path, 'png', default_emoji_collection)
+    # Try PNG emoji collections first.
+    emoji_path = os.path.join(noto_fonts_path, 'png', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
     
     # Try GIF emoji collections (e.g., noto-emoji_128, noto-emoji_64, noto-emoji_32)
-    emoji_path = os.path.join(xiaozhi_fonts_path, 'gif', default_emoji_collection)
+    emoji_path = os.path.join(noto_fonts_path, 'gif', default_emoji_collection)
     if os.path.exists(emoji_path):
         return emoji_path
     
@@ -747,7 +807,10 @@ def get_emoji_collection_path(default_emoji_collection, xiaozhi_fonts_path, proj
     return None
 
 
-def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, extra_files_path, output_path, multinet_model_info=None):
+def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path,
+                            emoji_collection_path, extra_files_path, output_path,
+                            multinet_model_info=None, font_bundle_id=None, max_size=None,
+                            idf_target=None):
     """
     Build assets using integrated functions (no external dependencies)
     """
@@ -765,19 +828,23 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
         print("Starting to build assets...")
         
         # Process each component
-        srmodels = process_sr_models(wakenet_model_paths, multinet_model_paths, temp_build_dir, assets_dir) if (wakenet_model_paths or multinet_model_paths) else None
+        srmodels = process_sr_models(
+            wakenet_model_paths, multinet_model_paths, temp_build_dir, assets_dir,
+            idf_target=idf_target,
+        ) if (wakenet_model_paths or multinet_model_paths) else None
         text_font = process_text_font(text_font_path, assets_dir) if text_font_path else None
         emoji_collection = process_emoji_collection(emoji_collection_path, assets_dir) if emoji_collection_path else None
         extra_files = process_extra_files(extra_files_path, assets_dir) if extra_files_path else None
         
         # Generate index.json
-        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files, multinet_model_info)
+        generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files,
+                            multinet_model_info, font_bundle_id)
         
         # Generate config.json for packing
         config_path = generate_config_json(temp_build_dir, assets_dir)
         
         # Load config and pack assets
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config_data = json.load(f)
         
         # Use simplified packing function
@@ -793,6 +860,13 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
             # Show size information
             total_size = os.path.getsize(output_path)
             print(f"Assets file size: {total_size / 1024:.2f}K ({total_size} bytes)")
+
+            if max_size is not None and total_size > max_size:
+                print(
+                    f"Error: assets.bin size {total_size} bytes exceeds partition limit "
+                    f"{max_size} bytes ({max_size / 1024:.2f}K)"
+                )
+                return False
             
             return True
         else:
@@ -811,17 +885,19 @@ def build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font
 def main():
     parser = argparse.ArgumentParser(description='Build default assets based on configuration')
     parser.add_argument('--sdkconfig', required=True, help='Path to sdkconfig file')
-    parser.add_argument('--builtin_text_font', help='Builtin text font name (e.g., font_puhui_basic_16_4)')
-    parser.add_argument('--emoji_collection', help='Default emoji collection name (e.g., emojis_32)')
+    parser.add_argument('--builtin_text_font', help='Builtin text font name (e.g., font_noto_sans_basic_16_4)')
+    parser.add_argument('--emoji_collection', help='Default emoji collection name (e.g., noto-color-emoji_32)')
     parser.add_argument('--output', required=True, help='Output path for assets.bin')
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
-    parser.add_argument('--xiaozhi_fonts_path', help='Path to xiaozhi-fonts component directory')
+    parser.add_argument('--noto_fonts_path', help='Path to noto-fonts component directory')
     parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
+    parser.add_argument('--max_size', type=lambda v: int(v, 0), default=None,
+                        help='Fail if assets.bin exceeds this many bytes (decimal or 0x hex)')
     
     args = parser.parse_args()
     
     # Set default paths if not provided
-    if not args.esp_sr_model_path or not args.xiaozhi_fonts_path:
+    if not args.esp_sr_model_path or not args.noto_fonts_path:
         # Calculate project root from script location
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(script_dir)
@@ -829,8 +905,8 @@ def main():
         if not args.esp_sr_model_path:
             args.esp_sr_model_path = os.path.join(project_root, "managed_components", "espressif__esp-sr", "model")
         
-        if not args.xiaozhi_fonts_path:
-            args.xiaozhi_fonts_path = os.path.join(project_root, "components", "xiaozhi-fonts")
+        if not args.noto_fonts_path:
+            args.noto_fonts_path = os.path.join(project_root, "components", "noto-fonts")
     
     print("Building default assets...")
     print(f"  sdkconfig: {args.sdkconfig}")
@@ -838,6 +914,10 @@ def main():
     print(f"  emoji_collection: {args.emoji_collection}")
     print(f"  output: {args.output}")
     
+    idf_target = read_idf_target_from_sdkconfig(args.sdkconfig)
+    if idf_target:
+        print(f"  idf target: {idf_target}")
+
     # Read wake word type configuration from sdkconfig
     wake_word_config = read_wake_word_type_from_sdkconfig(args.sdkconfig)
     
@@ -874,13 +954,20 @@ def main():
         print(f"  multinet models: {', '.join(multinet_model_names)} (will be packaged)")
     
     # Get text font path if needed
-    text_font_path = get_text_font_path(args.builtin_text_font, args.xiaozhi_fonts_path)
+    text_font_path = get_text_font_path(args.builtin_text_font, args.noto_fonts_path)
+    font_bundle_id = None
+    if text_font_path:
+        manifest_path = os.path.join(args.noto_fonts_path, "manifest.json")
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            font_bundle_id = json.load(f).get("bundle_id")
+        if not isinstance(font_bundle_id, str) or not font_bundle_id:
+            raise ValueError("noto-fonts manifest.json must define bundle_id")
     
     # Get emoji collection path if needed
     # Calculate project root from script location for otto-gif support
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
-    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.xiaozhi_fonts_path, project_root)
+    emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.noto_fonts_path, project_root)
     
     # Get extra files path if provided
     extra_files_path = args.extra_files
@@ -921,8 +1008,10 @@ def main():
         return
     
     # Build the assets
-    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, 
-                                     extra_files_path, args.output, multinet_model_info)
+    success = build_assets_integrated(
+        wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path,
+        extra_files_path, args.output, multinet_model_info, font_bundle_id, args.max_size,
+        idf_target=idf_target)
     
     if not success:
         sys.exit(1)

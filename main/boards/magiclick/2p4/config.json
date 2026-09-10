@@ -1,0 +1,11 @@
+{
+    "manufacturer": "magiclick",
+    "type": "magiclick-2p4",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "magiclick-2p4",
+            "sdkconfig_append": []
+        }
+    ]
+}

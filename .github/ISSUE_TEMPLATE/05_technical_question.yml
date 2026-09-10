@@ -1,0 +1,42 @@
+name: Firmware development question
+description: Ask a focused technical question about this repository or supported hardware
+title: "[Question] "
+labels: ['question']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for technical questions about the open-source firmware. For device unbinding, email [xiaozhi.ai@tenclass.com](mailto:xiaozhi.ai@tenclass.com?subject=Device%20unbinding%20request) privately with the device ID and MAC address. Other account and cloud-service requests belong on the [XiaoZhi AI website](https://xiaozhi.me/).
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched the repository and existing issues and did not find an answer.
+          required: true
+
+  - type: input
+    id: context
+    attributes:
+      label: Relevant device, version, or code area
+      description: Enter the device/model, board target, source or firmware version, file, or subsystem that matters to the question.
+      placeholder: ex. zhengchen-cam on v2.2.6, or main/audio on current main
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Goal and question
+      description: Explain what you are trying to accomplish and state the specific technical question.
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What have you tried?
+      description: Optionally include relevant files, commands, experiments, logs, screenshots, or a minimal example.
+    validations:
+      required: false

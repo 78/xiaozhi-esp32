@@ -1,0 +1,11 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp-box",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp-box",
+            "sdkconfig_append": []
+        }
+    ]
+}

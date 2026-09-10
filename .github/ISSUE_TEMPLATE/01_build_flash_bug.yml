@@ -1,0 +1,77 @@
+name: Build, setup, or flashing problem
+description: Report a reproducible problem setting up, building, or flashing the firmware
+title: "[Build] "
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is for the open-source firmware. For device unbinding, email [xiaozhi.ai@tenclass.com](mailto:xiaozhi.ai@tenclass.com?subject=Device%20unbinding%20request) privately with the device ID and MAC address. Use the [XiaoZhi AI website](https://xiaozhi.me/) for other account and cloud-service requests.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have tested a current source version and searched for an existing issue reporting the same problem.
+          required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: Board or device
+      description: Enter the physical product/model and the selected board target or build variant.
+      placeholder: ex. Waveshare ESP32-S3-Touch-LCD-3.5B; target waveshare/esp32-s3-touch-lcd-3.5b
+    validations:
+      required: true
+
+  - type: input
+    id: source_version
+    attributes:
+      label: XiaoZhi source version
+      description: Paste the complete output of `git describe --tags --always --dirty`. Do not enter "latest".
+      placeholder: ex. v2.2.6-15-g1a2b3c4
+    validations:
+      required: true
+
+  - type: input
+    id: esp_idf_version
+    attributes:
+      label: ESP-IDF version
+      description: Paste the complete output of `idf.py --version`.
+      placeholder: ex. ESP-IDF v6.0.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and reproduction steps
+      description: State what you tried, the exact commands or steps, what you expected, what happened, and any relevant local changes.
+      placeholder: |
+        Operating system:
+        Command or steps:
+        Expected result:
+        Actual result:
+        Local changes, if any:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Complete error output
+      description: Paste the output from the first error through the final failure. Remove credentials, tokens, usernames, and other private information.
+      placeholder: Paste the complete output here, not only the final error line.
+      render: shell
+    validations:
+      required: true
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Optional files
+      description: Attach logs or a ZIP containing relevant configuration files. Review files for secrets first.
+    validations:
+      required: false
+      accept: ".log,.txt,.json,.zip"

@@ -10,7 +10,7 @@
 #include <esp_network.h>
 #include <esp_log.h>
 #include <utility>
-#include <font_awesome.h>
+#include <material_symbols.h>
 
 #if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
 
@@ -176,13 +176,14 @@ NetworkInterface* RndisBoard::GetNetwork() {
 }
 
 const char* RndisBoard::GetNetworkStateIcon() {
-    return FONT_AWESOME_SIGNAL_STRONG;
+    return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR;
 }
 
 std::string RndisBoard::GetBoardJson() {
  
     std::string json = R"({"type":")" + std::string(BOARD_TYPE) + R"(",)";
     json += R"("name":")" + std::string(BOARD_NAME) + R"(",)";
+    json += R"("manufacturer":")" + std::string(BOARD_MANUFACTURER) + R"(",)";
 
     json += R"("mac":")" + SystemInfo::GetMacAddress() + R"("})";
     return json;

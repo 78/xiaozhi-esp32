@@ -1,5 +1,6 @@
 {
     "manufacturer": "lceda-course-examples",
+    "type": "eda-super-bear",
     "target": "esp32s3",
     "builds": [
         {

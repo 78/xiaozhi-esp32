@@ -3,7 +3,7 @@
 ## 一键编译
 
 ```bash
-python scripts/release.py sensecap-watcher
+python scripts/build.py sensecap-watcher
 ```
 
 ## 手动配置编译

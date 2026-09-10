@@ -1,0 +1,17 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp-spot",
+    "target": "esp32c5",
+    "builds": [
+        {
+            "name": "esp-spot-c5",
+            "legacy_names": ["esp-spot"],
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_PM_ENABLE=y",
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE=y"
+            ]
+        }
+    ]
+}

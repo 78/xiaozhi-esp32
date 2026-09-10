@@ -5,13 +5,14 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_log.h>
+#include <esp_rom_sys.h>
 
 #include "application.h"
 #include "button.h"
 #include "codecs/no_audio_codec.h"
 #include "config.h"
 #include "display/lcd_display.h"
-#include "esp_video.h"
+#include "esp32_camera.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "mcp_server.h"
@@ -34,11 +35,50 @@ private:
     HardwareConfig hw_config_;
     AudioCodec* audio_codec_;
     i2c_master_bus_handle_t i2c_bus_;
-    EspVideo* camera_;
+    Camera* camera_;
+    bool is_camera_board_;
     bool has_camera_;
     OttoCameraType camera_type_;
 
     bool DetectHardwareVersion() {
+        constexpr gpio_num_t kDetectGpio15 = GPIO_NUM_15;
+        constexpr gpio_num_t kDetectGpio16 = GPIO_NUM_16;
+        constexpr int kStableSampleCount = 8;
+        constexpr uint32_t kSettleTimeUs = 5000;
+        constexpr uint32_t kSampleIntervalUs = 1000;
+
+        gpio_config_t detect_config = {
+            .pin_bit_mask = (1ULL << kDetectGpio15) | (1ULL << kDetectGpio16),
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_ENABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        esp_err_t ret = gpio_config(&detect_config);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "板型识别 GPIO 初始化失败: %s", esp_err_to_name(ret));
+            return false;
+        }
+
+        esp_rom_delay_us(kSettleTimeUs);
+        for (int sample = 0; sample < kStableSampleCount; ++sample) {
+            int gpio15_level = gpio_get_level(kDetectGpio15);
+            int gpio16_level = gpio_get_level(kDetectGpio16);
+            if (gpio15_level == 0 || gpio16_level == 0) {
+                ESP_LOGI(TAG, "板型识别: GPIO15=%d GPIO16=%d，判定为无摄像头版", gpio15_level,
+                         gpio16_level);
+                return false;
+            }
+            if (sample + 1 < kStableSampleCount) {
+                esp_rom_delay_us(kSampleIntervalUs);
+            }
+        }
+
+        ESP_LOGI(TAG, "板型识别: GPIO15/GPIO16 稳定为高，判定为摄像头版");
+        return true;
+    }
+
+    bool DetectCamera() {
         ledc_timer_config_t ledc_timer = {
             .speed_mode = LEDC_LOW_SPEED_MODE,
             .duty_resolution = LEDC_TIMER_2_BIT,
@@ -144,10 +184,10 @@ private:
             camera_type_ = OTTO_CAMERA_NONE;
         } else {
             // 根据 PID 判断摄像头类型
-            if (detected_pid == OV2640_PID_1 || detected_pid == OV2640_PID_2) {
+            if (detected_pid == OTTO_OV2640_PID_1 || detected_pid == OTTO_OV2640_PID_2) {
                 camera_type_ = OTTO_CAMERA_OV2640;
                 ESP_LOGI(TAG, "摄像头类型: OV2640 (PID=0x%04X)", detected_pid);
-            } else if (detected_pid == OV3660_PID) {
+            } else if (detected_pid == OTTO_OV3660_PID) {
                 camera_type_ = OTTO_CAMERA_OV3660;
                 ESP_LOGI(TAG, "摄像头类型: OV3660 (PID=0x%04X)", detected_pid);
             } else {
@@ -230,6 +270,7 @@ private:
         if (!ws_control_server_->Start(8080)) {
             delete ws_control_server_;
             ws_control_server_ = nullptr;
+            return;
         }
     }
 
@@ -246,59 +287,41 @@ private:
         }
 
         try {
-            static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
-                .data_width = CAM_CTLR_DATA_WIDTH_8,
-                .data_io =
-                    {
-                        [0] = CAMERA_D0,
-                        [1] = CAMERA_D1,
-                        [2] = CAMERA_D2,
-                        [3] = CAMERA_D3,
-                        [4] = CAMERA_D4,
-                        [5] = CAMERA_D5,
-                        [6] = CAMERA_D6,
-                        [7] = CAMERA_D7,
-                    },
-                .vsync_io = CAMERA_VSYNC,
-                .de_io = CAMERA_HSYNC,
-                .pclk_io = CAMERA_PCLK,
-                .xclk_io = CAMERA_XCLK,
-            };
+            // 释放检测阶段占用的 I2C 资源，避免与 esp_camera 初始化冲突。
+            i2c_del_master_bus(i2c_bus_);
+            i2c_bus_ = nullptr;
+            // 停止检测阶段输出的 XCLK，交由 esp_camera 自行接管。
+            ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL, 0);
 
-            esp_video_init_sccb_config_t sccb_config = {
-                .init_sccb = false,
-                .i2c_handle = i2c_bus_,
-                .freq = 100000,
-            };
+            camera_config_t config = {};
+            config.ledc_channel = LEDC_CHANNEL_0;
+            config.ledc_timer = LEDC_TIMER_0;
+            config.pin_d0 = CAMERA_D0;
+            config.pin_d1 = CAMERA_D1;
+            config.pin_d2 = CAMERA_D2;
+            config.pin_d3 = CAMERA_D3;
+            config.pin_d4 = CAMERA_D4;
+            config.pin_d5 = CAMERA_D5;
+            config.pin_d6 = CAMERA_D6;
+            config.pin_d7 = CAMERA_D7;
+            config.pin_xclk = CAMERA_XCLK;
+            config.pin_pclk = CAMERA_PCLK;
+            config.pin_vsync = CAMERA_VSYNC;
+            config.pin_href = CAMERA_HSYNC;
+            config.pin_sccb_sda = CAMERA_VERSION_CONFIG.i2c_sda_pin;
+            config.pin_sccb_scl = CAMERA_VERSION_CONFIG.i2c_scl_pin;
+            config.sccb_i2c_port = 0;
+            config.pin_pwdn = CAMERA_PWDN;
+            config.pin_reset = CAMERA_RESET;
+            config.xclk_freq_hz = CAMERA_XCLK_FREQ;
+            config.pixel_format = PIXFORMAT_RGB565;
+            config.frame_size = FRAMESIZE_240X240;
+            config.jpeg_quality = 12;
+            config.fb_count = 1;
+            config.fb_location = CAMERA_FB_IN_PSRAM;
+            config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
-            esp_video_init_dvp_config_t dvp_config = {
-                .sccb_config = sccb_config,
-                .reset_pin = CAMERA_RESET,
-                .pwdn_pin = CAMERA_PWDN,
-                .dvp_pin = dvp_pin_config,
-                .xclk_freq = CAMERA_XCLK_FREQ,
-            };
-
-            esp_video_init_config_t video_config = {
-                .dvp = &dvp_config,
-            };
-
-            camera_ = new EspVideo(video_config);
-
-            // 根据摄像头类型设置不同的翻转参数
-            switch (camera_type_) {
-                case OTTO_CAMERA_OV3660:
-                    camera_->SetVFlip(true);
-                    camera_->SetHMirror(true);
-                    ESP_LOGI(TAG, "OV3660: 设置 VFlip=true, HMirror=true");
-                    break;
-                case OTTO_CAMERA_OV2640:
-                default:
-                    camera_->SetVFlip(true);
-                    camera_->SetHMirror(false);
-                    ESP_LOGI(TAG, "OV2640: 设置 VFlip=true, HMirror=false");
-                    break;
-            }
+            camera_ = new Esp32Camera(config);
             return true;
         } catch (...) {
             camera_ = nullptr;
@@ -327,52 +350,35 @@ public:
           audio_codec_(nullptr),
           i2c_bus_(nullptr),
           camera_(nullptr),
+          is_camera_board_(false),
           has_camera_(false),
           camera_type_(OTTO_CAMERA_NONE) {
 #if OTTO_HARDWARE_VERSION == OTTO_VERSION_AUTO
-        // 自动检测硬件版本（同时检测摄像头类型）
-        has_camera_ = DetectHardwareVersion();
-        ESP_LOGI(TAG, "自动检测硬件版本: %s", has_camera_ ? "摄像头版" : "无摄像头版");
+        // GPIO15/GPIO16 在摄像头版上有外部上拉；无摄像头版由内部弱下拉保持为低。
+        is_camera_board_ = DetectHardwareVersion();
+        ESP_LOGI(TAG, "自动检测硬件版本: %s", is_camera_board_ ? "摄像头版" : "无摄像头版");
 #elif OTTO_HARDWARE_VERSION == OTTO_VERSION_CAMERA
-        // 强制使用摄像头版本，但仍检测具体摄像头类型
-        has_camera_ = DetectHardwareVersion();
-        if (!has_camera_) {
-            // 检测失败时仍使用摄像头配置，但不知道具体类型
-            has_camera_ = true;
-            camera_type_ = OTTO_CAMERA_UNKNOWN;
-            ESP_LOGW(TAG, "强制使用摄像头版本配置，但未能检测到摄像头类型");
-            // 初始化 I2C 总线用于摄像头
-            i2c_master_bus_config_t i2c_bus_cfg = {
-                .i2c_port = I2C_NUM_0,
-                .sda_io_num = CAMERA_VERSION_CONFIG.i2c_sda_pin,
-                .scl_io_num = CAMERA_VERSION_CONFIG.i2c_scl_pin,
-                .clk_source = I2C_CLK_SRC_DEFAULT,
-                .glitch_ignore_cnt = 7,
-                .intr_priority = 0,
-                .trans_queue_depth = 0,
-                .flags =
-                    {
-                        .enable_internal_pullup = 1,
-                    },
-            };
-            i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_);
-        } else {
-            ESP_LOGI(TAG, "强制使用摄像头版本配置");
-        }
+        is_camera_board_ = true;
+        ESP_LOGI(TAG, "强制使用摄像头版本配置");
 #elif OTTO_HARDWARE_VERSION == OTTO_VERSION_NO_CAMERA
-        // 强制使用无摄像头版本
-        has_camera_ = false;
-        camera_type_ = OTTO_CAMERA_NONE;
+        is_camera_board_ = false;
         ESP_LOGI(TAG, "强制使用无摄像头版本配置");
 #else
 #error \
     "OTTO_HARDWARE_VERSION 设置无效，请使用 OTTO_VERSION_AUTO, OTTO_VERSION_CAMERA 或 OTTO_VERSION_NO_CAMERA"
 #endif
 
-        if (has_camera_)
+        if (is_camera_board_)
             hw_config_ = CAMERA_VERSION_CONFIG;
         else
             hw_config_ = NON_CAMERA_VERSION_CONFIG;
+
+        if (is_camera_board_) {
+            has_camera_ = DetectCamera();
+            if (!has_camera_) {
+                ESP_LOGW(TAG, "摄像头版未检测到摄像头，将跳过摄像头初始化");
+            }
+        }
 
         InitializeSpi();
         InitializeLcdDisplay();

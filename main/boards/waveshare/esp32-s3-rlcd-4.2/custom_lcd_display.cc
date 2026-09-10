@@ -62,8 +62,8 @@ height_(height)
     ret                                  = spi_bus_initialize(spi_host, &buscfg, SPI_DMA_CH_AUTO);
     ESP_ERROR_CHECK(ret);
     esp_lcd_panel_io_spi_config_t io_config = {};
-    io_config.dc_gpio_num = dc_;
-    io_config.cs_gpio_num = cs_;
+    io_config.dc_gpio_num = static_cast<gpio_num_t>(dc_);
+    io_config.cs_gpio_num = static_cast<gpio_num_t>(cs_);
     io_config.pclk_hz = 40 * 1000 * 1000;
     io_config.lcd_cmd_bits = 8;
     io_config.lcd_param_bits = 8;

@@ -176,14 +176,17 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
         return;
     }
     if (enable) {
-        esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
-            .channel = 1,
-            .channel_mask = 0,
-            .sample_rate = (uint32_t)output_sample_rate_,
-            .mclk_multiple = 0,
-        };
-        ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+        if (!output_device_opened_) {
+            esp_codec_dev_sample_info_t fs = {
+                .bits_per_sample = 16,
+                .channel = 1,
+                .channel_mask = 0,
+                .sample_rate = (uint32_t)output_sample_rate_,
+                .mclk_multiple = 0,
+            };
+            ESP_ERROR_CHECK(esp_codec_dev_open(output_dev_, &fs));
+            output_device_opened_ = true;
+        }
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
 
         // Set analog output volume to 0dB, default is -45dB
@@ -193,11 +196,17 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
             ctrl_if_->write_reg(ctrl_if_, reg, 1, &reg_val, 1);
         }
 
+        ESP_ERROR_CHECK(esp_codec_dev_set_out_mute(output_dev_, false));
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 1);
         }
     } else {
-        ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+        // Keep TX open because the paired RX channel may use it as the clock
+        // source. Reopening the shared duplex interface after WiFi provisioning
+        // can otherwise leave playback silent on ESP-IDF 6.
+        if (output_device_opened_) {
+            ESP_ERROR_CHECK(esp_codec_dev_set_out_mute(output_dev_, true));
+        }
         if (pa_pin_ != GPIO_NUM_NC) {
             gpio_set_level(pa_pin_, 0);
         }

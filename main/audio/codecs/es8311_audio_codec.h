@@ -23,6 +23,7 @@ private:
     std::mutex data_if_mutex_;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
+    void ResetCodec();
     void UpdateDeviceState();
 
     virtual int Read(int16_t* dest, int samples) override;

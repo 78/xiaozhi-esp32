@@ -1,0 +1,12 @@
+{
+    "manufacturer": "kevin",
+    "type": "kevin-sp-v4-dev",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "kevin-sp-v4-dev",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}

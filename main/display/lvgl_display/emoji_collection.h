@@ -6,9 +6,8 @@
 #include <lvgl.h>
 
 #include <map>
-#include <string>
 #include <memory>
-
+#include <string>
 
 // Define interface for emoji collection
 class EmojiCollection {
@@ -19,16 +18,6 @@ public:
 
 private:
     std::map<std::string, LvglImage*> emoji_collection_;
-};
-
-class Twemoji32 : public EmojiCollection {
-public:
-    Twemoji32();
-};
-
-class Twemoji64 : public EmojiCollection {
-public:
-    Twemoji64();
 };
 
 #endif

@@ -17,6 +17,19 @@
 
 #define TAG "Esp32Camera"
 
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+#if CONFIG_XIAOZHI_CAMERA_HMIRROR
+static constexpr bool kConfiguredHMirror = true;
+#else
+static constexpr bool kConfiguredHMirror = false;
+#endif
+#if CONFIG_XIAOZHI_CAMERA_VFLIP
+static constexpr bool kConfiguredVFlip = true;
+#else
+static constexpr bool kConfiguredVFlip = false;
+#endif
+#endif
+
 Esp32Camera::Esp32Camera(const camera_config_t &config) {
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
@@ -29,6 +42,10 @@ Esp32Camera::Esp32Camera(const camera_config_t &config) {
         if (s->id.PID == GC0308_PID) {
             s->set_hmirror(s, 0); // Control camera mirror: 1 for mirror, 0 for normal
         }
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+        s->set_hmirror(s, kConfiguredHMirror ? 1 : 0);
+        s->set_vflip(s, kConfiguredVFlip ? 1 : 0);
+#endif
         ESP_LOGI(TAG, "Camera initialized: format=%d", config.pixel_format);
     }
 
@@ -244,8 +261,8 @@ std::string Esp32Camera::Explain(const std::string &question) {
     }
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     http->SetHeader("Transfer-Encoding", "chunked");
-    if (!http->Open("POST", explain_url_)) {
-        ESP_LOGE(TAG, "Failed to connect to explain URL");
+    if (auto opened = http->Open("POST", explain_url_); !opened) {
+        ESP_LOGE(TAG, "Failed to connect to explain URL: %s", opened.error().ToString().c_str());
         encoder_thread_.join();
         JpegChunk chunk;
         while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
@@ -307,8 +324,13 @@ std::string Esp32Camera::Explain(const std::string &question) {
     }
     http->Write("", 0);
 
-    if (http->GetStatusCode() != 200) {
-        ESP_LOGE(TAG, "Failed to upload photo, status code: %d", http->GetStatusCode());
+    auto status_code = http->GetStatusCode();
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        throw std::runtime_error("Failed to upload photo");
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to upload photo, status code: %d", *status_code);
         throw std::runtime_error("Failed to upload photo");
     }
 

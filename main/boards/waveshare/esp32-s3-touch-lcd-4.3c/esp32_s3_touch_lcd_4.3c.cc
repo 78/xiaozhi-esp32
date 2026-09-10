@@ -119,10 +119,11 @@ private:
                 }
             },
             .data_width = 16,
-            .bits_per_pixel = 16,
+            .in_color_format = LCD_COLOR_FMT_RGB565,
+            .out_color_format = LCD_COLOR_FMT_RGB565,
             .num_fbs = 2,
             .bounce_buffer_size_px = BSP_LCD_H_RES * 10,
-            .psram_trans_align = 64,
+            .dma_burst_size = 64,
             .hsync_gpio_num = BSP_LCD_HSYNC,
             .vsync_gpio_num = BSP_LCD_VSYNC,
             .de_gpio_num = BSP_LCD_DE,
@@ -168,7 +169,16 @@ private:
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+        esp_lcd_panel_io_i2c_config_t tp_io_config = {
+            .dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS, 
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 16,                            
+            .flags =
+            {
+                .disable_control_phase = 1,
+            }
+	    };
         tp_io_config.scl_speed_hz = 400 * 1000;
 
         esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);

@@ -9,8 +9,8 @@ Usage:
 
 Example:
     ./build.py --wakenet_model ../../managed_components/espressif__esp-sr/model/wakenet_model/wn9_nihaoxiaozhi_tts \
-        --text_font ../../components/xiaozhi-fonts/build/font_puhui_common_20_4.bin \
-        --emoji_collection ../../components/xiaozhi-fonts/build/emojis_64/
+        --text_font ../../components/noto-fonts/cbin/font_noto_sans_common_20_4.bin \
+        --emoji_collection ../../components/noto-fonts/png/noto-color-emoji_64/
 """
 
 import os

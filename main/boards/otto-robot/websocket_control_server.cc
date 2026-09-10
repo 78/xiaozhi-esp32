@@ -144,6 +144,20 @@ void WebSocketControlServer::HandleMessage(httpd_req_t *req, const char* data, s
         return;
     }
 
+    int sock_fd = httpd_req_to_sockfd(req);
+    uint64_t client_id = GetClientId(req);
+    if (client_id == 0) {
+        ESP_LOGW(TAG, "Ignoring message from unknown client: %d", sock_fd);
+        cJSON_Delete(root);
+        return;
+    }
+
+    auto response_sender = [sock_fd, client_id](const std::string& payload) {
+        if (WebSocketControlServer::instance_) {
+            WebSocketControlServer::instance_->SendMessage(sock_fd, client_id, payload);
+        }
+    };
+
     // 支持两种格式：
     // 1. 完整格式：{"type":"mcp","payload":{...}}
     // 2. 简化格式：直接是MCP payload对象
@@ -155,13 +169,13 @@ void WebSocketControlServer::HandleMessage(httpd_req_t *req, const char* data, s
         payload = cJSON_GetObjectItem(root, "payload");
         if (payload != nullptr) {
             cJSON_DetachItemViaPointer(root, payload);
-            McpServer::GetInstance().ParseMessage(payload);
+            McpServer::GetInstance().ParseMessage(payload, response_sender);
             cJSON_Delete(payload); 
         }
     } else {
         payload = cJSON_Duplicate(root, 1);
         if (payload != nullptr) {
-            McpServer::GetInstance().ParseMessage(payload);
+            McpServer::GetInstance().ParseMessage(payload, response_sender);
             cJSON_Delete(payload);
         }
     }
@@ -176,8 +190,11 @@ void WebSocketControlServer::HandleMessage(httpd_req_t *req, const char* data, s
 void WebSocketControlServer::AddClient(httpd_req_t *req) {
     int sock_fd = httpd_req_to_sockfd(req);
     if (clients_.find(sock_fd) == clients_.end()) {
-        clients_[sock_fd] = req;
-        ESP_LOGI(TAG, "Client connected: %d (total: %zu)", sock_fd, clients_.size());
+        uint64_t client_id = ++next_client_id_;
+        clients_[sock_fd] = ClientInfo{
+            .client_id = client_id
+        };
+        ESP_LOGI(TAG, "Client connected: %d id=%llu (total: %zu)", sock_fd, (unsigned long long)client_id, clients_.size());
     }
 }
 
@@ -189,4 +206,85 @@ void WebSocketControlServer::RemoveClient(httpd_req_t *req) {
 
 size_t WebSocketControlServer::GetClientCount() const {
     return clients_.size();
+}
+
+uint64_t WebSocketControlServer::GetClientId(httpd_req_t *req) const {
+    int sock_fd = httpd_req_to_sockfd(req);
+    auto it = clients_.find(sock_fd);
+    if (it == clients_.end()) {
+        return 0;
+    }
+    return it->second.client_id;
+}
+
+struct WsBroadcastJob {
+    httpd_handle_t server;
+    int fd;
+    char* payload;
+    size_t len;
+};
+
+static void ws_broadcast_send_job(void* arg) {
+    WsBroadcastJob* job = static_cast<WsBroadcastJob*>(arg);
+
+    httpd_ws_frame_t ws_pkt = {};
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    ws_pkt.payload = reinterpret_cast<uint8_t*>(job->payload);
+    ws_pkt.len = job->len;
+    ws_pkt.final = true;
+
+    esp_err_t ret = httpd_ws_send_frame_async(job->server, job->fd, &ws_pkt);
+    if (ret != ESP_OK) {
+        ESP_LOGE("WSControl", "BroadcastMessage: send failed fd=%d err=%d", job->fd, ret);
+    }
+
+    free(job->payload);
+    free(job);
+}
+
+void WebSocketControlServer::BroadcastMessage(const std::string& message) {
+    if (!server_handle_ || clients_.empty()) {
+        return;
+    }
+
+    for (auto& [fd, client] : clients_) {
+        SendMessage(fd, client.client_id, message);
+    }
+}
+
+void WebSocketControlServer::SendMessage(int sock_fd, uint64_t client_id, const std::string& message) {
+    if (!server_handle_) {
+        return;
+    }
+
+    auto client = clients_.find(sock_fd);
+    if (client == clients_.end() || client->second.client_id != client_id) {
+        ESP_LOGW(TAG, "Skip send to stale client fd=%d id=%llu", sock_fd, (unsigned long long)client_id);
+        return;
+    }
+
+    WsBroadcastJob* job = static_cast<WsBroadcastJob*>(malloc(sizeof(WsBroadcastJob)));
+    if (!job) {
+        ESP_LOGE(TAG, "SendMessage: failed to allocate job");
+        return;
+    }
+
+    job->server = server_handle_;
+    job->fd = sock_fd;
+    job->len = message.length();
+    job->payload = static_cast<char*>(malloc(message.length() + 1));
+    if (!job->payload) {
+        ESP_LOGE(TAG, "SendMessage: failed to allocate payload");
+        free(job);
+        return;
+    }
+    memcpy(job->payload, message.c_str(), message.length());
+    job->payload[message.length()] = '\0';
+
+    esp_err_t ret = httpd_queue_work(server_handle_, ws_broadcast_send_job, job);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "SendMessage: httpd_queue_work failed fd=%d err=%d", sock_fd, ret);
+        free(job->payload);
+        free(job);
+    }
 }

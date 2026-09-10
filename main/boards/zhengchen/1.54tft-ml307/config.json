@@ -1,0 +1,11 @@
+{
+    "manufacturer": "zhengchen",
+    "type": "zhengchen-1.54tft-ml307",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "zhengchen-1.54tft-ml307",
+            "sdkconfig_append": []
+        }
+    ]
+}

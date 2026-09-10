@@ -1,0 +1,12 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp32-s31-function-coreboard-1",
+    "target": "esp32s31",
+    "preview": true,
+    "builds": [
+        {
+            "name": "esp32-s31-function-coreboard-1",
+            "idf_version": ">=6.1"
+        }
+    ]
+}

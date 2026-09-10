@@ -1,8 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: 小智 AI 官方网站
+  - name: Unbind a previously owned device
+    url: https://github.com/78/xiaozhi-esp32/blob/main/.github/SUPPORT.md#unbind-a-previously-owned-device
+    about: If the device is bound to another account, email its device ID and MAC address privately. Do not post these identifiers in a public issue.
+  - name: Other cloud services and account requests
     url: https://xiaozhi.me/
-    about: 激活设备、配置 AI、声纹识别、声音克隆等应有尽有，DIY 属于你自己的小智
-  - name: 小智 AI 聊天机器人百科全书
-    url: https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb
-    about: 开发文档、硬件制作、烧录教程、FAQ尽在小智百科
+    about: Use the XiaoZhi AI website for activation, agent configuration, voiceprint, voice cloning, and other cloud services

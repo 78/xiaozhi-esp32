@@ -1,0 +1,10 @@
+{
+    "manufacturer": "xorigin",
+    "type": "aipi-lite",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "aipi-lite"
+        }
+    ]
+}

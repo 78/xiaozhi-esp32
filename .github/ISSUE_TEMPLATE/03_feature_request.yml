@@ -1,34 +1,50 @@
 name: Feature request
-description: Suggest an idea for this project.
+description: Propose an improvement to a supported device or the common firmware
+title: "[Feature] "
 labels: ['enhancement']
 body:
   - type: markdown
     attributes:
       value: |
-        * We welcome any ideas or feature requests! It’s helpful if you can explain exactly why the feature would be useful.
-        * There are usually some outstanding feature requests in the [existing issues list](https://github.com/78/xiaozhi-esp32/labels/enhancement), feel free to add comments to them.
-        * If you would like to contribute, please read the [contributions guide](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb).
-  - type: textarea
-    id: problem-related
+        Use the **Board support request** form for a new board, hardware revision, or product variant. Account and cloud-product requests belong on the [XiaoZhi AI website](https://xiaozhi.me/).
+
+  - type: checkboxes
+    id: checklist
     attributes:
-      label: Is your feature request related to a problem?
-      description: Please provide a clear and concise description of what the problem is.
-      placeholder: ex. I'm always frustrated when ...
+      label: Before submitting
+      options:
+        - label: I have searched the existing feature requests and did not find the same proposal.
+          required: true
+
+  - type: input
+    id: scope
+    attributes:
+      label: Affected device or area
+      description: Enter the device, board target, or firmware area. Enter "All devices" for a general request.
+      placeholder: ex. df-k10, audio, display, protocol, or All devices
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Explain the current limitation and why the requested change would be useful.
+    validations:
+      required: true
+
   - type: textarea
     id: solution
     attributes:
-      label: Describe the solution you'd like.
-      description: Please provide a clear and concise description of what you want to happen.
-      placeholder: ex. When using XiaoZhi ...
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Describe alternatives you've considered.
-      description: Please provide a clear and concise description of any alternative solutions or features you've considered.
-      placeholder: ex. Choosing other approach wouldn't work, because ...
+      label: Requested behavior
+      description: Describe the result or behavior you would like to see.
+    validations:
+      required: true
+
   - type: textarea
     id: context
     attributes:
-      label: Additional context.
-      description: Please add any other context or screenshots about the feature request here.
-      placeholder: ex. This would work only when ...
+      label: Additional context
+      description: Optionally add alternatives, screenshots, diagrams, links, or testing information.
+    validations:
+      required: false

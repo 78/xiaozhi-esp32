@@ -1,15 +1,14 @@
 #pragma once
 
 #include "display.h"
-#include "lvgl_image.h"
-#include "lvgl_font.h"
 #include "emoji_collection.h"
+#include "lvgl_font.h"
+#include "lvgl_image.h"
 
 #include <lvgl.h>
-#include <memory>
 #include <map>
+#include <memory>
 #include <string>
-
 
 class LvglTheme : public Theme {
 public:
@@ -32,22 +31,36 @@ public:
     inline std::shared_ptr<LvglFont> text_font() const { return text_font_; }
     inline std::shared_ptr<LvglFont> icon_font() const { return icon_font_; }
     inline std::shared_ptr<LvglFont> large_icon_font() const { return large_icon_font_; }
+    inline std::shared_ptr<LvglFont> emoji_font() const { return emoji_font_; }
     inline int spacing(int scale) const { return spacing_ * scale; }
 
     inline void set_background_color(lv_color_t background) { background_color_ = background; }
     inline void set_text_color(lv_color_t text) { text_color_ = text; }
-    inline void set_chat_background_color(lv_color_t chat_background) { chat_background_color_ = chat_background; }
+    inline void set_chat_background_color(lv_color_t chat_background) {
+        chat_background_color_ = chat_background;
+    }
     inline void set_user_bubble_color(lv_color_t user_bubble) { user_bubble_color_ = user_bubble; }
-    inline void set_assistant_bubble_color(lv_color_t assistant_bubble) { assistant_bubble_color_ = assistant_bubble; }
-    inline void set_system_bubble_color(lv_color_t system_bubble) { system_bubble_color_ = system_bubble; }
+    inline void set_assistant_bubble_color(lv_color_t assistant_bubble) {
+        assistant_bubble_color_ = assistant_bubble;
+    }
+    inline void set_system_bubble_color(lv_color_t system_bubble) {
+        system_bubble_color_ = system_bubble;
+    }
     inline void set_system_text_color(lv_color_t system_text) { system_text_color_ = system_text; }
     inline void set_border_color(lv_color_t border) { border_color_ = border; }
     inline void set_low_battery_color(lv_color_t low_battery) { low_battery_color_ = low_battery; }
-    inline void set_background_image(std::shared_ptr<LvglImage> background_image) { background_image_ = background_image; }
-    inline void set_emoji_collection(std::shared_ptr<EmojiCollection> emoji_collection) { emoji_collection_ = emoji_collection; }
+    inline void set_background_image(std::shared_ptr<LvglImage> background_image) {
+        background_image_ = background_image;
+    }
+    inline void set_emoji_collection(std::shared_ptr<EmojiCollection> emoji_collection) {
+        emoji_collection_ = emoji_collection;
+    }
     inline void set_text_font(std::shared_ptr<LvglFont> text_font) { text_font_ = text_font; }
     inline void set_icon_font(std::shared_ptr<LvglFont> icon_font) { icon_font_ = icon_font; }
-    inline void set_large_icon_font(std::shared_ptr<LvglFont> large_icon_font) { large_icon_font_ = large_icon_font; }
+    inline void set_large_icon_font(std::shared_ptr<LvglFont> large_icon_font) {
+        large_icon_font_ = large_icon_font;
+    }
+    inline void set_emoji_font(std::shared_ptr<LvglFont> emoji_font) { emoji_font_ = emoji_font; }
 
 private:
     int spacing_ = 2;
@@ -70,11 +83,11 @@ private:
     std::shared_ptr<LvglFont> text_font_ = nullptr;
     std::shared_ptr<LvglFont> icon_font_ = nullptr;
     std::shared_ptr<LvglFont> large_icon_font_ = nullptr;
+    std::shared_ptr<LvglFont> emoji_font_ = nullptr;
 
     // Emoji collection
     std::shared_ptr<EmojiCollection> emoji_collection_ = nullptr;
 };
-
 
 class LvglThemeManager {
 public:

@@ -1,9 +1,56 @@
 #include "movements.h"
 
 #include <algorithm>
-#include <cstring>
+#include <cmath>
 
 #include "oscillator.h"
+
+namespace {
+float EaseOutCubic(float t) {
+    float inv = 1.0f - t;
+    return 1.0f - inv * inv * inv;
+}
+
+int ServoMinAngle(int servo_index) {
+    switch (servo_index) {
+        case RIGHT_ROLL:
+            return 100;
+        case LEFT_ROLL:
+            return 0;
+        case BODY:
+            return 30;
+        case HEAD:
+            return 75;
+        default:
+            return 0;
+    }
+}
+
+int ServoMaxAngle(int servo_index) {
+    switch (servo_index) {
+        case RIGHT_ROLL:
+            return 180;
+        case LEFT_ROLL:
+            return 80;
+        case BODY:
+            return 150;
+        case HEAD:
+            return 105;
+        default:
+            return 180;
+    }
+}
+
+int ClampServoTarget(int servo_index, int position) {
+    return std::clamp(position, ServoMinAngle(servo_index), ServoMaxAngle(servo_index));
+}
+
+int ClampServoAmplitude(int servo_index, int center, int amplitude) {
+    int max_safe_amplitude =
+        std::min(center - ServoMinAngle(servo_index), ServoMaxAngle(servo_index) - center);
+    return std::clamp(amplitude, 0, std::max(0, max_safe_amplitude));
+}
+}  // namespace
 
 Otto::Otto() {
     is_otto_resting_ = false;
@@ -80,76 +127,75 @@ void Otto::MoveServos(int time, int servo_target[]) {
         SetRestState(false);
     }
 
-    final_time_ = millis() + time;
-    if (time > 10) {
-        for (int i = 0; i < SERVO_COUNT; i++) {
-            if (servo_pins_[i] != -1) {
-                increment_[i] = (servo_target[i] - servo_[i].GetPosition()) / (time / 10.0);
-            }
-        }
+    int target[SERVO_COUNT];
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        target[i] = ClampServoTarget(i, servo_target[i]);
+    }
 
-        for (int iteration = 1; millis() < final_time_; iteration++) {
-            partial_time_ = millis() + 10;
-            for (int i = 0; i < SERVO_COUNT; i++) {
-                if (servo_pins_[i] != -1) {
-                    servo_[i].SetPosition(servo_[i].GetPosition() + increment_[i]);
-                }
-            }
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-    } else {
+    if (time <= 10) {
         for (int i = 0; i < SERVO_COUNT; i++) {
             if (servo_pins_[i] != -1) {
-                servo_[i].SetPosition(servo_target[i]);
+                servo_[i].SetPosition(target[i]);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(time));
+        return;
     }
 
-    // final adjustment to the target.
-    bool f = true;
-    int adjustment_count = 0;
-    while (f && adjustment_count < 10) {
-        f = false;
+    int start[SERVO_COUNT];
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        start[i] = servo_[i].GetPosition();
+    }
+
+    int steps = std::max(1, time / 10);
+    for (int step = 1; step <= steps; step++) {
+        float t = static_cast<float>(step) / static_cast<float>(steps);
+        float eased_t = EaseOutCubic(t);
         for (int i = 0; i < SERVO_COUNT; i++) {
-            if (servo_pins_[i] != -1 && servo_target[i] != servo_[i].GetPosition()) {
-                f = true;
-                break;
+            if (servo_pins_[i] != -1) {
+                float interpolated = start[i] + (target[i] - start[i]) * eased_t;
+                servo_[i].SetPosition(static_cast<int>(std::round(interpolated)));
             }
         }
-        if (f) {
-            for (int i = 0; i < SERVO_COUNT; i++) {
-                if (servo_pins_[i] != -1) {
-                    servo_[i].SetPosition(servo_target[i]);
-                }
-            }
-            vTaskDelay(pdMS_TO_TICKS(10));
-            adjustment_count++;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (servo_pins_[i] != -1) {
+            servo_[i].SetPosition(target[i]);
         }
-    };
+    }
 }
 
 void Otto::MoveSingle(int position, int servo_number) {
-    if (position > 180)
-        position = 90;
-    if (position < 0)
-        position = 90;
+    if (servo_number < 0 || servo_number >= SERVO_COUNT || servo_pins_[servo_number] == -1) {
+        return;
+    }
+
+    position = ClampServoTarget(servo_number, position);
 
     if (GetRestState() == true) {
         SetRestState(false);
     }
 
-    if (servo_number >= 0 && servo_number < SERVO_COUNT && servo_pins_[servo_number] != -1) {
-        servo_[servo_number].SetPosition(position);
+    servo_[servo_number].SetPosition(position);
+}
+
+void Otto::GetServoPositions(int positions[]) {
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        positions[i] = (servo_pins_[i] != -1) ? servo_[i].GetPosition() : servo_initial_[i];
     }
 }
 
 void Otto::OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int period,
                            double phase_diff[SERVO_COUNT], float cycle = 1) {
+    int center[SERVO_COUNT];
     for (int i = 0; i < SERVO_COUNT; i++) {
         if (servo_pins_[i] != -1) {
-            servo_[i].SetO(offset[i]);
-            servo_[i].SetA(amplitude[i]);
+            center[i] = ClampServoTarget(i, offset[i]);
+            int safe_amplitude = ClampServoAmplitude(i, center[i], amplitude[i]);
+            servo_[i].SetO(center[i] - 90);
+            servo_[i].SetA(safe_amplitude);
             servo_[i].SetT(period);
             servo_[i].SetPh(phase_diff[i]);
         }
@@ -165,6 +211,11 @@ void Otto::OscillateServos(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], 
             }
         }
         vTaskDelay(5);
+    }
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        if (servo_pins_[i] != -1) {
+            servo_[i].SetPosition(center[i]);
+        }
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 }
@@ -192,11 +243,18 @@ void Otto::Execute(int amplitude[SERVO_COUNT], int offset[SERVO_COUNT], int peri
 ///////////////////////////////////////////////////////////////////
 void Otto::Home(bool hands_down) {
     if (is_otto_resting_ == false) {  // Go to rest position only if necessary
-        MoveServos(1000, servo_initial_);
+        int max_delta = 0;
+        for (int i = 0; i < SERVO_COUNT; i++) {
+            if (servo_pins_[i] != -1) {
+                max_delta = std::max(max_delta, std::abs(servo_initial_[i] - servo_[i].GetPosition()));
+            }
+        }
+        int home_time = std::clamp(500 + max_delta * 9, 500, 1700);
+        MoveServos(home_time, servo_initial_);
         is_otto_resting_ = true;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(200));
 }
 
 bool Otto::GetRestState() {
@@ -225,11 +283,23 @@ void Otto::HandAction(int action, int times, int amount, int period) {
     times = 2 * std::max(3, std::min(100, times));
     amount = std::max(10, std::min(50, amount));
     period = std::max(100, std::min(1000, period));
+    int flap_amount = std::min(amount, 40);
+    const int left_flap_center = 40;
+    const int right_flap_center = 140;
 
     int current_positions[SERVO_COUNT];
     for (int i = 0; i < SERVO_COUNT; i++) {
         current_positions[i] = (servo_pins_[i] != -1) ? servo_[i].GetPosition() : servo_initial_[i];
     }
+
+    auto lower_left_hand = [&]() {
+        current_positions[LEFT_PITCH] = servo_initial_[LEFT_PITCH];
+        current_positions[LEFT_ROLL] = servo_initial_[LEFT_ROLL];
+    };
+    auto lower_right_hand = [&]() {
+        current_positions[RIGHT_PITCH] = servo_initial_[RIGHT_PITCH];
+        current_positions[RIGHT_ROLL] = servo_initial_[RIGHT_ROLL];
+    };
 
     switch (action) {
         case 1:  // 举左手
@@ -249,10 +319,18 @@ void Otto::HandAction(int action, int times, int amount, int period) {
             break;
 
         case 4:  // 放左手
+            lower_left_hand();
+            MoveServos(period, current_positions);
+            break;
+
         case 5:  // 放右手
+            lower_right_hand();
+            MoveServos(period, current_positions);
+            break;
+
         case 6:  // 放双手
-            // 回到初始位置
-            memcpy(current_positions, servo_initial_, sizeof(current_positions));
+            lower_left_hand();
+            lower_right_hand();
             MoveServos(period, current_positions);
             break;
 
@@ -264,7 +342,7 @@ void Otto::HandAction(int action, int times, int amount, int period) {
                 MoveServos(period / 10, current_positions);
                 vTaskDelay(pdMS_TO_TICKS(period / 10));
             }
-            memcpy(current_positions, servo_initial_, sizeof(current_positions));
+            current_positions[LEFT_PITCH] = servo_initial_[LEFT_PITCH];
             MoveServos(period, current_positions);
             break;
 
@@ -276,7 +354,7 @@ void Otto::HandAction(int action, int times, int amount, int period) {
                 MoveServos(period / 10, current_positions);
                 vTaskDelay(pdMS_TO_TICKS(period / 10));
             }
-            memcpy(current_positions, servo_initial_, sizeof(current_positions));
+            current_positions[RIGHT_PITCH] = servo_initial_[RIGHT_PITCH];
             MoveServos(period, current_positions);
             break;
 
@@ -290,50 +368,51 @@ void Otto::HandAction(int action, int times, int amount, int period) {
                 MoveServos(period / 10, current_positions);
                 vTaskDelay(pdMS_TO_TICKS(period / 10));
             }
-            memcpy(current_positions, servo_initial_, sizeof(current_positions));
+            current_positions[LEFT_PITCH] = servo_initial_[LEFT_PITCH];
+            current_positions[RIGHT_PITCH] = servo_initial_[RIGHT_PITCH];
             MoveServos(period, current_positions);
             break;
 
         case 10:  // 拍打左手
-            current_positions[LEFT_ROLL] = 20;
+            current_positions[LEFT_ROLL] = left_flap_center;
             MoveServos(period, current_positions);
             for (int i = 0; i < times; i++) {
-                current_positions[LEFT_ROLL] = 20 - amount;
+                current_positions[LEFT_ROLL] = left_flap_center - flap_amount;
                 MoveServos(period / 10, current_positions);
-                current_positions[LEFT_ROLL] = 20 + amount;
+                current_positions[LEFT_ROLL] = left_flap_center + flap_amount;
                 MoveServos(period / 10, current_positions);
             }
-            current_positions[LEFT_ROLL] = 0;
+            current_positions[LEFT_ROLL] = servo_initial_[LEFT_ROLL];
             MoveServos(period, current_positions);
             break;
 
         case 11:  // 拍打右手
-            current_positions[RIGHT_ROLL] = 160;
+            current_positions[RIGHT_ROLL] = right_flap_center;
             MoveServos(period, current_positions);
             for (int i = 0; i < times; i++) {
-                current_positions[RIGHT_ROLL] = 160 + amount;
+                current_positions[RIGHT_ROLL] = right_flap_center + flap_amount;
                 MoveServos(period / 10, current_positions);
-                current_positions[RIGHT_ROLL] = 160 - amount;
+                current_positions[RIGHT_ROLL] = right_flap_center - flap_amount;
                 MoveServos(period / 10, current_positions);
             }
-            current_positions[RIGHT_ROLL] = 180;
+            current_positions[RIGHT_ROLL] = servo_initial_[RIGHT_ROLL];
             MoveServos(period, current_positions);
             break;
 
         case 12:  // 拍打双手
-            current_positions[LEFT_ROLL] = 20;
-            current_positions[RIGHT_ROLL] = 160;
+            current_positions[LEFT_ROLL] = left_flap_center;
+            current_positions[RIGHT_ROLL] = right_flap_center;
             MoveServos(period, current_positions);
             for (int i = 0; i < times; i++) {
-                current_positions[LEFT_ROLL] = 20 - amount;
-                current_positions[RIGHT_ROLL] = 160 + amount;
+                current_positions[LEFT_ROLL] = left_flap_center - flap_amount;
+                current_positions[RIGHT_ROLL] = right_flap_center + flap_amount;
                 MoveServos(period / 10, current_positions);
-                current_positions[LEFT_ROLL] = 20 + amount;
-                current_positions[RIGHT_ROLL] = 160 - amount;
+                current_positions[LEFT_ROLL] = left_flap_center + flap_amount;
+                current_positions[RIGHT_ROLL] = right_flap_center - flap_amount;
                 MoveServos(period / 10, current_positions);
             }
-            current_positions[LEFT_ROLL] = 0;
-            current_positions[RIGHT_ROLL] = 180;
+            current_positions[LEFT_ROLL] = servo_initial_[LEFT_ROLL];
+            current_positions[RIGHT_ROLL] = servo_initial_[RIGHT_ROLL];
             MoveServos(period, current_positions);
             break;
     }

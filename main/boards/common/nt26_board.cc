@@ -1,31 +1,29 @@
 #include "nt26_board.h"
-#include "display.h"
+#include <esp_log.h>
+#include <cJSON.h>
+#include <material_symbols.h>
 #include "application.h"
 #include "audio_codec.h"
-#include <esp_log.h>
-#include <font_awesome.h>
-#include <cJSON.h>
+#include "display.h"
 
 #define TAG "Nt26Board"
 
-Nt26Board::Nt26Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin, gpio_num_t ri_pin, gpio_num_t reset_pin)
+Nt26Board::Nt26Board(gpio_num_t tx_pin, gpio_num_t rx_pin, gpio_num_t dtr_pin, gpio_num_t ri_pin,
+                     gpio_num_t reset_pin)
     : tx_pin_(tx_pin), rx_pin_(rx_pin), dtr_pin_(dtr_pin), ri_pin_(ri_pin), reset_pin_(reset_pin) {
-
     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     esp_event_loop_create_default();
     esp_netif_init();
-    
+
     // Create PM lock handle
     esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "nt26_cpu", &pm_lock_cpu_max_);
-    
+
     // Create network ready timeout timer
-    esp_timer_create_args_t timer_args = {
-        .callback = OnNetworkReadyTimeout,
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "nt26_net_timer",
-        .skip_unhandled_events = true
-    };
+    esp_timer_create_args_t timer_args = {.callback = OnNetworkReadyTimeout,
+                                          .arg = this,
+                                          .dispatch_method = ESP_TIMER_TASK,
+                                          .name = "nt26_net_timer",
+                                          .skip_unhandled_events = true};
     esp_timer_create(&timer_args, &network_ready_timer_);
 }
 
@@ -33,7 +31,7 @@ Nt26Board::~Nt26Board() {
     if (current_power_level_ != PowerSaveLevel::LOW_POWER) {
         SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
     }
-    
+
     if (network_ready_timer_) {
         esp_timer_stop(network_ready_timer_);
         esp_timer_delete(network_ready_timer_);
@@ -42,15 +40,13 @@ Nt26Board::~Nt26Board() {
     if (modem_) {
         modem_->Stop();
     }
-    
+
     if (pm_lock_cpu_max_) {
         esp_pm_lock_delete(pm_lock_cpu_max_);
     }
 }
 
-std::string Nt26Board::GetBoardType() {
-    return "nt26";
-}
+std::string Nt26Board::GetBoardType() { return "nt26"; }
 
 void Nt26Board::OnNetworkEvent(NetworkEvent event, const std::string& data) {
     if (network_event_callback_) {
@@ -67,51 +63,66 @@ void Nt26Board::OnNetworkReadyTimeout(void* arg) {
 void Nt26Board::StartNetwork() {
     OnNetworkEvent(NetworkEvent::ModemDetecting);
 
-    UartEthModem::Config config = {
-        .uart_num = UART_NUM_1,
-        .baud_rate = 3000000,
-        .tx_pin = tx_pin_,
-        .rx_pin = rx_pin_,
-        .mrdy_pin = dtr_pin_,
-        .srdy_pin = ri_pin_
-    };
-    
+    UartEthModem::Config config = {.uart_num = UART_NUM_1,
+                                   .baud_rate = 3000000,
+                                   .tx_pin = tx_pin_,
+                                   .rx_pin = rx_pin_,
+                                   .mrdy_pin = dtr_pin_,
+                                   .srdy_pin = ri_pin_};
+
     modem_ = std::make_unique<UartEthModem>(config);
     modem_->SetDebug(false);
-    
-    modem_->SetNetworkEventCallback([this](UartEthModem::UartEthModemEvent event) {
-        switch (event) {
-            case UartEthModem::UartEthModemEvent::Connected:
-                esp_timer_stop(network_ready_timer_);
-                OnNetworkEvent(NetworkEvent::Connected);
-                break;
-            case UartEthModem::UartEthModemEvent::Disconnected:
-                OnNetworkEvent(NetworkEvent::Disconnected);
-                break;
-            case UartEthModem::UartEthModemEvent::ErrorNoSim:
-                esp_timer_stop(network_ready_timer_);
-                ScheduleAsyncStop();
-                OnNetworkEvent(NetworkEvent::ModemErrorNoSim);
-                break;
-            case UartEthModem::UartEthModemEvent::ErrorRegistrationDenied:
-                esp_timer_stop(network_ready_timer_);
-                ScheduleAsyncStop();
-                OnNetworkEvent(NetworkEvent::ModemErrorRegDenied);
-                break;
-            case UartEthModem::UartEthModemEvent::Connecting:
-                OnNetworkEvent(NetworkEvent::Connecting);
-                break;
-            case UartEthModem::UartEthModemEvent::ErrorInitFailed:
-            case UartEthModem::UartEthModemEvent::ErrorNoCarrier:
-                esp_timer_stop(network_ready_timer_);
-                ScheduleAsyncStop();
-                OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
-                break;
-            case UartEthModem::UartEthModemEvent::InFlightMode:
-                ESP_LOGW(TAG, "Modem in flight mode");
-                break;
-        }
-    });
+
+    modem_->SetNetworkEventCallback(
+        [this](UartEthModem::UartEthModemEvent event, const std::string& detail) {
+            switch (event) {
+                case UartEthModem::UartEthModemEvent::Connected:
+                    esp_timer_stop(network_ready_timer_);
+                    OnNetworkEvent(NetworkEvent::Connected);
+                    break;
+                case UartEthModem::UartEthModemEvent::Disconnected:
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case UartEthModem::UartEthModemEvent::ErrorNoSim:
+                    esp_timer_stop(network_ready_timer_);
+                    ScheduleAsyncStop();
+                    OnNetworkEvent(NetworkEvent::ModemErrorNoSim);
+                    break;
+                case UartEthModem::UartEthModemEvent::ErrorRegistrationDenied:
+                    esp_timer_stop(network_ready_timer_);
+                    ScheduleAsyncStop();
+                    OnNetworkEvent(NetworkEvent::ModemErrorRegDenied);
+                    break;
+                case UartEthModem::UartEthModemEvent::Connecting:
+                    OnNetworkEvent(NetworkEvent::Connecting);
+                    break;
+                case UartEthModem::UartEthModemEvent::ErrorInitFailed:
+                case UartEthModem::UartEthModemEvent::ErrorNoCarrier:
+                    esp_timer_stop(network_ready_timer_);
+                    ScheduleAsyncStop();
+                    OnNetworkEvent(NetworkEvent::ModemErrorInitFailed, detail);
+                    break;
+                case UartEthModem::UartEthModemEvent::InFlightMode:
+                    ESP_LOGW(TAG, "Modem in flight mode");
+                    break;
+                case UartEthModem::UartEthModemEvent::RfTestReady:
+                    ESP_LOGI(TAG, "Modem RF test mode ready");
+                    break;
+                case UartEthModem::UartEthModemEvent::RequestingPdpContext:
+                    break;
+                case UartEthModem::UartEthModemEvent::ModemReset:
+                    ESP_LOGW(TAG, "Modem reset unexpectedly: %s", detail.c_str());
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case UartEthModem::UartEthModemEvent::RegistrationLost:
+                    ESP_LOGW(TAG, "Cellular registration lost: %s", detail.c_str());
+                    OnNetworkEvent(NetworkEvent::Disconnected);
+                    break;
+                case UartEthModem::UartEthModemEvent::PlmnSearchFallback:
+                    ESP_LOGI(TAG, "PLMN search fell back to modem default: %s", detail.c_str());
+                    break;
+            }
+        });
 
     if (modem_->Start() != ESP_OK) {
         OnNetworkEvent(NetworkEvent::ModemErrorInitFailed);
@@ -141,39 +152,40 @@ NetworkInterface* Nt26Board::GetNetwork() {
 
 const char* Nt26Board::GetNetworkStateIcon() {
     if (modem_ == nullptr || !modem_->IsInitialized()) {
-        return FONT_AWESOME_SIGNAL_OFF;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     }
     int csq = modem_->GetSignalStrength();
     if (csq == 99 || csq == -1) {
-        return FONT_AWESOME_SIGNAL_OFF;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
     } else if (csq >= 0 && csq <= 9) {
-        return FONT_AWESOME_SIGNAL_WEAK;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT_1_BAR;
     } else if (csq >= 10 && csq <= 14) {
-        return FONT_AWESOME_SIGNAL_FAIR;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT_2_BAR;
     } else if (csq >= 15 && csq <= 19) {
-        return FONT_AWESOME_SIGNAL_GOOD;
+        return MATERIAL_SYMBOLS_SIGNAL_CELLULAR_ALT;
     } else if (csq >= 20 && csq <= 31) {
-        return FONT_AWESOME_SIGNAL_STRONG;
+        return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR;
     }
-    return FONT_AWESOME_SIGNAL_OFF;
+    return MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
 }
 
 void Nt26Board::SetPowerSaveLevel(PowerSaveLevel level) {
-    if (level == current_power_level_) return;
-    
+    if (level == current_power_level_)
+        return;
+
     if (current_power_level_ == PowerSaveLevel::BALANCED ||
         current_power_level_ == PowerSaveLevel::PERFORMANCE) {
         if (pm_lock_cpu_max_) {
             esp_pm_lock_release(pm_lock_cpu_max_);
         }
     }
-    
+
     if (level == PowerSaveLevel::BALANCED || level == PowerSaveLevel::PERFORMANCE) {
         if (pm_lock_cpu_max_) {
             esp_pm_lock_acquire(pm_lock_cpu_max_);
         }
     }
-    
+
     current_power_level_ = level;
 }
 
@@ -181,6 +193,7 @@ std::string Nt26Board::GetBoardJson() {
     // Set the board type for OTA
     std::string board_json = std::string("{\"type\":\"" BOARD_TYPE "\",");
     board_json += "\"name\":\"" BOARD_NAME "\",";
+    board_json += "\"manufacturer\":\"" BOARD_MANUFACTURER "\",";
     if (modem_) {
         board_json += "\"revision\":\"" + modem_->GetModuleRevision() + "\",";
         board_json += "\"carrier\":\"" + modem_->GetCarrierName() + "\",";
@@ -197,11 +210,15 @@ std::string Nt26Board::GetBoardJson() {
 Nt26CeregState Nt26Board::GetRegistrationState() {
     Nt26CeregState state;
     if (modem_) {
-        auto cell_info = modem_->GetCellInfo();
-        state.stat = cell_info.stat;
-        state.tac = cell_info.tac;
-        state.ci = cell_info.ci;
-        state.AcT = cell_info.act;
+        auto cell_info = modem_->QueryCellInfo();
+        if (!cell_info) {
+            ESP_LOGW(TAG, "QueryCellInfo failed: %s", esp_err_to_name(cell_info.error()));
+            return state;
+        }
+        state.stat = cell_info->stat;
+        state.tac = cell_info->tac;
+        state.ci = cell_info->ci;
+        state.AcT = cell_info->act;
     }
     return state;
 }

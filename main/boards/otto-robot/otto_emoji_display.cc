@@ -12,9 +12,11 @@
 #include "display/lvgl_display/lvgl_theme.h"
 
 #define TAG "OttoEmojiDisplay"
-OttoEmojiDisplay::OttoEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
-    : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y, swap_xy) {
-}
+OttoEmojiDisplay::OttoEmojiDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,
+                                   int width, int height, int offset_x, int offset_y, bool mirror_x,
+                                   bool mirror_y, bool swap_xy)
+    : SpiLcdDisplay(panel_io, panel, width, height, offset_x, offset_y, mirror_x, mirror_y,
+                    swap_xy) {}
 
 void OttoEmojiDisplay::SetupUI() {
     // Prevent duplicate calls - parent SetupUI() will also check, but check here for early return
@@ -22,15 +24,21 @@ void OttoEmojiDisplay::SetupUI() {
         ESP_LOGW(TAG, "SetupUI() called multiple times, skipping duplicate call");
         return;
     }
-    
+
     // Call parent SetupUI() first to create all lvgl objects
     SpiLcdDisplay::SetupUI();
-    
+
+    // UI 对象创建完成后切换主题
+    auto* dark_theme = LvglThemeManager::GetInstance().GetTheme("dark");
+    if (dark_theme != nullptr) {
+        SetTheme(dark_theme);
+    }
+
     // Setup preview image after UI is initialized - release lock before calling SetEmotion
     // to avoid deadlock (SetEmotion also acquires DisplayLockGuard internally)
     {
         DisplayLockGuard lock(this);
-        lv_obj_set_size(preview_image_, width_ , height_ );
+        lv_obj_set_size(preview_image_, width_, height_);
     }
 
     // Set default emotion after UI is initialized
@@ -40,10 +48,11 @@ void OttoEmojiDisplay::SetupUI() {
 void OttoEmojiDisplay::SetupPreviewImage() {
     DisplayLockGuard lock(this);
     if (preview_image_ == nullptr) {
-        ESP_LOGW(TAG, "SetupPreviewImage called but preview_image_ is nullptr (UI not initialized yet)");
+        ESP_LOGW(TAG,
+                 "SetupPreviewImage called but preview_image_ is nullptr (UI not initialized yet)");
         return;
     }
-    lv_obj_set_size(preview_image_, width_ , height_ );
+    lv_obj_set_size(preview_image_, width_, height_);
 }
 
 void OttoEmojiDisplay::InitializeOttoEmojis() {
