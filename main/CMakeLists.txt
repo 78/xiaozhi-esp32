@@ -1105,6 +1105,12 @@ idf_component_register(SRCS ${SOURCES}
                         ${MAIN_PRIV_REQUIRES_EXTRA}
                     )
 
+# Keep project-owned C++ on GNU C++23. ESP-IDF 6 may default to a newer
+# dialect; pin the baseline so main/ does not depend on it.
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+endif()
+
 # Use target_compile_definitions to define the reported board identity
 # If BOARD_NAME is empty, use BOARD_TYPE
 if(NOT BOARD_NAME)
@@ -1128,13 +1134,21 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
                         PRIVATE BUILTIN_TEXT_FONT=${BUILTIN_TEXT_FONT} BUILTIN_ICON_FONT=${BUILTIN_ICON_FONT}
                         PRIVATE TEXT_FONT_SIZE=${TEXT_FONT_SIZE} TEXT_FONT_BPP=${TEXT_FONT_BPP}
                         )
-    # ESP32-S3 + PSRAM: LVGL's builtin TLSF pool is allocated from PSRAM.
-    if(CONFIG_IDF_TARGET_ESP32S3 AND CONFIG_SPIRAM)
+    # ESP32-S3 LVGL builtin pool: PSRAM boards allocate it from PSRAM.
+    # Boards that set CONFIG_SPIRAM=n must not keep the 1MB chip-default
+    # pool as a .dram0.bss array (build.py also switches those variants
+    # back to CLIB malloc).
+    if(CONFIG_IDF_TARGET_ESP32S3)
         idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)
         if(lvgl_lib)
             target_include_directories(${lvgl_lib} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/display")
-            target_compile_definitions(${lvgl_lib} PRIVATE
-                "LV_MEM_POOL_INCLUDE=\"lvgl_psram_pool.h\"")
+            if(CONFIG_SPIRAM)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_psram_pool.h\"")
+            elseif(CONFIG_LV_USE_BUILTIN_MALLOC)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_no_psram_pool.h\"")
+            endif()
         endif()
     endif()
 endif()

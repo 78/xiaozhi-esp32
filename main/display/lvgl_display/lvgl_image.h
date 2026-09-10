@@ -37,7 +37,9 @@ public:
                        int color_format);
     virtual ~LvglAllocatedImage();
     virtual const lv_img_dsc_t* image_dsc() const override { return &image_dsc_; }
+    bool IsValid() const { return valid_; }
 
 private:
     lv_img_dsc_t image_dsc_;
+    bool valid_ = false;
 };

@@ -90,16 +90,19 @@ bool LvglDisplay::AddTextGlyphs(const std::vector<TextGlyph>& glyphs, uint8_t bp
     }
 
     DisplayLockGuard lock(this);
-    auto theme = dynamic_cast<LvglTheme*>(current_theme_);
-    if (theme == nullptr || theme->text_font() == nullptr) {
+    if (!lock || current_theme_ == nullptr) {
+        return false;
+    }
+    auto text_font = current_theme_->GetTextFont();
+    if (text_font == nullptr) {
         return false;
     }
 
-    auto fallback = dynamic_glyph_cache_->EnsureFont(theme->text_font()->font(), bpp);
+    auto fallback = dynamic_glyph_cache_->EnsureFont(text_font->font(), bpp);
     if (fallback == nullptr) {
         return false;
     }
-    theme->text_font()->SetFallback(fallback);
+    text_font->SetFallback(fallback);
     return dynamic_glyph_cache_->AddGlyphs(glyphs);
 }
 

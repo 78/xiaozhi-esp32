@@ -1,57 +1,50 @@
-#include <cstring>
-#include "display/lcd_display.h"
-#include <esp_log.h>
 #include "emoji_display.h"
-#include "assets/lang_config.h"
+#include <esp_log.h>
+#include <cstring>
 #include "assets.h"
+#include "assets/lang_config.h"
+#include "display/lcd_display.h"
 
 #include <esp_lcd_panel_io.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/queue.h>
 #include <freertos/event_groups.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
-static const char *TAG = "emoji";
+static const char* TAG = "emoji";
 
 namespace anim {
 
 // Emoji asset name mapping based on usage pattern
 static const std::unordered_map<std::string, std::string> emoji_asset_name_map = {
-    {"connecting", "connecting.aaf"},
-    {"wake", "wake.aaf"},
-    {"asking", "asking.aaf"},
-    {"happy_loop", "happy_loop.aaf"},
+    {"connecting", "connecting.aaf"}, {"wake", "wake.aaf"},
+    {"asking", "asking.aaf"},         {"happy_loop", "happy_loop.aaf"},
     {"sad_loop", "sad_loop.aaf"},
     // Upstream image_player asset uses capital A in the filename.
     {"anger_loop", "Anger_loop.aaf"},
-    {"panic_loop", "panic_loop.aaf"},
-    {"blink_quick", "blink_quick.aaf"},
-    {"scorn_loop", "scorn_loop.aaf"}
-};
+    {"panic_loop", "panic_loop.aaf"}, {"blink_quick", "blink_quick.aaf"},
+    {"scorn_loop", "scorn_loop.aaf"}};
 
-bool EmojiPlayer::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
-{
+bool EmojiPlayer::OnFlushIoReady(esp_lcd_panel_io_handle_t panel_io,
+                                 esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {
     anim_player_flush_ready(static_cast<anim_player_handle_t>(user_ctx));
     return true;
 }
 
-void EmojiPlayer::OnFlush(anim_player_handle_t handle, int x_start, int y_start, int x_end, int y_end, const void *color_data)
-{
+void EmojiPlayer::OnFlush(anim_player_handle_t handle, int x_start, int y_start, int x_end,
+                          int y_end, const void* color_data) {
     auto* panel = static_cast<esp_lcd_panel_handle_t>(anim_player_get_user_data(handle));
     esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, color_data);
 }
 
-EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io)
-{
+EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io) {
     ESP_LOGI(TAG, "Create EmojiPlayer, panel: %p, panel_io: %p", panel, panel_io);
 
-    anim_player_config_t player_cfg = {
-        .flush_cb = OnFlush,
-        .update_cb = NULL,
-        .user_data = panel,
-        .flags = {.swap = true},
-        .task = ANIM_PLAYER_INIT_CONFIG()
-    };
+    anim_player_config_t player_cfg = {.flush_cb = OnFlush,
+                                       .update_cb = NULL,
+                                       .user_data = panel,
+                                       .flags = {.swap = true},
+                                       .task = ANIM_PLAYER_INIT_CONFIG()};
 
     player_cfg.task.task_priority = 1;
     player_cfg.task.task_stack = 4096;
@@ -64,8 +57,7 @@ EmojiPlayer::EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
     StartPlayer("connecting", true, 15);
 }
 
-EmojiPlayer::~EmojiPlayer()
-{
+EmojiPlayer::~EmojiPlayer() {
     if (player_handle_) {
         anim_player_update(player_handle_, PLAYER_ACTION_STOP);
         anim_player_deinit(player_handle_);
@@ -73,15 +65,19 @@ EmojiPlayer::~EmojiPlayer()
     }
 }
 
-void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fps)
-{
+void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fps) {
     if (player_handle_) {
         uint32_t start, end;
-        void *src_data = nullptr;
+        void* src_data = nullptr;
         size_t src_len = 0;
 
         auto& assets = Assets::GetInstance();
-        std::string filename = emoji_asset_name_map.at(asset_name);
+        auto filename_iter = emoji_asset_name_map.find(asset_name);
+        if (filename_iter == emoji_asset_name_map.end()) {
+            ESP_LOGE(TAG, "Unknown emoji asset: %s", asset_name.c_str());
+            return;
+        }
+        const std::string& filename = filename_iter->second;
         if (!assets.GetAssetData(filename, src_data, src_len)) {
             ESP_LOGE(TAG, "Failed to get asset data for %s", asset_name.c_str());
             return;
@@ -89,7 +85,7 @@ void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fp
 
         anim_player_set_src_data(player_handle_, src_data, src_len);
         anim_player_get_segment(player_handle_, &start, &end);
-        if(asset_name == "wake"){
+        if (asset_name == "wake") {
             start = 7;
         }
         anim_player_set_segment(player_handle_, start, end, fps, true);
@@ -97,49 +93,34 @@ void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fp
     }
 }
 
-void EmojiPlayer::StopPlayer()
-{
+void EmojiPlayer::StopPlayer() {
     if (player_handle_) {
         anim_player_update(player_handle_, PLAYER_ACTION_STOP);
     }
 }
 
-EmojiWidget::EmojiWidget(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io)
-{
+EmojiWidget::EmojiWidget(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io) {
     InitializePlayer(panel, panel_io);
 }
 
-EmojiWidget::~EmojiWidget()
-{
+EmojiWidget::~EmojiWidget() {}
 
-}
-
-void EmojiWidget::SetEmotion(const char* emotion)
-{
+void EmojiWidget::SetEmotion(const char* emotion) {
     if (!player_) {
         return;
     }
 
     using Param = std::tuple<std::string, bool, int>;
     static const std::unordered_map<std::string, Param> emotion_map = {
-        {"happy",       {"happy_loop", true, 25}},
-        {"laughing",    {"happy_loop", true, 25}},
-        {"funny",       {"happy_loop", true, 25}},
-        {"loving",      {"happy_loop", true, 25}},
-        {"embarrassed", {"happy_loop", true, 25}},
-        {"confident",   {"happy_loop", true, 25}},
-        {"delicious",   {"happy_loop", true, 25}},
-        {"sad",         {"sad_loop",   true, 25}},
-        {"crying",      {"sad_loop",   true, 25}},
-        {"sleepy",      {"sad_loop",   true, 25}},
-        {"silly",       {"sad_loop",   true, 25}},
-        {"angry",       {"anger_loop", true, 25}},
-        {"surprised",   {"panic_loop", true, 25}},
-        {"shocked",     {"panic_loop", true, 25}},
-        {"thinking",    {"happy_loop", true, 25}},
-        {"winking",     {"blink_quick", true, 5}},
-        {"relaxed",     {"scorn_loop", true, 25}},
-        {"confused",    {"scorn_loop", true, 25}},
+        {"happy", {"happy_loop", true, 25}},       {"laughing", {"happy_loop", true, 25}},
+        {"funny", {"happy_loop", true, 25}},       {"loving", {"happy_loop", true, 25}},
+        {"embarrassed", {"happy_loop", true, 25}}, {"confident", {"happy_loop", true, 25}},
+        {"delicious", {"happy_loop", true, 25}},   {"sad", {"sad_loop", true, 25}},
+        {"crying", {"sad_loop", true, 25}},        {"sleepy", {"sad_loop", true, 25}},
+        {"silly", {"sad_loop", true, 25}},         {"angry", {"anger_loop", true, 25}},
+        {"surprised", {"panic_loop", true, 25}},   {"shocked", {"panic_loop", true, 25}},
+        {"thinking", {"happy_loop", true, 25}},    {"winking", {"blink_quick", true, 5}},
+        {"relaxed", {"scorn_loop", true, 25}},     {"confused", {"scorn_loop", true, 25}},
     };
 
     auto it = emotion_map.find(emotion);
@@ -150,8 +131,7 @@ void EmojiWidget::SetEmotion(const char* emotion)
     }
 }
 
-void EmojiWidget::SetStatus(const char* status)
-{
+void EmojiWidget::SetStatus(const char* status) {
     if (player_) {
         if (strcmp(status, Lang::Strings::LISTENING) == 0) {
             player_->StartPlayer("asking", true, 15);
@@ -161,18 +141,13 @@ void EmojiWidget::SetStatus(const char* status)
     }
 }
 
-void EmojiWidget::InitializePlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io)
-{
+void EmojiWidget::InitializePlayer(esp_lcd_panel_handle_t panel,
+                                   esp_lcd_panel_io_handle_t panel_io) {
     player_ = std::make_unique<EmojiPlayer>(panel, panel_io);
 }
 
-bool EmojiWidget::Lock(int timeout_ms)
-{
-    return true;
-}
+bool EmojiWidget::Lock(int timeout_ms) { return true; }
 
-void EmojiWidget::Unlock()
-{
-}
+void EmojiWidget::Unlock() {}
 
-} // namespace anim
+}  // namespace anim

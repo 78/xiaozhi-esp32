@@ -8,6 +8,7 @@
 #include "assets/lang_config.h"
 #include "audio_codec.h"
 #include "board.h"
+#include "lvgl_display/lvgl_image.h"
 #include "settings.h"
 
 #define TAG "Display"
@@ -15,6 +16,8 @@
 Display::Display() {}
 
 Display::~Display() {}
+
+void Display::SetPreviewImage(std::unique_ptr<LvglImage> image) {}
 
 void Display::SetStatus(const char* status) { ESP_LOGW(TAG, "SetStatus: %s", status); }
 

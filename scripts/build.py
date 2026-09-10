@@ -410,6 +410,10 @@ _OPTIONAL_CAMERA_ENABLE_SYMBOLS = {
     # build, but expose them automatically for an explicitly enabled variant.
     "CONFIG_BOARD_TYPE_ESP_VOCAT": "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE",
 }
+# Match both `new Esp32Camera` and `new (std::nothrow) Esp32Camera` (and EspVideo).
+_COMMON_CAMERA_CONSTRUCTOR_RE = re.compile(
+    r"\bnew(?:\s*\(\s*std::nothrow\s*\))?\s+Esp(?:32Camera|Video)\b"
+)
 
 
 def _sdkconfig_assignments(options: list[str]) -> dict[str, str]:
@@ -586,7 +590,7 @@ def _build_option_definitions(
 
     camera_enable_symbol = _OPTIONAL_CAMERA_ENABLE_SYMBOLS.get(board_config)
     has_common_camera = (
-        ("new Esp32Camera" in source or "new EspVideo" in source)
+        _COMMON_CAMERA_CONSTRUCTOR_RE.search(source) is not None
         and (
             camera_enable_symbol is None
             or assignments.get(camera_enable_symbol) == "y"
@@ -1203,6 +1207,13 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
     ],
 }
 
+# sdkconfig.defaults.esp32s3 keeps a 1MB LVGL TLSF pool for PSRAM. Without
+# PSRAM that pool becomes a .dram0.bss array and overflows internal SRAM.
+_NO_SPIRAM_LVGL_OPTIONS = [
+    "CONFIG_LV_USE_BUILTIN_MALLOC=n",
+    "CONFIG_LV_USE_CLIB_MALLOC=y",
+]
+
 
 def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
     """Apply hardcoded auto-select rules to sdkconfig_append."""
@@ -1218,6 +1229,10 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
                 # must do the same instead of keeping the earlier value.
                 items = _merge_sdkconfig_options(items, deps)
                 break
+
+    assignments = _sdkconfig_assignments(items)
+    if assignments.get("CONFIG_SPIRAM") == "n":
+        items = _merge_sdkconfig_options(items, _NO_SPIRAM_LVGL_OPTIONS)
 
     return items
 

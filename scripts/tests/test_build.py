@@ -1296,6 +1296,18 @@ class BuildOptionTests(unittest.TestCase):
         self.assertIn("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=n", options)
         self.assertIn("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y", options)
 
+    def test_no_spiram_drops_s3_lvgl_psram_pool(self):
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=n"])
+        self.assertIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=y"])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertNotIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects([])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+
     def test_camera_board_defaults_are_declared_by_board_config(self):
         config = json.loads(
             (ROOT / "main/boards/espressif/esp32-s3-korvo-2-v3.0/config.json").read_text(
@@ -1318,6 +1330,28 @@ class BuildOptionTests(unittest.TestCase):
         defaults = {definition["key"]: definition["default"] for definition in definitions}
 
         self.assertFalse(defaults["camera_hmirror"])
+        self.assertTrue(defaults["camera_vflip"])
+
+    def test_nothrow_camera_constructor_exposes_mirror_options(self):
+        config = json.loads(
+            (ROOT / "main/boards/otto-robot/config.json").read_text(encoding="utf-8")
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "otto-robot",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "otto-robot",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        defaults = {definition["key"]: definition["default"] for definition in definitions}
+
+        self.assertTrue(defaults["camera_hmirror"])
         self.assertTrue(defaults["camera_vflip"])
 
     def test_optional_usb_camera_options_require_camera_to_be_enabled(self):

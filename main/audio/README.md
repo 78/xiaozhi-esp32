@@ -70,3 +70,12 @@ flowchart LR
 
 The audio power timer still enables and disables codec ADC/DAC channels based on
 activity; the engine refactor does not change that policy.
+
+## Queue and allocation policy
+
+The service queues use compile-time fixed-capacity storage. Their existing drop,
+wait, and playback-drain policies remain unchanged, but queue growth no longer
+allocates deque nodes. `AudioTask` values are stored directly, and Opus encoding
+writes into the packet payload instead of allocating a second temporary output
+buffer. Packet and PCM buffer pools should only be added after target-side heap
+and latency measurements justify their additional ownership complexity.

@@ -505,9 +505,7 @@ private:
         if (display_ == nullptr || emotion == nullptr) {
             return;
         }
-        auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display_);
-        if (emote_display != nullptr) {
-            emote_display->InsertAnimDialog(emotion, duration_ms);
+        if (display_->InsertAnimDialog(emotion, duration_ms)) {
             return;
         }
 #endif

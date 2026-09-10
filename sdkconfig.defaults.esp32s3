@@ -34,6 +34,8 @@ CONFIG_LV_USE_SNAPSHOT=y
 # Builtin TLSF pool in PSRAM (lvgl_psram_pool.h). Keep the base pool small
 # enough for 2MB PSRAM boards; 8MB boards add extra pools in lcd_display.cc
 # (chunked to LV_MEM_SIZE — TLSF rejects a single add_pool larger than this).
+# Variants that set CONFIG_SPIRAM=n are switched back to CLIB malloc in
+# scripts/build.py; do not repeat that override on each board.
 CONFIG_LV_USE_BUILTIN_MALLOC=y
 # CONFIG_LV_USE_CLIB_MALLOC is not set
 CONFIG_LV_MEM_SIZE_KILOBYTES=1024

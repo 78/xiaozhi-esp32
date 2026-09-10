@@ -1,17 +1,20 @@
 #ifndef MCP_SERVER_H
 #define MCP_SERVER_H
 
-#include <mbedtls/base64.h>
+#include <expected>
 #include <functional>
-#include <map>
+#include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
-#include <thread>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
+#include <esp_system.h>
 #include <cJSON.h>
+#include <mbedtls/base64.h>
+
+#include "cjson_utils.h"
 
 class ImageContent {
 private:
@@ -36,20 +39,24 @@ public:
     }
 
     std::string to_json() const {
-        cJSON* json = cJSON_CreateObject();
-        cJSON_AddStringToObject(json, "type", "image");
-        cJSON_AddStringToObject(json, "mimeType", mime_type_.c_str());
-        cJSON_AddStringToObject(json, "data", encoded_data_.c_str());
-        char* json_str = cJSON_PrintUnformatted(json);
-        std::string result(json_str);
-        cJSON_free(json_str);
-        cJSON_Delete(json);
-        return result;
+        CJsonUniquePtr json(cJSON_CreateObject());
+        if (json == nullptr) {
+            return {};
+        }
+        cJSON_AddStringToObject(json.get(), "type", "image");
+        cJSON_AddStringToObject(json.get(), "mimeType", mime_type_.c_str());
+        cJSON_AddStringToObject(json.get(), "data", encoded_data_.c_str());
+        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(json.get()));
+        return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 };
 
-// 添加类型别名
+class PropertyList;
+
+// Pointer alternatives transfer ownership to McpTool::Call.
 using ReturnValue = std::variant<bool, int, std::string, cJSON*, ImageContent*>;
+using ToolResult = std::expected<ReturnValue, std::string>;
+using ToolCallback = std::function<ToolResult(const PropertyList&)>;
 
 enum PropertyType { kPropertyTypeBoolean, kPropertyTypeInteger, kPropertyTypeString };
 
@@ -59,9 +66,9 @@ private:
     PropertyType type_;
     std::variant<bool, int, std::string> value_;
     bool has_default_value_;
-    std::optional<int> min_value_;      // Integer minimum
-    std::optional<int> max_value_;      // Integer maximum
-    std::optional<size_t> max_length_;  // String maximum length
+    std::optional<int> min_value_;  // 新增：整数最小值
+    std::optional<int> max_value_;  // 新增：整数最大值
+    std::optional<size_t> max_length_;
 
 public:
     // Required field constructor
@@ -82,7 +89,7 @@ public:
           min_value_(min_value),
           max_value_(max_value) {
         if (type != kPropertyTypeInteger) {
-            throw std::invalid_argument("Range limits only apply to integer properties");
+            esp_system_abort("MCP property range is only valid for integer properties");
         }
     }
 
@@ -94,10 +101,10 @@ public:
           min_value_(min_value),
           max_value_(max_value) {
         if (type != kPropertyTypeInteger) {
-            throw std::invalid_argument("Range limits only apply to integer properties");
+            esp_system_abort("MCP property range is only valid for integer properties");
         }
         if (default_value < min_value || default_value > max_value) {
-            throw std::invalid_argument("Default value must be within the specified range");
+            esp_system_abort("MCP property default value is outside its declared range");
         }
         value_ = default_value;
     }
@@ -105,7 +112,7 @@ public:
     // Set max_length for string properties (builder pattern)
     Property& SetMaxLength(size_t max_length) {
         if (type_ != kPropertyTypeString) {
-            throw std::invalid_argument("Max length only applies to string properties");
+            esp_system_abort("Max length only applies to string properties");
         }
         max_length_ = max_length;
         return *this;
@@ -117,12 +124,17 @@ public:
     inline bool has_range() const { return min_value_.has_value() && max_value_.has_value(); }
     inline int min_value() const { return min_value_.value_or(0); }
     inline int max_value() const { return max_value_.value_or(0); }
+
     inline bool has_max_length() const { return max_length_.has_value(); }
     inline size_t max_length() const { return max_length_.value_or(0); }
 
     template <typename T>
-    inline T value() const {
-        return std::get<T>(value_);
+    inline const T& value() const {
+        auto value = std::get_if<T>(&value_);
+        if (value == nullptr) {
+            esp_system_abort("MCP property value type does not match its declaration");
+        }
+        return *value;
     }
 
     // Validate a value against this property's constraints without setting it.
@@ -149,66 +161,49 @@ public:
     }
 
     template <typename T>
-    inline void set_value(const T& value) {
-        // Integer range check
-        if constexpr (std::is_same_v<T, int>) {
-            if (min_value_.has_value() && value < min_value_.value()) {
-                throw std::invalid_argument("Property '" + name_ + "': value " +
-                                            std::to_string(value) + " is below minimum " +
-                                            std::to_string(min_value_.value()));
-            }
-            if (max_value_.has_value() && value > max_value_.value()) {
-                throw std::invalid_argument("Property '" + name_ + "': value " +
-                                            std::to_string(value) + " exceeds maximum " +
-                                            std::to_string(max_value_.value()));
-            }
-        }
-        // String max_length check
-        if constexpr (std::is_same_v<T, std::string>) {
-            if (max_length_.has_value() && value.size() > max_length_.value()) {
-                throw std::invalid_argument("Property '" + name_ + "': string length " +
-                                            std::to_string(value.size()) + " exceeds maximum " +
-                                            std::to_string(max_length_.value()));
-            }
+    inline std::expected<void, std::string> set_value(const T& value) {
+        auto error = Validate(value);
+        if (!error.empty()) {
+            return std::unexpected(std::move(error));
         }
         value_ = value;
+        return {};
     }
 
     std::string to_json() const {
-        cJSON* json = cJSON_CreateObject();
+        CJsonUniquePtr json(cJSON_CreateObject());
+        if (json == nullptr) {
+            return {};
+        }
 
         if (type_ == kPropertyTypeBoolean) {
-            cJSON_AddStringToObject(json, "type", "boolean");
+            cJSON_AddStringToObject(json.get(), "type", "boolean");
             if (has_default_value_) {
-                cJSON_AddBoolToObject(json, "default", value<bool>());
+                cJSON_AddBoolToObject(json.get(), "default", value<bool>());
             }
         } else if (type_ == kPropertyTypeInteger) {
-            cJSON_AddStringToObject(json, "type", "integer");
+            cJSON_AddStringToObject(json.get(), "type", "integer");
             if (has_default_value_) {
-                cJSON_AddNumberToObject(json, "default", value<int>());
+                cJSON_AddNumberToObject(json.get(), "default", value<int>());
             }
             if (min_value_.has_value()) {
-                cJSON_AddNumberToObject(json, "minimum", min_value_.value());
+                cJSON_AddNumberToObject(json.get(), "minimum", min_value_.value());
             }
             if (max_value_.has_value()) {
-                cJSON_AddNumberToObject(json, "maximum", max_value_.value());
+                cJSON_AddNumberToObject(json.get(), "maximum", max_value_.value());
             }
         } else if (type_ == kPropertyTypeString) {
-            cJSON_AddStringToObject(json, "type", "string");
+            cJSON_AddStringToObject(json.get(), "type", "string");
             if (has_default_value_) {
-                cJSON_AddStringToObject(json, "default", value<std::string>().c_str());
+                cJSON_AddStringToObject(json.get(), "default", value<std::string>().c_str());
             }
             if (max_length_.has_value()) {
-                cJSON_AddNumberToObject(json, "maxLength", max_length_.value());
+                cJSON_AddNumberToObject(json.get(), "maxLength", max_length_.value());
             }
         }
 
-        char* json_str = cJSON_PrintUnformatted(json);
-        std::string result(json_str);
-        cJSON_free(json_str);
-        cJSON_Delete(json);
-
-        return result;
+        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(json.get()));
+        return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 };
 
@@ -227,7 +222,7 @@ public:
                 return property;
             }
         }
-        throw std::runtime_error("Property not found: " + name);
+        esp_system_abort("MCP property lookup failed because the property was not declared");
     }
 
     auto begin() { return properties_.begin(); }
@@ -244,19 +239,21 @@ public:
     }
 
     std::string to_json() const {
-        cJSON* json = cJSON_CreateObject();
-
-        for (const auto& property : properties_) {
-            cJSON* prop_json = cJSON_Parse(property.to_json().c_str());
-            cJSON_AddItemToObject(json, property.name().c_str(), prop_json);
+        CJsonUniquePtr json(cJSON_CreateObject());
+        if (json == nullptr) {
+            return {};
         }
 
-        char* json_str = cJSON_PrintUnformatted(json);
-        std::string result(json_str);
-        cJSON_free(json_str);
-        cJSON_Delete(json);
+        for (const auto& property : properties_) {
+            CJsonUniquePtr prop_json(cJSON_Parse(property.to_json().c_str()));
+            if (prop_json != nullptr &&
+                cJSON_AddItemToObject(json.get(), property.name().c_str(), prop_json.get())) {
+                prop_json.release();
+            }
+        }
 
-        return result;
+        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(json.get()));
+        return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 };
 
@@ -265,12 +262,12 @@ private:
     std::string name_;
     std::string description_;
     PropertyList properties_;
-    std::function<ReturnValue(const PropertyList&)> callback_;
+    ToolCallback callback_;
     bool user_only_ = false;
 
 public:
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
-            std::function<ReturnValue(const PropertyList&)> callback)
+            ToolCallback callback)
         : name_(name), description_(description), properties_(properties), callback_(callback) {}
 
     void set_user_only(bool user_only) { user_only_ = user_only; }
@@ -282,91 +279,150 @@ public:
     std::string to_json() const {
         std::vector<std::string> required = properties_.GetRequired();
 
-        cJSON* json = cJSON_CreateObject();
-        cJSON_AddStringToObject(json, "name", name_.c_str());
-        cJSON_AddStringToObject(json, "description", description_.c_str());
+        CJsonUniquePtr json(cJSON_CreateObject());
+        if (json == nullptr) {
+            return {};
+        }
+        cJSON_AddStringToObject(json.get(), "name", name_.c_str());
+        cJSON_AddStringToObject(json.get(), "description", description_.c_str());
 
-        cJSON* input_schema = cJSON_CreateObject();
-        cJSON_AddStringToObject(input_schema, "type", "object");
+        CJsonUniquePtr input_schema(cJSON_CreateObject());
+        if (input_schema == nullptr) {
+            return {};
+        }
+        cJSON_AddStringToObject(input_schema.get(), "type", "object");
 
-        cJSON* properties = cJSON_Parse(properties_.to_json().c_str());
-        cJSON_AddItemToObject(input_schema, "properties", properties);
+        CJsonUniquePtr properties(cJSON_Parse(properties_.to_json().c_str()));
+        if (properties == nullptr ||
+            !cJSON_AddItemToObject(input_schema.get(), "properties", properties.get())) {
+            return {};
+        }
+        properties.release();
 
         if (!required.empty()) {
-            cJSON* required_array = cJSON_CreateArray();
-            for (const auto& property : required) {
-                cJSON_AddItemToArray(required_array, cJSON_CreateString(property.c_str()));
+            CJsonUniquePtr required_array(cJSON_CreateArray());
+            if (required_array == nullptr) {
+                return {};
             }
-            cJSON_AddItemToObject(input_schema, "required", required_array);
+            for (const auto& property : required) {
+                CJsonUniquePtr item(cJSON_CreateString(property.c_str()));
+                if (item == nullptr || !cJSON_AddItemToArray(required_array.get(), item.get())) {
+                    return {};
+                }
+                item.release();
+            }
+            if (!cJSON_AddItemToObject(input_schema.get(), "required", required_array.get())) {
+                return {};
+            }
+            required_array.release();
         }
 
-        cJSON_AddItemToObject(json, "inputSchema", input_schema);
+        if (!cJSON_AddItemToObject(json.get(), "inputSchema", input_schema.get())) {
+            return {};
+        }
+        input_schema.release();
 
         // Add audience annotation if the tool is user only (invisible to AI)
         if (user_only_) {
-            cJSON* annotations = cJSON_CreateObject();
-            cJSON* audience = cJSON_CreateArray();
-            cJSON_AddItemToArray(audience, cJSON_CreateString("user"));
-            cJSON_AddItemToObject(annotations, "audience", audience);
-            cJSON_AddItemToObject(json, "annotations", annotations);
+            CJsonUniquePtr annotations(cJSON_CreateObject());
+            CJsonUniquePtr audience(cJSON_CreateArray());
+            CJsonUniquePtr user(cJSON_CreateString("user"));
+            if (annotations == nullptr || audience == nullptr || user == nullptr ||
+                !cJSON_AddItemToArray(audience.get(), user.get())) {
+                return {};
+            }
+            user.release();
+            if (!cJSON_AddItemToObject(annotations.get(), "audience", audience.get())) {
+                return {};
+            }
+            audience.release();
+            if (!cJSON_AddItemToObject(json.get(), "annotations", annotations.get())) {
+                return {};
+            }
+            annotations.release();
         }
 
-        char* json_str = cJSON_PrintUnformatted(json);
-        std::string result(json_str);
-        cJSON_free(json_str);
-        cJSON_Delete(json);
-
-        return result;
+        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(json.get()));
+        return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 
-    std::string Call(const PropertyList& properties) {
-        ReturnValue return_value = callback_(properties);
+    std::expected<std::string, std::string> Call(const PropertyList& properties) {
+        auto callback_result = callback_(properties);
+        if (!callback_result) {
+            return std::unexpected(std::move(callback_result.error()));
+        }
+        ReturnValue return_value = std::move(*callback_result);
+        std::unique_ptr<ImageContent> owned_image;
+        CJsonUniquePtr owned_json;
+        if (std::holds_alternative<ImageContent*>(return_value)) {
+            owned_image.reset(std::get<ImageContent*>(return_value));
+        } else if (std::holds_alternative<cJSON*>(return_value)) {
+            owned_json.reset(std::get<cJSON*>(return_value));
+        }
+
         // 返回结果
-        cJSON* result = cJSON_CreateObject();
-        cJSON* content = cJSON_CreateArray();
+        CJsonUniquePtr result(cJSON_CreateObject());
+        CJsonUniquePtr content(cJSON_CreateArray());
+        if (result == nullptr || content == nullptr) {
+            return std::unexpected("Failed to allocate MCP result");
+        }
 
         if (std::holds_alternative<ImageContent*>(return_value)) {
-            auto image_content = std::get<ImageContent*>(return_value);
-            cJSON* image = cJSON_CreateObject();
-            cJSON_AddStringToObject(image, "type", "image");
-            cJSON_AddStringToObject(image, "image", image_content->to_json().c_str());
-            cJSON_AddItemToArray(content, image);
-            delete image_content;
+            if (owned_image == nullptr) {
+                return std::unexpected("MCP tool returned an empty image");
+            }
+            CJsonUniquePtr image(cJSON_CreateObject());
+            if (image == nullptr) {
+                return std::unexpected("Failed to allocate MCP image result");
+            }
+            cJSON_AddStringToObject(image.get(), "type", "image");
+            cJSON_AddStringToObject(image.get(), "image", owned_image->to_json().c_str());
+            if (!cJSON_AddItemToArray(content.get(), image.get())) {
+                return std::unexpected("Failed to create MCP image result");
+            }
+            image.release();
         } else {
-            cJSON* text = cJSON_CreateObject();
-            cJSON_AddStringToObject(text, "type", "text");
+            CJsonUniquePtr text(cJSON_CreateObject());
+            if (text == nullptr) {
+                return std::unexpected("Failed to allocate MCP text result");
+            }
+            cJSON_AddStringToObject(text.get(), "type", "text");
             if (std::holds_alternative<std::string>(return_value)) {
-                cJSON_AddStringToObject(text, "text", std::get<std::string>(return_value).c_str());
+                cJSON_AddStringToObject(text.get(), "text",
+                                        std::get<std::string>(return_value).c_str());
             } else if (std::holds_alternative<bool>(return_value)) {
-                cJSON_AddStringToObject(text, "text",
+                cJSON_AddStringToObject(text.get(), "text",
                                         std::get<bool>(return_value) ? "true" : "false");
             } else if (std::holds_alternative<int>(return_value)) {
-                cJSON_AddStringToObject(text, "text",
+                cJSON_AddStringToObject(text.get(), "text",
                                         std::to_string(std::get<int>(return_value)).c_str());
             } else if (std::holds_alternative<cJSON*>(return_value)) {
-                cJSON* json = std::get<cJSON*>(return_value);
-                char* json_str = cJSON_PrintUnformatted(json);
-                cJSON_AddStringToObject(text, "text", json_str);
-                cJSON_free(json_str);
-                cJSON_Delete(json);
+                CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(owned_json.get()));
+                cJSON_AddStringToObject(text.get(), "text",
+                                        json_str != nullptr ? json_str.get() : "{}");
             }
-            cJSON_AddItemToArray(content, text);
+            if (!cJSON_AddItemToArray(content.get(), text.get())) {
+                return std::unexpected("Failed to create MCP text result");
+            }
+            text.release();
         }
-        cJSON_AddItemToObject(result, "content", content);
-        cJSON_AddBoolToObject(result, "isError", false);
+        if (!cJSON_AddItemToObject(result.get(), "content", content.get())) {
+            return std::unexpected("Failed to create MCP result");
+        }
+        content.release();
+        cJSON_AddBoolToObject(result.get(), "isError", false);
 
-        auto json_str = cJSON_PrintUnformatted(result);
-        std::string result_str(json_str);
-        cJSON_free(json_str);
-        cJSON_Delete(result);
-        return result_str;
+        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(result.get()));
+        if (json_str == nullptr) {
+            return std::unexpected("Failed to serialize MCP result");
+        }
+        return std::string(json_str.get());
     }
 };
 
 class McpServer {
 public:
     using ResponseSender = std::function<void(const std::string&)>;
-
     static McpServer& GetInstance() {
         static McpServer instance;
         return instance;
@@ -374,13 +430,11 @@ public:
 
     void AddCommonTools();
     void AddUserOnlyTools();
-    void AddTool(McpTool* tool);
+    void AddTool(std::unique_ptr<McpTool> tool);
     void AddTool(const std::string& name, const std::string& description,
-                 const PropertyList& properties,
-                 std::function<ReturnValue(const PropertyList&)> callback);
+                 const PropertyList& properties, ToolCallback callback);
     void AddUserOnlyTool(const std::string& name, const std::string& description,
-                         const PropertyList& properties,
-                         std::function<ReturnValue(const PropertyList&)> callback);
+                         const PropertyList& properties, ToolCallback callback);
     void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
     void ParseMessage(const std::string& message, ResponseSender response_sender = nullptr);
 
@@ -401,7 +455,7 @@ private:
     void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
                     ResponseSender response_sender);
 
-    std::vector<McpTool*> tools_;
+    std::vector<std::unique_ptr<McpTool>> tools_;
 };
 
 #endif  // MCP_SERVER_H

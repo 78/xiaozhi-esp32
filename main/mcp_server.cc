@@ -9,25 +9,20 @@
 #include <esp_pthread.h>
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "application.h"
 #include "board.h"
 #include "display.h"
-#include "lvgl_display.h"
+#include "lvgl_image.h"
 #include "lvgl_theme.h"
-#include "oled_display.h"
 #include "settings.h"
 
 #define TAG "MCP"
 
 McpServer::McpServer() {}
 
-McpServer::~McpServer() {
-    for (auto tool : tools_) {
-        delete tool;
-    }
-    tools_.clear();
-}
+McpServer::~McpServer() = default;
 
 void McpServer::AddCommonTools() {
     // *Important* To speed up the response time, we add the common tools to the beginning of
@@ -103,21 +98,26 @@ void McpServer::AddCommonTools() {
                 "Return:\n"
                 "  A JSON object that provides the photo information.",
                 PropertyList({Property("question", kPropertyTypeString)}),
-                [camera](const PropertyList& properties) -> ReturnValue {
+                [camera](const PropertyList& properties) -> ToolResult {
                     // Lower the priority to do the camera capture
                     TaskPriorityReset priority_reset(1);
 
                     if (!camera->Capture()) {
-                        throw std::runtime_error("Failed to capture photo");
+                        return std::unexpected("Failed to capture photo");
                     }
                     auto question = properties["question"].value<std::string>();
-                    return camera->Explain(question);
+                    auto result = camera->Explain(question);
+                    if (!result) {
+                        return std::unexpected(std::move(result.error()));
+                    }
+                    return std::move(*result);
                 });
     }
 #endif
 
     // Restore the original tools list to the end of the tools list
-    tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());
+    tools_.insert(tools_.end(), std::make_move_iterator(original_tools.begin()),
+                  std::make_move_iterator(original_tools.end()));
 }
 
 void McpServer::AddUserOnlyTools() {
@@ -164,19 +164,15 @@ void McpServer::AddUserOnlyTools() {
 
     // Display control
 #ifdef HAVE_LVGL
-    auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
-    if (display) {
+    auto display = Board::GetInstance().GetDisplay();
+    if (display != nullptr && display->SupportsGuiOperations()) {
         AddUserOnlyTool("self.screen.get_info",
                         "Information about the screen, including width, height, etc.",
                         PropertyList(), [display](const PropertyList& properties) -> ReturnValue {
                             cJSON* json = cJSON_CreateObject();
                             cJSON_AddNumberToObject(json, "width", display->width());
                             cJSON_AddNumberToObject(json, "height", display->height());
-                            if (dynamic_cast<OledDisplay*>(display)) {
-                                cJSON_AddBoolToObject(json, "monochrome", true);
-                            } else {
-                                cJSON_AddBoolToObject(json, "monochrome", false);
-                            }
+                            cJSON_AddBoolToObject(json, "monochrome", display->IsMonochrome());
                             return json;
                         });
 
@@ -185,13 +181,13 @@ void McpServer::AddUserOnlyTools() {
             "self.screen.snapshot", "Snapshot the screen and upload it to a specific URL",
             PropertyList({Property("url", kPropertyTypeString),
                           Property("quality", kPropertyTypeInteger, 80, 1, 100)}),
-            [display](const PropertyList& properties) -> ReturnValue {
+            [display](const PropertyList& properties) -> ToolResult {
                 auto url = properties["url"].value<std::string>();
                 auto quality = properties["quality"].value<int>();
 
                 std::string jpeg_data;
                 if (!display->SnapshotToJpeg(jpeg_data, quality)) {
-                    throw std::runtime_error("Failed to snapshot screen");
+                    return std::unexpected("Failed to snapshot screen");
                 }
 
                 ESP_LOGI(TAG, "Upload snapshot %u bytes to %s", jpeg_data.size(), url.c_str());
@@ -202,8 +198,8 @@ void McpServer::AddUserOnlyTools() {
                 auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
                 http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
                 if (auto opened = http->Open("POST", url); !opened) {
-                    throw std::runtime_error("Failed to open URL: " + url + " (" +
-                                             opened.error().ToString() + ")");
+                    return std::unexpected("Failed to open URL: " + url + " (" +
+                                           opened.error().ToString() + ")");
                 }
                 {
                     // 文件字段头部
@@ -230,11 +226,11 @@ void McpServer::AddUserOnlyTools() {
 
                 auto upload_status = http->GetStatusCode();
                 if (!upload_status) {
-                    throw std::runtime_error(upload_status.error().ToString());
+                    return std::unexpected(upload_status.error().ToString());
                 }
                 if (*upload_status != 200) {
-                    throw std::runtime_error("Unexpected status code: " +
-                                             std::to_string(*upload_status));
+                    return std::unexpected("Unexpected status code: " +
+                                           std::to_string(*upload_status));
                 }
                 std::string result = http->ReadAll();
                 http->Close();
@@ -245,34 +241,36 @@ void McpServer::AddUserOnlyTools() {
         AddUserOnlyTool(
             "self.screen.preview_image", "Preview an image on the screen",
             PropertyList({Property("url", kPropertyTypeString)}),
-            [display](const PropertyList& properties) -> ReturnValue {
+            [display](const PropertyList& properties) -> ToolResult {
                 auto url = properties["url"].value<std::string>();
                 auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
 
                 if (auto opened = http->Open("GET", url); !opened) {
-                    throw std::runtime_error("Failed to open URL: " + url + " (" +
-                                             opened.error().ToString() + ")");
+                    return std::unexpected("Failed to open URL: " + url + " (" +
+                                           opened.error().ToString() + ")");
                 }
                 auto status_code = http->GetStatusCode();
                 if (!status_code) {
-                    throw std::runtime_error(status_code.error().ToString());
+                    return std::unexpected(status_code.error().ToString());
                 }
                 if (*status_code != 200) {
-                    throw std::runtime_error("Unexpected status code: " +
-                                             std::to_string(*status_code));
+                    return std::unexpected("Unexpected status code: " +
+                                           std::to_string(*status_code));
                 }
 
                 size_t content_length = http->GetBodyLength();
-                char* data = (char*)heap_caps_malloc(content_length, MALLOC_CAP_8BIT);
+                using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
+                BufferPtr data(
+                    static_cast<char*>(heap_caps_malloc(content_length, MALLOC_CAP_8BIT)),
+                    heap_caps_free);
                 if (data == nullptr) {
-                    throw std::runtime_error("Failed to allocate memory for image: " + url);
+                    return std::unexpected("Failed to allocate memory for image: " + url);
                 }
                 size_t total_read = 0;
                 while (total_read < content_length) {
-                    auto ret = http->Read(data + total_read, content_length - total_read);
+                    auto ret = http->Read(data.get() + total_read, content_length - total_read);
                     if (!ret) {
-                        heap_caps_free(data);
-                        throw std::runtime_error("Failed to download image: " + url);
+                        return std::unexpected("Failed to download image: " + url);
                     }
                     if (*ret == 0) {
                         break;
@@ -281,7 +279,10 @@ void McpServer::AddUserOnlyTools() {
                 }
                 http->Close();
 
-                auto image = std::make_unique<LvglAllocatedImage>(data, content_length);
+                auto image = std::make_unique<LvglAllocatedImage>(data.release(), total_read);
+                if (!image->IsValid()) {
+                    return std::unexpected("Downloaded image is invalid: " + url);
+                }
                 display->SetPreviewImage(std::move(image));
                 return true;
             });
@@ -301,41 +302,38 @@ void McpServer::AddUserOnlyTools() {
                     });
 }
 
-void McpServer::AddTool(McpTool* tool) {
+void McpServer::AddTool(std::unique_ptr<McpTool> tool) {
     // Prevent adding duplicate tools
-    if (std::find_if(tools_.begin(), tools_.end(), [tool](const McpTool* t) {
-            return t->name() == tool->name();
+    if (std::find_if(tools_.begin(), tools_.end(), [&tool](const auto& existing) {
+            return existing->name() == tool->name();
         }) != tools_.end()) {
         ESP_LOGW(TAG, "Tool %s already added", tool->name().c_str());
         return;
     }
 
     ESP_LOGI(TAG, "Add tool: %s%s", tool->name().c_str(), tool->user_only() ? " [user]" : "");
-    tools_.push_back(tool);
+    tools_.push_back(std::move(tool));
 }
 
 void McpServer::AddTool(const std::string& name, const std::string& description,
-                        const PropertyList& properties,
-                        std::function<ReturnValue(const PropertyList&)> callback) {
-    AddTool(new McpTool(name, description, properties, callback));
+                        const PropertyList& properties, ToolCallback callback) {
+    AddTool(std::make_unique<McpTool>(name, description, properties, std::move(callback)));
 }
 
 void McpServer::AddUserOnlyTool(const std::string& name, const std::string& description,
-                                const PropertyList& properties,
-                                std::function<ReturnValue(const PropertyList&)> callback) {
-    auto tool = new McpTool(name, description, properties, callback);
+                                const PropertyList& properties, ToolCallback callback) {
+    auto tool = std::make_unique<McpTool>(name, description, properties, std::move(callback));
     tool->set_user_only(true);
-    AddTool(tool);
+    AddTool(std::move(tool));
 }
 
 void McpServer::ParseMessage(const std::string& message, ResponseSender response_sender) {
-    cJSON* json = cJSON_Parse(message.c_str());
+    CJsonUniquePtr json(cJSON_Parse(message.c_str()));
     if (json == nullptr) {
         ESP_LOGE(TAG, "Failed to parse MCP message: %s", message.c_str());
         return;
     }
-    ParseMessage(json, std::move(response_sender));
-    cJSON_Delete(json);
+    ParseMessage(json.get(), std::move(response_sender));
 }
 
 void McpServer::ParseCapabilities(const cJSON* capabilities) {
@@ -541,7 +539,7 @@ void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_o
 
 void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
                            ResponseSender response_sender) {
-    auto tool_iter = std::find_if(tools_.begin(), tools_.end(), [&tool_name](const McpTool* tool) {
+    auto tool_iter = std::find_if(tools_.begin(), tools_.end(), [&tool_name](const auto& tool) {
         return tool->name() == tool_name;
     });
 
@@ -551,59 +549,54 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
         return;
     }
 
-    PropertyList arguments = (*tool_iter)->properties();
-    try {
-        for (auto& argument : arguments) {
-            bool found = false;
-            if (cJSON_IsObject(tool_arguments)) {
-                auto value = cJSON_GetObjectItem(tool_arguments, argument.name().c_str());
-                if (argument.type() == kPropertyTypeBoolean && cJSON_IsBool(value)) {
-                    argument.set_value<bool>(value->valueint == 1);
-                    found = true;
-                } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
-                    argument.set_value<int>(value->valueint);  // Validates range via set_value
-                    found = true;
-                } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
-                    argument.set_value<std::string>(
-                        std::string(value->valuestring));  // Validates max_length via set_value
-                    found = true;
-                } else if (value != nullptr) {
-                    // Argument exists but has wrong type
-                    ESP_LOGE(TAG, "tools/call: Invalid type for argument: %s",
-                             argument.name().c_str());
-                    ReplyError(id, -32602, "Invalid type for argument: " + argument.name(),
-                               response_sender);
-                    return;
-                }
-            }
-
-            if (!argument.has_default_value() && !found) {
-                ESP_LOGE(TAG, "tools/call: Missing required argument: %s", argument.name().c_str());
-                ReplyError(id, -32602, "Missing required argument: " + argument.name(),
+    McpTool* tool = tool_iter->get();
+    PropertyList arguments = tool->properties();
+    for (auto& argument : arguments) {
+        bool found = false;
+        std::expected<void, std::string> validation;
+        if (cJSON_IsObject(tool_arguments)) {
+            auto value = cJSON_GetObjectItem(tool_arguments, argument.name().c_str());
+            if (argument.type() == kPropertyTypeBoolean && cJSON_IsBool(value)) {
+                validation = argument.set_value<bool>(value->valueint == 1);
+                found = true;
+            } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
+                validation = argument.set_value<int>(value->valueint);
+                found = true;
+            } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
+                validation = argument.set_value<std::string>(value->valuestring);
+                found = true;
+            } else if (value != nullptr) {
+                ESP_LOGE(TAG, "tools/call: Invalid type for argument: %s", argument.name().c_str());
+                ReplyError(id, -32602, "Invalid type for argument: " + argument.name(),
                            response_sender);
                 return;
             }
         }
-    } catch (const std::invalid_argument& e) {
-        // Validation error from set_value (range/length checks)
-        ESP_LOGE(TAG, "tools/call: Validation error: %s", e.what());
-        ReplyError(id, -32602, e.what(), response_sender);
-        return;
-    } catch (const std::exception& e) {
-        ESP_LOGE(TAG, "tools/call: %s", e.what());
-        ReplyError(id, e.what(), response_sender);
-        return;
+
+        if (found && !validation) {
+            ESP_LOGE(TAG, "tools/call: %s", validation.error().c_str());
+            ReplyError(id, -32602, validation.error(), response_sender);
+            return;
+        }
+
+        if (!argument.has_default_value() && !found) {
+            ESP_LOGE(TAG, "tools/call: Missing required argument: %s", argument.name().c_str());
+            ReplyError(id, -32602, "Missing required argument: " + argument.name(),
+                       response_sender);
+            return;
+        }
     }
 
     // Use main thread to call the tool
     auto& app = Application::GetInstance();
-    app.Schedule([this, id, tool_iter, arguments = std::move(arguments),
+    app.Schedule([this, id, tool, arguments = std::move(arguments),
                   response_sender = std::move(response_sender)]() {
-        try {
-            ReplyResult(id, (*tool_iter)->Call(arguments), response_sender);
-        } catch (const std::exception& e) {
-            ESP_LOGE(TAG, "tools/call: %s", e.what());
-            ReplyError(id, e.what(), response_sender);
+        auto result = tool->Call(arguments);
+        if (!result) {
+            ESP_LOGE(TAG, "tools/call: %s", result.error().c_str());
+            ReplyError(id, result.error(), response_sender);
+            return;
         }
+        ReplyResult(id, *result, response_sender);
     });
 }

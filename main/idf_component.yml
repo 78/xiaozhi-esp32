@@ -21,8 +21,9 @@ dependencies:
   espressif/esp_lcd_panel_io_additions: ^1.0.1~1
   78/esp_lcd_nv3023: ==1.0.1
   78/esp-wifi-connect: ~3.3.1
-  espressif/esp_audio_effects: ~1.4.2
-  espressif/esp_audio_codec: ~2.6.2
+  # Stay below the P4 rev>=3.0 CMake gate until rev-1.x boards are retired.
+  espressif/esp_audio_effects: ~1.3.0
+  espressif/esp_audio_codec: ~2.5.0
   78/esp-ml307: ~3.7.0
   78/uart-eth-modem:
     version: ~0.6.5
@@ -31,7 +32,7 @@ dependencies:
   78/xiaozhi-fonts: ~2.0.0
   espressif/led_strip: ~3.0.3
   espressif/esp_codec_dev: ~1.6.2
-  espressif/esp-sr: ~2.5.3
+  espressif/esp-sr: ==2.4.7
   espressif/button: ~4.2.1
   espressif/knob: ^1.1.0
   esphome/esp-hub75:
