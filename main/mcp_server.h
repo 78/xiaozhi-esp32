@@ -68,6 +68,7 @@ private:
     bool has_default_value_;
     std::optional<int> min_value_;  // 新增：整数最小值
     std::optional<int> max_value_;  // 新增：整数最大值
+    std::optional<size_t> max_length_;
 
 public:
     // Required field constructor
@@ -108,12 +109,24 @@ public:
         value_ = default_value;
     }
 
+    // Set max_length for string properties (builder pattern)
+    Property& SetMaxLength(size_t max_length) {
+        if (type_ != kPropertyTypeString) {
+            esp_system_abort("Max length only applies to string properties");
+        }
+        max_length_ = max_length;
+        return *this;
+    }
+
     inline const std::string& name() const { return name_; }
     inline PropertyType type() const { return type_; }
     inline bool has_default_value() const { return has_default_value_; }
     inline bool has_range() const { return min_value_.has_value() && max_value_.has_value(); }
     inline int min_value() const { return min_value_.value_or(0); }
     inline int max_value() const { return max_value_.value_or(0); }
+
+    inline bool has_max_length() const { return max_length_.has_value(); }
+    inline size_t max_length() const { return max_length_.value_or(0); }
 
     template <typename T>
     inline const T& value() const {
@@ -124,18 +137,34 @@ public:
         return *value;
     }
 
+    // Validate a value against this property's constraints without setting it.
+    // Returns empty string on success, or an error message on failure.
+    std::string Validate(const std::variant<bool, int, std::string>& val) const {
+        if (type_ == kPropertyTypeInteger && std::holds_alternative<int>(val)) {
+            int v = std::get<int>(val);
+            if (min_value_.has_value() && v < min_value_.value()) {
+                return "Property '" + name_ + "': value " + std::to_string(v) +
+                       " is below minimum " + std::to_string(min_value_.value());
+            }
+            if (max_value_.has_value() && v > max_value_.value()) {
+                return "Property '" + name_ + "': value " + std::to_string(v) +
+                       " exceeds maximum " + std::to_string(max_value_.value());
+            }
+        } else if (type_ == kPropertyTypeString && std::holds_alternative<std::string>(val)) {
+            const auto& s = std::get<std::string>(val);
+            if (max_length_.has_value() && s.size() > max_length_.value()) {
+                return "Property '" + name_ + "': string length " + std::to_string(s.size()) +
+                       " exceeds maximum " + std::to_string(max_length_.value());
+            }
+        }
+        return "";
+    }
+
     template <typename T>
     inline std::expected<void, std::string> set_value(const T& value) {
-        // 添加对设置的整数值进行范围检查
-        if constexpr (std::is_same_v<T, int>) {
-            if (min_value_.has_value() && value < min_value_.value()) {
-                return std::unexpected("Value is below minimum allowed: " +
-                                       std::to_string(min_value_.value()));
-            }
-            if (max_value_.has_value() && value > max_value_.value()) {
-                return std::unexpected("Value exceeds maximum allowed: " +
-                                       std::to_string(max_value_.value()));
-            }
+        auto error = Validate(value);
+        if (!error.empty()) {
+            return std::unexpected(std::move(error));
         }
         value_ = value;
         return {};
@@ -167,6 +196,9 @@ public:
             cJSON_AddStringToObject(json.get(), "type", "string");
             if (has_default_value_) {
                 cJSON_AddStringToObject(json.get(), "default", value<std::string>().c_str());
+            }
+            if (max_length_.has_value()) {
+                cJSON_AddNumberToObject(json.get(), "maxLength", max_length_.value());
             }
         }
 
@@ -390,6 +422,7 @@ public:
 
 class McpServer {
 public:
+    using ResponseSender = std::function<void(const std::string&)>;
     static McpServer& GetInstance() {
         static McpServer instance;
         return instance;
@@ -402,8 +435,8 @@ public:
                  const PropertyList& properties, ToolCallback callback);
     void AddUserOnlyTool(const std::string& name, const std::string& description,
                          const PropertyList& properties, ToolCallback callback);
-    void ParseMessage(const cJSON* json);
-    void ParseMessage(const std::string& message);
+    void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
+    void ParseMessage(const std::string& message, ResponseSender response_sender = nullptr);
 
 private:
     McpServer();
@@ -411,11 +444,16 @@ private:
 
     void ParseCapabilities(const cJSON* capabilities);
 
-    void ReplyResult(int id, const std::string& result);
-    void ReplyError(int id, const std::string& message);
+    void SendResponse(const std::string& payload, const ResponseSender& response_sender);
+    void ReplyResult(int id, const std::string& result, const ResponseSender& response_sender);
+    void ReplyError(int id, const std::string& message, const ResponseSender& response_sender);
+    void ReplyError(int id, int code, const std::string& message,
+                    const ResponseSender& response_sender);
 
-    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools);
-    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments);
+    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools,
+                      const ResponseSender& response_sender);
+    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
+                    ResponseSender response_sender);
 
     std::vector<std::unique_ptr<McpTool>> tools_;
 };

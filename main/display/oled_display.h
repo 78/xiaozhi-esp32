@@ -37,6 +37,7 @@ public:
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
     virtual bool IsMonochrome() const override { return true; }
+    void SetPowerSaveMode(bool on) override;
 };
 
 #endif  // OLED_DISPLAY_H
