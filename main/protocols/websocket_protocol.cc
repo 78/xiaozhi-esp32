@@ -224,7 +224,11 @@ std::string WebsocketProtocol::GetHelloMessage() {
 
 void WebsocketProtocol::ParseServerHello(const cJSON* root) {
     auto transport = cJSON_GetObjectItem(root, "transport");
-    if (transport == nullptr || strcmp(transport->valuestring, "websocket") != 0) {
+    if (!cJSON_IsString(transport)) {
+        ESP_LOGE(TAG, "Missing or non-string transport in server hello");
+        return;
+    }
+    if (strcmp(transport->valuestring, "websocket") != 0) {
         ESP_LOGE(TAG, "Unsupported transport: %s", transport->valuestring);
         return;
     }
