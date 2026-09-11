@@ -658,6 +658,19 @@ private:
         ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
         ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
     }
+    // Switch the board-level pin variables from their V1.0 defaults to the
+    // V1.2 layout. Must run on every boot that resolves to V1.2, including
+    // the cached path: these globals start at the _1 values and GetAudioCodec()
+    // reads them long after this function has returned.
+    static void ApplyV12Pins() {
+        AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
+        AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
+        QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
+        TOUCH_PAD2 = TOUCH_PAD2_2;
+        UART1_TX = UART1_TX_2;
+        UART1_RX = UART1_RX_2;
+    }
+
     uint8_t DetectPcbVersion() {
         // Pre-set the output latch before switching the pin to output mode:
         // after an external reset the latch defaults to 0, and driving 0 on
@@ -696,6 +709,7 @@ private:
                     }
                     vTaskDelay(pdMS_TO_TICKS(200));
                 }
+                ApplyV12Pins();
             }
             ESP_LOGI(TAG, "PCB version %s (cached, reset reason %d)",
                      s_pcb_version_cached ? "V1.2" : "V1.0", static_cast<int>(reset_reason));
@@ -723,12 +737,7 @@ private:
             if (codec_alive) {
                 ESP_LOGI(TAG, "PCB version V1.2");
                 pcb_version = 1;
-                AUDIO_I2S_GPIO_DIN = AUDIO_I2S_GPIO_DIN_2;
-                AUDIO_CODEC_PA_PIN = AUDIO_CODEC_PA_PIN_2;
-                QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_2;
-                TOUCH_PAD2 = TOUCH_PAD2_2;
-                UART1_TX = UART1_TX_2;
-                UART1_RX = UART1_RX_2;
+                ApplyV12Pins();
             } else {
                 // Both probes failed: leave GPIO48 high as a safe fallback. On
                 // V1.0 the pin is unused; on V1.2 it keeps the codec powered so
