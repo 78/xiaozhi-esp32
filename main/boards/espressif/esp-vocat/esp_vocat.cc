@@ -9,6 +9,7 @@
 #include "wifi_board.h"
 
 #include <esp_log.h>
+#include <esp_system.h>
 #include <esp_timer.h>
 #include <cinttypes>
 #include "esp_idf_version.h"
@@ -278,6 +279,13 @@ gpio_num_t QSPI_PIN_NUM_LCD_RST = QSPI_PIN_NUM_LCD_RST_1;
 gpio_num_t TOUCH_PAD2 = TOUCH_PAD2_1;
 gpio_num_t UART1_TX = UART1_TX_1;
 gpio_num_t UART1_RX = UART1_RX_1;
+
+// The PCB version is cached in RTC noinit memory so it survives every reset
+// except a real power cycle. Probing after a soft reset is unreliable: the
+// codec supply rail keeps residual charge (see DetectPcbVersion).
+static constexpr uint32_t kPcbVersionMagic = 0x31434256;  // "VBC1"
+static RTC_NOINIT_ATTR uint32_t s_pcb_version_magic;
+static RTC_NOINIT_ATTR uint8_t s_pcb_version_cached;
 
 class EspVocat;
 
@@ -651,24 +659,67 @@ private:
         ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
     }
     uint8_t DetectPcbVersion() {
+        // Pre-set the output latch before switching the pin to output mode:
+        // after an external reset the latch defaults to 0, and driving 0 on
+        // GPIO48 for even a moment cuts the codec rail on V1.2, after which
+        // the first touch/fuel-gauge read aborts and the device reboots. On a
+        // power-on reset we deliberately start at 0 so the probe below sees an
+        // unpowered (and therefore silent) V1.2 codec.
+        const esp_reset_reason_t reset_reason = esp_reset_reason();
+        gpio_set_level(CORDEC_POWER_CTRL, reset_reason != ESP_RST_POWERON ? 1 : 0);
         gpio_config_t gpio_conf = {.pin_bit_mask = (1ULL << CORDEC_POWER_CTRL),
                                    .mode = GPIO_MODE_OUTPUT,
                                    .pull_up_en = GPIO_PULLUP_DISABLE,
                                    .pull_down_en = GPIO_PULLDOWN_DISABLE,
                                    .intr_type = GPIO_INTR_DISABLE};
         ESP_ERROR_CHECK(gpio_config(&gpio_conf));
+
+        // After any reset other than a real power cycle the codec rail on
+        // V1.2 keeps residual charge, so the "GPIO48 low" probe below sees a
+        // false ACK from ES8311 and the board is misdetected as V1.0. GPIO48
+        // then stays low, the codec loses power and mic/speaker die while the
+        // screen keeps working; the unpowered chips also clamp the shared I2C
+        // bus and the first fuel-gauge/touch read aborts, causing a reboot
+        // loop (issue #1202). Only probe on a power-on reset; every other
+        // reset reuses the cached result, and the GPIO output latch (kept
+        // across soft resets) keeps the codec powered in the meantime.
+        if (reset_reason != ESP_RST_POWERON && s_pcb_version_magic == kPcbVersionMagic &&
+            s_pcb_version_cached <= 1) {
+            if (s_pcb_version_cached == 1) {
+                // V1.2: the codec rail is powered from GPIO48; make sure it stays
+                // on and wait for the touch controller to answer, since reads
+                // against a still-powering-up chip abort the whole system.
+                ESP_ERROR_CHECK(gpio_set_level(CORDEC_POWER_CTRL, 1));
+                for (int i = 0; i < 10; i++) {
+                    if (i2c_master_probe(i2c_bus_, 0x15, 50) == ESP_OK) {
+                        break;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(200));
+                }
+            }
+            ESP_LOGI(TAG, "PCB version %s (cached, reset reason %d)",
+                     s_pcb_version_cached ? "V1.2" : "V1.0", static_cast<int>(reset_reason));
+            return s_pcb_version_cached;
+        }
+
         ESP_ERROR_CHECK(gpio_set_level(CORDEC_POWER_CTRL, 0));
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(100));
 
         bool codec_alive = (i2c_master_probe(i2c_bus_, 0x18, 100) == ESP_OK);
         uint8_t pcb_version = 0;
         if (codec_alive) {
+            // Codec answers while GPIO48 is low: its supply is not gated by
+            // GPIO48, so this is a V1.0 board.
             ESP_LOGI(TAG, "PCB version V1.0");
-            pcb_version = 0;
         } else {
             ESP_ERROR_CHECK(gpio_set_level(CORDEC_POWER_CTRL, 1));
-            vTaskDelay(pdMS_TO_TICKS(50));
-            codec_alive = (i2c_master_probe(i2c_bus_, 0x18, 100) == ESP_OK);
+            // V1.2: wait for the SY8088 rail and the ES8311 to come up. The
+            // previous 50 ms delay was too short right after a cold boot and
+            // made the probe fail, falling back to the wrong V1.0 pins.
+            for (int i = 0; i < 10 && !codec_alive; i++) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+                codec_alive = (i2c_master_probe(i2c_bus_, 0x18, 100) == ESP_OK);
+            }
             if (codec_alive) {
                 ESP_LOGI(TAG, "PCB version V1.2");
                 pcb_version = 1;
@@ -679,9 +730,17 @@ private:
                 UART1_TX = UART1_TX_2;
                 UART1_RX = UART1_RX_2;
             } else {
+                // Both probes failed: leave GPIO48 high as a safe fallback. On
+                // V1.0 the pin is unused; on V1.2 it keeps the codec powered so
+                // an unpowered codec cannot clamp the shared I2C bus through
+                // its ESD diodes and crash the system. Nothing is cached in
+                // this branch, so the next boot probes again.
                 ESP_LOGE(TAG, "PCB version detection error");
+                return 0;
             }
         }
+        s_pcb_version_magic = kPcbVersionMagic;
+        s_pcb_version_cached = pcb_version;
         return pcb_version;
     }
 
