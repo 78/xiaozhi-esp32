@@ -1,6 +1,7 @@
 #ifndef _OTA_H
 #define _OTA_H
 
+#include <expected>
 #include <functional>
 #include <string>
 #include <vector>
@@ -51,7 +52,7 @@ private:
     int activation_timeout_ms_ = 30000;
 
     std::function<void(int progress, size_t speed)> upgrade_callback_;
-    std::vector<int> ParseVersion(const std::string& version);
+    std::expected<std::vector<int>, std::string> ParseVersion(const std::string& version);
     bool IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion);
     std::string GetActivationPayload();
     std::unique_ptr<Http> SetupHttp();
