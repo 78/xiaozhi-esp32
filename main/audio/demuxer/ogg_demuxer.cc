@@ -92,7 +92,9 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
 {
     size_t processed = 0;  // Number of bytes processed
     
-    while (processed < size) {
+    while (processed < size ||
+           (state_ == ParseState::PARSE_DATA && ctx_.seg_index < ctx_.seg_count &&
+            ctx_.seg_remaining == 0 && ctx_.seg_table[ctx_.seg_index] == 0)) {
         switch (state_) {
           case ParseState::FIND_PAGE: {
             // Find the "OggS" page capture pattern.
@@ -248,7 +250,7 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
         }
             
           case ParseState::PARSE_DATA: {
-            while (ctx_.seg_index < ctx_.seg_count && processed < size) {
+            while (ctx_.seg_index < ctx_.seg_count) {
                 uint8_t seg_len = ctx_.seg_table[ctx_.seg_index];
                 
                 // Continue a partially read segment.
@@ -256,6 +258,10 @@ size_t OggDemuxer::Process(const uint8_t* data, size_t size)
                     seg_len = ctx_.seg_remaining;
                 } else {
                     ctx_.seg_remaining = seg_len;
+                }
+
+                if (seg_len > 0 && processed == size) {
+                    return processed;
                 }
                 
                 // Check that the packet buffer has enough space.
