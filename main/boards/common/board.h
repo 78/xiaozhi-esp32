@@ -45,6 +45,7 @@ using NetworkEventCallback = std::function<void(NetworkEvent event, const std::s
 
 void* create_board();
 class AudioCodec;
+class BoardProtocolHandler;
 class Display;
 class Board {
 private:
@@ -70,6 +71,7 @@ public:
     virtual Backlight* GetBacklight() { return nullptr; }
     virtual Led* GetLed();
     virtual AudioCodec* GetAudioCodec() = 0;
+    virtual BoardProtocolHandler* GetProtocolHandler() { return nullptr; }
     virtual bool GetTemperature(float& esp32temp);
     virtual Display* GetDisplay();
     virtual Camera* GetCamera();

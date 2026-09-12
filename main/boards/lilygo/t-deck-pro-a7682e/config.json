@@ -1,0 +1,15 @@
+{
+    "manufacturer": "lilygo",
+    "type": "lilygo-t-deck-pro-a7682e",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lilygo-t-deck-pro-a7682e",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_LILYGO_T_DECK_PRO_A7682E=y",
+                "CONFIG_USE_DEVICE_AEC=n",
+                "CONFIG_SPIRAM_MODE_QUAD=y"
+            ]
+        }
+    ]
+}
