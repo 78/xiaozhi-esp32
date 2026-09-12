@@ -150,6 +150,8 @@ private:
                 Application::GetInstance().StopListening();
             }
         });
+        // Double-click BOOT to enter WiFi config mode (reconfigure WiFi/API keys)
+        SetupDoubleClickForConfigMode(boot_button_);
     }
 
     void InitializeTools() {
