@@ -72,7 +72,7 @@ jobs:
       matrix:
         include:
           - full_name: espressif-esp32-s3
-            board: esp32s3       
+            board: esp32-s3       
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.1
@@ -84,8 +84,9 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.full_name }}
-
+        
+          python scripts/build.py ${{ matrix.board }}
+          
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
