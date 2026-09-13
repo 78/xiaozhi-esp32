@@ -73,7 +73,6 @@ jobs:
         include:
           - full_name: espressif-esp32-s3
             board: esp32-s3
-    
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.1
