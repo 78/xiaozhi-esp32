@@ -35,6 +35,7 @@ void McpServer::AddCommonTools() {
 
     // Do not add custom tools here.
     // Custom tools must be added in the board's InitializeTools function.
+    RegisterAnimaBodyControl(this);
 
     AddTool("self.get_device_status",
             "Provides the real-time information of the device, including the current status of the "
@@ -600,3 +601,51 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
         ReplyResult(id, *result, response_sender);
     });
 }
+// ==================== ANIMA 6 BOARD 1 HARDWARE LOGIC ====================
+#include "driver/uart.h"
+#include "esp_log.h"
+
+#define ANIMA_UART_NUM UART_NUM_1
+#define ANIMA_TX_PIN   GPIO_NUM_17  // अपने बोर्ड के हिसाब से TX pin चुनें
+#define ANIMA_RX_PIN   GPIO_NUM_16  // अपने बोर्ड के हिसाब से RX pin चुनें
+
+static const char* ANIMA_TAG = "ANIMA_BOARD1";
+
+// 1. Board 1 UART Initialization
+void Anima_UART_Init() {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    uart_param_config(ANIMA_UART_NUM, &uart_config);
+    uart_set_pin(ANIMA_UART_NUM, ANIMA_TX_PIN, ANIMA_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_driver_install(ANIMA_UART_NUM, 1024, 0, 0, NULL, 0);
+    ESP_LOGI(ANIMA_TAG, "UART initialized to communicate with Board 2");
+}
+
+// 2. Transmit Command to Board 2 via Serial
+void SendAnimaCommand(const char* action_cmd) {
+    char packet[64];
+    snprintf(packet, sizeof(packet), "CMD:%s\n", action_cmd);
+    uart_write_bytes(ANIMA_UART_NUM, packet, strlen(packet));
+    ESP_LOGI(ANIMA_TAG, "Sent to Board 2: %s", packet);
+}
+
+// 3. Register Custom MCP Tool for Anima 6 Body Movements
+void RegisterAnimaBodyControl(McpServer* server) {
+    // Board 1 का UART पोर्ट शुरू करें
+    Anima_UART_Init();
+
+    // AI Tools में 'control_anima_body' रजिस्टर करें
+    server->AddTool("control_anima_body", "Control Anima 6 movements like jaw, neck, arms, scary mode, base turn", [](const cJSON* arguments) {
+        cJSON* action = cJSON_GetObjectItem(arguments, "action");
+        if (action && action->valuestring) {
+            SendAnimaCommand(action->valuestring);
+        }
+    });
+}
+// ========================================================================
