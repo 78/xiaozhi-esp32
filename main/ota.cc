@@ -190,19 +190,23 @@ esp_err_t Ota::CheckVersion() {
     if (cJSON_IsObject(server_time)) {
         cJSON *timestamp = cJSON_GetObjectItem(server_time, "timestamp");
         cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
-        
+
         if (cJSON_IsNumber(timestamp)) {
-            // 设置系统时间
+            // Grava o relógio do sistema em UTC puro (hu-087/relógio): esse
+            // "timestamp" já é UTC de verdade - de propósito NÃO soma mais o
+            // timezone_offset aqui. Antes somava, e o valor gravado ficava
+            // sendo hora LOCAL disfarçada de UTC; como o nosso relógio
+            // (Hu087Display) também aplica o fuso (-03) via localtime_r pra
+            // mostrar na tela, o desconto acontecia DUAS vezes (aqui + lá) e
+            // o relógio aparecia 3h atrasado. Esse é o caminho confiável de
+            // acerto de hora nessa rede (vem por HTTPS, o SNTP sozinho não
+            // está respondendo) - o SNTP continua tentando em paralelo, e
+            // tanto faz qual dos dois grava primeiro, já que os dois usam
+            // UTC puro agora.
             struct timeval tv;
             double ts = timestamp->valuedouble;
-            
-            // 如果有时区偏移，计算本地时间
-            if (cJSON_IsNumber(timezone_offset)) {
-                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
-            }
-            
-            tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
-            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
+            tv.tv_sec = (time_t)(ts / 1000);  // milissegundos -> segundos
+            tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;
             settimeofday(&tv, NULL);
             has_server_time_ = true;
         }

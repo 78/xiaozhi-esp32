@@ -13,6 +13,7 @@
 
 #include <driver/gpio.h>
 #include <esp_log.h>
+#include <esp_sleep.h>
 #include <arpa/inet.h>
 #include <cJSON.h>
 #include <cstring>
@@ -429,6 +430,16 @@ void Application::CheckAssetsVersion() {
 }
 
 void Application::CheckNewVersion() {
+    // hu-087: quando acorda do deep sleep (botão), pula a checagem de versão
+    // no servidor de OTA - é uma ida à rede que atrasa uns segundos o
+    // relógio aparecer. Atualização de firmware/assets e ativação só
+    // acontecem quando o aparelho liga "de frio" (POWERON), não a cada
+    // despertar.
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) {
+        ESP_LOGI(TAG, "Wake do deep sleep - pulando checagem de versao");
+        return;
+    }
+
     const int MAX_RETRY = 10;
     int retry_count = 0;
     int retry_delay = 10;  // Initial retry delay in seconds

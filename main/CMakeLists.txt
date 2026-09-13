@@ -568,6 +568,17 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_TT08)
+    set(BOARD_DIR "tt08")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+    # 21 fotos de expressao (avatar "Cassandra", JPG 320x480, tamanho exato da
+    # tela) - vao pra particao de assets (SPIFFS) e sao decodificadas em
+    # tempo real (JPEG->RGB565 via esp_new_jpeg) direto pra PSRAM, sem
+    # precisar compilar em C nem redimensionar (a placa tem 8MB de PSRAM,
+    # ao contrario do C3 sem PSRAM do outro projeto).
+    set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/boards/tt08/expressions")
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_DIR "lilygo/t-circle-s3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -1068,6 +1079,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_pm
                         esp_psram
                         esp_netif
+                        lwip
                         esp_eth
                         esp_driver_gpio
                         esp_driver_uart

@@ -38,6 +38,14 @@ public:
     virtual bool InputData(std::vector<int16_t>& data);
     virtual void Start();
 
+    // Gancho opcional: chamado a partir de OutputData() com a amplitude
+    // média (0.0-1.0) de cada bloco de áudio que realmente vai pro
+    // alto-falante. Usado pra sincronizar animações de boca (lip-sync)
+    // com o som de verdade, em vez de um cronômetro fixo.
+    void SetAudioLevelCallback(std::function<void(float)> callback) {
+        on_audio_level_ = callback;
+    }
+
     inline bool duplex() const { return duplex_; }
     inline bool input_reference() const { return input_reference_; }
     inline int input_sample_rate() const { return input_sample_rate_; }
@@ -62,6 +70,8 @@ protected:
     int input_channels_ = 1;
     int output_channels_ = 1;
     int output_volume_ = 70;
+
+    std::function<void(float)> on_audio_level_;
     float input_gain_ = 0.0;
 
     virtual int Read(int16_t* dest, int samples) = 0;

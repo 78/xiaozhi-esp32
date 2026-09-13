@@ -15,6 +15,14 @@ AudioCodec::~AudioCodec() {
 }
 
 void AudioCodec::OutputData(std::vector<int16_t>& data) {
+    if (on_audio_level_) {
+        int64_t sum = 0;
+        for (int16_t sample : data) {
+            sum += sample < 0 ? -sample : sample;
+        }
+        float mean_abs = data.empty() ? 0.0f : (float)sum / data.size();
+        on_audio_level_(mean_abs / 32768.0f);
+    }
     Write(data.data(), data.size());
 }
 
