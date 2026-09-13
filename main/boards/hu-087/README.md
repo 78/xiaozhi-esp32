@@ -16,6 +16,11 @@ There is no auto-reset circuit, so entering the download/bootloader mode is
 always manual: hold **IO0**, tap **EN**, keep holding IO0 for ~2 more
 seconds, then release.
 
+<p align="center">
+  <img src="images/clock.jpg" width="45%" alt="Clock face, shown offline from the RTC" />
+  <img src="images/face.jpg" width="45%" alt="Assistant face while listening/speaking" />
+</p>
+
 ## Custom firmware on this board: a battery-first, always-usable watch
 
 This board's firmware was rewritten with one goal: make an always-connected
