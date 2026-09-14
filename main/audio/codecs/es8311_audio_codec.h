@@ -11,7 +11,11 @@
 
 
 class Es8311AudioCodec : public AudioCodec {
-private:
+protected:
+    // Exposed to subclasses so a board can drive the codec's own suspend
+    // sequence when it powers the board down around a deep sleep (see
+    // boards/folotoy/ai-passport). The I2S channel handles needed for that are
+    // inherited from AudioCodec.
     const audio_codec_data_if_t* data_if_ = nullptr;
     const audio_codec_ctrl_if_t* ctrl_if_ = nullptr;
     const audio_codec_if_t* codec_if_ = nullptr;
@@ -20,6 +24,8 @@ private:
     esp_codec_dev_handle_t dev_ = nullptr;
     gpio_num_t pa_pin_ = GPIO_NUM_NC;
     bool pa_inverted_ = false;
+
+private:
     std::mutex data_if_mutex_;
 
     void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
