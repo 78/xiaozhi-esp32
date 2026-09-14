@@ -511,6 +511,15 @@ private:
     // All three keys pull the shared ADC node low, and only GPIO0-5 can wake the
     // ESP32-C3 from deep sleep (there is no EXT0/EXT1 on this chip).
     void PrepareWakeupSource() {
+        // Start from a clean slate. Automatic light sleep (CONFIG_PM_ENABLE with
+        // light_sleep_enable) programs the RTC timer for the next scheduled
+        // event, and that wake source is still armed when deep sleep starts - so
+        // the chip would wake up again on the next OS tick instead of staying
+        // asleep. Measured on hardware: the wake happened about a second after
+        // entering deep sleep and reported ESP_SLEEP_WAKEUP_TIMER with an empty
+        // GPIO wake status.
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+
         gpio_config_t key_config = {
             .pin_bit_mask = 1ULL << GPIO_NUM_0,
             .mode = GPIO_MODE_INPUT,

@@ -81,12 +81,17 @@ Deep sleep follows the FoloToy AI Passport BSP shutdown contract
 (`docs/reference/shinku-chen/deep-sleep-peripheral-power-off` in the BSP repo),
 in this order:
 
-1. Arm the GPIO0 low-level wake source with IDF's
-   `esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown()`. ESP32-C3 has no
-   EXT0/EXT1, and the function takes a pin *bit mask*, so passing
-   `GPIO_NUM_0` instead of `1ULL << GPIO_NUM_0` silently arms nothing. If arming
-   fails the board falls back to a timed wake so the device cannot be stranded
-   asleep.
+1. Clear every previously armed wake source
+   (`esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL)`) and then arm the GPIO0
+   low-level wake source with IDF's
+   `esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown()`. Automatic light sleep
+   leaves the RTC timer armed for the next scheduled event, and a deep sleep that
+   inherits it wakes up again on the next OS tick - measured on hardware as a reset
+   roughly a second after sleeping, reported as `ESP_SLEEP_WAKEUP_TIMER` with an empty
+   GPIO wake status. ESP32-C3 has no EXT0/EXT1, and the GPIO call takes a pin
+   *bit mask*, so passing `GPIO_NUM_0` instead of `1ULL << GPIO_NUM_0` silently arms
+   nothing. If arming fails the board falls back to a timed wake so the device cannot
+   be stranded asleep.
 2. CW2017 `CONFIG=0xF0`, read back 5 ms later, retried once on mismatch. The
    board init reverses this with the chip's restart-then-active cycle, so a
    gauge that slept before a deep sleep reports again after the wake.
@@ -120,18 +125,26 @@ quiescent current, the external I2C pull-ups and cell self-discharge all remain.
 Isolate those on hardware if standby current still looks high.
 
 Status of hardware verification (ESP32-C3, IDF 6.0.2). Verified on the device:
-board init and a stable idle loop, the backlight-off stage, CW2017 sleep with a
-matching readback, the ES8311 suspend sequence passing its register readback, and
-deep sleep being entered and left again through a wake source. Not verified: the
-actual idle and deep-sleep currents; that the panel and backlight visibly come
-back after a wake (the holds above were confirmed released through
-`RTC_CNTL_PAD/HOLD` register readbacks, but the panel itself was not inspected);
-a key press as the deep-sleep wake source; whether the CPU step earns its keep
-(`CONFIG_PM_ENABLE` interacts with Wi-Fi and the USB Serial/JTAG console); and
-whether disabling `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves
-anything on top of the external 10 kOhm pull-up. Note that `PowerSaveTimer`
-ignores the return value of `esp_pm_configure`, so if the CPU step appears to do
-nothing, check whether the PM build options actually took effect.
+board init and a stable idle loop; reaching `kDeviceStateIdle` after provisioning;
+the backlight-off stage firing on schedule; CW2017 sleep with a matching readback;
+the ES8311 suspend sequence passing its register readback; the I2S/I2C pin release;
+deep sleep actually sticking (no self-wake from a leftover wake source); a key press
+waking the device with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
+`esp_sleep_get_gpio_wakeup_status() == 0x1`; and the deep-sleep pin holds being
+released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
+readbacks). Not verified: the actual idle and deep-sleep currents; whether the panel
+and backlight visibly come back after a wake; whether automatic light sleep is
+actually entered in the idle stage (`CONFIG_PM_ENABLE` interacts with Wi-Fi and the
+USB Serial/JTAG console); and whether disabling
+`CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
+external 10 kOhm pull-up. Note that `PowerSaveTimer` ignores the return value of
+`esp_pm_configure`; the successful call is visible in the log as
+`pm: Frequency switching config: ... Light sleep: ENABLED`.
+
+A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
+it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
+`audio_testing` state re-opens the PCM path, not from this board's I2S handling -
+the board reports how many channels it actually changed, which is zero in this path.
 
 ## Notes / calibration
 
