@@ -1,0 +1,28 @@
+{
+    "manufacturer": "espressif",
+    "type": "esp-mosaico",
+    "target": "esp32s31",
+    "preview": true,
+    "builds": [
+        {
+            "name": "esp-mosaico",
+            "idf_version": ">=6.1",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_SPEED_250M=y",
+                "CONFIG_ESP_CONSOLE_UART_DEFAULT=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=n",
+                "CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=n",
+                "CONFIG_USJ_ENABLE_USB_SERIAL_JTAG=n",
+                "CONFIG_CAMERA_OV3640=y",
+                "CONFIG_CAMERA_OV3640_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_OV3640_DVP_YUV422_UYVY_1024X768_25FPS=y",
+                "CONFIG_CAMERA_OV3640_DVP_DEFAULT_FMT_YUV422_UYVY_1024X768_25FPS=y",
+                "CONFIG_CAMERA_SC101IOT=y",
+                "CONFIG_CAMERA_SC101IOT_AUTO_DETECT_DVP_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_SC101IOT_DVP_YUV422_1280X720_15FPS=y",
+                "CONFIG_CAMERA_SC101IOT_DVP_DEFAULT_FMT_YUV422_1280X720_15FPS=y",
+                "CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=y"
+            ]
+        }
+    ]
+}
