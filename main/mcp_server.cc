@@ -608,7 +608,7 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
 
 #define ANIMA_UART_NUM UART_NUM_1
 #define ANIMA_TX_PIN   GPIO_NUM_17  // अपने बोर्ड के हिसाब से TX pin चुनें
-#define ANIMA_RX_PIN   GPIO_NUM_16  // अपने बोर्ड के हिसाब से RX pin चुनें
+#define ANIMA_RX_PIN   GPIO_NUM_18  // अपने बोर्ड के हिसाब से RX pin चुनें
 
 static const char* ANIMA_TAG = "ANIMA_BOARD1";
 
