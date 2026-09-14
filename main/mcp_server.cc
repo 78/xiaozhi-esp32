@@ -641,11 +641,17 @@ void RegisterAnimaBodyControl(McpServer* server) {
     // Board 1 का UART पोर्ट शुरू करें
     Anima_UART_Init();
 
-    // AI Tools में 'control_anima_body' रजिस्टर करें
-    server->AddTool("control_anima_body", "Control Anima 6 movements like jaw, neck, arms, scary mode, base turn", [](const cJSON* arguments) {
-        cJSON* action = cJSON_GetObjectItem(arguments, "action");
-        if (action && action->valuestring) {
-            SendAnimaCommand(action->valuestring);
+    // AI Tools में 'control_anima_body' सही फॉर्मेट के साथ रजिस्टर करें
+    server->AddTool("control_anima_body", 
+        "Control Anima 6 movements like jaw, neck, arms, scary mode, base turn", 
+        PropertyList({Property("action", kPropertyTypeString)}),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto action = properties["action"].value<std::string>();
+            SendAnimaCommand(action.c_str());
+            return true;
+        });
+}
+
         }
     });
 }
