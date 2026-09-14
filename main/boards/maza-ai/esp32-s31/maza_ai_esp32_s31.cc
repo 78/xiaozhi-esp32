@@ -4,7 +4,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
-#include "epd_display.h"
+#include "epd_display/epd_display_2_9.h"
 #include "lvgl.h"
 #include "mcp_server.h"
 #include "led/single_led.h"
@@ -104,7 +104,9 @@ private:
         lcd_spi_data.scl              = EPD_SCK_PIN;
         lcd_spi_data.spi_host         = EPD_SPI_NUM;
         lcd_spi_data.buffer_len       = 5000;
-        display_                      = new EpdDisplay(NULL, NULL, DISPLAY_WIDTH, DISPLAY_HEIGHT, lcd_spi_data);
+        auto* display = new EpdDisplay_2_9(NULL, NULL, DISPLAY_WIDTH, DISPLAY_HEIGHT, lcd_spi_data);
+        display->Initialize();
+        display_ = display;
     }
 
 public:

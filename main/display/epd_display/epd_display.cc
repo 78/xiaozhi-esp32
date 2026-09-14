@@ -6,28 +6,12 @@
 #include <esp_timer.h>
 #include "epd_display.h"
 #include "board.h"
-#include "config.h"
 #include "esp_lvgl_port.h"
 #include "settings.h"
 
 #define TAG "EpdDisplay"
 
 #define BYTES_PER_PIXEL (LV_COLOR_FORMAT_GET_SIZE(LV_COLOR_FORMAT_RGB565))
-#define BUFF_SIZE (DISPLAY_WIDTH * DISPLAY_HEIGHT * BYTES_PER_PIXEL)
-
-const uint8_t WF_Full[30] =
-{		
-    //C221 25C Full update waveform									
-    0x50,0xAA,0x55,0xAA,0x11,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0xFF,0xFF,0x1F,0x00,0x00,0x00,0x00,0x00,0x00,0x00
-};
-
-const uint8_t WF_PARTIAL[30] =
-{
-    //C221 25C partial update waveform
-    0x10,0x18,0x18,0x08,0x18,0x18,0x08,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x13,0x14,0x44,0x12,0x00,0x00,0x00,0x00,0x00,0x00
-};
 
 void EpdDisplay::lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *color_p) {
     assert(disp != NULL);
@@ -67,6 +51,10 @@ EpdDisplay::EpdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     LcdDisplay(panel_io, panel, height, width), 
     lcd_spi_data(_lcd_spi_data), 
     Width(width), Height(height) {
+}
+
+void EpdDisplay::Initialize() {
+    assert(buffer == nullptr); // Initialization is a one-shot operation.
 
     ESP_LOGI(TAG, "Initialize SPI");
     spi_port_init();
@@ -83,21 +71,24 @@ EpdDisplay::EpdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     buffer = (uint8_t *) heap_caps_malloc(lcd_spi_data.buffer_len, MALLOC_CAP_SPIRAM);
     assert(buffer);
-    display_ = lv_display_create(height, width); /* Landscape LVGL surface over portrait panel RAM */
-    lv_display_set_flush_cb(display_, lvgl_flush_cb);
-    lv_display_set_user_data(display_, this);
-
-    uint8_t *buffer_1 = NULL;
-    buffer_1 = (uint8_t *) heap_caps_malloc(BUFF_SIZE, MALLOC_CAP_SPIRAM);
-    assert(buffer_1);
-    lv_display_set_buffers(display_, buffer_1, NULL, BUFF_SIZE, LV_DISPLAY_RENDER_MODE_FULL);
 
     ESP_LOGI(TAG, "EPD init");
     EPD_Init();
     EPD_Clear();
     EPD_Display();
     EPD_DisplayPartBaseImage();
-    EPD_Init_Partial(); // Initialize partial refresh
+    EPD_Init_Partial(); // Initialize partial refresh before registering the flush callback.
+
+    display_ = lv_display_create(Height, Width); /* Landscape LVGL surface over portrait panel RAM */
+    assert(display_);
+    lv_display_set_flush_cb(display_, lvgl_flush_cb);
+    lv_display_set_user_data(display_, this);
+
+    const size_t buffer_size = static_cast<size_t>(Width) * Height * BYTES_PER_PIXEL;
+    uint8_t *buffer_1 = NULL;
+    buffer_1 = (uint8_t *) heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM);
+    assert(buffer_1);
+    lv_display_set_buffers(display_, buffer_1, NULL, buffer_size, LV_DISPLAY_RENDER_MODE_FULL);
 
     lvgl_port_unlock();
     if (display_ == nullptr) {
@@ -105,7 +96,7 @@ EpdDisplay::EpdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
         return;
     }
 
-    // Note: SetupUI() should be called by Application::Initialize(), not in constructor
+    // Note: SetupUI() should be called by Application::Initialize(), not here,
     // to ensure lvgl objects are created after the display is fully initialized.
 }
 
@@ -177,22 +168,22 @@ void EpdDisplay::SPI_SendByte(uint8_t data) {
 }
 
 void EpdDisplay::EPD_SendData(uint8_t data) {
-    set_cs_0();
     set_dc_1();
+    set_cs_0();
     SPI_SendByte(data);
     set_cs_1();
 }
 
 void EpdDisplay::EPD_SendCommand(uint8_t command) {
-    set_cs_0();
     set_dc_0();
+    set_cs_0();
     SPI_SendByte(command);
     set_cs_1();
 }
 
-void EpdDisplay::writeBytes(const uint8_t *buffer, int len) {
-    set_cs_0();
+void EpdDisplay::writeBytes(const uint8_t *buffer, size_t len) {
     set_dc_1();
+    set_cs_0();
     esp_err_t         ret;
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
@@ -224,9 +215,10 @@ void EpdDisplay::EPD_SetCursor(uint16_t Xstart, uint16_t Ystart) {
     EPD_SendData((Ystart >> 8) & 0xFF);
 }
 
-void EpdDisplay::EPD_SetLut(const uint8_t *lut) {
+void EpdDisplay::EPD_SetLut(Waveform lut) {
+    assert(lut.data != nullptr && lut.size > 0);
     EPD_SendCommand(0x32);
-    writeBytes(lut, 30);
+    writeBytes(lut.data, lut.size);
 }
 
 void EpdDisplay::EPD_TurnOnDisplay() {
@@ -279,7 +271,7 @@ void EpdDisplay::EPD_Init() {
 
     read_busy();
 
-    EPD_SetLut(WF_Full);
+    EPD_SetLut(GetFullWaveform());
 }
 
 void EpdDisplay::EPD_Clear() {
@@ -305,7 +297,7 @@ void EpdDisplay::EPD_DisplayPartBaseImage() {
 
 void EpdDisplay::EPD_Init_Partial() {
     EPD_Init();
-    EPD_SetLut(WF_PARTIAL);
+    EPD_SetLut(GetPartialWaveform());
 
     EPD_SendCommand(0x22); // Display update control
     EPD_SendData(0xC0);

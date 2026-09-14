@@ -204,10 +204,18 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S3)
     set(BOARD_DIR "maza-ai/esp32-s3")
+    list(APPEND SOURCES
+        "display/epd_display/epd_display.cc"
+        "display/epd_display/epd_display_2_9.cc"
+    )
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
     set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S31)
     set(BOARD_DIR "maza-ai/esp32-s31")
+    list(APPEND SOURCES
+        "display/epd_display/epd_display.cc"
+        "display/epd_display/epd_display_2_9.cc"
+    )
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
     set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
