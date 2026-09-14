@@ -638,10 +638,8 @@ void SendAnimaCommand(const char* action_cmd) {
 
 // 3. Register Custom MCP Tool for Anima 6 Body Movements
 void RegisterAnimaBodyControl(McpServer* server) {
-    // Board 1 का UART पोर्ट शुरू करें
     Anima_UART_Init();
 
-    // AI Tools में 'control_anima_body' सही फॉर्मेट के साथ रजिस्टर करें
     server->AddTool("control_anima_body", 
         "Control Anima 6 movements like jaw, neck, arms, scary mode, base turn", 
         PropertyList({Property("action", kPropertyTypeString)}),
@@ -649,10 +647,6 @@ void RegisterAnimaBodyControl(McpServer* server) {
             auto action = properties["action"].value<std::string>();
             SendAnimaCommand(action.c_str());
             return true;
-        });
-}
-
         }
-    });
+    );
 }
-// ========================================================================
