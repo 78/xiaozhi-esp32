@@ -84,9 +84,7 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-           python scripts/build.py ${{ matrix.board }} --name ${{ matrix.full_name }}
-
-
+          python scripts/build.py ${{ matrix.board }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
