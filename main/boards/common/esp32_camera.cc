@@ -217,6 +217,8 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
                 break;
             default:
                 ESP_LOGE(TAG, "Unsupported pixel format: %d", current_fb_->format);
+                JpegChunk chunk = {.data = nullptr, .len = 0};
+                xQueueSend(jpeg_queue, &chunk, portMAX_DELAY);
                 return;
         }
 
@@ -258,6 +260,19 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
         ESP_LOGI(TAG, "JPEG encoding time: %ld ms", int((end_time - start_time) / 1000));
     });
 
+    auto drain_jpeg_queue = [this, jpeg_queue]() {
+        JpegChunk chunk;
+        while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
+            if (chunk.data != nullptr) {
+                heap_caps_free(chunk.data);
+            } else {
+                break;
+            }
+        }
+        encoder_thread_.join();
+        vQueueDelete(jpeg_queue);
+    };
+
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(3);
     std::string boundary = "----ESP32_CAMERA_BOUNDARY";
@@ -271,18 +286,17 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
     http->SetHeader("Transfer-Encoding", "chunked");
     if (auto opened = http->Open("POST", explain_url_); !opened) {
         ESP_LOGE(TAG, "Failed to connect to explain URL: %s", opened.error().ToString().c_str());
-        encoder_thread_.join();
-        JpegChunk chunk;
-        while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
-            if (chunk.data != nullptr) {
-                heap_caps_free(chunk.data);
-            } else {
-                break;
-            }
-        }
-        vQueueDelete(jpeg_queue);
+        drain_jpeg_queue();
         return std::unexpected("Failed to connect to explain URL");
     }
+
+    auto write_or_fail = [&http](const char* data, size_t size) -> bool {
+        if (auto written = http->Write(data, size); !written) {
+            ESP_LOGE(TAG, "Failed to upload photo: %s", written.error().ToString().c_str());
+            return true;
+        }
+        return false;
+    };
 
     {
         std::string question_field;
@@ -290,7 +304,11 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
         question_field += "Content-Disposition: form-data; name=\"question\"\r\n";
         question_field += "\r\n";
         question_field += question + "\r\n";
-        http->Write(question_field.c_str(), question_field.size());
+        if (write_or_fail(question_field.c_str(), question_field.size())) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
     {
         std::string file_header;
@@ -298,7 +316,11 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
         file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
         file_header += "Content-Type: image/jpeg\r\n";
         file_header += "\r\n";
-        http->Write(file_header.c_str(), file_header.size());
+        if (write_or_fail(file_header.c_str(), file_header.size())) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
 
     size_t total_sent = 0;
@@ -313,9 +335,14 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
             saw_terminator = true;
             break;
         }
-        http->Write((const char*)chunk.data, chunk.len);
-        total_sent += chunk.len;
+        const bool write_failed = write_or_fail((const char*)chunk.data, chunk.len);
         heap_caps_free(chunk.data);
+        if (write_failed) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
+        total_sent += chunk.len;
     }
     encoder_thread_.join();
     vQueueDelete(jpeg_queue);
@@ -328,9 +355,15 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
     {
         std::string multipart_footer;
         multipart_footer += "\r\n--" + boundary + "--\r\n";
-        http->Write(multipart_footer.c_str(), multipart_footer.size());
+        if (write_or_fail(multipart_footer.c_str(), multipart_footer.size())) {
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
-    http->Write("", 0);
+    if (write_or_fail("", 0)) {
+        http->Close();
+        return std::unexpected("Failed to upload photo");
+    }
 
     auto status_code = http->GetStatusCode();
     if (!status_code) {
