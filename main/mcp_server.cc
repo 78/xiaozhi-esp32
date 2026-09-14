@@ -19,9 +19,9 @@
 #include "settings.h"
 
 #define TAG "MCP"
+void RegisterAnimaBodyControl(McpServer* server);
 
 McpServer::McpServer() {}
-void RegisterAnimaBodyControl(McpServer* server);
 
 McpServer::~McpServer() = default;
 
