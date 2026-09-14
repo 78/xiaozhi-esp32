@@ -49,8 +49,8 @@ both counted from the last key press:
 
 | Idle | What happens |
 | --- | --- |
-| 60 s | Backlight off, display power-save mode, both I2S channels stopped, CPU allowed to drop to 40 MHz and enter tickless light sleep |
-| 300 s | Deep sleep; any key wakes the device through GPIO0 and restarts the application |
+| 5 min | Backlight off, display power-save mode, both I2S channels stopped, CPU allowed to drop to 40 MHz and enter tickless light sleep |
+| 15 min | Deep sleep; any key wakes the device through GPIO0 and restarts the application |
 
 Both steps are gated by `Application::CanEnterSleepMode()`, so an ongoing
 conversation or playback pushes the deadline back instead of being interrupted.

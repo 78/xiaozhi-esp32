@@ -41,9 +41,9 @@ enum {
 // ============================================================================
 
 // Backlight off + CPU down-clocked this long after the last input.
-static constexpr int kBacklightOffSeconds = 60;
+static constexpr int kBacklightOffSeconds = 300;
 // Deep sleep this long after the last input.
-static constexpr int kDeepSleepSeconds = 300;
+static constexpr int kDeepSleepSeconds = 900;
 // ESP32-C3 caps at 160 MHz; passing a frequency (rather than -1) is what makes
 // PowerSaveTimer allow DFS down to 40 MHz and tickless light sleep. It needs
 // CONFIG_PM_ENABLE + CONFIG_FREERTOS_USE_TICKLESS_IDLE (see config.json).
