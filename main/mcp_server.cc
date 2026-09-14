@@ -21,6 +21,7 @@
 #define TAG "MCP"
 
 McpServer::McpServer() {}
+void RegisterAnimaBodyControl(McpServer* server);
 
 McpServer::~McpServer() = default;
 
