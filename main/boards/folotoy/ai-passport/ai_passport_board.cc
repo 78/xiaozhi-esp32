@@ -65,6 +65,11 @@ struct Es8311RegValue {
     uint8_t value;
 };
 
+// The FoloToy BSP writes REG0E before the REG00 reset pulse in the middle of
+// this list and then verifies REG0E == 0xFF. On this part bit 7 of REG0E does
+// not latch: writing 0xFF (before or after the reset) reads back as 0x7F, so the
+// verify below expects the value the hardware actually holds. Bits 0-6 - the
+// power-down bits the sequence is after - do stick.
 static constexpr Es8311RegValue kEs8311SuspendSequence[] = {
     {0x32, 0x00}, {0x17, 0x00}, {0x0E, 0xFF}, {0x12, 0x02},
     {0x14, 0x00}, {0x0D, 0xFA}, {0x15, 0x00}, {0x02, 0x10},
@@ -74,7 +79,7 @@ static constexpr Es8311RegValue kEs8311SuspendSequence[] = {
 
 static constexpr Es8311RegValue kEs8311SuspendVerify[] = {
     {0x00, 0x1F}, {0x01, 0x00}, {0x0D, 0xFC},
-    {0x0E, 0xFF}, {0x12, 0x02}, {0x45, 0x01},
+    {0x0E, 0x7F}, {0x12, 0x02}, {0x45, 0x01},
 };
 
 static constexpr int kEs8311SuspendAttempts = 2;
@@ -93,9 +98,19 @@ public:
     // takes an ESP_PM_APB_FREQ_MAX lock while a channel is enabled, and that
     // lock both pins the APB clock at 80 MHz and makes the PM subsystem skip
     // automatic light sleep entirely. Codec construction enables the channels
-    // once and nothing stops them until esp_codec_dev is closed, so a board
-    // that has not played anything yet would otherwise never reach light sleep.
-    void StopI2s() { SetI2sRunning(false); }
+    // once and only esp_codec_dev_close() stops them again, so a board that has
+    // not played anything since boot would otherwise never reach light sleep.
+    void StopI2s() {
+        if (dev_ != nullptr) {
+            // The PCM path is still open. Closing it is what disables both
+            // channels in the driver's own bookkeeping, so let that path do the
+            // work instead of stopping them behind its back.
+            EnableInput(false);
+            EnableOutput(false);
+            return;
+        }
+        SetI2sRunning(false);
+    }
 
     // Counterpart for the wake path. Every audio path also restores the clocks
     // through esp_codec_dev_open -> data_if->enable(), so this only has to
@@ -128,18 +143,33 @@ private:
         // TX before RX in both directions, matching the FoloToy BSP's
         // audio_disable_i2s_channels() / audio_prepare_i2s_reopen().
         const i2s_chan_handle_t channels[] = {tx_handle_, rx_handle_};
+        int changed = 0;
         for (auto* channel : channels) {
             if (channel == nullptr) {
                 continue;
             }
+            // esp_codec_dev closes the PCM path, and with it both channels, once
+            // the audio service idles out. Query the state first so a channel
+            // that is already where we want it is not touched - the driver logs
+            // an error for a redundant enable/disable.
+            i2s_chan_info_t info = {};
+            if (i2s_channel_get_info(channel, &info) != ESP_OK) {
+                ESP_LOGW(TAG, "I2S channel state unavailable");
+                continue;
+            }
+            if (info.is_enabled == running) {
+                continue;
+            }
             esp_err_t err = running ? i2s_channel_enable(channel)
                                     : i2s_channel_disable(channel);
-            // ESP_ERR_INVALID_STATE means the channel is already in that state.
-            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            if (err != ESP_OK) {
                 ESP_LOGE(TAG, "I2S channel %s failed: %s", running ? "start" : "stop",
                          esp_err_to_name(err));
+                continue;
             }
+            changed++;
         }
+        ESP_LOGI(TAG, "I2S channels %s (%d changed)", running ? "started" : "stopped", changed);
     }
 
     esp_err_t WriteSuspendSequence(int attempt) {
@@ -381,6 +411,47 @@ private:
         }
     }
 
+    // Pin holds are latched in the RTC domain and survive the deep-sleep reset
+    // (see gpio_hold_en: the state is retained when the GPIO's power domain
+    // goes off, including Deep-sleep events). Every hold taken before sleeping
+    // therefore has to be dropped here, or the panel would stay dark and the
+    // shared key node would stay pinned after a wake. Levels are rewritten
+    // while the holds are still active so releasing them cannot glitch the LCD.
+    void ReleaseDeepSleepHolds() {
+        static_assert(sizeof(PANEL_PINS) == sizeof(PANEL_LEVELS),
+                      "one safe level per LCD pin");
+        gpio_deep_sleep_hold_dis();
+
+        // Held by the sleep layer when it armed the GPIO0 key wakeup.
+        esp_err_t err = gpio_hold_dis(GPIO_NUM_0);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "GPIO%d hold release failed: %s", GPIO_NUM_0, esp_err_to_name(err));
+        }
+
+        for (size_t i = 0; i < sizeof(PANEL_PINS) / sizeof(PANEL_PINS[0]); i++) {
+            gpio_num_t pin = PANEL_PINS[i];
+            if (pin < 0) {
+                continue;
+            }
+            gpio_config_t config = {
+                .pin_bit_mask = 1ULL << (unsigned)pin,
+                .mode = GPIO_MODE_OUTPUT,
+                .pull_up_en = GPIO_PULLUP_DISABLE,
+                .pull_down_en = GPIO_PULLDOWN_DISABLE,
+                .intr_type = GPIO_INTR_DISABLE,
+            };
+            if (gpio_config(&config) == ESP_OK) {
+                gpio_set_level(pin, PANEL_LEVELS[i]);
+            }
+            err = gpio_hold_dis(pin);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "LCD GPIO%d hold release failed: %s", (int)pin,
+                         esp_err_to_name(err));
+            }
+        }
+        ESP_LOGI(TAG, "Deep-sleep pin holds released");
+    }
+
     void InitializePowerSaveTimer() {
         power_save_timer_ = new PowerSaveTimer(kPowerSaveCpuMaxFreq, kBacklightOffSeconds,
                                                kDeepSleepSeconds);
@@ -548,18 +619,11 @@ private:
             ESP_LOGE(TAG, "Backlight PWM stop failed: %s", esp_err_to_name(err));
         }
 
-        static const gpio_num_t kPanelPins[] = {
-            DISPLAY_SPI_CS_PIN, DISPLAY_SPI_SCK_PIN, DISPLAY_SPI_MOSI_PIN,
-            DISPLAY_DC_PIN, DISPLAY_BACKLIGHT_PIN,
-        };
-        // The panel must not be selected while the chip sleeps, so CS stays high
-        // and every other LCD line stays low.
-        static const uint32_t kPanelLevels[] = {1, 0, 0, 0, 0};
-        static_assert(sizeof(kPanelPins) == sizeof(kPanelLevels),
+        static_assert(sizeof(PANEL_PINS) == sizeof(PANEL_LEVELS),
                       "one safe level per LCD pin");
 
-        for (size_t i = 0; i < sizeof(kPanelPins) / sizeof(kPanelPins[0]); i++) {
-            gpio_num_t pin = kPanelPins[i];
+        for (size_t i = 0; i < sizeof(PANEL_PINS) / sizeof(PANEL_PINS[0]); i++) {
+            gpio_num_t pin = PANEL_PINS[i];
             if (pin < 0) {
                 continue;
             }
@@ -572,7 +636,7 @@ private:
             };
             err = gpio_config(&config);
             if (err == ESP_OK) {
-                err = gpio_set_level(pin, kPanelLevels[i]);
+                err = gpio_set_level(pin, PANEL_LEVELS[i]);
             }
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "LCD GPIO%d safe level failed: %s", (int)pin,
@@ -588,6 +652,13 @@ private:
         ESP_LOGI(TAG, "Panel asleep, LCD pin levels held through deep sleep");
     }
 
+    static constexpr gpio_num_t PANEL_PINS[] = {
+        DISPLAY_SPI_CS_PIN, DISPLAY_SPI_SCK_PIN, DISPLAY_SPI_MOSI_PIN,
+        DISPLAY_DC_PIN, DISPLAY_BACKLIGHT_PIN,
+    };
+    // The panel must not be selected while the chip sleeps, so CS stays high and
+    // every other LCD line stays low.
+    static constexpr uint32_t PANEL_LEVELS[] = {1, 0, 0, 0, 0};
     static constexpr gpio_num_t AUDIO_PINS[] = {
         AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS,
         AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
@@ -598,6 +669,7 @@ private:
 
 public:
     AiPassportBoard() : display_(nullptr), battery_(nullptr) {
+        ReleaseDeepSleepHolds();
         InitializeCodecI2c();
         InitializeSpi();
         InitializeDisplay();

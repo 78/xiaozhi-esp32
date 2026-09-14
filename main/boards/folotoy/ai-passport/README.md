@@ -59,13 +59,23 @@ Any key press cancels the countdown (`OnPressDown`, so a long press counts too).
 of `ai_passport_board.cc` tune the policy; the CPU step needs `CONFIG_PM_ENABLE`
 and `CONFIG_FREERTOS_USE_TICKLESS_IDLE`, which `config.json` enables.
 
+That gate has one consequence worth knowing about: a board that never reaches
+`kDeviceStateIdle` keeps the screen lit indefinitely. The common case is an
+unprovisioned board sitting in Wi-Fi config mode, which the state machine only
+lets move to activating or audio testing. Sleeping outside the idle state would
+be a framework change affecting every board, so it is not done here - a Passport
+delivered unconfigured should be configured, not left on a shelf.
+
 Stopping I2S is what makes the CPU step pay off at all. The I2S standard-mode
 driver holds an `ESP_PM_APB_FREQ_MAX` lock while a channel is enabled, and that
 lock both pins the APB clock at 80 MHz and stops the PM subsystem from entering
 automatic light sleep. Codec construction enables both channels once and only
 `esp_codec_dev_close()` stops them again, so a board that has not played anything
 since boot would never reach light sleep. The wake path restores the clocks both
-explicitly and through `esp_codec_dev_open()`, so either route is enough.
+explicitly and through `esp_codec_dev_open()`, so either route is enough. On a
+real device the explicit stop reports `0 changed` - the config-mode alert and the
+audio-testing path open and close the PCM path early enough to release the lock
+anyway - so it is the fallback for a board that has not played anything yet.
 
 Deep sleep follows the FoloToy AI Passport BSP shutdown contract
 (`docs/reference/shinku-chen/deep-sleep-peripheral-power-off` in the BSP repo),
@@ -81,8 +91,11 @@ in this order:
    board init reverses this with the chip's restart-then-active cycle, so a
    gauge that slept before a deep sleep reports again after the wake.
 3. ES8311 suspend: `esp_codec_dev` disable/close first, then the BSP's suspend
-   register sequence written through the codec control interface with the six
-   key registers read back, then both I2S channels stopped explicitly.
+   register sequence written through the codec control interface, with the key
+   registers read back. REG0E is checked as `0x7F`, not the BSP's `0xFF`: bit 7
+   of that register does not latch on this part, so the BSP's expectation can
+   never be met and its own board logs a verification failure on every sleep.
+   The registers that do matter (REG00/01/0D/12/45) are verified as written.
 4. MCLK/BCLK/WS/DOUT/DIN released as inputs with no internal pulls.
 5. SDA/SCL released the same way (terminal: no I2C transaction is valid after
    this point).
@@ -94,18 +107,31 @@ A failed step is logged but never aborts the shutdown, so the device cannot be
 left awake with a half-shut-down board. If deep sleep somehow returns, the board
 restarts instead of trying to recover the released buses.
 
+Pin holds are latched in the RTC domain and survive the deep-sleep reset, so
+`gpio_hold_dis()` has to be called for every held pin on the way back up.
+`ReleaseDeepSleepHolds()` does that first thing in the board constructor. On this
+board the holds that survive a wake are GPIO1 (LCD CS) in `RTC_CNTL_PAD_HOLD_REG`
+and GPIO8/GPIO9 (LCD SCLK/MOSI) in `RTC_CNTL_DIG_PAD_HOLD_REG`; without the
+release they stay held and the panel never comes back.
+
 What software cannot fix: the Passport does not wire the amplifier enable to the
 MCU (`AUDIO_CODEC_PA_PIN` is `NC`), so amplifier standby current, regulator
 quiescent current, the external I2C pull-ups and cell self-discharge all remain.
 Isolate those on hardware if standby current still looks high.
 
-Not verified on hardware: the actual idle and deep-sleep currents, whether the
-CPU step earns its keep here (`CONFIG_PM_ENABLE` interacts with Wi-Fi and the USB
-Serial/JTAG console), and whether disabling
-`CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
-external 10 kOhm pull-up. Note that `PowerSaveTimer` ignores the return value of
-`esp_pm_configure`, so if the CPU step appears to do nothing, check whether the
-PM build options actually took effect.
+Status of hardware verification (ESP32-C3, IDF 6.0.2). Verified on the device:
+board init and a stable idle loop, the backlight-off stage, CW2017 sleep with a
+matching readback, the ES8311 suspend sequence passing its register readback, and
+deep sleep being entered and left again through a wake source. Not verified: the
+actual idle and deep-sleep currents; that the panel and backlight visibly come
+back after a wake (the holds above were confirmed released through
+`RTC_CNTL_PAD/HOLD` register readbacks, but the panel itself was not inspected);
+a key press as the deep-sleep wake source; whether the CPU step earns its keep
+(`CONFIG_PM_ENABLE` interacts with Wi-Fi and the USB Serial/JTAG console); and
+whether disabling `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves
+anything on top of the external 10 kOhm pull-up. Note that `PowerSaveTimer`
+ignores the return value of `esp_pm_configure`, so if the CPU step appears to do
+nothing, check whether the PM build options actually took effect.
 
 ## Notes / calibration
 
