@@ -227,6 +227,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_HI
         bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_ESP_MOSAICO
+        bool "Espressif ESP-Mosaico"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_ESP_SENSAIRSHUTTLE
         bool "Espressif ESP-SensairShuttle"
         depends on IDF_TARGET_ESP32C5

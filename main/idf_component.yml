@@ -61,6 +61,10 @@ dependencies:
   espressif/esp_lcd_touch_gt911: ^1.2.1
   espressif/esp_lcd_touch_gt1151: ^1.1.1
   waveshare/esp_lcd_touch_cst9217: ^1.0.3
+  espressif/esp_lcd_touch_cst9220:
+    version: ^0.1
+    rules:
+    - if: target in [esp32s31]
   espressif/esp_lcd_touch_cst816s: ^1.1.2
   lvgl/lvgl: ~9.5.0
   esp_lvgl_port: ~2.9.0

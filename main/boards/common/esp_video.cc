@@ -417,8 +417,8 @@ bool EspVideo::Capture() {
     }
 
     if (!streaming_on_ || video_fd_ < 0) {
-        ESP_LOGE(TAG, "Capture failed: camera did not initialize (streaming_on_=%d, video_fd_=%d)", streaming_on_,
-                 video_fd_);
+        ESP_LOGE(TAG, "Capture failed: camera did not initialize (streaming_on_=%d, video_fd_=%d)",
+                 streaming_on_, video_fd_);
         return false;
     }
 
@@ -988,6 +988,19 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
         }
     });
 
+    auto drain_jpeg_queue = [this, jpeg_queue]() {
+        JpegChunk chunk;
+        while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
+            if (chunk.data != nullptr) {
+                heap_caps_free(chunk.data);
+            } else {
+                break;
+            }
+        }
+        encoder_thread_.join();
+        vQueueDelete(jpeg_queue);
+    };
+
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(3);
     // 构造multipart/form-data请求体
@@ -1003,19 +1016,17 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
     http->SetHeader("Transfer-Encoding", "chunked");
     if (auto opened = http->Open("POST", explain_url_); !opened) {
         ESP_LOGE(TAG, "Failed to connect to explain URL: %s", opened.error().ToString().c_str());
-        // Clear the queue
-        encoder_thread_.join();
-        JpegChunk chunk;
-        while (xQueueReceive(jpeg_queue, &chunk, portMAX_DELAY) == pdPASS) {
-            if (chunk.data != nullptr) {
-                heap_caps_free(chunk.data);
-            } else {
-                break;
-            }
-        }
-        vQueueDelete(jpeg_queue);
+        drain_jpeg_queue();
         return std::unexpected("Failed to connect to explain URL");
     }
+
+    auto write_or_fail = [&http](const char* data, size_t size) -> bool {
+        if (auto written = http->Write(data, size); !written) {
+            ESP_LOGE(TAG, "Failed to upload photo: %s", written.error().ToString().c_str());
+            return true;
+        }
+        return false;
+    };
 
     {
         // 第一块：question字段
@@ -1024,7 +1035,11 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
         question_field += "Content-Disposition: form-data; name=\"question\"\r\n";
         question_field += "\r\n";
         question_field += question + "\r\n";
-        http->Write(question_field.c_str(), question_field.size());
+        if (write_or_fail(question_field.c_str(), question_field.size())) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
     {
         // 第二块：文件字段头部
@@ -1033,7 +1048,11 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
         file_header += "Content-Disposition: form-data; name=\"file\"; filename=\"camera.jpg\"\r\n";
         file_header += "Content-Type: image/jpeg\r\n";
         file_header += "\r\n";
-        http->Write(file_header.c_str(), file_header.size());
+        if (write_or_fail(file_header.c_str(), file_header.size())) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
 
     // 第三块：JPEG数据
@@ -1049,9 +1068,14 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
             saw_terminator = true;
             break;  // The last chunk
         }
-        http->Write((const char*)chunk.data, chunk.len);
-        total_sent += chunk.len;
+        const bool write_failed = write_or_fail((const char*)chunk.data, chunk.len);
         heap_caps_free(chunk.data);
+        if (write_failed) {
+            drain_jpeg_queue();
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
+        total_sent += chunk.len;
     }
     // Wait for the encoder thread to finish
     encoder_thread_.join();
@@ -1067,10 +1091,16 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
         // 第四块：multipart尾部
         std::string multipart_footer;
         multipart_footer += "\r\n--" + boundary + "--\r\n";
-        http->Write(multipart_footer.c_str(), multipart_footer.size());
+        if (write_or_fail(multipart_footer.c_str(), multipart_footer.size())) {
+            http->Close();
+            return std::unexpected("Failed to upload photo");
+        }
     }
     // 结束块
-    http->Write("", 0);
+    if (write_or_fail("", 0)) {
+        http->Close();
+        return std::unexpected("Failed to upload photo");
+    }
 
     auto status_code = http->GetStatusCode();
     if (!status_code) {
