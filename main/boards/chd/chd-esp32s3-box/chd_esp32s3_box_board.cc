@@ -3,7 +3,6 @@
 #include "display/display.h"
 #include "display/emote_display.h"
 #include "display/lcd_display.h"
-#include "esp_lcd_ili9341.h"
 #include "application.h"
 #include "button.h"
 #include "config.h"
@@ -33,27 +32,6 @@
 #include <functional>
 
 #define TAG "Chd-Esp32s3-Box-Board"
-
-// Init ili9341 by custom cmd // 和st7789兼容
-static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
-    {0xC8, (uint8_t []){0xFF, 0x93, 0x42}, 3, 0},
-    {0xC0, (uint8_t []){0x0E, 0x0E}, 2, 0},
-    {0xC5, (uint8_t []){0xD0}, 1, 0},
-    {0xC1, (uint8_t []){0x02}, 1, 0},
-    {0xB4, (uint8_t []){0x02}, 1, 0},
-    {0xE0, (uint8_t []){0x00, 0x03, 0x08, 0x06, 0x13, 0x09, 0x39, 0x39, 0x48, 0x02, 0x0a, 0x08, 0x17, 0x17, 0x0F}, 15, 0},
-    {0xE1, (uint8_t []){0x00, 0x28, 0x29, 0x01, 0x0d, 0x03, 0x3f, 0x33, 0x52, 0x04, 0x0f, 0x0e, 0x37, 0x38, 0x0F}, 15, 0},
-
-    {0xB1, (uint8_t []){00, 0x1B}, 2, 0},
-    {0x36, (uint8_t []){0x08}, 1, 0},
-    {0x3A, (uint8_t []){0x55}, 1, 0},
-    {0xB7, (uint8_t []){0x06}, 1, 0},
-
-    {0x11, (uint8_t []){0}, 0x80, 0},
-    {0x29, (uint8_t []){0}, 0x80, 0},
-
-    {0, (uint8_t []){0}, 0xff, 0},
-};
 
 class CustomLcdDisplay : public SpiLcdDisplay {
 public:
@@ -466,14 +444,14 @@ private:
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
 
-        Settings settings("chd_esp_box3", false); // 横屏模式1 竖屏0
-        bool display_mode = static_cast<bool>(settings.GetInt("display_mode", 1));
-        int width = DISPLAY_WIDTH;
-        int height = DISPLAY_HEIGHT;
-        bool mirror_x = DISPLAY_MIRROR_X;
-        bool mirror_y = DISPLAY_MIRROR_Y;
-        bool swap_xy = DISPLAY_SWAP_XY;
-        if (display_mode) {         // 横屏模式
+        Settings settings("chd_esp_box3", false);   // 横屏模式0 竖屏1
+        bool display_mode = static_cast<bool>(settings.GetInt("display_mode", 0));
+        int width       = DISPLAY_WIDTH;
+        int height      = DISPLAY_HEIGHT;
+        bool mirror_x   = DISPLAY_MIRROR_X;
+        bool mirror_y   = DISPLAY_MIRROR_Y;
+        bool swap_xy    = DISPLAY_SWAP_XY;
+        if (display_mode) {         // 竖屏模式
             width = DISPLAY_HEIGHT;
             height = DISPLAY_WIDTH;
             mirror_x = mirror_x ? false : true;
@@ -494,28 +472,29 @@ private:
         touch_display_->SetClickHandler([this]() { HandlePrimaryButtonClick(); });
     }
 
+    // 用户触控坐标处理函数，针对GT911触控芯片的坐标偏移问题进行修正
+    static void user_touch_process_coordinates(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y,
+                                    uint16_t *strength, uint8_t *point_num, uint8_t max_point_num) {
+        for (int i = 0; i < *point_num; i++) {
+            x[i] += 80; // ESP_LOGI(TAG, "x: %d, y: %d", x[i], y[i]);
+        }
+    }
+
     void InitializeTouch_gt911() {
         esp_lcd_touch_handle_t tp;
-        Settings settings("chd_esp_box3", false); // 横屏模式1 竖屏0
-        bool display_mode = static_cast<bool>(settings.GetInt("display_mode", 1));
-        uint16_t width = DISPLAY_WIDTH;
+        Settings settings("chd_esp_box3", false); // 横屏模式0 竖屏1
+        bool display_mode = static_cast<bool>(settings.GetInt("display_mode", 0));
+        uint16_t width  = DISPLAY_WIDTH;
         uint16_t height = DISPLAY_HEIGHT;
-
-    #ifdef USE_LCD_3_5                   // 90度，竖屏
-        bool mirror_x = DISPLAY_MIRROR_X ? false : true;
-        bool mirror_y = DISPLAY_MIRROR_Y;
-        bool swap_xy = DISPLAY_SWAP_XY;
-    #else
-        bool mirror_x = DISPLAY_MIRROR_X;
-        bool mirror_y = DISPLAY_MIRROR_Y;
-        bool swap_xy = DISPLAY_SWAP_XY ? false : true;
-    #endif
-        if (display_mode) {         // 横屏模式
-            width = DISPLAY_HEIGHT;
-            height = DISPLAY_WIDTH;
-            mirror_x = mirror_x ? false : true;
-            mirror_y = mirror_y;
-            swap_xy = swap_xy ? false : true;
+        bool mirror_x   = DISPLAY_MIRROR_X;
+        bool mirror_y   = DISPLAY_MIRROR_Y;
+        bool swap_xy    = DISPLAY_SWAP_XY;
+        if (display_mode) {         // 竖屏模式
+            width       = DISPLAY_HEIGHT;
+            height      = DISPLAY_WIDTH;
+            mirror_x    = mirror_x ? false : true;
+            mirror_y    = mirror_y;
+            swap_xy     = swap_xy ? false : true;
         }
 
         esp_lcd_touch_config_t tp_cfg = {
@@ -533,6 +512,10 @@ private:
                 .mirror_y = mirror_y,
             },
         };
+
+        if (display_mode == 0) { // 根据自己屏幕和显示模式调用不同函数处理坐标，解决GT911触控芯片在某些屏幕上的坐标偏移问题
+            tp_cfg.process_coordinates = user_touch_process_coordinates;    // 横屏模式
+        }
 
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
         esp_lcd_panel_io_i2c_config_t tp_io_config = {
@@ -569,9 +552,24 @@ private:
 
     void InitializeTouch_ft6336(void) {
         esp_lcd_touch_handle_t tp;
+        Settings settings("chd_esp_box3", false);   // 横屏模式0 竖屏1
+        bool display_mode = static_cast<bool>(settings.GetInt("display_mode", 0));
+        uint16_t width  = DISPLAY_HEIGHT;           //这里需要交换XY
+        uint16_t height = DISPLAY_WIDTH;
+        bool mirror_x   = DISPLAY_MIRROR_X ? false : true;
+        bool mirror_y   = DISPLAY_MIRROR_Y;
+        bool swap_xy    = DISPLAY_SWAP_XY;
+        if (display_mode) {         // 竖屏模式
+            width       = height;
+            height      = width;
+            mirror_x    = mirror_x ? false : true;
+            mirror_y    = mirror_y;
+            swap_xy     = swap_xy ? false : true;
+        }
+
         esp_lcd_touch_config_t tp_cfg = {
-            .x_max = DISPLAY_WIDTH,
-            .y_max = DISPLAY_HEIGHT,
+            .x_max = width,
+            .y_max = height,
             .rst_gpio_num = GPIO_NUM_NC, // Shared with LCD reset
             .int_gpio_num = GPIO_NUM_NC,
             .levels = {
@@ -579,9 +577,9 @@ private:
                 .interrupt = 0,
             },
             .flags = {
-                .swap_xy = 1,
-                .mirror_x = 1,
-                .mirror_y = 0,
+                .swap_xy = swap_xy,
+                .mirror_x = mirror_x,
+                .mirror_y = mirror_y,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
@@ -590,7 +588,7 @@ private:
             .control_phase_bytes = 1,
             .dc_bit_offset = 0,
             .lcd_cmd_bits = 8,
-            .flags = { .disable_control_phase = 1,}
+            .flags = {.disable_control_phase = 1,}
         };
         tp_io_config.scl_speed_hz = 400000;
 
@@ -767,27 +765,27 @@ private:
         }
 
         mcp_server.AddTool("self.screen.set_display_mode",
-            "Set display mode to landscape or portrait: 0=portrait, 1=landscape\n"
-            "Set display mode to landscape, display_mode = 1\n"
-            "Set display mode to portrait, display_mode = 0\n"
+            "Set display mode to landscape or portrait: 1=portrait, 0=landscape\n"
+            "Set display mode to landscape, display_mode = 0\n"
+            "Set display mode to portrait, display_mode = 1\n"
             "最后提示：重新开机生效",
             PropertyList({
                 Property("display_mode", kPropertyTypeInteger, 0, 1)
             }),
             [this](const PropertyList& properties) -> ReturnValue {
-                int is_landscape = static_cast<bool>(properties["display_mode"].value<int>());
+                int is_portrait = static_cast<bool>(properties["display_mode"].value<int>());
                 Settings settings("chd_esp_box3", true);
-                settings.SetInt("display_mode", is_landscape ? 1 : 0);
-                ESP_LOGE(TAG, "set display_mode %d changed, restart to apply", is_landscape ? 1 : 0);
+                settings.SetInt("display_mode", is_portrait ? 1 : 0);
+                ESP_LOGE(TAG, "set display_mode %d changed, restart to apply", is_portrait ? 1 : 0);
                 return true;
             }
         );
         mcp_server.AddTool("self.screen.get_display_mode",
-            "Get display mode: 0=portrait, 1=landscape",
+            "Get display mode: 1=portrait, 0=landscape",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
                 Settings settings("chd_esp_box3", false);
-                int display_mode = static_cast<int>(settings.GetInt("display_mode", 1));
+                int display_mode = static_cast<int>(settings.GetInt("display_mode", 0));
                 return display_mode;
             }
         );

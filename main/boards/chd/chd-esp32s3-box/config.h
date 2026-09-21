@@ -49,39 +49,39 @@
 #define USE_LCD_2_8                    // 2.8寸屏幕    ST7789
 
 // *****虫洞开发板配置选择******结束*****
-#ifdef USE_LCD_3_5                   // 90度，竖屏
+#ifdef USE_LCD_3_5
     #define USE_LCD_ST7796_480X320_3_5
 #ifdef USE_LCD_ST7796_480X320_3_5       // 3.5寸
-    #define DISPLAY_WIDTH               320
-    #define DISPLAY_HEIGHT              480
+    #define DISPLAY_WIDTH               480
+    #define DISPLAY_HEIGHT              320
     #define DISPLAY_INVERT_COLOR        true
-    #define DISPLAY_MIRROR_X            true
+    #define DISPLAY_MIRROR_X            false
     #define DISPLAY_MIRROR_Y            false
-    #define DISPLAY_SWAP_XY             false
+    #define DISPLAY_SWAP_XY             true
     #define DISPLAY_RGB_ORDER           LCD_RGB_ELEMENT_ORDER_BGR
 #endif
 #endif
 
-#ifdef USE_LCD_3_5_TFT                   // 90度，竖屏
-    #define USE_LCD_ST7796_480X320_3_5
-#ifdef USE_LCD_ST7796_480X320_3_5       // 3.5寸
-    #define DISPLAY_WIDTH               320
-    #define DISPLAY_HEIGHT              480
-    #define DISPLAY_INVERT_COLOR        false
-    #define DISPLAY_MIRROR_X            true
+#ifdef USE_LCD_3_5_TFT
+    #define USE_LCD_ST7796_480X320_3_5_TFT
+#ifdef USE_LCD_ST7796_480X320_3_5_TFT   // 3.5寸
+    #define DISPLAY_WIDTH               480
+    #define DISPLAY_HEIGHT              320
+    #define DISPLAY_INVERT_COLOR        false       // 只有这个参数不一样
+    #define DISPLAY_MIRROR_X            false
     #define DISPLAY_MIRROR_Y            false
-    #define DISPLAY_SWAP_XY             false
+    #define DISPLAY_SWAP_XY             true
     #define DISPLAY_RGB_ORDER           LCD_RGB_ELEMENT_ORDER_BGR
 #endif
 #endif
 
-#ifdef USE_LCD_2_8                      // 90度，竖屏
+#ifdef USE_LCD_2_8
     #define USE_LCD_ST7789_320X240_2_8
 #ifdef USE_LCD_ST7789_320X240_2_8       // 2.8寸
-    #define DISPLAY_WIDTH               240
-    #define DISPLAY_HEIGHT              320
+    #define DISPLAY_WIDTH               320
+    #define DISPLAY_HEIGHT              240
     #define DISPLAY_INVERT_COLOR        false
-    #define DISPLAY_MIRROR_X            false
+    #define DISPLAY_MIRROR_X            true
     #define DISPLAY_MIRROR_Y            false
     #define DISPLAY_SWAP_XY             true
     #define DISPLAY_RGB_ORDER           LCD_RGB_ELEMENT_ORDER_RGB
