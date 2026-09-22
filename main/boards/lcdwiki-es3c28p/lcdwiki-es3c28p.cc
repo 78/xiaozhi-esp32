@@ -10,6 +10,11 @@
 #include "adc_battery_monitor.h"
 #include "esp_lcd_ili9341.h"
 
+#if CONFIG_WEATHER_DASHBOARD
+#include "weather_key_store.h"
+#include "weather_service.h"
+#endif
+
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <esp_lcd_panel_io.h>
@@ -168,6 +173,21 @@ private:
                                EnterWifiConfigMode();
                                return true;
                            });
+#if CONFIG_WEATHER_DASHBOARD
+        mcp_server.AddTool(
+            "self.system.set_weather_api_key",
+            "Set the QWeather (和风天气) API key used by the standby dashboard. "
+            "The key is stored locally on this device in NVS. "
+            "You must ask the user to confirm before calling this tool.",
+            PropertyList({Property("key", kPropertyTypeString).SetMaxLength(64)}),
+            [](const PropertyList& properties) -> ToolResult {
+                auto key = properties["key"].value<std::string>();
+                WeatherKeyStore key_store;
+                key_store.SetKey(key);
+                WeatherService::GetInstance().OnKeyUpdated();
+                return std::string("天气密钥已保存");
+            });
+#endif
     }
 
 public:
