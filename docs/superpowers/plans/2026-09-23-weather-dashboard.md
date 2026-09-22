@@ -1765,8 +1765,11 @@ class DashboardUI;
 ```cpp
 #if CONFIG_WEATHER_DASHBOARD
     std::unique_ptr<DashboardUI> dashboard_;
+    void SetupDashboard();
 #endif
 ```
+
+注意：本文件有两个条件编译的 `SetupUI()` 实现（`#if CONFIG_USE_WECHAT_MESSAGE_STYLE` 微信版约 :388-536，`#else` 经典版约 :854-1118）。dashboard 初始化必须在**两个版本**中都执行，因此用 helper `SetupDashboard()` 复用。
 
 在 `public:` 区（`SetHideSubtitle` 声明附近）加：
 
@@ -1789,10 +1792,27 @@ class DashboardUI;
 #endif
 ```
 
-在 `SetupUI()` 函数结束处（即 `void LcdDisplay::SetEmotion(const char* emotion) {` 之前）插入：
+在**微信版** `SetupUI()` 的最后一条语句（`lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);`，约 :535）之后、函数结束 `}` 之前插入：
 
 ```cpp
 #if CONFIG_WEATHER_DASHBOARD
+    SetupDashboard();
+#endif
+```
+
+在**经典版** `SetupUI()` 末尾（约 :1115-1118，内层 `#if ... #endif` 之后、函数结束 `}` 之前）插入同样三行：
+
+```cpp
+#if CONFIG_WEATHER_DASHBOARD
+    SetupDashboard();
+#endif
+```
+
+在两个版本之外的公共区域——`#endif`（约 :1130）之后、`void LcdDisplay::SetEmotion(const char* emotion) {`（约 :1132）之前——插入 helper 与 Show/Hide 方法实现：
+
+```cpp
+#if CONFIG_WEATHER_DASHBOARD
+void LcdDisplay::SetupDashboard() {
     dashboard_ = std::make_unique<DashboardUI>(lv_screen_active());
     WeatherService::GetInstance().SetUpdateCallback([this]() {
         Application::GetInstance().Schedule([this]() {
@@ -1801,13 +1821,8 @@ class DashboardUI;
             }
         });
     });
-#endif
-```
+}
 
-在同一文件 `SetEmotion` 函数之前再插入方法实现：
-
-```cpp
-#if CONFIG_WEATHER_DASHBOARD
 void LcdDisplay::ShowDashboard() {
     if (dashboard_) {
         dashboard_->Show();
