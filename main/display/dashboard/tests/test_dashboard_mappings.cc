@@ -17,6 +17,13 @@ int main() {
     assert(std::string(AqiToLevel(300).category) == "重度");
     assert(std::string(AqiToLevel(301).category) == "严重");
     assert(AqiToLevel(-1).color_hex == 0x9E9E9E);
+    // Band colors and badge text colors
+    assert(AqiToLevel(0).color_hex == 0x4CAF50 && AqiToLevel(0).text_color_hex == 0xFFFFFF);
+    assert(AqiToLevel(51).color_hex == 0xFDD835 && AqiToLevel(51).text_color_hex == 0x000000);
+    assert(AqiToLevel(101).color_hex == 0xFB8C00);
+    assert(AqiToLevel(151).color_hex == 0xE53935);
+    assert(AqiToLevel(201).color_hex == 0x8E24AA);
+    assert(AqiToLevel(301).color_hex == 0xB71C1C);
 
     // Temperature mapping -10..40
     assert(TempToPercent(-20) == 0);
@@ -37,9 +44,13 @@ int main() {
     assert(WeatherIconToCodepoint("404") == 0x2744);
     assert(WeatherIconToCodepoint("501") == 0x2601);
     assert(WeatherIconToCodepoint("999") == 0x2601);
+    // Malformed icon codes fall back to cloud
+    assert(WeatherIconToCodepoint("abc") == 0x2601);
+    assert(WeatherIconToCodepoint("") == 0x2601);
 
     // Icon colors
     assert(WeatherIconColor(0x2600) == 0xF9A825);
+    assert(WeatherIconColor(0x26C5) == 0x90A4AE);
     assert(WeatherIconColor(0x2601) == 0x607D8B);
     assert(WeatherIconColor(0x2614) == 0x1976D2);
     assert(WeatherIconColor(0x26C8) == 0x6A1B9A);
@@ -53,12 +64,21 @@ int main() {
     assert(utf8[0] == static_cast<char>(0xE2) && utf8[1] == static_cast<char>(0x98) &&
            utf8[2] == static_cast<char>(0x81) && utf8[3] == '\0');
     CodepointToUtf8(0x1F321, utf8);
-    assert(utf8[0] == static_cast<char>(0xF0) && utf8[3] == static_cast<char>(0xA1));
+    assert(utf8[0] == static_cast<char>(0xF0) && utf8[1] == static_cast<char>(0x9F) &&
+           utf8[2] == static_cast<char>(0x8C) && utf8[3] == static_cast<char>(0xA1) &&
+           utf8[4] == '\0');
+    // 2-byte encoding
+    CodepointToUtf8(0xE4, utf8);
+    assert(utf8[0] == static_cast<char>(0xC3) && utf8[1] == static_cast<char>(0xA4) &&
+           utf8[2] == '\0');
 
     // Weekday
     assert(std::string(WeekdayZh(0)) == "周日");
     assert(std::string(WeekdayZh(4)) == "周四");
     assert(std::string(WeekdayZh(6)) == "周六");
+    // Out-of-range weekday -> empty string
+    assert(std::string(WeekdayZh(-1)) == "");
+    assert(std::string(WeekdayZh(7)) == "");
 
     return 0;
 }
