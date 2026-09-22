@@ -518,9 +518,17 @@ constexpr size_t kMaxBodySize = 16 * 1024;
 
 // Replace the value of any "key=" query parameter so API keys never hit logs.
 std::string RedactUrl(const std::string& url) {
-    size_t pos = url.find("key=");
-    if (pos == std::string::npos) {
-        return url;
+    size_t pos = 0;
+    while (true) {
+        pos = url.find("key=", pos);
+        if (pos == std::string::npos) {
+            return url;
+        }
+        // Only match a real query parameter: start of URL, or right after ?/&.
+        if (pos == 0 || url[pos - 1] == '?' || url[pos - 1] == '&') {
+            break;
+        }
+        pos += 4;
     }
     size_t end = pos + 4;
     while (end < url.size() && url[end] != '&') {
@@ -1817,24 +1825,30 @@ void LcdDisplay::HideDashboard() {
 
 - [ ] **Step 4: Application 状态切换驱动仪表盘**
 
-在 `main/application.cc` 顶部 include 区加：
+在 `main/application.cc` 顶部 include 区加（必须条件编译——该配置在其他板子默认 n，weather 目录不参与编译）：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
 #include "weather_service.h"
+#endif
 ```
 
 在 `HandleStateChangedEvent()` 中 `led->OnStateChanged();` 之后、`switch (new_state)` 之前插入：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
     if (new_state != kDeviceStateIdle && new_state != kDeviceStateUnknown) {
         display->HideDashboard();
     }
+#endif
 ```
 
 修改 idle 分支中 `if (last_error_message_.empty()) { ... }` 块，在 `display->SetEmotion("neutral");` 之后加一行：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
                 display->ShowDashboard();
+#endif
 ```
 
 修改后的该块为：
@@ -1845,7 +1859,9 @@ void LcdDisplay::HideDashboard() {
                 display->ClearChatMessages();  // Clear messages first
                 display->SetEmotion(
                     "neutral");  // Then set emotion (wechat mode checks child count)
+#if CONFIG_WEATHER_DASHBOARD
                 display->ShowDashboard();
+#endif
             }
 ```
 
@@ -1854,14 +1870,18 @@ void LcdDisplay::HideDashboard() {
 在 `HandleNetworkConnectedEvent()` 末尾（`display->UpdateStatusBar(true);` 之后）加：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
     WeatherService::GetInstance().OnNetworkConnected();
     WeatherService::GetInstance().Start();
+#endif
 ```
 
 在 `HandleNetworkDisconnectedEvent()` 末尾（`display->UpdateStatusBar(true);` 之后）加：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
     WeatherService::GetInstance().OnNetworkDisconnected();
+#endif
 ```
 
 - [ ] **Step 6: 固件编译验证**

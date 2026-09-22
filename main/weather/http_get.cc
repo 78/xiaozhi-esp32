@@ -11,9 +11,17 @@ constexpr size_t kMaxBodySize = 16 * 1024;
 
 // Replace the value of any "key=" query parameter so API keys never hit logs.
 std::string RedactUrl(const std::string& url) {
-    size_t pos = url.find("key=");
-    if (pos == std::string::npos) {
-        return url;
+    size_t pos = 0;
+    while (true) {
+        pos = url.find("key=", pos);
+        if (pos == std::string::npos) {
+            return url;
+        }
+        // Only match a real query parameter: start of URL, or right after ?/&.
+        if (pos == 0 || url[pos - 1] == '?' || url[pos - 1] == '&') {
+            break;
+        }
+        pos += 4;
     }
     size_t end = pos + 4;
     while (end < url.size() && url[end] != '&') {
