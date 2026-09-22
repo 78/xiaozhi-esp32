@@ -26,7 +26,12 @@ constexpr uint32_t kFadeMs = 300;
 lv_obj_t* MakeLabel(lv_obj_t* parent, const lv_font_t* font, uint32_t color_hex,
                     lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h) {
     lv_obj_t* label = lv_label_create(parent);
-    lv_obj_set_style_text_font(label, font, 0);
+    // A null font means "inherit the screen text font". Do not cache a font
+    // pointer here: LcdDisplay::SetTextFont frees the previous theme font, so
+    // a locally-stored pointer would dangle (see activation crash, Task 9).
+    if (font != nullptr) {
+        lv_obj_set_style_text_font(label, font, 0);
+    }
     lv_obj_set_style_text_color(label, lv_color_hex(color_hex), 0);
     lv_obj_set_pos(label, x, y);
     lv_obj_set_size(label, w, h);
@@ -37,7 +42,6 @@ lv_obj_t* MakeLabel(lv_obj_t* parent, const lv_font_t* font, uint32_t color_hex,
 DashboardUI::DashboardUI(lv_obj_t* parent) {
     auto* theme = static_cast<LvglTheme*>(
         Board::GetInstance().GetDisplay()->GetTheme());
-    const lv_font_t* text_font = theme->text_font()->font();
     const lv_font_t* icon_font = theme->icon_font()->font();
 
     container_ = lv_obj_create(parent);
@@ -52,12 +56,12 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
 
     // (1) Top status bar
     network_label_ = MakeLabel(container_, icon_font, 0x424242, 8, 6, 40, 24);
-    top_clock_label_ = MakeLabel(container_, text_font, 0x424242, 180, 8, 52, 22);
+    top_clock_label_ = MakeLabel(container_, nullptr, 0x424242, 180, 8, 52, 22);
     lv_obj_set_style_text_align(top_clock_label_, LV_TEXT_ALIGN_RIGHT, 0);
 
     // (2) Weather area
-    city_label_ = MakeLabel(container_, text_font, 0xF57C00, 10, 40, 88, 26);
-    aqi_badge_ = MakeLabel(container_, text_font, 0xFFFFFF, 104, 40, 64, 28);
+    city_label_ = MakeLabel(container_, nullptr, 0xF57C00, 10, 40, 88, 26);
+    aqi_badge_ = MakeLabel(container_, nullptr, 0xFFFFFF, 104, 40, 64, 28);
     lv_obj_set_style_bg_color(aqi_badge_, lv_color_hex(0x9E9E9E), 0);
     lv_obj_set_style_bg_opa(aqi_badge_, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(aqi_badge_, 8, 0);
@@ -69,9 +73,9 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
         MakeLabel(container_, &font_weather_symbols_36_4, 0x607D8B, 172, 34, 60, 40);
     lv_obj_set_style_text_align(weather_icon_label_, LV_TEXT_ALIGN_CENTER, 0);
 
-    aqi_line_label_ = MakeLabel(container_, text_font, 0x424242, 10, 82, 150, 26);
+    aqi_line_label_ = MakeLabel(container_, nullptr, 0x424242, 10, 82, 150, 26);
     weather_text_badge_ =
-        MakeLabel(container_, text_font, 0xFFFFFF, 168, 84, 62, 24);
+        MakeLabel(container_, nullptr, 0xFFFFFF, 168, 84, 62, 24);
     lv_obj_set_style_bg_color(weather_text_badge_, lv_color_hex(0x9E9E9E), 0);
     lv_obj_set_style_bg_opa(weather_text_badge_, LV_OPA_COVER, 0);
     lv_obj_set_style_text_align(weather_text_badge_, LV_TEXT_ALIGN_CENTER, 0);
@@ -86,8 +90,8 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
         MakeLabel(container_, &font_noto_sans_basic_30_4, 0xE53935, 190, 160, 44, 34);
 
     // Date and weekday
-    date_label_ = MakeLabel(container_, text_font, 0x616161, 10, 202, 100, 26);
-    weekday_label_ = MakeLabel(container_, text_font, 0x616161, 150, 202, 80, 26);
+    date_label_ = MakeLabel(container_, nullptr, 0x616161, 10, 202, 100, 26);
+    weekday_label_ = MakeLabel(container_, nullptr, 0x616161, 150, 202, 80, 26);
     lv_obj_set_style_text_align(weekday_label_, LV_TEXT_ALIGN_RIGHT, 0);
 
     // (4) Environment area: thermometer row
