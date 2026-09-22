@@ -1141,3 +1141,9 @@ menu "TAIJIPAI_S3_CONFIG"
 endmenu
 
 endmenu
+
+config WEATHER_DASHBOARD
+    bool "Standby weather dashboard (待机天气仪表盘)"
+    depends on IDF_TARGET_ESP32S3
+    default y if BOARD_TYPE_LCDWIKI_ES3C28P
+    default n
