@@ -2,8 +2,6 @@
 
 #include "cjson_utils.h"
 
-#include <cstdlib>
-
 namespace {
 std::string GetStringField(cJSON* obj, const char* key) {
     cJSON* field = cJSON_GetObjectItem(obj, key);
@@ -11,22 +9,24 @@ std::string GetStringField(cJSON* obj, const char* key) {
                                                      : std::string();
 }
 
-int GetIntField(cJSON* obj, const char* key) {
+bool TryGetIntField(cJSON* obj, const char* key, int& out) {
     cJSON* field = cJSON_GetObjectItem(obj, key);
     if (field == nullptr) {
-        return 0;
+        return false;
     }
     if (cJSON_IsNumber(field)) {
-        return field->valueint;
+        out = field->valueint;
+        return true;
     }
     if (cJSON_IsString(field)) {
         try {
-            return std::stoi(field->valuestring);
+            out = std::stoi(field->valuestring);
+            return true;
         } catch (...) {
-            return 0;
+            return false;
         }
     }
-    return 0;
+    return false;
 }
 
 bool IsKeyInvalid(const CJsonUniquePtr& root, int http_status) {
@@ -51,13 +51,15 @@ GeoInfo ParseGeoIpResponse(const std::string& body) {
     if (GetStringField(root.get(), "status") != "success") {
         return geo;
     }
+    cJSON* city = cJSON_GetObjectItem(root.get(), "city");
     cJSON* lat = cJSON_GetObjectItem(root.get(), "lat");
     cJSON* lon = cJSON_GetObjectItem(root.get(), "lon");
-    if (lat == nullptr || lon == nullptr || !cJSON_IsNumber(lat) || !cJSON_IsNumber(lon)) {
+    if (city == nullptr || !cJSON_IsString(city) || lat == nullptr || lon == nullptr ||
+        !cJSON_IsNumber(lat) || !cJSON_IsNumber(lon)) {
         return geo;
     }
     geo.ok = true;
-    geo.city = GetStringField(root.get(), "city");
+    geo.city = city->valuestring;
     geo.lat = lat->valuedouble;
     geo.lon = lon->valuedouble;
     return geo;
@@ -81,11 +83,14 @@ WeatherNowData ParseWeatherNowResponse(const std::string& body, int http_status)
     if (now == nullptr || !cJSON_IsObject(now)) {
         return data;
     }
-    data.ok = true;
     data.text = GetStringField(now, "text");
     data.icon = GetStringField(now, "icon");
-    data.temperature = GetIntField(now, "temp");
-    data.humidity = GetIntField(now, "humidity");
+    if (data.text.empty() || data.icon.empty() ||
+        !TryGetIntField(now, "temp", data.temperature) ||
+        !TryGetIntField(now, "humidity", data.humidity)) {
+        return data;  // Missing/incomplete payload -> treat as request failure
+    }
+    data.ok = true;
     return data;
 }
 
@@ -112,6 +117,9 @@ AirNowData ParseAirNowResponse(const std::string& body, int http_status) {
         return data;
     }
     data.category = GetStringField(now, "category");
+    if (data.category.empty()) {
+        return data;
+    }
     if (cJSON_IsNumber(aqi)) {
         data.aqi = aqi->valueint;
     } else if (cJSON_IsString(aqi)) {

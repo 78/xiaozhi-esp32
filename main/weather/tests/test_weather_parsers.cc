@@ -20,6 +20,13 @@ int main() {
         assert(!geo.ok);
     }
 
+    // GeoIP missing city
+    {
+        auto geo = ParseGeoIpResponse(
+            R"({"status":"success","lat":37.4638,"lon":121.4479})");
+        assert(!geo.ok);
+    }
+
     // GeoIP malformed body
     {
         auto geo = ParseGeoIpResponse("not a json");
@@ -49,11 +56,25 @@ int main() {
         assert(w.key_invalid);
     }
 
+    // QWeather now HTTP 401 with empty body
+    {
+        auto w = ParseWeatherNowResponse("", 401);
+        assert(!w.ok);
+        assert(w.key_invalid);
+    }
+
     // QWeather now HTTP 403 with empty body
     {
         auto w = ParseWeatherNowResponse("", 403);
         assert(!w.ok);
         assert(w.key_invalid);
+    }
+
+    // QWeather now missing payload fields
+    {
+        auto w = ParseWeatherNowResponse(R"({"code":"200","now":{}})", 200);
+        assert(!w.ok);
+        assert(!w.key_invalid);
     }
 
     // QWeather now malformed
@@ -83,6 +104,19 @@ int main() {
     // QWeather air missing field
     {
         auto a = ParseAirNowResponse(R"({"code":"200","now":{}})", 200);
+        assert(!a.ok);
+    }
+
+    // QWeather air aqi present but category missing
+    {
+        auto a = ParseAirNowResponse(R"({"code":"200","now":{"aqi":"57"}})", 200);
+        assert(!a.ok);
+    }
+
+    // QWeather air non-numeric aqi
+    {
+        auto a = ParseAirNowResponse(
+            R"({"code":"200","now":{"aqi":"N/A","category":"良"}})", 200);
         assert(!a.ok);
     }
 
