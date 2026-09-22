@@ -592,7 +592,7 @@ git commit -m "feat(weather): add Kconfig/CMake scaffold, HTTP GET helper and ke
 **Interfaces:**
 - Consumes: `HttpGet`、`Parse*`、`WeatherKeyStore`
 - Produces（后续任务使用）:
-  - `struct WeatherSnapshot { bool valid; bool key_invalid; std::string city; std::string weather_text; std::string icon_code; int temperature; int humidity; int aqi; std::string aqi_category; time_t updated_at; }`
+  - `struct WeatherSnapshot { bool valid; bool no_key; bool key_invalid; std::string city; std::string weather_text; std::string icon_code; int temperature; int humidity; int aqi; std::string aqi_category; time_t updated_at; }`
   - `static WeatherService& WeatherService::GetInstance()`
   - `void Start()` / `void OnKeyUpdated()` / `void OnNetworkConnected()` / `void OnNetworkDisconnected()`
   - `WeatherSnapshot GetSnapshot()`
@@ -619,6 +619,7 @@ git commit -m "feat(weather): add Kconfig/CMake scaffold, HTTP GET helper and ke
 
 struct WeatherSnapshot {
     bool valid = false;
+    bool no_key = false;
     bool key_invalid = false;
     std::string city;
     std::string weather_text;
@@ -760,7 +761,9 @@ void WeatherService::TaskLoop() {
 
         std::string key = key_store_.GetKey();
         if (key.empty()) {
-            Publish(WeatherSnapshot{});  // UI shows "weather not configured"
+            WeatherSnapshot no_key_snapshot;
+            no_key_snapshot.no_key = true;
+            Publish(no_key_snapshot);  // UI shows "天气未配置"
             wait(kRetryIntervalMs);
             continue;
         }
@@ -1057,7 +1060,7 @@ uint32_t WeatherIconToCodepoint(const std::string& icon_code) {
         return 0x2601;  // overcast
     }
     if (code >= 302 && code <= 304) {
-        return 0x26C8;  # thunder
+        return 0x26C8;  // thunder
     }
     if (code >= 300 && code < 400) {
         return 0x2614;  // rain
@@ -1583,8 +1586,10 @@ void DashboardUI::UpdateWeather(const WeatherSnapshot& snapshot) {
                                 lv_color_hex(WeatherIconColor(codepoint)), 0);
 
     if (!snapshot.valid) {
-        lv_label_set_text(aqi_line_label_,
-                          snapshot.key_invalid ? "密钥无效" : "天气获取中...");
+        const char* status_text = snapshot.key_invalid
+                                      ? "密钥无效"
+                                      : (snapshot.no_key ? "天气未配置" : "天气获取中...");
+        lv_label_set_text(aqi_line_label_, status_text);
         lv_label_set_text(weather_text_badge_, "--");
         lv_bar_set_value(temp_bar_, 0, LV_ANIM_OFF);
         lv_bar_set_value(humid_bar_, 0, LV_ANIM_OFF);
@@ -1692,6 +1697,7 @@ class DashboardUI;
 
 ```cpp
 #if CONFIG_WEATHER_DASHBOARD
+#include "application.h"
 #include "weather_service.h"
 #include "dashboard_ui.h"
 #endif
@@ -1873,7 +1879,7 @@ idf.py -p /dev/cu.usbmodem* flash monitor
 设备联网激活并回到 idle 后，确认：
 
 - 仪表盘淡入，顶部 WiFi 图标与小字时间正常
-- 天气区显示"天气获取中..."（注：未配置 Key 时实际为空态），温湿度显示 `--°C` / `--%`
+- 天气区显示"天气未配置"，温湿度显示 `--°C` / `--%`
 - 右下角机器人 GIF 在动
 - 日志中无崩溃或反复重启
 
