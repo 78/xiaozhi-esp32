@@ -1100,6 +1100,7 @@ if(CONFIG_WEATHER_DASHBOARD)
         "weather/weather_key_store.cc"
         "weather/weather_service.cc"
         "display/dashboard/dashboard_mappings.cc"
+        "display/dashboard/dashboard_ui.cc"
         "display/dashboard/fonts/font_digits_72.c"
         "display/dashboard/fonts/font_weather_symbols_26_4.c"
         "display/dashboard/fonts/font_weather_symbols_36_4.c"
