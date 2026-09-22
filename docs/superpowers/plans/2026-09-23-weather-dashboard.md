@@ -1270,7 +1270,7 @@ Expected: 下载成功（文件约 400KB+）；该 TTF 仅作生成用。
 ```bash
 npx -y lv_font_conv@1.5.3 \
     --font "/System/Library/Fonts/Supplemental/Arial Bold.ttf" \
-    --size 72 --bpp 4 --range 0x30-0x3A \
+    --size 72 --bpp 4 --range 0x30-0x3A --no-compress \
     --format lvgl --lv-include lvgl.h --lv-font-name lv_font_digits_72 \
     -o main/display/dashboard/fonts/font_digits_72.c
 ```
@@ -1282,7 +1282,7 @@ Expected: 命令完成，输出无 `WARN`。
 ```bash
 npx -y lv_font_conv@1.5.3 \
     --font main/display/dashboard/fonts/NotoSansSymbols2-Regular.ttf \
-    --size 36 --bpp 4 \
+    --size 36 --bpp 4 --no-compress \
     --range 0x2600,0x2601,0x2614,0x26C5,0x26C8,0x2744 \
     --format lvgl --lv-include lvgl.h --lv-font-name font_weather_symbols_36_4 \
     -o main/display/dashboard/fonts/font_weather_symbols_36_4.c
@@ -1292,16 +1292,18 @@ Expected: 完成且无 `WARN`（6 个字形全部存在）。
 
 - [ ] **Step 4: 生成 26px 环境图标字体**
 
+NotoSansSymbols2 缺 U+1F4A7（U+1F321 有），混合 range 会导致 lv_font_conv 中止；26px 字体改用 Google 单色 NotoEmoji（同为 SIL OFL）：
+
 ```bash
 npx -y lv_font_conv@1.5.3 \
-    --font main/display/dashboard/fonts/NotoSansSymbols2-Regular.ttf \
-    --size 26 --bpp 4 \
+    --font main/display/dashboard/fonts/NotoEmoji-Regular.ttf \
+    --size 26 --bpp 4 --no-compress \
     --range 0x1F321,0x1F4A7 \
     --format lvgl --lv-include lvgl.h --lv-font-name font_weather_symbols_26_4 \
     -o main/display/dashboard/fonts/font_weather_symbols_26_4.c
 ```
 
-Expected: 完成且无 `WARN`（温度计与水滴字形存在）。
+Expected: 完成且无 `WARN`（温度计与水滴字形存在）。NotoEmoji-Regular.ttf 从 https://fonts.gstatic.com/s/notoemoji/ 下载（如 gstatic 不可达，用 jsDelivr 上 google/fonts 镜像 ofl/notoemoji/），作为生成输入一并提交。
 
 - [ ] **Step 5: 缩放待机 GIF 到 64×64**
 
@@ -1538,7 +1540,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_bar_set_range(temp_bar_, 0, 100);
     lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(0xE0E0E0), 0);
     lv_obj_set_style_bg_opa(temp_bar_, LV_OPA_COVER, 0);
-    lv_obj_set_style_indicator_color(temp_bar_, lv_color_hex(0x1E88E5), 0);
+    lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(0x1E88E5), LV_PART_INDICATOR);
     lv_bar_set_value(temp_bar_, 0, LV_ANIM_OFF);
 
     temp_value_ = MakeLabel(container_, text_font, 0x424242, 126, 234, 46, 26);
@@ -1555,7 +1557,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_bar_set_range(humid_bar_, 0, 100);
     lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0xE0E0E0), 0);
     lv_obj_set_style_bg_opa(humid_bar_, LV_OPA_COVER, 0);
-    lv_obj_set_style_indicator_color(humid_bar_, lv_color_hex(0x43A047), 0);
+    lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0x43A047), LV_PART_INDICATOR);
     lv_bar_set_value(humid_bar_, 0, LV_ANIM_OFF);
 
     humid_value_ = MakeLabel(container_, text_font, 0x424242, 126, 268, 46, 26);
@@ -1599,9 +1601,13 @@ bool DashboardUI::IsVisible() const {
 }
 
 void DashboardUI::Show() {
+    // Cancel any in-flight hide animation first (its deleted_cb would re-hide us);
+    // lv_anim_delete invokes deleted_cb, so clear HIDDEN afterwards.
+    lv_anim_delete(container_, nullptr);
     lv_obj_clear_flag(container_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_toforeground(container_);
-    lv_obj_set_style_opa(container_, LV_OPA_TRANSP, 0);
+    lv_obj_t* parent = lv_obj_get_parent(container_);
+    lv_obj_move_to_index(container_,
+                         static_cast<int32_t>(lv_obj_get_child_count(parent)) - 1);
     lv_obj_fade_in(container_, kFadeMs, 0);
     UpdateClock();
     UpdateNetwork();
@@ -1610,10 +1616,23 @@ void DashboardUI::Show() {
 }
 
 void DashboardUI::Hide() {
-    lv_anim_t* fade = lv_obj_fade_out(container_, kFadeMs, 0);
-    fade->deleted_cb = [](lv_anim_t* anim) {
-        lv_obj_add_flag(static_cast<lv_obj_t*>(anim->var), LV_OBJ_FLAG_HIDDEN);
-    };
+    // LVGL 9's lv_obj_fade_out() returns void; build the fade manually so a
+    // deleted_cb can hide the container when the animation finishes/is replaced.
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, container_);
+    lv_anim_set_values(&anim, lv_obj_get_style_opa(container_, 0), LV_OPA_TRANSP);
+    lv_anim_set_duration(&anim, kFadeMs);
+    lv_anim_set_exec_cb(&anim, [](void* var, int32_t value) {
+        lv_obj_set_style_opa(static_cast<lv_obj_t*>(var), value, 0);
+    });
+    lv_anim_set_deleted_cb(&anim, [](lv_anim_t* anim) {
+        lv_obj_t* obj = static_cast<lv_obj_t*>(anim->var);
+        if (lv_obj_get_style_opa(obj, 0) == LV_OPA_TRANSP) {
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    });
+    lv_anim_start(&anim);
     gif_->Pause();
 }
 
