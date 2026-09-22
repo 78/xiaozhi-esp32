@@ -1967,18 +1967,21 @@ git commit -m "feat: wire standby dashboard into LcdDisplay and Application idle
 
 - [ ] **Step 1: 添加 include**
 
-在 `main/boards/lcdwiki-es3c28p/lcdwiki-es3c28p.cc` 的 include 区（`#include "mcp_server.h"` 附近）加：
+在 `main/boards/lcdwiki-es3c28p/lcdwiki-es3c28p.cc` 的 include 区（`#include "mcp_server.h"` 附近）加（条件编译：该板也可手动关闭 WEATHER_DASHBOARD，那时 weather/ 不在包含路径）：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
 #include "weather_key_store.h"
 #include "weather_service.h"
+#endif
 ```
 
 - [ ] **Step 2: 在 InitializeTools 中注册工具**
 
-在 `InitializeTools()` 中已有的 `mcp_server.AddTool("self.system.reconfigure_wifi", ...)` 之后追加：
+在 `InitializeTools()` 中已有的 `mcp_server.AddTool("self.system.reconfigure_wifi", ...)` 之后追加（同样用条件编译包裹）：
 
 ```cpp
+#if CONFIG_WEATHER_DASHBOARD
         mcp_server.AddTool(
             "self.system.set_weather_api_key",
             "Set the QWeather (和风天气) API key used by the standby dashboard. "
@@ -1992,6 +1995,7 @@ git commit -m "feat: wire standby dashboard into LcdDisplay and Application idle
                 WeatherService::GetInstance().OnKeyUpdated();
                 return std::string("天气密钥已保存");
             });
+#endif
 ```
 
 - [ ] **Step 3: 全量固件编译验证**
