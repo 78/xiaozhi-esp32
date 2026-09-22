@@ -1098,6 +1098,7 @@ if(CONFIG_WEATHER_DASHBOARD)
         "weather/weather_parsers.cc"
         "weather/http_get.cc"
         "weather/weather_key_store.cc"
+        "weather/weather_service.cc"
     )
     list(APPEND INCLUDE_DIRS "weather" "display/dashboard")
     set(DASHBOARD_EMBED
