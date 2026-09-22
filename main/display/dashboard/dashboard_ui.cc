@@ -8,13 +8,17 @@
 #include <cstring>
 #include <ctime>
 
-namespace {
+// Font declarations must stay at global scope: the corresponding definitions
+// live in C font files (dashboard/fonts/*.c and the xiaozhi-fonts component)
+// with external C linkage. Putting them in an anonymous namespace produces
+// internal-linkage references that fail to link.
 LV_FONT_DECLARE(lv_font_digits_72);
 LV_FONT_DECLARE(font_weather_symbols_26_4);
 LV_FONT_DECLARE(font_weather_symbols_36_4);
 LV_FONT_DECLARE(font_noto_sans_basic_30_4);
 LV_FONT_DECLARE(font_noto_sans_basic_16_4);
 
+namespace {
 extern const uint8_t neutral_gif_start[] asm("_binary_neutral_gif_start");
 
 constexpr uint32_t kFadeMs = 300;
