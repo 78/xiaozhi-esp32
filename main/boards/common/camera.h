@@ -1,6 +1,7 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include <expected>
 #include <string>
 
 class Camera {
@@ -12,7 +13,7 @@ public:
     virtual bool SetHMirror(bool enabled) = 0;
     virtual bool SetVFlip(bool enabled) = 0;
     virtual bool SetSwapBytes(bool enabled) { return false; }  // Optional, default no-op
-    virtual std::string Explain(const std::string& question) = 0;
+    virtual std::expected<std::string, std::string> Explain(const std::string& question) = 0;
 };
 
 #endif  // CAMERA_H

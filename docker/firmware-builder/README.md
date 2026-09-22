@@ -53,28 +53,26 @@ Each successful job writes:
 - `manifest.json`: inputs, tool versions, source revision, sizes, and SHA-256
   checksums.
 
-To upload the job output to OSS, also pass:
+To upload the job output to an HTTP artifact receiver, also pass:
 
 ```text
-FIRMWARE_OSS_UPLOAD=true
-FIRMWARE_OSS_ENDPOINT=oss-cn-shenzhen.aliyuncs.com
-FIRMWARE_OSS_PREFIX=custom_firmwares
-OSS_BUCKET_NAME=<bucket>
-OSS_ACCESS_KEY_ID=<access-key-id>
-OSS_ACCESS_KEY_SECRET=<access-key-secret>
+FIRMWARE_UPLOAD_URL=https://example.com/api/firmware-builds
+FIRMWARE_UPLOAD_TOKEN=<upload-token>
 FIRMWARE_JOB_ID=<unique-safe-job-id>
 ```
 
-The builder uploads the two firmware images, `build.log`, and `manifest.json`
-to `custom_firmwares/<job-id>/`. The manifest is uploaded last so consumers do
-not observe a completed job before its other objects are available. Transient
-OSS connection, timeout, throttling, and server errors are retried up to four
-times with exponential backoff; authentication and other permanent errors fail
-immediately.
+The builder sends an authenticated HTTP `PUT` for the two firmware images,
+`build.log`, and `manifest.json` to
+`<upload-url>/<job-id>/artifacts/<filename>`. The manifest is uploaded last so
+consumers do not observe a completed job before its other objects are available.
+Transient connection, timeout, throttling, and server errors are retried up to
+four times with exponential backoff; authentication and other permanent errors
+fail immediately. Storage credentials and provider details remain entirely on
+the receiving service.
 
 Use a unique empty output directory for each job. In ECI, pass the same inputs
-as container environment variables and upload the output directory to OSS after
-the process exits.
+as container environment variables and let the receiver persist the output
+after the process exits.
 
 ESP-IDF uses Ninja, which automatically builds in parallel using the CPUs
 visible to the container. Allocate at least 8 vCPUs to an ECI build job when

@@ -12,25 +12,18 @@ LiteAudioEngine::~LiteAudioEngine() = default;
 
 bool LiteAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmodel_list_t* models_list) {
     codec_ = codec;
+    models_list_ = models_list;
     frame_samples_ = frame_duration_ms * 16000 / 1000;
     output_buffer_.reserve(frame_samples_);
 
-    bool has_wakenet = models_list != nullptr &&
+    should_have_wake_word_ = models_list != nullptr &&
         esp_srmodel_filter(models_list, ESP_WN_PREFIX, nullptr) != nullptr;
 #if CONFIG_USE_ESP_WAKE_WORD
-    has_wakenet = has_wakenet || models_list == nullptr;
+    should_have_wake_word_ = should_have_wake_word_ || models_list == nullptr;
 #endif
-    if (has_wakenet) {
-        wake_word_ = std::make_unique<EspWakeWord>();
-        wake_word_->OnWakeWordDetected([this](const std::string& wake_word) {
-            wake_word_enabled_ = false;
-            if (wake_word_detected_callback_) {
-                wake_word_detected_callback_(wake_word);
-            }
-        });
-        if (!wake_word_->Initialize(codec_, models_list)) {
-            ESP_LOGE(TAG, "Failed to initialize standalone WakeNet");
-            wake_word_.reset();
+    {
+        std::lock_guard<std::mutex> lock(wake_word_mutex_);
+        if (!CreateWakeWordLocked()) {
             return false;
         }
     }
@@ -40,8 +33,11 @@ bool LiteAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmod
 }
 
 void LiteAudioEngine::Feed(std::vector<int16_t>&& data) {
-    if (wake_word_enabled_ && wake_word_) {
-        wake_word_->Feed(data);
+    {
+        std::lock_guard<std::mutex> lock(wake_word_mutex_);
+        if (wake_word_enabled_ && wake_word_) {
+            wake_word_->Feed(data);
+        }
     }
     if (voice_processing_enabled_) {
         OutputRawAudio(data);
@@ -49,6 +45,7 @@ void LiteAudioEngine::Feed(std::vector<int16_t>&& data) {
 }
 
 void LiteAudioEngine::EnableWakeWordDetection(bool enable) {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
     if (!wake_word_) {
         wake_word_enabled_ = false;
         return;
@@ -77,6 +74,7 @@ void LiteAudioEngine::EnableDeviceAec(bool enable) {
 }
 
 bool LiteAudioEngine::HasWakeWord() const {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
     return wake_word_ != nullptr;
 }
 
@@ -89,6 +87,7 @@ bool LiteAudioEngine::IsVoiceProcessingEnabled() const {
 }
 
 size_t LiteAudioEngine::GetFeedSize() const {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
     if (wake_word_) {
         return wake_word_->GetFeedSize();
     }
@@ -108,17 +107,57 @@ void LiteAudioEngine::OnVadStateChange(std::function<void(bool speaking)> callba
 }
 
 void LiteAudioEngine::EncodeWakeWordData() {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
     if (wake_word_) {
         wake_word_->EncodeWakeWordData();
     }
 }
 
 bool LiteAudioEngine::GetWakeWordOpus(std::vector<uint8_t>& opus) {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
     return wake_word_ && wake_word_->GetWakeWordOpus(opus);
 }
 
 const std::string& LiteAudioEngine::GetLastDetectedWakeWord() const {
     return wake_word_ ? wake_word_->GetLastDetectedWakeWord() : empty_wake_word_;
+}
+
+void LiteAudioEngine::ReleaseWakeWordResources() {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
+    wake_word_enabled_ = false;
+    if (wake_word_) {
+        wake_word_->Stop();
+        wake_word_.reset();
+        ESP_LOGI(TAG, "Released standalone WakeNet resources");
+    }
+}
+
+bool LiteAudioEngine::RestoreWakeWordResources() {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
+    return CreateWakeWordLocked();
+}
+
+bool LiteAudioEngine::CreateWakeWordLocked() {
+    if (!should_have_wake_word_) {
+        return true;
+    }
+    if (wake_word_) {
+        return true;
+    }
+
+    auto wake_word = std::make_unique<EspWakeWord>();
+    wake_word->OnWakeWordDetected([this](const std::string& detected_wake_word) {
+        wake_word_enabled_ = false;
+        if (wake_word_detected_callback_) {
+            wake_word_detected_callback_(detected_wake_word);
+        }
+    });
+    if (!wake_word->Initialize(codec_, models_list_)) {
+        ESP_LOGE(TAG, "Failed to initialize standalone WakeNet");
+        return false;
+    }
+    wake_word_ = std::move(wake_word);
+    return true;
 }
 
 void LiteAudioEngine::OutputRawAudio(const std::vector<int16_t>& data) {

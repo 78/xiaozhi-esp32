@@ -3,7 +3,6 @@ import json
 import os
 import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -154,31 +153,26 @@ sys.exit(%d)
             )
 
     def test_success_uploads_outputs_and_manifest_last(self) -> None:
-        uploads: list[tuple[str, str]] = []
+        uploads: list[object] = []
 
-        class FakeBucket:
-            def __init__(self, auth: object, endpoint: str, bucket: str) -> None:
-                self.auth = auth
-                self.endpoint = endpoint
-                self.bucket = bucket
+        class FakeResponse:
+            def __enter__(self) -> "FakeResponse":
+                return self
 
-            def put_object_from_file(self, key: str, path: str) -> None:
-                uploads.append((key, path))
+            def __exit__(self, *args: object) -> None:
+                return None
 
-        fake_oss2 = types.SimpleNamespace(
-            Auth=lambda access_key_id, access_key_secret: (
-                access_key_id,
-                access_key_secret,
-            ),
-            Bucket=FakeBucket,
-        )
+            def read(self) -> bytes:
+                return b""
+
+        def fake_urlopen(request: object, timeout: int) -> FakeResponse:
+            uploads.append(request)
+            self.assertEqual(timeout, firmware_builder.UPLOAD_TIMEOUT_SECONDS)
+            return FakeResponse()
+
         upload_env = {
-            "FIRMWARE_OSS_UPLOAD": "true",
-            "FIRMWARE_OSS_ENDPOINT": "oss-cn-shenzhen.aliyuncs.com",
-            "FIRMWARE_OSS_PREFIX": "custom_firmwares",
-            "OSS_BUCKET_NAME": "test-bucket",
-            "OSS_ACCESS_KEY_ID": "test-id",
-            "OSS_ACCESS_KEY_SECRET": "test-secret",
+            "FIRMWARE_UPLOAD_URL": "https://example.com/api/firmware-builds",
+            "FIRMWARE_UPLOAD_TOKEN": "test-token",
         }
 
         with tempfile.TemporaryDirectory() as temporary:
@@ -187,7 +181,7 @@ sys.exit(%d)
             output = root / "output"
             with (
                 patch.dict(os.environ, upload_env),
-                patch.dict(sys.modules, {"oss2": fake_oss2}),
+                patch.object(firmware_builder.urllib.request, "urlopen", fake_urlopen),
             ):
                 exit_code = firmware_builder.main(
                     [
@@ -210,122 +204,97 @@ sys.exit(%d)
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(len(uploads), 4)
-            self.assertEqual(uploads[-1][0], "custom_firmwares/test-job/manifest.json")
+            self.assertEqual(
+                uploads[-1].full_url,
+                "https://example.com/api/firmware-builds/test-job/artifacts/manifest.json",
+            )
+            self.assertEqual(uploads[-1].get_header("Authorization"), "Bearer test-token")
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual(manifest["delivery_status"], "succeeded")
-            self.assertNotIn("test-secret", json.dumps(manifest))
+            self.assertNotIn("test-token", json.dumps(manifest))
 
-    def test_transient_oss_upload_is_retried_with_exponential_backoff(self) -> None:
-        class FakeRequestError(Exception):
-            pass
+    def test_transient_upload_is_retried_with_exponential_backoff(self) -> None:
+        attempts = 0
 
-        class FakeBucket:
-            attempts = 0
-
-            def put_object_from_file(self, key: str, path: str) -> None:
-                self.attempts += 1
-                if self.attempts < 3:
-                    raise FakeRequestError("connection timed out")
-
-        fake_oss2 = types.SimpleNamespace(
-            exceptions=types.SimpleNamespace(
-                RequestError=FakeRequestError,
-                ServerError=type("FakeServerError", (Exception,), {}),
-            )
-        )
+        def fake_urlopen(request: object, timeout: int) -> object:
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                raise firmware_builder.urllib.error.URLError("connection timed out")
+            return unittest.mock.MagicMock()
 
         with tempfile.TemporaryDirectory() as temporary:
             local_path = Path(temporary) / "build.log"
             local_path.write_text("build output", encoding="utf-8")
-            bucket = FakeBucket()
-            with patch.object(firmware_builder.time, "sleep") as sleep:
+            with (
+                patch.object(firmware_builder.time, "sleep") as sleep,
+                patch.object(firmware_builder.urllib.request, "urlopen", fake_urlopen),
+            ):
                 firmware_builder.upload_file_with_retry(
-                    bucket,
-                    "firmware/test/build.log",
+                    "https://example.com/build.log",
+                    "test-token",
                     local_path,
-                    fake_oss2,
                 )
 
-        self.assertEqual(bucket.attempts, 3)
+        self.assertEqual(attempts, 3)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
             [1, 2],
         )
 
-    def test_transient_oss_upload_fails_after_retry_limit(self) -> None:
-        class FakeRequestError(Exception):
-            pass
+    def test_transient_upload_fails_after_retry_limit(self) -> None:
+        attempts = 0
 
-        class FakeBucket:
-            attempts = 0
-
-            def put_object_from_file(self, key: str, path: str) -> None:
-                self.attempts += 1
-                raise FakeRequestError("connection timed out")
-
-        fake_oss2 = types.SimpleNamespace(
-            exceptions=types.SimpleNamespace(
-                RequestError=FakeRequestError,
-                ServerError=type("FakeServerError", (Exception,), {}),
-            )
-        )
+        def fake_urlopen(request: object, timeout: int) -> object:
+            nonlocal attempts
+            attempts += 1
+            raise firmware_builder.urllib.error.URLError("connection timed out")
 
         with tempfile.TemporaryDirectory() as temporary:
             local_path = Path(temporary) / "build.log"
             local_path.write_text("build output", encoding="utf-8")
-            bucket = FakeBucket()
             with (
                 patch.object(firmware_builder.time, "sleep") as sleep,
-                self.assertRaisesRegex(FakeRequestError, "connection timed out"),
+                patch.object(firmware_builder.urllib.request, "urlopen", fake_urlopen),
+                self.assertRaisesRegex(firmware_builder.urllib.error.URLError, "connection timed out"),
             ):
                 firmware_builder.upload_file_with_retry(
-                    bucket,
-                    "firmware/test/build.log",
+                    "https://example.com/build.log",
+                    "test-token",
                     local_path,
-                    fake_oss2,
                 )
 
-        self.assertEqual(bucket.attempts, firmware_builder.OSS_UPLOAD_MAX_ATTEMPTS)
+        self.assertEqual(attempts, firmware_builder.UPLOAD_MAX_ATTEMPTS)
         self.assertEqual(
             [call.args[0] for call in sleep.call_args_list],
             [1, 2, 4],
         )
 
-    def test_permanent_oss_upload_error_is_not_retried(self) -> None:
-        class FakeServerError(Exception):
-            status = 403
-            code = "AccessDenied"
+    def test_permanent_upload_error_is_not_retried(self) -> None:
+        attempts = 0
 
-        class FakeBucket:
-            attempts = 0
-
-            def put_object_from_file(self, key: str, path: str) -> None:
-                self.attempts += 1
-                raise FakeServerError("access denied")
-
-        fake_oss2 = types.SimpleNamespace(
-            exceptions=types.SimpleNamespace(
-                RequestError=type("FakeRequestError", (Exception,), {}),
-                ServerError=FakeServerError,
+        def fake_urlopen(request: object, timeout: int) -> object:
+            nonlocal attempts
+            attempts += 1
+            raise firmware_builder.urllib.error.HTTPError(
+                request.full_url, 403, "Forbidden", {}, None
             )
-        )
 
         with tempfile.TemporaryDirectory() as temporary:
             local_path = Path(temporary) / "build.log"
             local_path.write_text("build output", encoding="utf-8")
-            bucket = FakeBucket()
             with (
                 patch.object(firmware_builder.time, "sleep") as sleep,
-                self.assertRaisesRegex(FakeServerError, "access denied"),
+                patch.object(firmware_builder.urllib.request, "urlopen", fake_urlopen),
+                self.assertRaisesRegex(firmware_builder.urllib.error.HTTPError, "403"),
             ):
                 firmware_builder.upload_file_with_retry(
-                    bucket,
-                    "firmware/test/build.log",
+                    "https://example.com/build.log",
+                    "test-token",
                     local_path,
-                    fake_oss2,
                 )
 
-        self.assertEqual(bucket.attempts, 1)
+        self.assertEqual(attempts, 1)
         sleep.assert_not_called()
 
     def test_rejects_path_traversal_board(self) -> None:

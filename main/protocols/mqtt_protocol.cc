@@ -5,7 +5,10 @@
 
 #include <esp_log.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <charconv>
 #include <cstring>
+#include <system_error>
 #include "assets/lang_config.h"
 
 #define TAG "MQTT"
@@ -45,7 +48,7 @@ MqttProtocol::~MqttProtocol() {
         esp_timer_delete(reconnect_timer_);
     }
 
-    std::unique_ptr<Udp> udp;
+    std::shared_ptr<Udp> udp;
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
         udp = std::move(udp_);
@@ -145,19 +148,40 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
         last_incoming_time_ = std::chrono::steady_clock::now();
     });
 
-    ESP_LOGI(TAG, "Connecting to endpoint %s", endpoint.c_str());
     std::string broker_address;
     int broker_port = 8883;
     size_t pos = endpoint.find(':');
     if (pos != std::string::npos) {
         broker_address = endpoint.substr(0, pos);
-        broker_port = std::stoi(endpoint.substr(pos + 1));
+        auto port_str = endpoint.substr(pos + 1);
+        int parsed_port = 0;
+        auto [ptr, ec] =
+            std::from_chars(port_str.data(), port_str.data() + port_str.size(), parsed_port);
+        if (ec == std::errc() && ptr == port_str.data() + port_str.size() && parsed_port > 0 &&
+            parsed_port <= UINT16_MAX) {
+            broker_port = parsed_port;
+        } else {
+            ESP_LOGW(TAG, "Invalid port in MQTT endpoint \"%s\", using %d", endpoint.c_str(),
+                     broker_port);
+        }
     } else {
         broker_address = endpoint;
     }
-    if (!mqtt_->Connect(broker_address, broker_port, client_id, username, password)) {
-        ESP_LOGE(TAG, "Failed to connect to endpoint, code=%d", mqtt_->GetLastError());
-        SetError(Lang::Strings::SERVER_NOT_CONNECTED);
+    ESP_LOGI(TAG, "Connecting to endpoint %s:%d", broker_address.c_str(), broker_port);
+    if (Board::GetInstance().GetBoardType() == "wifi") {
+        struct hostent* server = gethostbyname(broker_address.c_str());
+        if (server != nullptr && server->h_addr != nullptr) {
+            ESP_LOGI(TAG, "Resolved MQTT host %s -> %s", broker_address.c_str(),
+                     inet_ntoa(*reinterpret_cast<struct in_addr*>(server->h_addr)));
+        } else {
+            ESP_LOGW(TAG, "Failed to resolve MQTT host %s", broker_address.c_str());
+        }
+    }
+    if (auto connected = mqtt_->Connect(broker_address, broker_port, client_id, username, password);
+        !connected) {
+        ESP_LOGE(TAG, "Failed to connect to endpoint: %s", connected.error().ToString().c_str());
+        SetError(Lang::Strings::SERVER_NOT_CONNECTED,
+                 broker_address + ":" + std::to_string(broker_port));
         return false;
     }
 
@@ -178,21 +202,31 @@ bool MqttProtocol::SendText(const std::string& text) {
 }
 
 bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
-    std::lock_guard<std::mutex> lock(channel_mutex_);
-    if (udp_ == nullptr) {
-        return false;
-    }
-
     constexpr size_t kAudioHeaderSize = 16;
-    if (aes_nonce_.size() != kAudioHeaderSize || packet->payload.size() > UINT16_MAX) {
-        ESP_LOGE(TAG, "Invalid AES nonce or audio payload length: %zu", packet->payload.size());
-        return false;
+
+    // Keep the critical section short: only snapshot the channel state here.
+    // udp->Send() below may block waiting for the modem, and the UDP receive
+    // callback needs channel_mutex_ on the modem's AT event task.
+    std::shared_ptr<Udp> udp;
+    std::string nonce;
+    uint32_t sequence;
+    {
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        if (udp_ == nullptr) {
+            return false;
+        }
+        if (aes_nonce_.size() != kAudioHeaderSize || packet->payload.size() > UINT16_MAX) {
+            ESP_LOGE(TAG, "Invalid AES nonce or audio payload length: %zu",
+                     packet->payload.size());
+            return false;
+        }
+        udp = udp_;
+        nonce = aes_nonce_;
+        sequence = htonl(++local_sequence_);
     }
 
-    std::string nonce(aes_nonce_);
     const uint16_t payload_len = htons(static_cast<uint16_t>(packet->payload.size()));
     const uint32_t timestamp = htonl(packet->timestamp);
-    const uint32_t sequence = htonl(++local_sequence_);
     memcpy(nonce.data() + 2, &payload_len, sizeof(payload_len));
     memcpy(nonce.data() + 8, &timestamp, sizeof(timestamp));
     memcpy(nonce.data() + 12, &sequence, sizeof(sequence));
@@ -208,11 +242,12 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
         return false;
     }
 
-    return udp_->Send(encrypted) > 0;
+    // Send without holding channel_mutex_ (see above).
+    return udp->Send(encrypted) > 0;
 }
 
 void MqttProtocol::CloseAudioChannel(bool send_goodbye) {
-    std::unique_ptr<Udp> udp;
+    std::shared_ptr<Udp> udp;
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
         udp = std::move(udp_);
@@ -333,8 +368,9 @@ bool MqttProtocol::OpenAudioChannel() {
         }
     });
 
-    if (!udp->Connect(udp_server_, udp_port_)) {
-        ESP_LOGE(TAG, "Failed to connect UDP audio channel");
+    if (auto connected = udp->Connect(udp_server_, udp_port_); !connected) {
+        ESP_LOGE(TAG, "Failed to connect UDP audio channel: %s",
+                 connected.error().ToString().c_str());
         return false;
     }
     {

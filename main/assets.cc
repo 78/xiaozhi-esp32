@@ -1,14 +1,11 @@
 #include "assets.h"
 #include "application.h"
 #include "board.h"
+#include "cjson_utils.h"
 #include "display.h"
-#include "emote_display.h"
-#include "expression_emote.h"
 #include "lvgl_theme.h"
 #if HAVE_LVGL
 #include <spi_flash_mmap.h>
-#include "display/lcd_display.h"
-#include "display/lvgl_display/lvgl_display.h"
 #endif
 
 #include <esp_heap_caps.h>
@@ -69,6 +66,7 @@ void Assets::UnApplyPartition() {
 }
 
 void Assets::UseBuiltInTextFontCapability() {
+#if HAVE_LVGL
     text_font_capability_ = {
         .glyph_push = true,
         .bundle = NOTO_FONT_BUNDLE_ID,
@@ -76,6 +74,11 @@ void Assets::UseBuiltInTextFontCapability() {
         .size = TEXT_FONT_SIZE,
         .bpp = TEXT_FONT_BPP,
     };
+#else
+    // Emote does not consume pushed glyphs; advertising charset=basic makes
+    // the server embed a bitmap for every CJK character and inflates MQTT.
+    text_font_capability_ = {};
+#endif
 }
 
 void Assets::DisableTextFontGlyphPush() { text_font_capability_ = {}; }
@@ -151,35 +154,52 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
         return false;
     }
 
-    int free_pages = spi_flash_mmap_get_free_pages(SPI_FLASH_MMAP_DATA);
-    uint32_t storage_size = free_pages * 64 * 1024;
-    ESP_LOGI(TAG, "The storage free size is %ld KB", storage_size / 1024);
-    ESP_LOGI(TAG, "The partition size is %ld KB", assets->partition_->size / 1024);
-    if (storage_size < assets->partition_->size) {
-        ESP_LOGE(TAG, "The free size %ld KB is less than assets partition required %ld KB",
-                 storage_size / 1024, assets->partition_->size / 1024);
+    // Read the header first so we only mmap the payload in use. On ESP32-C3 the
+    // free MMU data pages can be smaller than a full 1MB assets partition even
+    // when the packed assets.bin itself fits.
+    uint8_t header[12] = {};
+    esp_err_t err = esp_partition_read(assets->partition_, 0, header, sizeof(header));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read assets header: %s", esp_err_to_name(err));
         return false;
     }
 
-    esp_err_t err =
-        esp_partition_mmap(assets->partition_, 0, assets->partition_->size, ESP_PARTITION_MMAP_DATA,
-                           (const void**)&mmap_root_, &mmap_handle_);
+    uint32_t stored_files = *(uint32_t*)(header + 0);
+    uint32_t stored_chksum = *(uint32_t*)(header + 4);
+    uint32_t stored_len = *(uint32_t*)(header + 8);
+
+    if (stored_len == 0 || stored_len > assets->partition_->size - 12) {
+        ESP_LOGD(TAG, "The stored_len (0x%lx) is greater than the partition size (0x%lx) - 12",
+                 stored_len, assets->partition_->size);
+        return false;
+    }
+
+    constexpr uint32_t kMmuPageSize = 64 * 1024;
+    uint32_t map_size = 12 + stored_len;
+    map_size = (map_size + kMmuPageSize - 1) & ~(kMmuPageSize - 1);
+    if (map_size > assets->partition_->size) {
+        map_size = assets->partition_->size;
+    }
+
+    int free_pages = spi_flash_mmap_get_free_pages(SPI_FLASH_MMAP_DATA);
+    uint32_t storage_size = free_pages * kMmuPageSize;
+    ESP_LOGI(TAG, "The storage free size is %ld KB", storage_size / 1024);
+    ESP_LOGI(TAG, "The assets map size is %ld KB (partition %ld KB)", map_size / 1024,
+             assets->partition_->size / 1024);
+    if (storage_size < map_size) {
+        ESP_LOGE(TAG, "The free size %ld KB is less than assets map required %ld KB",
+                 storage_size / 1024, map_size / 1024);
+        return false;
+    }
+
+    err = esp_partition_mmap(assets->partition_, 0, map_size, ESP_PARTITION_MMAP_DATA,
+                             (const void**)&mmap_root_, &mmap_handle_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mmap assets partition: %s", esp_err_to_name(err));
         return false;
     }
 
     assets->partition_valid_ = true;
-
-    uint32_t stored_files = *(uint32_t*)(mmap_root_ + 0);
-    uint32_t stored_chksum = *(uint32_t*)(mmap_root_ + 4);
-    uint32_t stored_len = *(uint32_t*)(mmap_root_ + 8);
-
-    if (stored_len > assets->partition_->size - 12) {
-        ESP_LOGD(TAG, "The stored_len (0x%lx) is greater than the partition size (0x%lx) - 12",
-                 stored_len, assets->partition_->size);
-        return false;
-    }
 
     auto start_time = esp_timer_get_time();
     uint32_t calculated_checksum = CalculateChecksum(mmap_root_ + 12, stored_len);
@@ -189,6 +209,8 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
     if (calculated_checksum != stored_chksum) {
         ESP_LOGE(TAG, "The calculated checksum (0x%lx) does not match the stored checksum (0x%lx)",
                  calculated_checksum, stored_chksum);
+        UnApplyPartition(assets);
+        assets->partition_valid_ = false;
         return false;
     }
 
@@ -241,13 +263,13 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         return false;
     }
 
-    cJSON* root = cJSON_ParseWithLength(static_cast<char*>(ptr), size);
+    CJsonUniquePtr root(cJSON_ParseWithLength(static_cast<char*>(ptr), size));
     if (root == nullptr) {
         ESP_LOGE(TAG, "The index.json file is not valid");
         return false;
     }
 
-    cJSON* version = cJSON_GetObjectItem(root, "version");
+    cJSON* version = cJSON_GetObjectItem(root.get(), "version");
     if (cJSON_IsNumber(version)) {
         if (version->valuedouble > 1) {
             ESP_LOGE(TAG, "The assets version %d is not supported, please upgrade the firmware",
@@ -256,25 +278,25 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         }
     }
 
-    Assets::LoadSrmodelsFromIndex(assets, root);
+    Assets::LoadSrmodelsFromIndex(assets, root.get());
 
     auto& theme_manager = LvglThemeManager::GetInstance();
     auto light_theme = theme_manager.GetTheme("light");
     auto dark_theme = theme_manager.GetTheme("dark");
 
-    cJSON* font = cJSON_GetObjectItem(root, "text_font");
+    cJSON* font = cJSON_GetObjectItem(root.get(), "text_font");
     if (cJSON_IsString(font)) {
         std::string fonts_text_file = font->valuestring;
         if (assets->GetAssetData(fonts_text_file, ptr, size)) {
             auto text_font = std::make_shared<LvglCBinFont>(ptr);
-            auto display = dynamic_cast<LvglDisplay*>(Board::GetInstance().GetDisplay());
+            auto display = Board::GetInstance().GetDisplay();
             if (text_font->font() == nullptr || display == nullptr ||
                 !display->SetTextFont(text_font)) {
                 ESP_LOGW(TAG, "Ignoring invalid text font asset %s", fonts_text_file.c_str());
             } else {
                 assets->DisableTextFontGlyphPush();
 
-                cJSON* metadata = cJSON_GetObjectItem(root, "text_font_meta");
+                cJSON* metadata = cJSON_GetObjectItem(root.get(), "text_font_meta");
                 cJSON* charset = cJSON_GetObjectItem(metadata, "charset");
                 cJSON* font_size = cJSON_GetObjectItem(metadata, "size");
                 cJSON* font_bpp = cJSON_GetObjectItem(metadata, "bpp");
@@ -306,7 +328,7 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         }
     }
 
-    cJSON* emoji_collection = cJSON_GetObjectItem(root, "emoji_collection");
+    cJSON* emoji_collection = cJSON_GetObjectItem(root.get(), "emoji_collection");
     if (cJSON_IsArray(emoji_collection)) {
         auto custom_emoji_collection = std::make_shared<EmojiCollection>();
         int emoji_count = cJSON_GetArraySize(emoji_collection);
@@ -336,7 +358,7 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         Board::GetInstance().GetDisplay()->SetEmojiCollection(custom_emoji_collection);
     }
 
-    cJSON* skin = cJSON_GetObjectItem(root, "skin");
+    cJSON* skin = cJSON_GetObjectItem(root.get(), "skin");
     if (cJSON_IsObject(skin)) {
         cJSON* light_skin = cJSON_GetObjectItem(skin, "light");
         if (cJSON_IsObject(light_skin) && light_theme != nullptr) {
@@ -398,57 +420,39 @@ bool Assets::LvglStrategy::Apply(Assets* assets, bool refresh_display_theme) {
         }
 
         // Parse hide_subtitle configuration
-        cJSON* hide_subtitle = cJSON_GetObjectItem(root, "hide_subtitle");
+        cJSON* hide_subtitle = cJSON_GetObjectItem(root.get(), "hide_subtitle");
         if (cJSON_IsBool(hide_subtitle)) {
             bool hide = cJSON_IsTrue(hide_subtitle);
-            auto lcd_display = dynamic_cast<LcdDisplay*>(display);
-            if (lcd_display != nullptr) {
-                lcd_display->SetHideSubtitle(hide);
-                ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
-            }
+            display->SetHideSubtitle(hide);
+            ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
         }
     }
 
-    cJSON_Delete(root);
     return true;
 }
 #endif  // HAVE_LVGL
 
 bool Assets::EmoteStrategy::InitializePartition(Assets* assets) {
+    assets->DisableTextFontGlyphPush();
     assets->partition_valid_ = false;
 
     if (!Assets::FindPartition(assets)) {
         return false;
     }
 
-    esp_err_t ret = ESP_ERR_INVALID_STATE;
     auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        const emote_data_t data = {
-            .type = EMOTE_SOURCE_PARTITION,
-            .source =
-                {
-                    .partition_label = PARTITION_LABEL,
-                },
-            .flags =
-                {
-                    .mmap_enable = true,  // must be true here!!!
-                },
-        };
-        ret = emote_mount_assets(emote_display->GetEmoteHandle(), &data);
-    } else {
+    if (display == nullptr || !display->MountAssets(PARTITION_LABEL)) {
         ESP_LOGE(TAG, "Emote display is not initialized");
+        return false;
     }
-    assets->partition_valid_ = ((ret == ESP_OK) ? true : false);
+    assets->partition_valid_ = true;
     return assets->partition_valid_;
 }
 
 void Assets::EmoteStrategy::UnApplyPartition(Assets* assets) {
     auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        emote_unmount_assets(emote_display->GetEmoteHandle());
+    if (display != nullptr) {
+        display->UnmountAssets();
     }
     (void)assets;  // Unused parameter
 }
@@ -456,12 +460,10 @@ void Assets::EmoteStrategy::UnApplyPartition(Assets* assets) {
 bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr,
                                          size_t& size) {
     auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
+    if (display != nullptr) {
         const uint8_t* data = nullptr;
         size_t data_size = 0;
-        if (ESP_OK == emote_get_asset_data_by_name(emote_display->GetEmoteHandle(), name.c_str(),
-                                                   &data, &data_size)) {
+        if (display->GetAssetData(name, data, data_size)) {
             ptr = const_cast<void*>(static_cast<const void*>(data));
             size = data_size;
             return true;
@@ -474,13 +476,12 @@ bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name
 }
 
 bool Assets::EmoteStrategy::Apply(Assets* assets, bool refresh_display_theme) {
+    assets->DisableTextFontGlyphPush();
     Assets::LoadSrmodelsFromIndex(assets);
 
     auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        emote_load_assets(emote_display->GetEmoteHandle());
+    if (display != nullptr) {
+        display->LoadAssets();
     }
     return true;
 }
@@ -492,13 +493,18 @@ bool Assets::Download(std::string url,
     auto network = Board::GetInstance().GetNetwork();
     auto http = network->CreateHttp(0);
 
-    if (!http->Open("GET", url)) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection");
+    if (auto opened = http->Open("GET", url); !opened) {
+        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", opened.error().ToString().c_str());
         return false;
     }
 
-    if (http->GetStatusCode() != 200) {
-        ESP_LOGE(TAG, "Failed to get assets, status code: %d", http->GetStatusCode());
+    auto status_code = http->GetStatusCode();
+    if (!status_code) {
+        ESP_LOGE(TAG, "Failed to read HTTP status: %s", status_code.error().ToString().c_str());
+        return false;
+    }
+    if (*status_code != 200) {
+        ESP_LOGE(TAG, "Failed to get assets, status code: %d", *status_code);
         return false;
     }
 
@@ -554,13 +560,14 @@ bool Assets::Download(std::string url,
     size_t header_collected = 0;
     bool success = false;
     while (true) {
-        int ret = http->Read(buffer.get(), SECTOR_SIZE);
-        if (ret < 0) {
-            ESP_LOGE(TAG, "Failed to read HTTP data: %s", esp_err_to_name(ret));
+        auto ret = http->Read(buffer.get(), SECTOR_SIZE);
+        if (!ret) {
+            ESP_LOGE(TAG, "Failed to read HTTP data: %s", ret.error().ToString().c_str());
             break;
         }
+        int n = *ret;
 
-        if (ret == 0) {
+        if (n == 0) {
             // End of data
             success = true;
             break;
@@ -571,15 +578,15 @@ bool Assets::Download(std::string url,
         // Collect header
         if (header_collected < HEADER_SIZE) {
             size_t need = HEADER_SIZE - header_collected;
-            size_t take = std::min(static_cast<size_t>(ret), need);
+            size_t take = std::min(static_cast<size_t>(n), need);
             memcpy(header_buf + header_collected, buffer.get(), take);
             header_collected += take;
             buf_pos += take;
         }
 
         // Write payload
-        if ((size_t)ret > buf_pos) {
-            size_t write_len = (size_t)ret - buf_pos;
+        if ((size_t)n > buf_pos) {
+            size_t write_len = (size_t)n - buf_pos;
             size_t write_end_offset = HEADER_SIZE + total_written + write_len;
             size_t needed_sectors = (write_end_offset + SECTOR_SIZE - 1) / SECTOR_SIZE;
             // Erase sectors

@@ -1,18 +1,21 @@
 #ifndef _OTA_H
 #define _OTA_H
 
+#include <expected>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include <esp_err.h>
 #include "board.h"
+#include "network_error.h"
 
 class Ota {
 public:
     Ota();
     ~Ota();
 
-    esp_err_t CheckVersion();
+    NetworkResult<> CheckVersion();
     esp_err_t Activate();
     bool HasActivationChallenge() { return has_activation_challenge_; }
     bool HasNewVersion() { return has_new_version_; }
@@ -49,7 +52,7 @@ private:
     int activation_timeout_ms_ = 30000;
 
     std::function<void(int progress, size_t speed)> upgrade_callback_;
-    std::vector<int> ParseVersion(const std::string& version);
+    std::expected<std::vector<int>, std::string> ParseVersion(const std::string& version);
     bool IsNewVersionAvailable(const std::string& currentVersion, const std::string& newVersion);
     std::string GetActivationPayload();
     std::unique_ptr<Http> SetupHttp();

@@ -337,6 +337,110 @@ class BoardSelectionTests(unittest.TestCase):
             "Alientek ATK-DNESP32S3 Development Board (正点原子)",
         )
 
+    def test_board_target_matching_uses_complete_kconfig_symbols(self):
+        self.assertTrue(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI",
+                "esp32s3",
+            )
+        )
+        self.assertFalse(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI",
+                "esp32",
+            )
+        )
+        self.assertTrue(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1",
+                "esp32s31",
+            )
+        )
+        self.assertFalse(
+            build._symbol_supports_target(
+                "CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1",
+                "esp32s3",
+            )
+        )
+
+    def test_explicit_board_config_rejects_incompatible_target(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support target 'esp32c3'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32c3",
+                ["CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI=y"],
+            )
+
+    def test_explicit_board_config_rejects_different_board_directory(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not select board directory 'bread-compact-wifi'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32s3",
+                ["CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y"],
+            )
+
+    def test_inferred_board_config_rejects_incompatible_target(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support target 'esp32c3'",
+        ):
+            build._resolve_board_config(
+                "bread-compact-wifi",
+                "esp32c3",
+                [],
+            )
+
+    def test_rejected_board_selection_stops_before_build(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            board_dir = Path(temp_dir) / "test-board"
+            board_dir.mkdir()
+            (board_dir / "config.json").write_text(
+                json.dumps({
+                    "target": "esp32s3",
+                    "type": "test-board",
+                    "builds": [{"name": "test-board"}],
+                }),
+                encoding="utf-8",
+            )
+
+            with (
+                mock.patch.object(build, "_BOARDS_DIR", Path(temp_dir)),
+                mock.patch.object(build, "get_project_version", return_value="1.0.0"),
+                mock.patch.object(
+                    build,
+                    "_resolve_board_config",
+                    return_value="CONFIG_BOARD_TYPE_TEST",
+                ),
+                mock.patch.object(build, "_build_option_definitions", return_value=[]),
+                mock.patch.object(build, "_prepare_target"),
+                mock.patch.object(build, "_configure_build"),
+                mock.patch.object(
+                    build,
+                    "_validate_configured_symbols",
+                    side_effect=ValueError("Kconfig rejected board selection"),
+                ) as validate_symbols,
+                mock.patch.object(build, "_run_idf") as run_idf,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                with self.assertRaisesRegex(ValueError, "Kconfig rejected"):
+                    build.build_board(
+                        "test-board",
+                        name_filter="test-board",
+                        idf_version=(6, 0, 2),
+                    )
+
+            validate_symbols.assert_called_once_with(
+                ["CONFIG_BOARD_TYPE_TEST"],
+                "board selection",
+            )
+            run_idf.assert_not_called()
+
     def test_variant_name_disambiguates_shared_board_directory(self):
         board = "lilygo/t-cameraplus-s3"
         self.assertEqual(
@@ -1192,6 +1296,18 @@ class BuildOptionTests(unittest.TestCase):
         self.assertIn("CONFIG_USE_HOTSPOT_WIFI_PROVISIONING=n", options)
         self.assertIn("CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING=y", options)
 
+    def test_no_spiram_drops_s3_lvgl_psram_pool(self):
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=n"])
+        self.assertIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects(["CONFIG_SPIRAM=y"])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+        self.assertNotIn("CONFIG_LV_USE_CLIB_MALLOC=y", items)
+
+        items = build._apply_auto_selects([])
+        self.assertNotIn("CONFIG_LV_USE_BUILTIN_MALLOC=n", items)
+
     def test_camera_board_defaults_are_declared_by_board_config(self):
         config = json.loads(
             (ROOT / "main/boards/espressif/esp32-s3-korvo-2-v3.0/config.json").read_text(
@@ -1214,6 +1330,28 @@ class BuildOptionTests(unittest.TestCase):
         defaults = {definition["key"]: definition["default"] for definition in definitions}
 
         self.assertFalse(defaults["camera_hmirror"])
+        self.assertTrue(defaults["camera_vflip"])
+
+    def test_nothrow_camera_constructor_exposes_mirror_options(self):
+        config = json.loads(
+            (ROOT / "main/boards/otto-robot/config.json").read_text(encoding="utf-8")
+        )
+        build_config = config["builds"][0]
+        board_config = build._resolve_board_config(
+            "otto-robot",
+            config["target"],
+            build_config["sdkconfig_append"],
+            variant_name=build_config["name"],
+        )
+        definitions = build._build_option_definitions(
+            "otto-robot",
+            config["target"],
+            board_config,
+            build_config,
+        )
+        defaults = {definition["key"]: definition["default"] for definition in definitions}
+
+        self.assertTrue(defaults["camera_hmirror"])
         self.assertTrue(defaults["camera_vflip"])
 
     def test_optional_usb_camera_options_require_camera_to_be_enabled(self):
@@ -1482,6 +1620,44 @@ class BoardSourceTests(unittest.TestCase):
                     )
 
         self.assertEqual(missing, [])
+
+    def test_m5stack_tab5_supports_st7121_and_st7123_panels(self):
+        board_dir = ROOT / "main/boards/m5stack/tab5"
+        board_cc = (board_dir / "m5stack_tab5.cc").read_text(encoding="utf-8")
+
+        initialize_display = board_cc[
+            board_cc.index("void InitializeDisplay()") : board_cc.index(
+                "void InitializeCamera()"
+            )
+        ]
+        self.assertLess(
+            initialize_display.index("ResetLcdAndTouch();"),
+            initialize_display.index("i2c_master_probe"),
+        )
+        self.assertIn("DetectSt712xPanel()", initialize_display)
+        self.assertIn("InitializeSt712xDisplay(panel_type)", initialize_display)
+
+        self.assertIn("firmware_version == 1", board_cc)
+        self.assertIn("St712xPanel::kSt7121", board_cc)
+        self.assertIn("esp_lcd_new_panel_st7121", board_cc)
+        self.assertIn("esp_lcd_new_panel_st7123", board_cc)
+        self.assertIn("is_st7121 ? 20 : 2", board_cc)
+        self.assertIn("is_st7121 ? 24 : 8", board_cc)
+        self.assertIn("is_st7121 ? 200 : 220", board_cc)
+
+        st7121_driver = (board_dir / "esp_lcd_st7121.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("esp_lcd_new_panel_st7121", st7121_driver)
+        self.assertIn("{0x71, 0x21, 0xA2}", st7121_driver)
+
+        config = json.loads((board_dir / "config.json").read_text(encoding="utf-8"))
+        for build_config in config["builds"]:
+            self.assertIn(
+                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y",
+                build_config["sdkconfig_append"],
+                msg=build_config["name"],
+            )
 
 
 class ZipTests(unittest.TestCase):

@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "backlight.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_co5300.h"
 #include "codecs/es8311_audio_codec.h"
@@ -14,8 +15,9 @@
 #include <wifi_manager.h>
 
 #define TAG "M5StackStopwatch"
+#define LCD_OPCODE_WRITE_CMD (0x02ULL)
 
-// CO5300 AMOLED: brightness via 0x51 in init only, no separate backlight control
+// CO5300 AMOLED: initialize at full brightness, then restore the saved setting.
 static const co5300_lcd_init_cmd_t vendor_specific_init[] = {
     // {cmd, { data }, data_size, delay_ms}
     {0xFE, (uint8_t []){0x00}, 0, 0},
@@ -85,6 +87,31 @@ public:
     }
 };
 
+class StopwatchBacklight : public Backlight {
+public:
+    StopwatchBacklight(esp_lcd_panel_io_handle_t panel_io, Display* display)
+        : panel_io_(panel_io), display_(display) {}
+
+protected:
+    void SetBrightnessImpl(uint8_t brightness) override {
+        DisplayLockGuard lock(display_);
+        uint8_t data[] = {static_cast<uint8_t>((255 * brightness) / 100)};
+        int lcd_cmd = 0x51;
+        lcd_cmd &= 0xff;
+        lcd_cmd <<= 8;
+        lcd_cmd |= LCD_OPCODE_WRITE_CMD << 24;
+
+        esp_err_t err = esp_lcd_panel_io_tx_param(panel_io_, lcd_cmd, data, sizeof(data));
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to set display brightness: %s", esp_err_to_name(err));
+        }
+    }
+
+private:
+    esp_lcd_panel_io_handle_t panel_io_;
+    Display* display_;
+};
+
 class M5StackStopwatchBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -93,6 +120,7 @@ private:
     Button button1_;
     Button button2_;
     RoundLcdDisplay* display_;
+    StopwatchBacklight* backlight_;
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -199,8 +227,10 @@ private:
         esp_lcd_panel_disp_on_off(panel, true);
 
         display_ = new RoundLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                         DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
-                                         DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+                                       DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                       DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        backlight_ = new StopwatchBacklight(panel_io, display_);
+        backlight_->RestoreBrightness();
     }
 
     void InitializeButtons() {
@@ -231,7 +261,8 @@ public:
         : i2c_bus_(nullptr),
           button1_(BUTTON1_GPIO),
           button2_(BUTTON2_GPIO),
-          display_(nullptr) {
+          display_(nullptr),
+          backlight_(nullptr) {
         InitializeI2c();
         InitializeSpi();
         InitializeDisplay();
@@ -257,6 +288,10 @@ public:
 
     Display* GetDisplay() override {
         return display_;
+    }
+
+    Backlight* GetBacklight() override {
+        return backlight_;
     }
 
     bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {

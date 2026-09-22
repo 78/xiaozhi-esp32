@@ -14,10 +14,10 @@
 
 ## 最近の更新
 
-- メインラインはESP-IDF v6.0以降へ移行し、推奨安定版はv6.0.2です。従来の157リリースバリアントはESP-IDF v6.0.1でビルド検証済みです。現在のマトリクスは171バリアントで、そのうち170はIDF 6.0.xに対応し、ESP32-S31バリアントにはIDF 6.1以降が必要です。
+- 本プロジェクトはESP-IDF v6.0.1以降を必須とし、推奨SDKは[ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)です。ESP-IDF 5.xはサポートしません。現在のマトリクスは171バリアントで、ESP32-S31バリアントにはIDF 6.1以降が必要です。
 - MQTTとBluFiの暗号処理をPSA Cryptoへ移行し、IDF 6のコンポーネント分割およびサードパーティ依存関係にも対応しました。
 - オーディオパイプラインの並行処理、MQTT/UDPパケット検証、リリースマトリクス選択処理を強化しました。
-- ESP-IDF v5.5は、文書で明記された旧式ボード向けにのみ残しています。ESP-SR 2.4.7を使用すると、ESP32-P4 Rev1とRev3の両方がIDF 6に対応します。詳細な互換性とボード検証状況は、[ESP-IDF 6.0移行ガイド](docs/esp-idf-6-migration.md)を参照してください。
+- ESP-SR 2.4.7を使用すると、ESP32-P4 Rev1とRev3の両方がIDF 6に対応します。
 
 ### 実装済み機能
 
@@ -114,13 +114,12 @@ Feishuドキュメントチュートリアルをご覧ください：
 ### 開発環境
 
 - Cursor または VSCode
-- ESP-IDFプラグインをインストールし、[ESP-IDF v6.0.2](https://github.com/espressif/esp-idf/releases/tag/v6.0.2)を優先して使用してください。v6.0以降の安定版を推奨し、ESP-IDF v5.5.2は旧ハードウェアとの互換性維持にのみ使用します
+- ESP-IDFプラグインをインストールしてください。最低要件は[ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1)、推奨は[ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)です。ESP-IDF 5.xはサポートしません
 - LinuxはWindowsよりも優れており、コンパイルが速く、ドライバの問題も少ない
 - 本プロジェクトはGoogle C++コードスタイルを採用、コード提出時は準拠を確認してください
 
 ### 開発者ドキュメント
 
-- [ESP-IDF 6.0移行ガイド](docs/esp-idf-6-migration.md) - SDK互換性、コンポーネント変更、旧ハードウェア対応、ボード検証状況
 - [カスタム開発ボードガイド](docs/custom-board.md) - シャオジーAI用のカスタム開発ボード作成方法
 - [MCPプロトコルIoT制御使用法](docs/mcp-usage.md) - MCPプロトコルでIoTデバイスを制御する方法
 - [MCPプロトコルインタラクションフロー](docs/mcp-protocol.md) - デバイス側MCPプロトコルの実装方法

@@ -3,6 +3,7 @@
 
 #include <esp_http_server.h>
 #include <cJSON.h>
+#include <cstdint>
 #include <string>
 #include <map>
 
@@ -20,16 +21,22 @@ public:
     void BroadcastMessage(const std::string& message);
 
 private:
+    struct ClientInfo {
+        uint64_t client_id;
+    };
+
     httpd_handle_t server_handle_;
-    std::map<int, httpd_req_t*> clients_;
+    std::map<int, ClientInfo> clients_;
+    uint64_t next_client_id_ = 0;
 
     static esp_err_t ws_handler(httpd_req_t *req);
     
     void HandleMessage(httpd_req_t *req, const char* data, size_t len);
     void AddClient(httpd_req_t *req);
     void RemoveClient(httpd_req_t *req);
+    uint64_t GetClientId(httpd_req_t *req) const;
+    void SendMessage(int sock_fd, uint64_t client_id, const std::string& message);
     static WebSocketControlServer* instance_;
 };
 
 #endif // WEBSOCKET_CONTROL_SERVER_H
-

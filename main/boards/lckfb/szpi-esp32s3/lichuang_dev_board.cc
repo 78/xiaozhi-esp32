@@ -177,7 +177,7 @@ private:
 
     void InitializeTouch()
     {
-        esp_lcd_touch_handle_t tp;
+        esp_lcd_touch_handle_t tp = nullptr;
         esp_lcd_touch_config_t tp_cfg = {
             .x_max = DISPLAY_HEIGHT,
             .y_max = DISPLAY_WIDTH,
@@ -206,9 +206,15 @@ private:
         };
         tp_io_config.scl_speed_hz = 400000;
 
-        esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle);
-        esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp);
-        assert(tp);
+        if (esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle) != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to create touch panel IO, continuing without touch");
+            return;
+        }
+        if (esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp) != ESP_OK || tp == nullptr) {
+            ESP_LOGW(TAG, "FT5x06 touch controller not found, continuing without touch");
+            esp_lcd_panel_io_del(tp_io_handle);
+            return;
+        }
 
         /* Add touch input (for selected screen) */
         const lvgl_port_touch_cfg_t touch_cfg = {

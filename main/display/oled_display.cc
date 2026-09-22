@@ -2,6 +2,7 @@
 #include "assets/lang_config.h"
 #include "lvgl_font.h"
 #include "lvgl_theme.h"
+#include "settings.h"
 
 #include <algorithm>
 #include <string>
@@ -420,4 +421,14 @@ void OledDisplay::SetTheme(Theme* theme) {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
+}
+
+void OledDisplay::SetPowerSaveMode(bool on) {
+    if (panel_) {
+        Settings settings("wifi", false);
+        if (settings.GetBool("power_save_display_off", false)) {
+            esp_lcd_panel_disp_on_off(panel_, !on);
+        }
+    }
+    LvglDisplay::SetPowerSaveMode(on);
 }

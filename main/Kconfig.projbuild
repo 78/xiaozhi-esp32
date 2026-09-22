@@ -67,8 +67,12 @@ choice
         bool "Arabic"
     config LANGUAGE_HI_IN
         bool "Hindi"
+    config LANGUAGE_MR_IN
+        bool "Marathi"
     config LANGUAGE_PT_PT
         bool "Portuguese"
+    config LANGUAGE_PT_BR
+        bool "Portuguese (Brazil)"
     config LANGUAGE_PL_PL
         bool "Polish"
     config LANGUAGE_CS_CZ
@@ -223,6 +227,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_HI
         bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_ESP_MOSAICO
+        bool "Espressif ESP-Mosaico"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_ESP_SENSAIRSHUTTLE
         bool "Espressif ESP-SensairShuttle"
         depends on IDF_TARGET_ESP32C5
@@ -238,6 +245,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_SPOT_S3
         bool "Espressif Spot-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOLOTOY_AI_PASSPORT
+        bool "FoloToy AI Passport (ESP32-C3)"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD
         bool "Freenove ESP32-S3 Display 2.8-inch LCD"
         depends on IDF_TARGET_ESP32S3
@@ -355,6 +365,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_C3_V2
         bool "Magiclick C3 V2 (神奇按钮)"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_MAZA_AI_ESP32_S3
+        bool "Maza AI ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MAZA_AI_ESP32_S31
+        bool "Maza AI ESP32-S31"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "Minsi K08 Dual Network (敏思科技)"
         depends on IDF_TARGET_ESP32S3
@@ -424,6 +440,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69
         bool "Waveshare ESP32-C5-Touch-LCD-1.69"
         depends on IDF_TARGET_ESP32C5
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54
+        bool "Waveshare ESP32-C6-e-Paper-1.54"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_LCD_0_85
         bool "Waveshare ESP32-C6-LCD-0.85"
         depends on IDF_TARGET_ESP32C6

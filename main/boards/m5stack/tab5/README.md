@@ -17,8 +17,14 @@
 - `m5stack-tab5` 面向 Rev < 3，并包含 `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` 和 `CONFIG_ESP32P4_REV_MIN_100=y`。
 - `m5stack-tab5-p4x` 面向 Rev >= 3。
 - ESP-IDF 6 构建需要 `esp-sr` 2.4.7 或更高版本，两个芯片修订版均可用。
+- 两个 variant 都启用 `CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y`，避免 onboard C6 的 ESP-Hosted SDIO
+  缓冲池在 ESP-IDF 6 上耗尽 internal RAM。
 
 不要把 `m5stack-tab5-p4x` 固件强制刷入 Rev 1.x 芯片；应改用无后缀的 `m5stack-tab5` 固件。误用 P4X 固件时，正常情况下烧录工具会报告：`bootloader/bootloader.bin requires chip revision in range [v3.0 - v3.99] (this chip is revision v1.x)`。
+
+Tab5 可能搭载 ILI9881C、ST7121 或 ST7123 面板。ST7121 与 ST7123 使用相同的触摸 I2C 地址，
+固件会读取触摸控制器的 firmware version 来选择对应面板驱动和时序。板级初始化还会在探测面板前，
+通过 PI4IOE 脉冲 `LCD_RST` 和 `TP_RST`。
 
 1. 使用 build.py 编译
 
