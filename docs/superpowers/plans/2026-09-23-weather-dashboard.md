@@ -1268,9 +1268,10 @@ Expected: 下载成功（文件约 400KB+）；该 TTF 仅作生成用。
 - [ ] **Step 2: 生成 72px 数字字体**
 
 ```bash
+# Range 0x2D-0x3A: U+002D '-' is required for the pre-sync "--" clock text.
 npx -y lv_font_conv@1.5.3 \
     --font "/System/Library/Fonts/Supplemental/Arial Bold.ttf" \
-    --size 72 --bpp 4 --range 0x30-0x3A --no-compress \
+    --size 72 --bpp 4 --range 0x2D-0x3A --no-compress \
     --format lvgl --lv-include lvgl.h --lv-font-name lv_font_digits_72 \
     -o main/display/dashboard/fonts/font_digits_72.c
 ```
@@ -1456,6 +1457,7 @@ LV_FONT_DECLARE(lv_font_digits_72);
 LV_FONT_DECLARE(font_weather_symbols_26_4);
 LV_FONT_DECLARE(font_weather_symbols_36_4);
 LV_FONT_DECLARE(font_noto_sans_basic_30_4);
+LV_FONT_DECLARE(font_noto_sans_basic_16_4);
 
 extern const uint8_t neutral_gif_start[] asm("_binary_neutral_gif_start");
 
@@ -1543,7 +1545,8 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(0x1E88E5), LV_PART_INDICATOR);
     lv_bar_set_value(temp_bar_, 0, LV_ANIM_OFF);
 
-    temp_value_ = MakeLabel(container_, text_font, 0x424242, 126, 234, 46, 26);
+    // 16px so "-10°C"/"100%" (50px at 20px) fit the 46px box without GIF overlap.
+    temp_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 238, 46, 22);
 
     // Humidity row
     humid_icon_ =
@@ -1560,7 +1563,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0x43A047), LV_PART_INDICATOR);
     lv_bar_set_value(humid_bar_, 0, LV_ANIM_OFF);
 
-    humid_value_ = MakeLabel(container_, text_font, 0x424242, 126, 268, 46, 26);
+    humid_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 272, 46, 22);
 
     // Idle robot GIF
     static lv_img_dsc_t gif_raw;
@@ -1574,7 +1577,10 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
             lv_image_set_src(gif_image_, gif_->image_dsc());
         });
         lv_image_set_src(gif_image_, gif_->image_dsc());
+        // Create the playback timer, then pause it: the container is hidden at
+        // construction; Show() -> Resume() starts it without offscreen decoding.
         gif_->Start();
+        gif_->Pause();
     }
 
     // Self-contained timers; callbacks no-op while the dashboard is hidden.
@@ -1616,6 +1622,9 @@ void DashboardUI::Show() {
 }
 
 void DashboardUI::Hide() {
+    if (!IsVisible()) {
+        return;  // Already hidden: no redundant TRANSP->TRANSP animation
+    }
     // Cancel any running fade-in/fade-out first: otherwise this fade-out and
     // an in-flight fade-in both write opa concurrently. A previous fade-out's
     // deleted_cb checks opa==TRANSP, so mid-fade deletion will not mis-hide.
@@ -1626,14 +1635,14 @@ void DashboardUI::Hide() {
     lv_anim_t anim;
     lv_anim_init(&anim);
     lv_anim_set_var(&anim, container_);
-    lv_anim_set_values(&anim, lv_obj_get_style_opa(container_, 0), LV_OPA_TRANSP);
+    lv_anim_set_values(&anim, lv_obj_get_style_opa(container_, LV_PART_MAIN), LV_OPA_TRANSP);
     lv_anim_set_duration(&anim, kFadeMs);
     lv_anim_set_exec_cb(&anim, [](void* var, int32_t value) {
         lv_obj_set_style_opa(static_cast<lv_obj_t*>(var), value, 0);
     });
     lv_anim_set_deleted_cb(&anim, [](lv_anim_t* anim) {
         lv_obj_t* obj = static_cast<lv_obj_t*>(anim->var);
-        if (lv_obj_get_style_opa(obj, 0) == LV_OPA_TRANSP) {
+        if (lv_obj_get_style_opa(obj, LV_PART_MAIN) == LV_OPA_TRANSP) {
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
         }
     });
@@ -1839,8 +1848,11 @@ class DashboardUI;
 void LcdDisplay::SetupDashboard() {
     dashboard_ = std::make_unique<DashboardUI>(lv_screen_active());
     WeatherService::GetInstance().SetUpdateCallback([this]() {
+        // The callback runs on the weather task; hop to the Application task,
+        // and take the display lock there before touching LVGL objects.
         Application::GetInstance().Schedule([this]() {
             if (dashboard_) {
+                DisplayLockGuard lock(this);
                 dashboard_->UpdateWeather(WeatherService::GetInstance().GetSnapshot());
             }
         });
@@ -1849,6 +1861,7 @@ void LcdDisplay::SetupDashboard() {
 
 void LcdDisplay::ShowDashboard() {
     if (dashboard_) {
+        DisplayLockGuard lock(this);
         dashboard_->Show();
         dashboard_->UpdateWeather(WeatherService::GetInstance().GetSnapshot());
     }
@@ -1856,6 +1869,7 @@ void LcdDisplay::ShowDashboard() {
 
 void LcdDisplay::HideDashboard() {
     if (dashboard_) {
+        DisplayLockGuard lock(this);
         dashboard_->Hide();
     }
 }
