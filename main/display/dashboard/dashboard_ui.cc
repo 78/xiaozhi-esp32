@@ -13,6 +13,7 @@ LV_FONT_DECLARE(lv_font_digits_72);
 LV_FONT_DECLARE(font_weather_symbols_26_4);
 LV_FONT_DECLARE(font_weather_symbols_36_4);
 LV_FONT_DECLARE(font_noto_sans_basic_30_4);
+LV_FONT_DECLARE(font_noto_sans_basic_16_4);
 
 extern const uint8_t neutral_gif_start[] asm("_binary_neutral_gif_start");
 
@@ -100,7 +101,8 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(0x1E88E5), LV_PART_INDICATOR);
     lv_bar_set_value(temp_bar_, 0, LV_ANIM_OFF);
 
-    temp_value_ = MakeLabel(container_, text_font, 0x424242, 126, 234, 46, 26);
+    // 16px so "-10°C"/"100%" (50px at 20px) fit the 46px box without GIF overlap.
+    temp_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 238, 46, 22);
 
     // Humidity row
     humid_icon_ =
@@ -117,7 +119,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0x43A047), LV_PART_INDICATOR);
     lv_bar_set_value(humid_bar_, 0, LV_ANIM_OFF);
 
-    humid_value_ = MakeLabel(container_, text_font, 0x424242, 126, 268, 46, 26);
+    humid_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 272, 46, 22);
 
     // Idle robot GIF
     static lv_img_dsc_t gif_raw;
@@ -131,7 +133,10 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
             lv_image_set_src(gif_image_, gif_->image_dsc());
         });
         lv_image_set_src(gif_image_, gif_->image_dsc());
+        // Create the playback timer, then pause it: the container is hidden at
+        // construction; Show() -> Resume() starts it without offscreen decoding.
         gif_->Start();
+        gif_->Pause();
     }
 
     // Self-contained timers; callbacks no-op while the dashboard is hidden.
@@ -173,6 +178,9 @@ void DashboardUI::Show() {
 }
 
 void DashboardUI::Hide() {
+    if (!IsVisible()) {
+        return;  // Already hidden: no redundant TRANSP->TRANSP animation
+    }
     // Cancel any running fade-in/fade-out first: otherwise this fade-out and
     // an in-flight fade-in both write opa concurrently. A previous fade-out's
     // deleted_cb checks opa==TRANSP, so mid-fade deletion will not mis-hide.
