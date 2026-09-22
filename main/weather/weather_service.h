@@ -22,7 +22,6 @@ struct WeatherSnapshot {
     int temperature = 0;
     int humidity = 0;
     int aqi = -1;
-    std::string aqi_category;
     time_t updated_at = 0;
 };
 

@@ -148,6 +148,8 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     }
 
     // Self-contained timers; callbacks no-op while the dashboard is hidden.
+    // DashboardUI is a process-lifetime singleton with no destruction path,
+    // so passing the bare `this` pointer as timer user data is safe.
     lv_timer_create(
         [](lv_timer_t* timer) {
             auto* self = static_cast<DashboardUI*>(lv_timer_get_user_data(timer));
@@ -178,7 +180,12 @@ void DashboardUI::Show() {
     lv_obj_t* parent = lv_obj_get_parent(container_);
     lv_obj_move_to_index(container_,
                          static_cast<int32_t>(lv_obj_get_child_count(parent)) - 1);
-    lv_obj_fade_in(container_, kFadeMs, 0);
+    // Skip the fade-in when already fully opaque (e.g. network recovers while
+    // the idle dashboard is on screen) to avoid a full-screen re-flash.
+    // Mid fade-out (opa < COVER) still fades in, which correctly cancels it.
+    if (lv_obj_get_style_opa(container_, LV_PART_MAIN) != LV_OPA_COVER) {
+        lv_obj_fade_in(container_, kFadeMs, 0);
+    }
     UpdateClock();
     UpdateNetwork();
     UpdateWeather(WeatherService::GetInstance().GetSnapshot());

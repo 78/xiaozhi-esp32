@@ -6,6 +6,7 @@
 #include <esp_log.h>
 
 #include <cstdio>
+#include <exception>
 
 #define TAG "WeatherService"
 
@@ -28,7 +29,7 @@ void WeatherService::Start() {
     if (started_.exchange(true)) {
         return;
     }
-    xTaskCreate(
+    BaseType_t ok = xTaskCreate(
         [](void* arg) {
             auto* self = static_cast<WeatherService*>(arg);
             self->TaskLoop();
@@ -36,6 +37,11 @@ void WeatherService::Start() {
             vTaskDelete(nullptr);
         },
         "weather_svc", 4096 * 2, this, 4, &task_);
+    if (ok != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create weather service task");
+        task_ = nullptr;
+        started_ = false;
+    }
 }
 
 void WeatherService::OnKeyUpdated() {
@@ -51,7 +57,12 @@ void WeatherService::OnNetworkConnected() {
     }
 }
 
-void WeatherService::OnNetworkDisconnected() { network_connected_ = false; }
+void WeatherService::OnNetworkDisconnected() {
+    network_connected_ = false;
+    if (task_ != nullptr) {
+        xTaskNotify(task_, kNotifyNetwork, eSetBits);
+    }
+}
 
 WeatherSnapshot WeatherService::GetSnapshot() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -85,18 +96,45 @@ void WeatherService::TaskLoop() {
         return received;
     };
 
+    bool offline_logged = false;
+    WeatherSnapshot last_unavailable;
+    bool have_last_unavailable = false;
+
+    auto status_signature_same = [](const WeatherSnapshot& a, const WeatherSnapshot& b) {
+        return a.valid == b.valid && a.no_key == b.no_key &&
+               a.key_invalid == b.key_invalid && a.city == b.city &&
+               a.aqi == b.aqi && a.icon_code == b.icon_code &&
+               a.temperature == b.temperature && a.humidity == b.humidity &&
+               a.weather_text == b.weather_text;
+    };
+    // no_key/key_invalid snapshots are only published when their key state
+    // changed, so identical 5-minute retries do not retrigger the UI callback.
+    auto publish_unavailable = [&](const WeatherSnapshot& snapshot) {
+        if (have_last_unavailable && status_signature_same(snapshot, last_unavailable)) {
+            return;
+        }
+        last_unavailable = snapshot;
+        have_last_unavailable = true;
+        Publish(snapshot);
+    };
+
     for (;;) {
+      try {
         if (!network_connected_) {
-            ESP_LOGI(TAG, "Offline, waiting for network");
+            if (!offline_logged) {
+                ESP_LOGI(TAG, "Offline, waiting for network");
+                offline_logged = true;
+            }
             wait(kRetryIntervalMs);
             continue;
         }
+        offline_logged = false;
 
         std::string key = key_store_.GetKey();
         if (key.empty()) {
             WeatherSnapshot no_key_snapshot;
             no_key_snapshot.no_key = true;
-            Publish(no_key_snapshot);  // UI shows "天气未配置"
+            publish_unavailable(no_key_snapshot);  // UI shows "天气未配置"
             wait(kRetryIntervalMs);
             continue;
         }
@@ -129,7 +167,7 @@ void WeatherService::TaskLoop() {
                 WeatherSnapshot invalid;
                 invalid.key_invalid = true;
                 invalid.city = geo.city;
-                Publish(invalid);
+                publish_unavailable(invalid);
             }
             ESP_LOGW(TAG, "Weather request failed (http %d)", weather_resp.status);
             wait(kRetryIntervalMs);
@@ -149,16 +187,28 @@ void WeatherService::TaskLoop() {
         AirNowData air = ParseAirNowResponse(air_resp.body, air_resp.status);
         if (air.ok) {
             snapshot.aqi = air.aqi;
-            snapshot.aqi_category = air.category;
         } else {
             ESP_LOGW(TAG, "Air quality request failed (http %d), showing weather only",
                      air_resp.status);
         }
 
         Publish(snapshot);
+        // Valid data was shown, so the next unavailable state is a real
+        // transition even if its fields match an earlier one.
+        have_last_unavailable = false;
         ESP_LOGI(TAG, "Weather updated: %s, %dC, %d%%, AQI %d", weather.text.c_str(),
                  weather.temperature, weather.humidity, snapshot.aqi);
 
         wait(kRefreshIntervalMs);
+      } catch (const std::exception& e) {
+          // Never let an exception escape a FreeRTOS task; keep the loop alive.
+          ESP_LOGE(TAG, "Task loop error: %s", e.what());
+          // Bound the retry rate so a persistent failure (e.g. OOM) cannot
+          // turn into a busy loop of error logs.
+          wait(kRetryIntervalMs);
+      } catch (...) {
+          ESP_LOGE(TAG, "Task loop unknown error");
+          wait(kRetryIntervalMs);
+      }
     }
 }

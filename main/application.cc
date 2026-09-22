@@ -779,6 +779,11 @@ void Application::DismissAlert() {
         display->SetStatus(Lang::Strings::STANDBY);
         display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
+#if CONFIG_WEATHER_DASHBOARD
+        if (display) {
+            display->ShowDashboard();
+        }
+#endif
     }
 }
 

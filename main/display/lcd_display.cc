@@ -1159,8 +1159,8 @@ void LcdDisplay::SetupDashboard() {
 void LcdDisplay::ShowDashboard() {
     if (dashboard_) {
         DisplayLockGuard lock(this);
+        // Show() already applies the latest snapshot; no second refresh here.
         dashboard_->Show();
-        dashboard_->UpdateWeather(WeatherService::GetInstance().GetSnapshot());
     }
 }
 

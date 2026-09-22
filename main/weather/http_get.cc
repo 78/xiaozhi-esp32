@@ -57,10 +57,15 @@ HttpResult HttpGet(const std::string& url, int timeout_ms) {
 
     int content_length = esp_http_client_fetch_headers(client);
     if (content_length < 0) {
-        ESP_LOGW(TAG, "Fetch headers failed for %s", redacted.c_str());
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
-        return result;
+        // A negative result can simply mean a chunked Transfer-Encoding: when
+        // a status code is available, headers are parsed and the read loop
+        // below handles chunked bodies. Only fail when there is no status.
+        if (esp_http_client_get_status_code(client) <= 0) {
+            ESP_LOGW(TAG, "Fetch headers failed for %s", redacted.c_str());
+            esp_http_client_close(client);
+            esp_http_client_cleanup(client);
+            return result;
+        }
     }
     result.status = esp_http_client_get_status_code(client);
 
