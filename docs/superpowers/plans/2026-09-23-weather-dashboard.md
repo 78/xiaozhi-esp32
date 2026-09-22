@@ -1616,6 +1616,11 @@ void DashboardUI::Show() {
 }
 
 void DashboardUI::Hide() {
+    // Cancel any running fade-in/fade-out first: otherwise this fade-out and
+    // an in-flight fade-in both write opa concurrently. A previous fade-out's
+    // deleted_cb checks opa==TRANSP, so mid-fade deletion will not mis-hide.
+    lv_anim_delete(container_, nullptr);
+
     // LVGL 9's lv_obj_fade_out() returns void; build the fade manually so a
     // deleted_cb can hide the container when the animation finishes/is replaced.
     lv_anim_t anim;
