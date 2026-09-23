@@ -86,8 +86,10 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     colon_label_ = MakeLabel(container_, &lv_font_digits_72, 0x212121, 86, 116, 22, 78);
     minute_label_ =
         MakeLabel(container_, &lv_font_digits_72, 0xFB8C00, 106, 116, 84, 78);
+    // Small seconds, bottom-aligned on the same row as the HH:MM digits.
+    // y from font metrics: 116 + (53-30) = 139 (glyph bottoms equal).
     second_label_ =
-        MakeLabel(container_, &font_noto_sans_basic_30_4, 0xE53935, 190, 160, 44, 34);
+        MakeLabel(container_, &font_noto_sans_basic_30_4, 0xE53935, 190, 139, 46, 40);
 
     // Date and weekday
     date_label_ = MakeLabel(container_, nullptr, 0x616161, 10, 202, 100, 26);
