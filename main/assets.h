@@ -11,10 +11,6 @@
 #include <map>
 #include <string>
 
-#if HAVE_LVGL
-#include <spi_flash_mmap.h>
-#endif
-
 struct Asset {
     size_t size;
     size_t offset;
@@ -54,7 +50,7 @@ private:
         virtual bool GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) = 0;
     };
     
-    class LvglStrategy : public AssetStrategy {
+    class MmapStrategy : public AssetStrategy {
     public:
         bool Apply(Assets* assets) override;
         bool InitializePartition(Assets* assets) override;
@@ -67,15 +63,7 @@ private:
         const char* mmap_root_ = nullptr;
         bool checksum_valid_ = false;
     };
-    
-    class EmoteStrategy : public AssetStrategy {
-    public:
-        bool Apply(Assets* assets) override;
-        bool InitializePartition(Assets* assets) override;
-        void UnApplyPartition(Assets* assets) override;
-        bool GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) override;
-    };
-    
+
     // Strategy instance
     std::unique_ptr<AssetStrategy> strategy_;
 

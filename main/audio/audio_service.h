@@ -20,7 +20,6 @@
 
 #include "audio_codec.h"
 #include "audio_processor.h"
-#include "processors/audio_debugger.h"
 #include "wake_word.h"
 #include "protocol.h"
 #include "ogg_demuxer.h"
@@ -139,7 +138,6 @@ private:
     AudioServiceCallbacks callbacks_;
     std::unique_ptr<AudioProcessor> audio_processor_;
     std::unique_ptr<WakeWord> wake_word_;
-    std::unique_ptr<AudioDebugger> audio_debugger_;
     void* opus_encoder_ = nullptr;
     void* opus_decoder_ = nullptr;
     std::mutex decoder_mutex_;

@@ -1,2 +1,0 @@
-All of the source code and documentation for gifdec is released into the
-public domain and provided without warranty of any kind.

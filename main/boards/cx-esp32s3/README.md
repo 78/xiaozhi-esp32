@@ -1,132 +1,61 @@
-# ESP-BOX-3
+# CX-ESP32S3
 
-## 简介
-
-<div align="center">
-    <a href="https://github.com/espressif/esp-box"><b> ESP-BOX GitHub </b></a>
-</div>
-
-ESP-BOX-3 是乐鑫官方开发的 AIoT 开发套件，搭载 ESP32-S3-WROOM-1 模组，配备 2.4 英寸 320x240 ILI9341 显示屏，双麦克风阵列，支持离线语音唤醒与设备端回声消除（AEC）功能。
+自研开发板，基于 ESP32-S3。**无显示屏（headless）**。
 
 ## 硬件特性
 
-- **主控**: ESP32-S3-WROOM-1 (16MB Flash, 8MB PSRAM)
-- **显示屏**: 2.4 英寸 IPS LCD (320x240, ILI9341)
-- **音频**: ES8311 音频 Codec + ES7210 双麦 ADC
-- **音频功能**: 支持设备端 AEC (回声消除)
-- **按键**: Boot 按键 (单击/双击功能)
-- **其他**: USB-C 供电与通信
+- **主控**: ESP32-S3（含 PSRAM）
+- **音频输出**: NS4168 功放（I2S）
+- **音频输入**: PDM 数字麦克风
+- **NFC**: MFRC522 读卡器（SPI）
+- **交互**: 1 个主按键（KEY_M）+ 1 个指示灯
+- **其他**: USB Type-C 供电与通信
 
-## 配置、编译命令
+## 引脚分配
 
-**配置编译目标为 ESP32S3**
+引脚真值来源为项目外的 `pinout_0805_latest.md`（与仓库同级目录）。以下为当前代码实际使用的引脚：
 
-```bash
+| 功能 | 信号 | GPIO | 说明 |
+|---|---|---|---|
+| 音频输出 | I2S_BCLK | IO46 | → NS4168 BCLK |
+| 音频输出 | I2S_LRCK | IO9 | → NS4168 LRCLK |
+| 音频输出 | I2S_DOUT | IO8 | → NS4168 SDATA |
+| 功放使能 | AMP_CTRL | IO10 | 代码中置高 |
+| 麦克风 | PDM_CLK | IO3 | → 数字麦克风 CLK |
+| 麦克风 | PDM_DATA | IO42 | ← 数字麦克风 DATA |
+| 按键 | KEY_M | IO15 | 内部上拉，按下接地 |
+| 指示灯 | LED_CTRL | IO18 | 低电平点亮 |
+| NFC | CS / SCK / MOSI / MISO | IO11 / IO12 / IO13 / IO14 | SPI |
+| NFC | RST / IRQ | IO21 / IO16 | |
+| USB | D- / D+ | IO19 / IO20 | 经 33Ω 电阻 |
+| 系统 | BOOT | IO0 | 下载模式 |
+| PSRAM | — | IO35 / IO36 / IO37 | **严禁外部引用** |
+
+闲置引脚：IO1、IO2、IO4、IO5、IO6、IO7、IO17、IO38、IO39、IO40、IO41、IO45、IO47、IO48。
+
+## 音频实现
+
+使用 `NoAudioCodecSimplexPdm`（见 `main/audio/codecs/no_audio_codec.h`），
+播放走标准 I2S、采集走 PDM，无外部编解码芯片。
+
+构造参数顺序为 `(输入采样率, 输出采样率, spk_bclk, spk_ws, spk_dout, spk_slot_mask, mic_sck, mic_din)`，
+对应 `GPIO_NUM_46, GPIO_NUM_9, GPIO_NUM_8, I2S_STD_SLOT_RIGHT, GPIO_NUM_3, GPIO_NUM_42`。
+
+## 编译烧录
+
+本机 ESP-IDF 装在 `C:\esp\v5.5.5\esp-idf`。**注意 IDF 不能在 Git Bash 里跑**，需用 PowerShell：
+
+```powershell
+. C:\Espressif\tools\Microsoft.v5.5.5.PowerShell_profile.ps1
 idf.py set-target esp32s3
-```
-
-**打开 menuconfig 并配置**
-
-```bash
-idf.py menuconfig
-```
-
-分别配置如下选项：
-
-### 基本配置
-- `Xiaozhi Assistant` → `Board Type` → 选择 `ESP BOX 3`
-
-### UI风格选择
-
-ESP-BOX-3 支持多种不同的 UI 显示风格，通过 menuconfig 配置选择：
-
-- `Xiaozhi Assistant` → `Select display style` → 选择显示风格
-
-#### 可选风格
-
-##### 表情动画风格 (Emote animation style) - 推荐
-- **配置选项**: `USE_EMOTE_MESSAGE_STYLE`
-- **特点**: 使用自定义的 `EmoteDisplay` 表情显示系统
-- **功能**: 支持丰富的表情动画、眼睛动画、状态图标显示
-- **适用**: 智能助手场景，提供更生动的人机交互体验
-- **类**: `emote::EmoteDisplay`
-
-**⚠️ 重要**: 选择此风格需要额外配置自定义资源文件：
-1. `Xiaozhi Assistant` → `Flash Assets` → 选择 `Flash Custom Assets`
-2. `Xiaozhi Assistant` → `Custom Assets File` → 填入资源文件地址：
-   ```
-   https://dl.espressif.com/AE/wn9_nihaoxiaozhi_tts-font_puhui_common_20_4-esp-box-3.bin
-   ```
-
-##### 默认消息风格 (Enable default message style)
-- **配置选项**: `USE_DEFAULT_MESSAGE_STYLE` (默认)
-- **特点**: 使用标准的消息显示界面
-- **功能**: 传统的文本和图标显示界面
-- **适用**: 标准的对话场景
-- **类**: `SpiLcdDisplay`
-
-##### 微信消息风格 (Enable WeChat Message Style)
-- **配置选项**: `USE_WECHAT_MESSAGE_STYLE`
-- **特点**: 仿微信聊天界面风格
-- **功能**: 类似微信的消息气泡显示
-- **适用**: 喜欢微信风格的用户
-- **类**: `SpiLcdDisplay`
-
-### 音频功能配置
-
-#### 设备端回声消除 (AEC)
-- `Xiaozhi Assistant` → `Enable Device-Side AEC` → 启用
-
-ESP-BOX-3 硬件支持设备端 AEC 功能，可有效消除扬声器播放声音对麦克风的干扰，提升语音识别准确率。
-
-**运行时切换**: 双击 Boot 按键可在运行时开启/关闭 AEC 功能。
-
-> **说明**: 设备端 AEC 需要干净的扬声器输出参考路径和良好的麦克风与扬声器物理隔离才能正常工作。ESP-BOX-3 硬件已做优化设计。
-
-### 唤醒词配置
-
-ESP-BOX-3 支持多种唤醒词实现方式：
-
-- `Xiaozhi Assistant` → `Wake Word Implementation Type` → 选择唤醒词类型
-
-推荐选择：
-- **Wakenet model with AFE** (`USE_AFE_WAKE_WORD`) - 支持 AEC 的唤醒词检测
-
-按 `S` 保存，按 `Q` 退出。
-
-**编译**
-
-```bash
 idf.py build
+idf.py flash monitor
 ```
 
-**烧录**
+## 已知问题
 
-将 ESP-BOX-3 连接至电脑，并运行：
-
-```bash
-idf.py flash
-```
-
-## 按键说明
-
-### Boot 按键功能
-
-#### 单击
-- **配网状态**: 进入 WiFi 配置模式
-- **空闲状态**: 开始对话
-- **对话中**: 打断或停止当前对话
-
-#### 双击 (需启用设备端 AEC)
-- **空闲状态**: 切换 AEC 开启/关闭
-
-## 常见问题
-
-### 1. 为什么需要设备端 AEC？
-设备端 AEC 可以在本地实时消除扬声器播放声音对麦克风的干扰，在播放音乐或 TTS 回复时仍能准确识别语音指令。
-
-### 2. 表情动画风格无法显示？
-请确保已经配置了正确的自定义资源文件地址，并且设备能够访问该 URL 下载资源。
-
-### 3. 如何恢复出厂设置？
-长按 Boot 按键 3 秒以上，设备会清除所有配置并重启。
+- **主按键接错引脚**：`config.h` 里 `BOOT_BUTTON_GPIO` 仍是 `GPIO_NUM_0`（ESP-BOX-3 的遗留值），
+  所以单击切对话实际挂在 IO0（下载键）上，板上真正的 KEY_M（IO15）未被使用。待修。
+- `config.h` 整体是 ESP-BOX-3 的遗留文件，其中 `AUDIO_I2S_*`、`AUDIO_CODEC_*`、`DISPLAY_*` 宏
+  均未被 `.cc` 引用；真正生效的只有 `AUDIO_INPUT_SAMPLE_RATE`、`AUDIO_OUTPUT_SAMPLE_RATE`、
+  `BOOT_BUTTON_GPIO`。建议清理。

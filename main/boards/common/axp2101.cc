@@ -1,6 +1,5 @@
 #include "axp2101.h"
 #include "board.h"
-#include "display.h"
 
 #include <esp_log.h>
 

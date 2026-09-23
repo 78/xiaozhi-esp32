@@ -1,9 +1,0 @@
-{
-    "target": "esp32s3",
-    "builds": [
-        {
-            "name": "hu-087",
-            "sdkconfig_append": []
-        }
-    ]
-}

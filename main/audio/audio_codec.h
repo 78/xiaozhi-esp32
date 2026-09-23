@@ -3,6 +3,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
+#include <driver/gpio.h>
 #include <driver/i2s_std.h>
 
 #include <vector>

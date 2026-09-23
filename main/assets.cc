@@ -2,18 +2,11 @@
 #include "board.h"
 #include "display.h"
 #include "application.h"
-#include "lvgl_theme.h"
-#include "emote_display.h"
-#include "expression_emote.h"
-#if HAVE_LVGL
-#include "display/lcd_display.h"
-#include <spi_flash_mmap.h>
-#endif
 
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <esp_heap_caps.h>
-#include <cbin_font.h>
+#include <spi_flash_mmap.h>
 
 
 #define TAG "Assets"
@@ -28,11 +21,7 @@ struct mmap_assets_table {
 };
 
 Assets::Assets() {
-#if HAVE_LVGL
-    strategy_ = std::make_unique<Assets::LvglStrategy>();
-#else
-    strategy_ = std::make_unique<Assets::EmoteStrategy>();
-#endif
+    strategy_ = std::make_unique<Assets::MmapStrategy>();
     // Initialize the partition
     InitializePartition();
 }
@@ -118,8 +107,7 @@ bool Assets::LoadSrmodelsFromIndex(Assets* assets, cJSON* root) {
     return false;
 }
 
-#if HAVE_LVGL
-uint32_t Assets::LvglStrategy::CalculateChecksum(const char* data, uint32_t length) {
+uint32_t Assets::MmapStrategy::CalculateChecksum(const char* data, uint32_t length) {
     uint32_t checksum = 0;
     for (uint32_t i = 0; i < length; i++) {
         checksum += data[i];
@@ -127,7 +115,7 @@ uint32_t Assets::LvglStrategy::CalculateChecksum(const char* data, uint32_t leng
     return checksum & 0xFFFF;
 }
 
-bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
+bool Assets::MmapStrategy::InitializePartition(Assets* assets) {
     assets->partition_valid_ = false;
     assets_.clear();
 
@@ -184,7 +172,7 @@ bool Assets::LvglStrategy::InitializePartition(Assets* assets) {
     return checksum_valid_;
 }
 
-void Assets::LvglStrategy::UnApplyPartition(Assets* assets) {
+void Assets::MmapStrategy::UnApplyPartition(Assets* assets) {
     if (mmap_handle_ != 0) {
         esp_partition_munmap(mmap_handle_);
         mmap_handle_ = 0;
@@ -195,7 +183,7 @@ void Assets::LvglStrategy::UnApplyPartition(Assets* assets) {
     (void)assets; // Unused parameter
 }
 
-bool Assets::LvglStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) {
+bool Assets::MmapStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) {
     auto asset = assets_.find(name);
     if (asset == assets_.end()) {
         return false;
@@ -211,7 +199,7 @@ bool Assets::LvglStrategy::GetAssetData(Assets* assets, const std::string& name,
     return true;
 }
 
-bool Assets::LvglStrategy::Apply(Assets* assets) {
+bool Assets::MmapStrategy::Apply(Assets* assets) {
     void* ptr = nullptr;
     size_t size = 0;
     if (!assets->GetAssetData("index.json", ptr, size)) {
@@ -235,191 +223,7 @@ bool Assets::LvglStrategy::Apply(Assets* assets) {
 
     Assets::LoadSrmodelsFromIndex(assets, root);
 
-    auto& theme_manager = LvglThemeManager::GetInstance();
-    auto light_theme = theme_manager.GetTheme("light");
-    auto dark_theme = theme_manager.GetTheme("dark");
-
-    cJSON* font = cJSON_GetObjectItem(root, "text_font");
-    if (cJSON_IsString(font)) {
-        std::string fonts_text_file = font->valuestring;
-        if (assets->GetAssetData(fonts_text_file, ptr, size)) {
-            auto text_font = std::make_shared<LvglCBinFont>(ptr);
-            if (text_font->font() == nullptr) {
-                ESP_LOGE(TAG, "Failed to load fonts.bin");
-                return false;
-            }
-            if (light_theme != nullptr) {
-                light_theme->set_text_font(text_font);
-            }
-            if (dark_theme != nullptr) {
-                dark_theme->set_text_font(text_font);
-            }
-        } else {
-            ESP_LOGE(TAG, "The font file %s is not found", fonts_text_file.c_str());
-        }
-    }
-
-    cJSON* emoji_collection = cJSON_GetObjectItem(root, "emoji_collection");
-    if (cJSON_IsArray(emoji_collection)) {
-        auto custom_emoji_collection = std::make_shared<EmojiCollection>();
-        int emoji_count = cJSON_GetArraySize(emoji_collection);
-        for (int i = 0; i < emoji_count; i++) {
-            cJSON* emoji = cJSON_GetArrayItem(emoji_collection, i);
-            if (cJSON_IsObject(emoji)) {
-                cJSON* name = cJSON_GetObjectItem(emoji, "name");
-                cJSON* file = cJSON_GetObjectItem(emoji, "file");
-                cJSON* eaf = cJSON_GetObjectItem(emoji, "eaf");
-                if (cJSON_IsString(name) && cJSON_IsString(file) && (NULL== eaf)) {
-                    if (!assets->GetAssetData(file->valuestring, ptr, size)) {
-                        ESP_LOGE(TAG, "Emoji %s image file %s is not found", name->valuestring, file->valuestring);
-                        continue;
-                    }
-                    custom_emoji_collection->AddEmoji(name->valuestring, new LvglRawImage(ptr, size));
-                }
-            }
-        }
-        if (light_theme != nullptr) {
-            light_theme->set_emoji_collection(custom_emoji_collection);
-        }
-        if (dark_theme != nullptr) {
-            dark_theme->set_emoji_collection(custom_emoji_collection);
-        }
-    }
-
-    cJSON* skin = cJSON_GetObjectItem(root, "skin");
-    if (cJSON_IsObject(skin)) {
-        cJSON* light_skin = cJSON_GetObjectItem(skin, "light");
-        if (cJSON_IsObject(light_skin) && light_theme != nullptr) {
-            cJSON* text_color = cJSON_GetObjectItem(light_skin, "text_color");
-            cJSON* background_color = cJSON_GetObjectItem(light_skin, "background_color");
-            cJSON* background_image = cJSON_GetObjectItem(light_skin, "background_image");
-            if (cJSON_IsString(text_color)) {
-                light_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
-            }
-            if (cJSON_IsString(background_color)) {
-                light_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
-                light_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
-            }
-            if (cJSON_IsString(background_image)) {
-                if (!assets->GetAssetData(background_image->valuestring, ptr, size)) {
-                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
-                    return false;
-                }
-                auto background_image = std::make_shared<LvglCBinImage>(ptr);
-                light_theme->set_background_image(background_image);
-            }
-        }
-        cJSON* dark_skin = cJSON_GetObjectItem(skin, "dark");
-        if (cJSON_IsObject(dark_skin) && dark_theme != nullptr) {
-            cJSON* text_color = cJSON_GetObjectItem(dark_skin, "text_color");
-            cJSON* background_color = cJSON_GetObjectItem(dark_skin, "background_color");
-            cJSON* background_image = cJSON_GetObjectItem(dark_skin, "background_image");
-            if (cJSON_IsString(text_color)) {
-                dark_theme->set_text_color(LvglTheme::ParseColor(text_color->valuestring));
-            }
-            if (cJSON_IsString(background_color)) {
-                dark_theme->set_background_color(LvglTheme::ParseColor(background_color->valuestring));
-                dark_theme->set_chat_background_color(LvglTheme::ParseColor(background_color->valuestring));
-            }
-            if (cJSON_IsString(background_image)) {
-                if (!assets->GetAssetData(background_image->valuestring, ptr, size)) {
-                    ESP_LOGE(TAG, "The background image file %s is not found", background_image->valuestring);
-                    return false;
-                }
-                auto background_image = std::make_shared<LvglCBinImage>(ptr);
-                dark_theme->set_background_image(background_image);
-            }
-        }
-    }
-
-    auto display = Board::GetInstance().GetDisplay();
-    ESP_LOGI(TAG, "Refreshing display theme...");
-
-    auto current_theme = display->GetTheme();
-    if (current_theme != nullptr) {
-        display->SetTheme(current_theme);
-    }
-
-    // Parse hide_subtitle configuration
-    cJSON* hide_subtitle = cJSON_GetObjectItem(root, "hide_subtitle");
-    if (cJSON_IsBool(hide_subtitle)) {
-        bool hide = cJSON_IsTrue(hide_subtitle);
-        auto lcd_display = dynamic_cast<LcdDisplay*>(display);
-        if (lcd_display != nullptr) {
-            lcd_display->SetHideSubtitle(hide);
-            ESP_LOGI(TAG, "Set hide_subtitle to %s", hide ? "true" : "false");
-        }
-    }
-    
     cJSON_Delete(root);
-    return true;
-}
-#endif // HAVE_LVGL
-
-bool Assets::EmoteStrategy::InitializePartition(Assets* assets) {
-    assets->partition_valid_ = false;
-
-    if (!Assets::FindPartition(assets)) {
-        return false;
-    }
-
-    esp_err_t ret = ESP_ERR_INVALID_STATE;
-    auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        const emote_data_t data = {
-            .type = EMOTE_SOURCE_PARTITION,
-            .source = {
-                .partition_label = PARTITION_LABEL,
-            },
-            .flags = {
-                .mmap_enable = true, //must be true here!!!
-            },
-        };
-        ret = emote_mount_assets(emote_display->GetEmoteHandle(), &data);
-    } else {
-        ESP_LOGE(TAG, "Emote display is not initialized");
-    }
-    assets->partition_valid_ = ((ret == ESP_OK) ? true : false);
-    return assets->partition_valid_;
-}
-
-void Assets::EmoteStrategy::UnApplyPartition(Assets* assets) {
-    auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        emote_unmount_assets(emote_display->GetEmoteHandle());
-    }
-    (void)assets; // Unused parameter
-}
-
-bool Assets::EmoteStrategy::GetAssetData(Assets* assets, const std::string& name, void*& ptr, size_t& size) {
-    auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        const uint8_t* data = nullptr;
-        size_t data_size = 0;
-        if (ESP_OK == emote_get_asset_data_by_name(emote_display->GetEmoteHandle(), name.c_str(), &data, &data_size)) {
-            ptr = const_cast<void*>(static_cast<const void*>(data));
-            size = data_size;
-            return true;
-        }
-        ESP_LOGE(TAG, "Failed to get asset data by name: %s", name.c_str());
-        return false;
-    }
-    (void)assets; // Unused parameter
-    return false;
-}
-
-bool Assets::EmoteStrategy::Apply(Assets* assets) {
-    Assets::LoadSrmodelsFromIndex(assets);
-
-    auto display = Board::GetInstance().GetDisplay();
-    auto* emote_display = dynamic_cast<emote::EmoteDisplay*>(display);
-
-    if (emote_display && emote_display->GetEmoteHandle() != nullptr) {
-        emote_load_assets(emote_display->GetEmoteHandle());
-    }
     return true;
 }
 

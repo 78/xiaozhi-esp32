@@ -2,7 +2,6 @@
 #include "system_info.h"
 #include "settings.h"
 #include "display/display.h"
-#include "display/oled_display.h"
 #include "assets/lang_config.h"
 
 #include <esp_log.h>
@@ -56,10 +55,6 @@ bool Board::GetTemperature(float& esp32temp){
 Display* Board::GetDisplay() {
     static NoDisplay display;
     return &display;
-}
-
-Camera* Board::GetCamera() {
-    return nullptr;
 }
 
 Led* Board::GetLed() {
@@ -159,11 +154,7 @@ std::string Board::GetSystemInfoJson() {
     auto display = GetDisplay();
     if (display) {
         json += R"("display":{)";
-        if (dynamic_cast<OledDisplay*>(display)) {
-            json += R"("monochrome":)" + std::string("true") + R"(,)";
-        } else {
-            json += R"("monochrome":)" + std::string("false") + R"(,)";
-        }
+        json += R"("monochrome":)" + std::string("false") + R"(,)";
         json += R"("width":)" + std::to_string(display->width()) + R"(,)";
         json += R"("height":)" + std::to_string(display->height()) + R"(,)";
         json.pop_back(); // Remove the last comma

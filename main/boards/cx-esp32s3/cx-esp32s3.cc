@@ -7,22 +7,14 @@
 // ==================== 应用层头文件 ====================
 #include "application.h"      // 应用程序单例管理
 #include "button.h"           // 按钮事件处理
-#include "codecs/box_audio_codec.h"  // 音频编解码器
 #include "config.h"           // 项目配置文件
-#include "display/display.h"  // 显示基类
-#include "display/emote_display.h"  // 表情显示
-#include "display/lcd_display.h"    // LCD 显示
-#include "esp_lcd_ili9341.h"  // LCD 驱动
 #include "wifi_board.h"       // WiFi 板基类
 
 // ==================== ESP-IDF 驱动头文件 ====================
-#include <driver/i2c_master.h>     // I2C 主机驱动
-#include <driver/spi_common.h>     // SPI 通用驱动
-#include <esp_lcd_panel_vendor.h>  // LCD 面板供应商接口
 #include <esp_log.h>               // ESP 日志系统
 
-// ==================== 自定义编解码器与扩展芯片 ====================
-#include "codecs/no_audio_codec.h"  // 无音频编解码器（PDM） 
+// ==================== 自定义编解码器 ====================
+#include "codecs/no_audio_codec.h"  // 无音频编解码器（PDM）
 
 
 #define TAG "CXESP32S3"  // 日志标签，用于标识日志来源
@@ -33,9 +25,7 @@
  */
 class cx_esp32s3 : public WifiBoard {
 private:
-    // i2c_master_bus_handle_t i2c_bus_;  // I2C 总线句柄（未使用）
     Button boot_button_;   // 启动按钮对象
-    Display* display_;     // 显示屏对象指针
 
     /**
      * @brief 初始化按钮事件
