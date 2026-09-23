@@ -21,6 +21,7 @@
 
 #if CONFIG_WEATHER_DASHBOARD
 #include "weather_service.h"
+#include "almanac_service.h"
 #endif
 
 #define TAG "Application"
@@ -318,6 +319,8 @@ void Application::HandleNetworkConnectedEvent() {
 #if CONFIG_WEATHER_DASHBOARD
     WeatherService::GetInstance().OnNetworkConnected();
     WeatherService::GetInstance().Start();
+    AlmanacService::GetInstance().OnNetworkConnected();
+    AlmanacService::GetInstance().Start();
 #endif
 }
 
@@ -338,6 +341,7 @@ void Application::HandleNetworkDisconnectedEvent() {
     display->UpdateStatusBar(true);
 #if CONFIG_WEATHER_DASHBOARD
     WeatherService::GetInstance().OnNetworkDisconnected();
+    AlmanacService::GetInstance().OnNetworkDisconnected();
 #endif
 }
 

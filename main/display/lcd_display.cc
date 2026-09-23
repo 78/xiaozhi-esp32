@@ -21,6 +21,7 @@
 #if CONFIG_WEATHER_DASHBOARD
 #include "application.h"
 #include "weather_service.h"
+#include "almanac_service.h"
 #include "dashboard_ui.h"
 #endif
 
@@ -1151,6 +1152,15 @@ void LcdDisplay::SetupDashboard() {
             if (dashboard_) {
                 DisplayLockGuard lock(this);
                 dashboard_->UpdateWeather(WeatherService::GetInstance().GetSnapshot());
+            }
+        });
+    });
+    AlmanacService::GetInstance().SetUpdateCallback([this]() {
+        // Same hop-to-main-task + display-lock pattern as the weather callback.
+        Application::GetInstance().Schedule([this]() {
+            if (dashboard_) {
+                DisplayLockGuard lock(this);
+                dashboard_->UpdateAlmanac(AlmanacService::GetInstance().GetSnapshot());
             }
         });
     });

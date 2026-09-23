@@ -91,19 +91,30 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     second_label_ =
         MakeLabel(container_, &font_noto_sans_basic_30_4, 0xE53935, 190, 139, 46, 40);
 
-    // Date and weekday
-    date_label_ = MakeLabel(container_, nullptr, 0x616161, 10, 202, 100, 26);
-    weekday_label_ = MakeLabel(container_, nullptr, 0x616161, 150, 202, 80, 26);
+    // Date and weekday. Moved up (202 -> 188) to make room for the lunar
+    // almanac lines below: glyph bottoms of the big clock end at y163.
+    date_label_ = MakeLabel(container_, nullptr, 0x616161, 10, 188, 100, 24);
+    weekday_label_ = MakeLabel(container_, nullptr, 0x616161, 150, 188, 80, 24);
     lv_obj_set_style_text_align(weekday_label_, LV_TEXT_ALIGN_RIGHT, 0);
 
-    // (4) Environment area: thermometer row
-    temp_icon_ = MakeLabel(container_, &font_weather_symbols_26_4, 0xE53935, 8, 234, 30, 28);
+    // Lunar date (农历八月十三) and today's solar term (秋分), 22px pitch.
+    lunar_label_ = MakeLabel(container_, nullptr, 0x616161, 10, 210, 150, 22);
+    solar_term_label_ =
+        MakeLabel(container_, nullptr, 0xBF360C, 164, 210, 66, 22);
+    lv_obj_set_style_text_align(solar_term_label_, LV_TEXT_ALIGN_RIGHT, 0);
+
+    // Suitable/avoid activities (宜忌). Recolor marks 宜 green and 忌 red.
+    almanac_label_ = MakeLabel(container_, nullptr, 0x424242, 8, 232, 224, 22);
+    lv_label_set_recolor(almanac_label_, true);
+
+    // (4) Environment area: thermometer row (shifted +18 for the almanac rows)
+    temp_icon_ = MakeLabel(container_, &font_weather_symbols_26_4, 0xE53935, 8, 252, 30, 28);
     char icon_utf8[5];
     CodepointToUtf8(0x1F321, icon_utf8);
     lv_label_set_text(temp_icon_, icon_utf8);
 
     temp_bar_ = lv_bar_create(container_);
-    lv_obj_set_pos(temp_bar_, 40, 244);
+    lv_obj_set_pos(temp_bar_, 40, 262);
     lv_obj_set_size(temp_bar_, 84, 10);
     lv_bar_set_range(temp_bar_, 0, 100);
     lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(0xE0E0E0), 0);
@@ -112,16 +123,16 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_bar_set_value(temp_bar_, 0, LV_ANIM_OFF);
 
     // 16px so "-10°C"/"100%" (50px at 20px) fit the 46px box without GIF overlap.
-    temp_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 238, 46, 22);
+    temp_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 256, 46, 22);
 
     // Humidity row
     humid_icon_ =
-        MakeLabel(container_, &font_weather_symbols_26_4, 0x1E88E5, 8, 268, 30, 28);
+        MakeLabel(container_, &font_weather_symbols_26_4, 0x1E88E5, 8, 286, 30, 28);
     CodepointToUtf8(0x1F4A7, icon_utf8);
     lv_label_set_text(humid_icon_, icon_utf8);
 
     humid_bar_ = lv_bar_create(container_);
-    lv_obj_set_pos(humid_bar_, 40, 278);
+    lv_obj_set_pos(humid_bar_, 40, 296);
     lv_obj_set_size(humid_bar_, 84, 10);
     lv_bar_set_range(humid_bar_, 0, 100);
     lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0xE0E0E0), 0);
@@ -129,7 +140,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(0x43A047), LV_PART_INDICATOR);
     lv_bar_set_value(humid_bar_, 0, LV_ANIM_OFF);
 
-    humid_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 272, 46, 22);
+    humid_value_ = MakeLabel(container_, &font_noto_sans_basic_16_4, 0x424242, 126, 290, 46, 22);
 
     // Idle robot GIF
     static lv_img_dsc_t gif_raw;
@@ -168,6 +179,7 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
             }
         },
         10000, this);
+
 }
 
 bool DashboardUI::IsVisible() const {
@@ -191,6 +203,7 @@ void DashboardUI::Show() {
     UpdateClock();
     UpdateNetwork();
     UpdateWeather(WeatherService::GetInstance().GetSnapshot());
+    UpdateAlmanac(AlmanacService::GetInstance().GetSnapshot());
     gif_->Resume();
 }
 
@@ -306,4 +319,86 @@ void DashboardUI::UpdateWeather(const WeatherSnapshot& snapshot) {
     lv_label_set_text(temp_value_, line);
     snprintf(line, sizeof(line), "%d%%", snapshot.humidity);
     lv_label_set_text(humid_value_, line);
+}
+
+void DashboardUI::UpdateAlmanac(const AlmanacSnapshot& snapshot) {
+    almanac_snapshot_ = snapshot;
+    RenderAlmanac();
+}
+
+void DashboardUI::RenderAlmanac() {
+    const auto& s = almanac_snapshot_;
+    if (!s.valid) {
+        // Almanac is an enhancement: stay blank rather than show status text.
+        lv_label_set_text(lunar_label_, "");
+        lv_label_set_text(solar_term_label_, "");
+        lv_label_set_text(almanac_label_, "");
+        return;
+    }
+
+    std::string lunar = "农历" + s.lunar_date;
+    lv_label_set_text(lunar_label_, lunar.c_str());
+    lv_label_set_text(solar_term_label_,
+                      s.solar_term.empty() ? "" : s.solar_term.c_str());
+
+    // Fit the line by measured pixel width, not item counts: activities have
+    // different glyph counts, so count-based truncation can still overflow.
+    // Prefer 宜 content: drop 忌 items first, then 宜 items.
+    const lv_font_t* font =
+        lv_obj_get_style_text_font(almanac_label_, LV_PART_MAIN);
+    int32_t letter_space =
+        lv_obj_get_style_text_letter_space(almanac_label_, LV_PART_MAIN);
+    int32_t line_space =
+        lv_obj_get_style_text_line_space(almanac_label_, LV_PART_MAIN);
+    int32_t max_width = lv_obj_get_content_width(almanac_label_);
+
+    // Recolor: 宜 green, 忌 red (recolor enabled in the constructor).
+    // LVGL 9 syntax: "#RRGGBB<space>colored text#" (the space is mandatory).
+    auto build_line = [&](size_t yi_count, size_t ji_count) {
+        std::string l;
+        if (yi_count > 0) {
+            l += "#2E7D32 宜#";
+            for (size_t i = 0; i < yi_count; ++i) {
+                l += s.yi[i];
+            }
+            if (yi_count < s.yi.size()) {
+                l += "…";
+            }
+        }
+        if (ji_count > 0) {
+            if (!l.empty()) {
+                l += " ";
+            }
+            l += "#C62828 忌#";
+            for (size_t i = 0; i < ji_count; ++i) {
+                l += s.ji[i];
+            }
+            if (ji_count < s.ji.size()) {
+                l += "…";
+            }
+        }
+        return l;
+    };
+    auto fits = [&](const std::string& l) {
+        lv_point_t measured;
+        // RECOLOR makes the measurer skip the "#...#" command markers.
+        lv_text_get_size(&measured, l.c_str(), font, letter_space, line_space,
+                         LV_COORD_MAX, LV_TEXT_FLAG_RECOLOR);
+        return measured.x <= max_width;
+    };
+
+    size_t yi_count = s.yi.size();
+    size_t ji_count = s.ji.size();
+    std::string line = build_line(yi_count, ji_count);
+    while (!fits(line)) {
+        if (ji_count > 0) {
+            --ji_count;
+        } else if (yi_count > 0) {
+            --yi_count;
+        } else {
+            break;
+        }
+        line = build_line(yi_count, ji_count);
+    }
+    lv_label_set_text(almanac_label_, line.c_str());
 }

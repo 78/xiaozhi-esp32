@@ -1099,13 +1099,17 @@ if(CONFIG_WEATHER_DASHBOARD)
         "weather/http_get.cc"
         "weather/weather_key_store.cc"
         "weather/weather_service.cc"
+        "almanac/almanac_parsers.cc"
+        "almanac/almanac_key_store.cc"
+        "almanac/almanac_service.cc"
+        "almanac/solar_terms.cc"
         "display/dashboard/dashboard_mappings.cc"
         "display/dashboard/dashboard_ui.cc"
         "display/dashboard/fonts/font_digits_72.c"
         "display/dashboard/fonts/font_weather_symbols_26_4.c"
         "display/dashboard/fonts/font_weather_symbols_36_4.c"
     )
-    list(APPEND INCLUDE_DIRS "weather" "display/dashboard")
+    list(APPEND INCLUDE_DIRS "weather" "almanac" "display/dashboard")
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__zlib)
     set(DASHBOARD_EMBED
         "${CMAKE_CURRENT_SOURCE_DIR}/display/dashboard/assets/neutral.gif")

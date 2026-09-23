@@ -5,6 +5,8 @@
 #include <esp_log.h>
 #include <zlib.h>
 
+#include <cstring>
+
 #define TAG "HttpGet"
 
 namespace {
@@ -41,25 +43,33 @@ bool InflateBody(const std::string& input, std::string& output) {
     return true;
 }
 
-// Replace the value of any "key=" query parameter so API keys never hit logs.
-std::string RedactUrl(const std::string& url) {
+// Replace the value of a sensitive query parameter (key= / app_secret=) so
+// credentials never hit logs. Only matches a real query parameter: start of
+// URL, or right after ?/&.
+std::string RedactOneParam(std::string url, const char* name) {
+    size_t name_len = strlen(name);
     size_t pos = 0;
     while (true) {
-        pos = url.find("key=", pos);
+        pos = url.find(name, pos);
         if (pos == std::string::npos) {
             return url;
         }
-        // Only match a real query parameter: start of URL, or right after ?/&.
         if (pos == 0 || url[pos - 1] == '?' || url[pos - 1] == '&') {
             break;
         }
-        pos += 4;
+        pos += name_len;
     }
-    size_t end = pos + 4;
+    size_t end = pos + name_len;
     while (end < url.size() && url[end] != '&') {
         ++end;
     }
-    return url.substr(0, pos) + "key=***" + url.substr(end);
+    return url.substr(0, pos) + std::string(name) + "***" + url.substr(end);
+}
+
+std::string RedactUrl(const std::string& url) {
+    std::string redacted = RedactOneParam(url, "key=");
+    redacted = RedactOneParam(redacted, "app_secret=");
+    return redacted;
 }
 }  // namespace
 

@@ -13,6 +13,8 @@
 #if CONFIG_WEATHER_DASHBOARD
 #include "weather_key_store.h"
 #include "weather_service.h"
+#include "almanac_key_store.h"
+#include "almanac_service.h"
 #endif
 
 #include <driver/i2c_master.h>
@@ -186,6 +188,20 @@ private:
                 key_store.SetKey(key);
                 WeatherService::GetInstance().OnKeyUpdated();
                 return std::string("天气密钥已保存");
+            });
+        mcp_server.AddTool(
+            "self.system.set_laohuangli_api_key",
+            "Set the Juhe (聚合数据) AppKey used by the standby dashboard's "
+            "lunar almanac (农历/宜忌). The key is stored locally on this "
+            "device in NVS. You must ask the user to confirm before calling "
+            "this tool.",
+            PropertyList({Property("key", kPropertyTypeString).SetMaxLength(64)}),
+            [](const PropertyList& properties) -> ToolResult {
+                auto key = properties["key"].value<std::string>();
+                AlmanacKeyStore key_store;
+                key_store.SetKey(key);
+                AlmanacService::GetInstance().OnKeyUpdated();
+                return std::string("黄历密钥已保存");
             });
 #endif
     }
