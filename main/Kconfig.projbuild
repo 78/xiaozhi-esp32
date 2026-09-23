@@ -512,6 +512,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_HU_087
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
+     config BOARD_TYPE_CX_ESP32S3
+        bool "cx_esp32s3"
+        depends on IDF_TARGET_ESP32S3
 endchoice
 
 choice

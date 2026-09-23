@@ -357,6 +357,7 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
             },
         },
     };
+    // pdm_rx_cfg.slot_cfg.slot_mask = I2S_PDM_SLOT_RIGHT;
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle_, &pdm_rx_cfg));
 #else
     ESP_LOGE(TAG, "PDM is not supported");
