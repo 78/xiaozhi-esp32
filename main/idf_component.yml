@@ -78,6 +78,8 @@ dependencies:
     - if: target in [esp32s3]
   espressif/adc_battery_estimation: ^0.2.2
   espressif/esp_new_jpeg: ^1.0.2
+  # QWeather always serves gzip-encoded JSON, even for Accept-Encoding: identity.
+  espressif/zlib: ^1.3.1
 
   # SenseCAP Watcher Board
   wvirgil123/sscma_client:

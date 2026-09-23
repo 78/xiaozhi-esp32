@@ -3,11 +3,43 @@
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
+#include <zlib.h>
 
 #define TAG "HttpGet"
 
 namespace {
 constexpr size_t kMaxBodySize = 16 * 1024;
+
+// QWeather always gzips responses regardless of Accept-Encoding. windowBits
+// 15+32 makes zlib auto-detect gzip/zlib wrappers. Returns false (and empty
+// string) on any error so callers treat it as a transport failure.
+bool InflateBody(const std::string& input, std::string& output) {
+    z_stream strm = {};
+    strm.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
+    strm.avail_in = static_cast<uInt>(input.size());
+    if (inflateInit2(&strm, 15 + 32) != Z_OK) {
+        return false;
+    }
+    char buffer[1024];
+    int ret;
+    do {
+        strm.next_out = reinterpret_cast<Bytef*>(buffer);
+        strm.avail_out = sizeof(buffer);
+        ret = inflate(&strm, Z_NO_FLUSH);
+        if (ret != Z_OK && ret != Z_STREAM_END) {
+            inflateEnd(&strm);
+            return false;
+        }
+        size_t produced = sizeof(buffer) - strm.avail_out;
+        if (output.size() + produced > kMaxBodySize) {
+            inflateEnd(&strm);
+            return false;
+        }
+        output.append(buffer, produced);
+    } while (ret != Z_STREAM_END);
+    inflateEnd(&strm);
+    return true;
+}
 
 // Replace the value of any "key=" query parameter so API keys never hit logs.
 std::string RedactUrl(const std::string& url) {
@@ -87,6 +119,20 @@ HttpResult HttpGet(const std::string& url, int timeout_ms) {
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
+
+    // Detect gzip by its magic bytes (1f 8b): QWeather always compresses
+    // regardless of Accept-Encoding, and this needs no saved response headers.
+    if (result.status != 0 && result.body.size() >= 2 &&
+        static_cast<unsigned char>(result.body[0]) == 0x1f &&
+        static_cast<unsigned char>(result.body[1]) == 0x8b) {
+        std::string inflated;
+        if (!InflateBody(result.body, inflated)) {
+            ESP_LOGW(TAG, "Decompression failed for %s", redacted.c_str());
+            result = HttpResult{};
+        } else {
+            result.body = std::move(inflated);
+        }
+    }
     if (result.status != 0) {
         ESP_LOGD(TAG, "GET %s -> %d (%d bytes)", redacted.c_str(), result.status,
                  static_cast<int>(result.body.size()));

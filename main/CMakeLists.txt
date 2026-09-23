@@ -1106,6 +1106,7 @@ if(CONFIG_WEATHER_DASHBOARD)
         "display/dashboard/fonts/font_weather_symbols_36_4.c"
     )
     list(APPEND INCLUDE_DIRS "weather" "display/dashboard")
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__zlib)
     set(DASHBOARD_EMBED
         "${CMAKE_CURRENT_SOURCE_DIR}/display/dashboard/assets/neutral.gif")
 endif()
