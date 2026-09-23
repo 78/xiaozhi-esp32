@@ -10,15 +10,20 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
                              gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout,
                              gpio_num_t din, gpio_num_t pa_pin, uint8_t es8311_addr,
                              uint8_t es7210_addr, bool input_reference, float input_gain,
-                             int reference_gain_channel, float reference_gain) {
+                             int reference_gain_channel, float reference_gain,
+                             BoxAudioInputLayout input_layout) {
     duplex_ = true;                              // 是否双工
     input_reference_ = input_reference;          // 是否使用参考输入，实现回声消除
-    input_channels_ = input_reference_ ? 2 : 1;  // 输入通道数
+    input_layout_ = input_layout;
+    input_channels_ = input_layout_ == BoxAudioInputLayout::kWaveshare175Tdm4ToMmr
+                          ? 3
+                          : (input_reference_ ? 2 : 1);  // 输入通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     input_gain_ = input_gain;
     reference_gain_channel_ = reference_gain_channel;
     reference_gain_ = reference_gain;
+    assert(input_layout_ != BoxAudioInputLayout::kWaveshare175Tdm4ToMmr || input_reference_);
 
     CreateDuplexChannels(mclk, bclk, ws, dout, din);
 
@@ -206,9 +211,22 @@ void BoxAudioCodec::EnableInput(bool enable) {
         if (input_reference_) {
             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1);
         }
+        if (input_layout_ == BoxAudioInputLayout::kWaveshare175Tdm4ToMmr) {
+            // Read every TDM slot, then emit only MIC1, MIC2 and reference.
+            fs.channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0) |
+                              ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1) |
+                              ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2) |
+                              ESP_CODEC_DEV_MAKE_CHANNEL_MASK(3);
+        }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(
-            input_dev_, ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0), input_gain_));
+        uint16_t gain_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0);
+        if (input_layout_ == BoxAudioInputLayout::kWaveshare175Tdm4ToMmr) {
+            // Gain masks address physical inputs, not serialized TDM slots.
+            gain_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0) |
+                        ESP_CODEC_DEV_MAKE_CHANNEL_MASK(1) |
+                        ESP_CODEC_DEV_MAKE_CHANNEL_MASK(2);
+        }
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_channel_gain(input_dev_, gain_mask, input_gain_));
         if (input_reference_ && reference_gain_channel_ >= 0) {
             // ES7210 gain masks use physical MIC numbering, which differs
             // from the TDM slot order (MIC1, MIC3, MIC2, MIC4).
@@ -245,8 +263,34 @@ void BoxAudioCodec::EnableOutput(bool enable) {
 }
 
 int BoxAudioCodec::Read(int16_t* dest, int samples) {
-    if (input_enabled_) {
+    if (!input_enabled_) {
+        return samples;
+    }
+    if (input_layout_ != BoxAudioInputLayout::kWaveshare175Tdm4ToMmr) {
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        return samples;
+    }
+
+    constexpr int kInputChannels = 3;
+    constexpr int kTdmSlots = 4;
+    if (samples % kInputChannels != 0) {
+        ESP_LOGE(TAG, "Invalid TDM4->MMR sample count: %d", samples);
+        return 0;
+    }
+    const int frames = samples / kInputChannels;
+    input_tdm_buffer_.resize(frames * kTdmSlots);
+    esp_err_t ret = esp_codec_dev_read(
+        input_dev_, input_tdm_buffer_.data(), input_tdm_buffer_.size() * sizeof(int16_t));
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "TDM input read failed: %s", esp_err_to_name(ret));
+        return 0;
+    }
+    for (int frame = 0; frame < frames; ++frame) {
+        const int16_t* source = input_tdm_buffer_.data() + frame * kTdmSlots;
+        int16_t* target = dest + frame * kInputChannels;
+        target[0] = source[0]; // MIC1
+        target[1] = source[2]; // MIC2
+        target[2] = source[1]; // ES8311 playback reference from MIC3
     }
     return samples;
 }
