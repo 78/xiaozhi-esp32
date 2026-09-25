@@ -15,3 +15,10 @@ void AlmanacKeyStore::SetKey(const std::string& key) {
         settings.SetString("juhe_key", key);
     }
 }
+
+void AlmanacKeyStore::EnsureCreated() {
+    Settings settings("almanac", true);
+    if (!settings.HasKey("juhe_key")) {
+        settings.SetString("juhe_key", "");
+    }
+}

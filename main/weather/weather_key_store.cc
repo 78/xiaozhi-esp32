@@ -15,3 +15,10 @@ void WeatherKeyStore::SetKey(const std::string& key) {
         settings.SetString("qweather_key", key);
     }
 }
+
+void WeatherKeyStore::EnsureCreated() {
+    Settings settings("weather", true);
+    if (!settings.HasKey("qweather_key")) {
+        settings.SetString("qweather_key", "");
+    }
+}

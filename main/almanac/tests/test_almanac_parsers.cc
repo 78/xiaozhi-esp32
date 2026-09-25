@@ -5,17 +5,19 @@
 #include "solar_terms.h"
 
 void TestParser() {
-    // Juhe success
+    // Juhe day success: activities are dot-separated.
     {
-        std::string body = R"({"reason":"successed","result":{)"
-                           R"("id":"6110","yangli":"2026-09-23",)"
-                           R"("yinli":"丙午(马)年八月十三",)"
-                           R"("yi":"装修 沐浴 祭祀 馀事勿取 铺路",)"
-                           R"("ji":"结婚 出行 搬新房 安床"},"error_code":0})";
-        auto a = ParseAlmanacResponse(body, 200);
+        std::string body =
+            R"({"reason":"successed","result":{"data":{)"
+            R"("date":"2026-9-23","lunar":"八月十三",)"
+            R"("holiday":"",)"
+            R"("suit":"装修.沐浴.祭祀.馀事勿取.铺路",)"
+            R"("avoid":"结婚.出行.搬新房.安床"}},"error_code":0})";
+        auto a = ParseCalendarDay(body, 200);
         assert(a.ok);
         assert(!a.credentials_invalid);
         assert(a.lunar_date == "八月十三");
+        assert(a.festival.empty());
         assert(a.yi.size() == 5);
         assert(a.yi[0] == "装修");
         assert(a.yi[4] == "铺路");
@@ -23,9 +25,19 @@ void TestParser() {
         assert(a.ji[2] == "搬新房");
     }
 
+    // The holiday field carries the traditional festival name.
+    {
+        std::string body =
+            R"({"result":{"data":{"lunar":"八月十五","holiday":"中秋节",)"
+            R"("suit":"祭祀","avoid":"出行"}},"error_code":0})";
+        auto a = ParseCalendarDay(body, 200);
+        assert(a.ok);
+        assert(a.festival == "中秋节");
+    }
+
     // Wrong key -> credentials invalid
     {
-        auto a = ParseAlmanacResponse(
+        auto a = ParseCalendarDay(
             R"({"reason":"错误的请求KEY!!!","result":null,"error_code":10001})", 200);
         assert(!a.ok);
         assert(a.credentials_invalid);
@@ -33,7 +45,7 @@ void TestParser() {
 
     // Non-key business error -> plain failure
     {
-        auto a = ParseAlmanacResponse(
+        auto a = ParseCalendarDay(
             R"({"reason":"超过次数","result":null,"error_code":10005})", 200);
         assert(!a.ok);
         assert(!a.credentials_invalid);
@@ -42,7 +54,7 @@ void TestParser() {
 
     // No permission / banned key -> credentials invalid
     {
-        auto a = ParseAlmanacResponse(
+        auto a = ParseCalendarDay(
             R"({"reason":"无权限","result":null,"error_code":10002})", 200);
         assert(!a.ok);
         assert(a.credentials_invalid);
@@ -51,14 +63,14 @@ void TestParser() {
 
     // Daily quota / test-key limit -> quota exceeded, not a key problem
     {
-        auto a = ParseAlmanacResponse(
+        auto a = ParseCalendarDay(
             R"({"reason":"超过次数限制","result":null,"error_code":10012})", 200);
         assert(!a.ok);
         assert(!a.credentials_invalid);
         assert(a.quota_exceeded);
     }
     {
-        auto a = ParseAlmanacResponse(
+        auto a = ParseCalendarDay(
             R"({"reason":"测试KEY超限","result":null,"error_code":10013})", 200);
         assert(!a.ok);
         assert(a.quota_exceeded);
@@ -66,22 +78,54 @@ void TestParser() {
 
     // Key error via HTTP status
     {
-        auto a = ParseAlmanacResponse("forbidden", 403);
+        auto a = ParseCalendarDay("forbidden", 403);
         assert(!a.ok);
         assert(a.credentials_invalid);
     }
 
-    // Missing yinli -> failure
+    // Missing lunar -> failure
     {
-        std::string body = R"({"reason":"ok","result":{"yi":"祭祀"},"error_code":0})";
-        auto a = ParseAlmanacResponse(body, 200);
+        std::string body =
+            R"({"reason":"ok","result":{"data":{"suit":"祭祀"}},"error_code":0})";
+        auto a = ParseCalendarDay(body, 200);
         assert(!a.ok);
     }
 
     // Malformed body
     {
-        auto a = ParseAlmanacResponse("not json", 200);
+        auto a = ParseCalendarDay("not json", 200);
         assert(!a.ok);
+    }
+}
+
+void TestMonth() {
+    // Today appears in the festival's rest-day list.
+    {
+        std::string body =
+            R"({"result":{"data":{"holiday_array":[{)"
+            R"("name":"中秋节","desc":"9月25日放假，共1天",)"
+            R"("list":[{"date":"2026-9-24","status":"1"},)"
+            R"({"date":"2026-9-25","status":"1"}]}]}}})";
+        auto info = ParseCalendarMonth(body, "2026-9-25");
+        assert(info.found);
+        assert(info.name == "中秋节");
+        assert(info.desc == "9月25日放假，共1天");
+    }
+
+    // A different day of the month is not in any list.
+    {
+        std::string body =
+            R"({"result":{"data":{"holiday_array":[{)"
+            R"("name":"中秋节","desc":"","list":[{"date":"2026-9-25"}]}]}}})";
+        auto info = ParseCalendarMonth(body, "2026-9-26");
+        assert(!info.found);
+    }
+
+    // 217701: no festivals this month.
+    {
+        auto info = ParseCalendarMonth(
+            R"({"reason":"本月没有节日","error_code":217701})", "2026-6-1");
+        assert(!info.found);
     }
 }
 
@@ -150,5 +194,6 @@ void TestSolarTerms() {
 
 int main() {
     TestParser();
+    TestMonth();
     TestSolarTerms();
 }

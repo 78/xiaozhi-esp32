@@ -13,12 +13,16 @@
 #if CONFIG_WEATHER_DASHBOARD
 #include "weather_key_store.h"
 #include "weather_service.h"
+#include "city_change.h"
 #include "almanac_key_store.h"
 #include "almanac_service.h"
 #endif
 
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <driver/usb_serial_jtag.h>
+#include <driver/usb_serial_jtag_vfs.h>
+#include <esp_console.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
@@ -190,6 +194,22 @@ private:
                 return std::string("天气密钥已保存");
             });
         mcp_server.AddTool(
+            "self.system.set_city",
+            "Set the city whose weather is shown on the standby dashboard. The "
+            "Chinese city name (e.g. 北京, 上海市) is geocoded through the "
+            "QWeather GeoAPI, saved in NVS, and the weather is refreshed "
+            "immediately. Call this whenever the user asks to change their "
+            "city/location, for example \"把城市改成北京\".",
+            PropertyList({Property("city", kPropertyTypeString).SetMaxLength(32)}),
+            [](const PropertyList& properties) -> ToolResult {
+                auto city = properties["city"].value<std::string>();
+                auto result = ChangeCity(city);
+                if (!result.ok) {
+                    return std::unexpected(result.message);
+                }
+                return result.message;
+            });
+        mcp_server.AddTool(
             "self.system.set_laohuangli_api_key",
             "Set the Juhe (聚合数据) AppKey used by the standby dashboard's "
             "lunar almanac (农历/宜忌). The key is stored locally on this "
@@ -206,6 +226,130 @@ private:
 #endif
     }
 
+#if CONFIG_WEATHER_DASHBOARD
+    // Minimal REPL over the USB-Serial-JTAG port so API keys can be
+    // provisioned from a host terminal without a cloud conversation.
+    void InitializeConsole() {
+        // Pre-create the API key NVS entries as empty fields so they show up
+        // in external NVS tools on a factory-fresh device.
+        WeatherKeyStore().EnsureCreated();
+        AlmanacKeyStore().EnsureCreated();
+
+        esp_console_config_t console_config = ESP_CONSOLE_CONFIG_DEFAULT();
+        console_config.max_cmdline_length = 128;
+        ESP_ERROR_CHECK(esp_console_init(&console_config));
+
+        const esp_console_cmd_t almanac_key_cmd = {
+            .command = "almanac_key",
+            .help = "Set the Juhe 万年历 AppKey in NVS: almanac_key <key>",
+            .hint = nullptr,
+            .func = [](int argc, char** argv) -> int {
+                if (argc < 2) {
+                    printf("usage: almanac_key <key>\r\n");
+                    return 1;
+                }
+                AlmanacKeyStore key_store;
+                key_store.SetKey(argv[1]);
+                AlmanacService::GetInstance().OnKeyUpdated();
+                printf("almanac key saved\r\n");
+                return 0;
+            },
+            .argtable = nullptr
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&almanac_key_cmd));
+
+        const esp_console_cmd_t weather_key_cmd = {
+            .command = "weather_key",
+            .help = "Set the QWeather key in NVS: weather_key <key>",
+            .hint = nullptr,
+            .func = [](int argc, char** argv) -> int {
+                if (argc < 2) {
+                    printf("usage: weather_key <key>\r\n");
+                    return 1;
+                }
+                WeatherKeyStore key_store;
+                key_store.SetKey(argv[1]);
+                WeatherService::GetInstance().OnKeyUpdated();
+                printf("weather key saved\r\n");
+                return 0;
+            },
+            .argtable = nullptr
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&weather_key_cmd));
+
+        const esp_console_cmd_t city_cmd = {
+            .command = "city",
+            .help = "Set the manual city in NVS: city <chinese city name>",
+            .hint = nullptr,
+            .func = [](int argc, char** argv) -> int {
+                if (argc < 2) {
+                    printf("usage: city <name>\r\n");
+                    return 1;
+                }
+                auto result = ChangeCity(argv[1]);
+                printf("%s\r\n", result.message.c_str());
+                return result.ok ? 0 : 1;
+            },
+            .argtable = nullptr
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&city_cmd));
+
+        // The primary console is UART, so the built-in USB-Serial-JTAG REPL
+        // helpers (guarded by CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG) are not
+        // available. Install the interrupt-driven driver, switch the
+        // boot-registered /dev/secondary VFS to it, redirect stdio there and
+        // run our own line reader feeding esp_console_run().
+        usb_serial_jtag_driver_config_t driver_config =
+            USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+        ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&driver_config));
+        usb_serial_jtag_vfs_use_driver();
+        // Host terminals send CR on Enter; expand outgoing '\n' to CRLF.
+        usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+        usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+        if (freopen("/dev/secondary", "r+", stdin) == nullptr ||
+            freopen("/dev/secondary", "w", stdout) == nullptr ||
+            freopen("/dev/secondary", "w", stderr) == nullptr) {
+            ESP_LOGE(TAG, "Failed to reopen /dev/secondary");
+            return;
+        }
+        setvbuf(stdout, nullptr, _IONBF, 0);
+
+        xTaskCreate(
+            [](void* arg) {
+                auto* out = static_cast<FILE*>(arg);
+                char line[128];
+                size_t len = 0;
+                fprintf(out, "\r\nxiaozhi> ");
+                for (;;) {
+                    int ch = fgetc(stdin);
+                    if (ch == EOF) {
+                        continue;
+                    }
+                    if (ch == '\n' || ch == '\r') {
+                        fputc('\n', out);
+                        line[len] = '\0';
+                        if (len > 0) {
+                            int ret = 0;
+                            esp_console_run(line, &ret);
+                        }
+                        len = 0;
+                        fprintf(out, "xiaozhi> ");
+                    } else if (ch == 0x08 || ch == 0x7f) {
+                        if (len > 0) {
+                            --len;
+                            fputs("\b \b", out);
+                        }
+                    } else if (ch >= ' ' && len < sizeof(line) - 1) {
+                        line[len++] = static_cast<char>(ch);
+                        fputc(ch, out);
+                    }
+                }
+            },
+            "usb_console", 6 * 1024, stdout, 4, nullptr);
+    }
+#endif
+
 public:
     LCDWikiES3C28P_Board() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeI2c();
@@ -215,6 +359,9 @@ public:
         InitializeBatteryMonitor();
         InitializeButtons();
         InitializeTools();
+#if CONFIG_WEATHER_DASHBOARD
+        InitializeConsole();
+#endif
         GetBacklight()->RestoreBrightness();
     }
 
@@ -224,6 +371,27 @@ public:
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT,
             AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR, true, true);
         return &audio_codec;
+    }
+
+    virtual std::string GetDeviceStatusJson() override {
+        std::string json = WifiBoard::GetDeviceStatusJson();
+#if CONFIG_WEATHER_DASHBOARD
+        // Expose the current city so conversations know where the user is.
+        std::string city = WeatherService::GetInstance().GetSnapshot().city;
+        if (!city.empty()) {
+            cJSON* location = cJSON_CreateObject();
+            cJSON_AddStringToObject(location, "city", city.c_str());
+            char* fragment = cJSON_PrintUnformatted(location);
+            cJSON_Delete(location);
+            // Insert before the final closing brace.
+            json.pop_back();
+            json += ",\"location\":";
+            json += fragment;
+            json += "}";
+            cJSON_free(fragment);
+        }
+#endif
+        return json;
     }
 
     virtual Display* GetDisplay() override { return display_; }

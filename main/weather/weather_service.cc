@@ -1,11 +1,14 @@
 #include "weather_service.h"
 
 #include "http_get.h"
+#include "settings.h"
+#include "weather_city_store.h"
 #include "weather_parsers.h"
 
 #include <esp_log.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 
 #define TAG "WeatherService"
@@ -14,9 +17,10 @@ namespace {
 enum NotifyBits {
     kNotifyKeyUpdated = 1 << 0,
     kNotifyNetwork = 1 << 1,
+    kNotifyCityUpdated = 1 << 2,
 };
 constexpr uint32_t kRefreshIntervalMs = 30 * 60 * 1000;
-constexpr uint32_t kRetryIntervalMs = 5 * 60 * 1000;
+constexpr uint32_t kRetryIntervalMs = 60 * 1000;
 constexpr time_t kGeoTtlSec = 24 * 60 * 60;
 }  // namespace
 
@@ -47,6 +51,12 @@ void WeatherService::Start() {
 void WeatherService::OnKeyUpdated() {
     if (task_ != nullptr) {
         xTaskNotify(task_, kNotifyKeyUpdated, eSetBits);
+    }
+}
+
+void WeatherService::OnCityUpdated() {
+    if (task_ != nullptr) {
+        xTaskNotify(task_, kNotifyCityUpdated, eSetBits);
     }
 }
 
@@ -89,10 +99,66 @@ void WeatherService::Publish(const WeatherSnapshot& snapshot) {
 void WeatherService::TaskLoop() {
     GeoInfo geo;
     time_t geo_fetched_at = 0;
+    // A city chosen by conversation takes permanent precedence over GeoIP.
+    bool manual = false;
 
-    auto wait = [](uint32_t ms) {
+    {
+        CityLocation manual_city = WeatherCityStore().GetCity();
+        if (manual_city.found) {
+            manual = true;
+            geo.city = manual_city.city;
+            geo.lat = manual_city.lat;
+            geo.lon = manual_city.lon;
+            geo.ok = true;
+            geo_fetched_at = time(nullptr);
+            ESP_LOGI(TAG, "Loaded manual city %s (%.4f, %.4f)", geo.city.c_str(),
+                     geo.lat, geo.lon);
+        } else {
+            // Reuse the last successful GeoIP location: the plain-HTTP lookup
+            // is the flakiest part of the pipeline and must not block refreshes.
+            Settings settings("weather", false);
+            std::string city = settings.GetString("geo_city");
+            std::string lat_s = settings.GetString("geo_lat");
+            std::string lon_s = settings.GetString("geo_lon");
+            if (!city.empty() && !lat_s.empty() && !lon_s.empty()) {
+                geo.city = city;
+                geo.lat = atof(lat_s.c_str());
+                geo.lon = atof(lon_s.c_str());
+                geo.ok = true;
+                geo_fetched_at = time(nullptr);
+                ESP_LOGI(TAG, "Loaded cached location %s (%.4f, %.4f)",
+                         geo.city.c_str(), geo.lat, geo.lon);
+            }
+        }
+    }
+
+    // Reload the persisted manual city whenever set_city is invoked, so the
+    // next loop iteration fetches the weather for the new location at once.
+    auto apply_city_update = [&]() {
+        CityLocation stored = WeatherCityStore().GetCity();
+        if (stored.found) {
+            geo.city = stored.city;
+            geo.lat = stored.lat;
+            geo.lon = stored.lon;
+            geo.ok = true;
+            geo_fetched_at = time(nullptr);
+            manual = true;
+            ESP_LOGI(TAG, "City switched to %s (%.4f, %.4f)", geo.city.c_str(),
+                     geo.lat, geo.lon);
+        } else {
+            geo = GeoInfo{};
+            geo_fetched_at = 0;
+            manual = false;
+            ESP_LOGI(TAG, "Manual city cleared, falling back to GeoIP");
+        }
+    };
+
+    auto wait = [&](uint32_t ms) {
         uint32_t received = 0;
         xTaskNotifyWait(0, 0xffffffff, &received, pdMS_TO_TICKS(ms));
+        if (received & kNotifyCityUpdated) {
+            apply_city_update();
+        }
         return received;
     };
 
@@ -140,18 +206,32 @@ void WeatherService::TaskLoop() {
         }
 
         time_t now = time(nullptr);
-        if (!geo.ok || now - geo_fetched_at > kGeoTtlSec) {
+        if (!manual && (!geo.ok || now - geo_fetched_at > kGeoTtlSec)) {
             auto geo_resp = HttpGet(
                 "http://ip-api.com/json/?lang=zh-CN&fields=status,city,lat,lon");
             GeoInfo parsed = ParseGeoIpResponse(geo_resp.body);
             if (!parsed.ok) {
                 ESP_LOGW(TAG, "GeoIP lookup failed (http %d)", geo_resp.status);
-                wait(kRetryIntervalMs);
-                continue;
+                if (!geo.ok) {
+                    // No cached location either: retry soon instead of every 5 min.
+                    wait(kRetryIntervalMs);
+                    continue;
+                }
+                ESP_LOGW(TAG, "Using cached location %s", geo.city.c_str());
+            } else {
+                geo = parsed;
+                geo_fetched_at = time(nullptr);
+                ESP_LOGI(TAG, "Located in %s (%.4f, %.4f)",
+                         geo.city.c_str(), geo.lat, geo.lon);
+
+                char coord[24];
+                Settings settings("weather", true);
+                settings.SetString("geo_city", geo.city);
+                snprintf(coord, sizeof(coord), "%.4f", geo.lat);
+                settings.SetString("geo_lat", coord);
+                snprintf(coord, sizeof(coord), "%.4f", geo.lon);
+                settings.SetString("geo_lon", coord);
             }
-            geo = parsed;
-            geo_fetched_at = time(nullptr);
-            ESP_LOGI(TAG, "Located in %s (%.4f, %.4f)", geo.city.c_str(), geo.lat, geo.lon);
         }
 
         char location[64];

@@ -12,9 +12,11 @@ struct AqiLevelInfo {
 
 AqiLevelInfo AqiToLevel(int aqi);
 int TempToPercent(int temp);
-uint32_t WeatherIconToCodepoint(const std::string& icon_code);
-uint32_t WeatherIconColor(uint32_t codepoint);
+// Background color of the weather-text pill (多云/晴/雨...); text stays white.
+// The argument is the QWeather icon code ("100", "500", ...).
+uint32_t WeatherBadgeColor(const std::string& icon_code);
 void CodepointToUtf8(uint32_t codepoint, char out[5]);
 const char* WeekdayZh(int weekday);
+const char* WeekdayZhFull(int weekday);
 
 #endif  // DASHBOARD_MAPPINGS_H

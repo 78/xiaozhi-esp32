@@ -73,6 +73,23 @@ std::string RedactUrl(const std::string& url) {
 }
 }  // namespace
 
+std::string UrlEncode(const std::string& value) {
+    static const char hex[] = "0123456789ABCDEF";
+    std::string encoded;
+    encoded.reserve(value.size() * 3);
+    for (unsigned char c : value) {
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded += static_cast<char>(c);
+        } else {
+            encoded += '%';
+            encoded += hex[c >> 4];
+            encoded += hex[c & 0x0f];
+        }
+    }
+    return encoded;
+}
+
 HttpResult HttpGet(const std::string& url, int timeout_ms) {
     HttpResult result;
     std::string redacted = RedactUrl(url);

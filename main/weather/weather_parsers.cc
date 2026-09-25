@@ -65,6 +65,47 @@ GeoInfo ParseGeoIpResponse(const std::string& body) {
     return geo;
 }
 
+CityLookupData ParseCityLookupResponse(const std::string& body, int http_status) {
+    CityLookupData data;
+    CJsonUniquePtr root(cJSON_Parse(body.c_str()));
+    if (root == nullptr || !cJSON_IsObject(root.get())) {
+        data.key_invalid = (http_status == 401 || http_status == 403);
+        return data;
+    }
+    if (IsKeyInvalid(root, http_status)) {
+        data.key_invalid = true;
+        return data;
+    }
+    if (GetStringField(root.get(), "code") != "200") {
+        return data;
+    }
+    cJSON* locations = cJSON_GetObjectItem(root.get(), "location");
+    if (locations == nullptr || !cJSON_IsArray(locations)) {
+        return data;
+    }
+    cJSON* first = cJSON_GetArrayItem(locations, 0);
+    if (first == nullptr || !cJSON_IsObject(first)) {
+        return data;
+    }
+    // In the GeoAPI, lat/lon are strings.
+    std::string name = GetStringField(first, "name");
+    std::string lat = GetStringField(first, "lat");
+    std::string lon = GetStringField(first, "lon");
+    if (name.empty() || lat.empty() || lon.empty()) {
+        return data;
+    }
+    try {
+        data.geo.city = name;
+        data.geo.lat = std::stod(lat);
+        data.geo.lon = std::stod(lon);
+        data.geo.ok = true;
+        data.ok = true;
+    } catch (...) {
+        return data;
+    }
+    return data;
+}
+
 WeatherNowData ParseWeatherNowResponse(const std::string& body, int http_status) {
     WeatherNowData data;
     CJsonUniquePtr root(cJSON_Parse(body.c_str()));

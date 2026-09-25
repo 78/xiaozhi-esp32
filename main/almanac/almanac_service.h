@@ -19,6 +19,13 @@ struct AlmanacSnapshot {
     bool credentials_invalid = false;
     std::string lunar_date;  // e.g. "八月十三"
     std::string solar_term;  // e.g. "秋分"; empty when there is no term today
+    // Traditional festival from the day response, e.g. "中秋节"; shown in the
+    // yellow pill when today has no solar term.
+    std::string festival;
+    // Festival arrangement for today: when holiday_desc is non-empty, the top
+    // bar shows the 节假日 badge and scrolls this notice.
+    std::string holiday_name;  // e.g. "国庆节"
+    std::string holiday_desc;  // e.g. "10月1日至7日放假调休，共7天..."
     std::vector<std::string> yi;
     std::vector<std::string> ji;
     time_t updated_at = 0;

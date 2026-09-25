@@ -31,6 +31,7 @@ public:
 
     void Start();
     void OnKeyUpdated();
+    void OnCityUpdated();
     void OnNetworkConnected();
     void OnNetworkDisconnected();
 

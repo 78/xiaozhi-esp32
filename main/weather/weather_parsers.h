@@ -26,7 +26,14 @@ struct AirNowData {
     std::string category;
 };
 
+struct CityLookupData {
+    bool ok = false;
+    bool key_invalid = false;
+    GeoInfo geo;  // city/lat/lon of the first matching location
+};
+
 GeoInfo ParseGeoIpResponse(const std::string& body);
+CityLookupData ParseCityLookupResponse(const std::string& body, int http_status);
 WeatherNowData ParseWeatherNowResponse(const std::string& body, int http_status);
 AirNowData ParseAirNowResponse(const std::string& body, int http_status);
 
