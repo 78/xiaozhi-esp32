@@ -868,6 +868,11 @@ elseif(CONFIG_BOARD_TYPE_LCDWIKI_ES3C35P)
 endif()
 
 if(NOT BOARD_DIR AND NOT CMAKE_BUILD_EARLY_EXPANSION)
+elseif(CONFIG_BOARD_TYPE_ES3C28P)
+    set(BOARD_DIR "es3c28p")
+    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
     message(FATAL_ERROR "The selected board does not define BOARD_DIR")
 endif()
 
