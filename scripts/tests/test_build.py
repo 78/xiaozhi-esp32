@@ -183,6 +183,22 @@ class VersionTests(unittest.TestCase):
                         f"through menuconfig or build parameters, not {option}",
                     )
 
+    def test_gc0308_camera_sdkconfig_keys_use_digit_zero(self):
+        # ESP-IDF silently ignores unknown Kconfig keys. The GC0308 sensor
+        # option names use digit 0 (CAMERA_GC0308), not letter O (GCO308).
+        for config_path in sorted(
+            (ROOT / "main/boards").rglob("config*.json")
+        ):
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            for build_config in config.get("builds", []):
+                for option in build_config.get("sdkconfig_append", []):
+                    self.assertNotIn(
+                        "GCO308",
+                        option,
+                        f"{config_path}: GC0308 camera Kconfig keys use digit "
+                        f"0, not letter O: {option}",
+                    )
+
     def test_default_flash_options_are_not_repeated(self):
         def read_defaults(path):
             values = {}
