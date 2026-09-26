@@ -60,6 +60,24 @@ lv_obj_t* MakeBadge(lv_obj_t* parent, uint32_t bg_color_hex, uint32_t text_color
     return badge;
 }
 
+// Set a single-line label's text: displayed statically when it fits the
+// label width; when it overflows, the label scrolls horizontally as a
+// marquee. The label height must cover the font line height or the circular
+// scroll would run vertically instead.
+void SetStaticOrMarquee(lv_obj_t* label, const char* text) {
+    lv_point_t text_size;
+    lv_text_get_size(&text_size, text,
+                     lv_obj_get_style_text_font(label, LV_PART_MAIN),
+                     lv_obj_get_style_text_letter_space(label, LV_PART_MAIN),
+                     lv_obj_get_style_text_line_space(label, LV_PART_MAIN),
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    bool overflow = text_size.x > lv_obj_get_content_width(label);
+    // Long mode must be set before (re)setting the text to take effect.
+    lv_label_set_long_mode(label, overflow ? LV_LABEL_LONG_SCROLL_CIRCULAR
+                                          : LV_LABEL_LONG_CLIP);
+    lv_label_set_text(label, text);
+}
+
 // Pin a content-sized badge to the right margin (8px). Must run after the
 // label text is set; forces layout so the measured width is current.
 void AlignBadgeRight(lv_obj_t* badge) {
@@ -189,18 +207,16 @@ DashboardUI::DashboardUI(lv_obj_t* parent) {
                           10, 218, LV_RADIUS_CIRCLE, 6, 2);
     lv_obj_set_size(yi_badge_, 28, 28);
     lv_label_set_text(yi_badge_, "宜");
-    // The badge's top padding (3px) pushes its glyph down; offset the content
-    // label by the same amount so both texts share one vertical center.
-    yi_label_ = MakeLabel(container_, nullptr, 0x424242, 40, 221, 192, 22);
-    // Overflow scrolls circularly (marquee) instead of being clipped.
-    lv_label_set_long_mode(yi_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    // 24px tall (the 16px Noto font has a 23px line height) keeps the text
+    // on one line; y220 centers it on the badge circle (center y232). The
+    // long mode is chosen per content at render time (static vs marquee).
+    yi_label_ = MakeLabel(container_, nullptr, 0x424242, 40, 220, 192, 24);
 
     ji_badge_ = MakeBadge(container_, 0xF4511E, 0xFFFFFF,
                           10, 248, LV_RADIUS_CIRCLE, 6, 2);
     lv_obj_set_size(ji_badge_, 28, 28);
     lv_label_set_text(ji_badge_, "忌");
-    ji_label_ = MakeLabel(container_, nullptr, 0x424242, 40, 251, 192, 22);
-    lv_label_set_long_mode(ji_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    ji_label_ = MakeLabel(container_, nullptr, 0x424242, 40, 250, 192, 24);
 
     // (4) Environment area: temperature and humidity share one row, shifted
     // down to y286 (more room below than before). Icon glyphs are 28px tall
@@ -488,10 +504,10 @@ void DashboardUI::RenderAlmanac() {
 
         SetHidden(yi_badge_, false);
         SetHidden(yi_label_, false);
-        lv_label_set_text(yi_label_, "暂无数据");
+        SetStaticOrMarquee(yi_label_, "暂无数据");
         SetHidden(ji_badge_, false);
         SetHidden(ji_label_, false);
-        lv_label_set_text(ji_label_, "暂无数据");
+        SetStaticOrMarquee(ji_label_, "暂无数据");
         return;
     }
 
@@ -536,7 +552,8 @@ void DashboardUI::RenderAlmanac() {
         AlignBadgeRight(solar_term_label_);
     }
 
-    // Join every item; labels scroll circularly when the text overflows.
+    // Join every item; each label is static when the joined text fits and
+    // becomes a horizontal marquee only when it overflows.
     auto join = [](const std::vector<std::string>& items) {
         std::string text;
         for (size_t i = 0; i < items.size(); ++i) {
@@ -550,9 +567,9 @@ void DashboardUI::RenderAlmanac() {
 
     SetHidden(yi_badge_, s.yi.empty());
     SetHidden(yi_label_, s.yi.empty());
-    lv_label_set_text(yi_label_, join(s.yi).c_str());
+    SetStaticOrMarquee(yi_label_, join(s.yi).c_str());
 
     SetHidden(ji_badge_, s.ji.empty());
     SetHidden(ji_label_, s.ji.empty());
-    lv_label_set_text(ji_label_, join(s.ji).c_str());
+    SetStaticOrMarquee(ji_label_, join(s.ji).c_str());
 }
