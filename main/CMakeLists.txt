@@ -860,6 +860,16 @@ elseif(CONFIG_BOARD_TYPE_WK_ESP32S3_DEV)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LCDWIKI_ES3C28P)
+    set(BOARD_DIR "lcdwiki-es3c28p")
+    # 240px-wide screen: the 16px builtin makes the assets packager ship the
+    # official font_noto_sans_common_16_4 CBIN (6845 glyphs) as theme font.
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    # Ship the resized QWeather icons (<icon_code>.png) in the assets image.
+    set(DEFAULT_ASSETS_EXTRA_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/display/dashboard/weather_icons")
 elseif(CONFIG_BOARD_TYPE_LCDWIKI_ES3C35P)
     set(BOARD_DIR "lcdwiki-es3c35p")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -1088,8 +1098,34 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
         sdmmc
     )
 endif()
+if(CONFIG_WEATHER_DASHBOARD)
+    list(APPEND SOURCES
+        "weather/weather_parsers.cc"
+        "weather/http_get.cc"
+        "weather/weather_key_store.cc"
+        "weather/weather_city_store.cc"
+        "weather/city_change.cc"
+        "weather/weather_service.cc"
+        "almanac/almanac_parsers.cc"
+        "almanac/almanac_key_store.cc"
+        "almanac/almanac_service.cc"
+        "almanac/solar_terms.cc"
+        "display/dashboard/dashboard_mappings.cc"
+        "display/dashboard/dashboard_ui.cc"
+        "display/dashboard/fonts/font_impact_64.c"
+        "display/dashboard/fonts/font_impact_36.c"
+        "display/dashboard/fonts/font_weather_symbols_26_4.c"
+    )
+    list(APPEND INCLUDE_DIRS "weather" "almanac" "display/dashboard")
+    set(DASHBOARD_EMBED
+        "${CMAKE_CURRENT_SOURCE_DIR}/display/dashboard/assets/neutral.gif")
+endif()
+# The USB-Serial-JTAG driver is required by the board's key-provisioning
+# console. It must be listed unconditionally: requirements are harvested in
+# the early-expansion pass where CONFIG_* variables are not yet defined.
+list(APPEND MAIN_PRIV_REQUIRES_EXTRA esp_driver_usb_serial_jtag)
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${DASHBOARD_EMBED}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
@@ -1114,6 +1150,8 @@ idf_component_register(SRCS ${SOURCES}
                         efuse
                         bt
                         fatfs
+                        esp_http_client
+                        espressif__cjson
                         xiaozhi-fonts
                         ${MAIN_PRIV_REQUIRES_EXTRA}
                     )

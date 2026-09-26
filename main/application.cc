@@ -19,6 +19,11 @@
 #include <cstring>
 #include <limits>
 
+#if CONFIG_WEATHER_DASHBOARD
+#include "weather_service.h"
+#include "almanac_service.h"
+#endif
+
 #define TAG "Application"
 
 Application::Application() : notify_player_(audio_service_) {
@@ -311,6 +316,12 @@ void Application::HandleNetworkConnectedEvent() {
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
     display->UpdateStatusBar(true);
+#if CONFIG_WEATHER_DASHBOARD
+    WeatherService::GetInstance().OnNetworkConnected();
+    WeatherService::GetInstance().Start();
+    AlmanacService::GetInstance().OnNetworkConnected();
+    AlmanacService::GetInstance().Start();
+#endif
 }
 
 void Application::HandleNetworkDisconnectedEvent() {
@@ -328,6 +339,10 @@ void Application::HandleNetworkDisconnectedEvent() {
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
     display->UpdateStatusBar(true);
+#if CONFIG_WEATHER_DASHBOARD
+    WeatherService::GetInstance().OnNetworkDisconnected();
+    AlmanacService::GetInstance().OnNetworkDisconnected();
+#endif
 }
 
 void Application::HandleActivationDoneEvent() {
@@ -768,6 +783,11 @@ void Application::DismissAlert() {
         display->SetStatus(Lang::Strings::STANDBY);
         display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
+#if CONFIG_WEATHER_DASHBOARD
+        if (display) {
+            display->ShowDashboard();
+        }
+#endif
     }
 }
 
@@ -1003,6 +1023,11 @@ void Application::HandleStateChangedEvent() {
     auto display = board.GetDisplay();
     auto led = board.GetLed();
     led->OnStateChanged();
+#if CONFIG_WEATHER_DASHBOARD
+    if (new_state != kDeviceStateIdle && new_state != kDeviceStateUnknown) {
+        display->HideDashboard();
+    }
+#endif
 
     switch (new_state) {
         case kDeviceStateUnknown:
@@ -1015,6 +1040,9 @@ void Application::HandleStateChangedEvent() {
                 display->ClearChatMessages();  // Clear messages first
                 display->SetEmotion(
                     "neutral");  // Then set emotion (wechat mode checks child count)
+#if CONFIG_WEATHER_DASHBOARD
+                display->ShowDashboard();
+#endif
             }
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(true);

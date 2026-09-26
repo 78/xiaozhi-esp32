@@ -1,0 +1,13 @@
+{
+    "type": "lcdwiki-es3c28p",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lcdwiki-es3c28p",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+                "CONFIG_COMPILER_CXX_EXCEPTIONS=y"
+            ]
+        }
+    ]
+}

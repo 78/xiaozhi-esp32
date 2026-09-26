@@ -18,6 +18,13 @@
 
 #include "board.h"
 
+#if CONFIG_WEATHER_DASHBOARD
+#include "application.h"
+#include "weather_service.h"
+#include "almanac_service.h"
+#include "dashboard_ui.h"
+#endif
+
 #define TAG "LcdDisplay"
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
@@ -533,6 +540,9 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
     lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);
+#if CONFIG_WEATHER_DASHBOARD
+    SetupDashboard();
+#endif
 }
 #if CONFIG_IDF_TARGET_ESP32P4
 #define MAX_MESSAGES 40
@@ -1045,6 +1055,9 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+#if CONFIG_WEATHER_DASHBOARD
+    SetupDashboard();
+#endif
 }
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
@@ -1125,6 +1138,46 @@ void LcdDisplay::ClearChatMessages() {
     }
     if (bottom_bar_ != nullptr) {
         lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+#endif
+
+#if CONFIG_WEATHER_DASHBOARD
+void LcdDisplay::SetupDashboard() {
+    dashboard_ = std::make_unique<DashboardUI>(lv_screen_active());
+    WeatherService::GetInstance().SetUpdateCallback([this]() {
+        // The callback runs on the weather task; hop to the Application task,
+        // and take the display lock there before touching LVGL objects.
+        Application::GetInstance().Schedule([this]() {
+            if (dashboard_) {
+                DisplayLockGuard lock(this);
+                dashboard_->UpdateWeather(WeatherService::GetInstance().GetSnapshot());
+            }
+        });
+    });
+    AlmanacService::GetInstance().SetUpdateCallback([this]() {
+        // Same hop-to-main-task + display-lock pattern as the weather callback.
+        Application::GetInstance().Schedule([this]() {
+            if (dashboard_) {
+                DisplayLockGuard lock(this);
+                dashboard_->UpdateAlmanac(AlmanacService::GetInstance().GetSnapshot());
+            }
+        });
+    });
+}
+
+void LcdDisplay::ShowDashboard() {
+    if (dashboard_) {
+        DisplayLockGuard lock(this);
+        // Show() already applies the latest snapshot; no second refresh here.
+        dashboard_->Show();
+    }
+}
+
+void LcdDisplay::HideDashboard() {
+    if (dashboard_) {
+        DisplayLockGuard lock(this);
+        dashboard_->Hide();
     }
 }
 #endif
