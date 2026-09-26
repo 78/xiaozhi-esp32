@@ -1,0 +1,28 @@
+name: Build es3c28p firmware
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware (ESP-IDF v6.1)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          command: python scripts/build.py es3c28p
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: es3c28p-firmware
+          path: |
+            build/**/*.bin
+            build/**/flasher_args.json
+            output/**/*.bin
+          if-no-files-found: error
