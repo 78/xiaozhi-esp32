@@ -734,6 +734,13 @@ elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_GUITION_JC4827W543)
+    set(BOARD_DIR "guition/jc4827w543")
+    # 16px, not the 20px most 480-wide boards use: the assets partition is 1MB
+    # and the 20px common font alone is 1228KB. See the board README.
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WDMOMO_CGC)
     set(BOARD_DIR "wdmomo/esp32-cgc")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
