@@ -1,5 +1,13 @@
 {
-  "target": "esp32s3",
-  "type": "es3c28p",
-  "name": "ES3C28P 2.8inch LCD (ESP32-S3)"
+    "type": "es3c28p",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "es3c28p",
+            "sdkconfig_append": [
+                "CONFIG_OTA_URL=\"ws://192.168.31.140:8003/xiaozhi/ota/\"",
+                "CONFIG_LANGUAGE_TH_TH=y"
+            ]
+        }
+    ]
 }
