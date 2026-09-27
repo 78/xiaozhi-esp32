@@ -99,21 +99,27 @@ void AlmanacService::TaskLoop() {
         return received;
     };
 
-    // Sleep until the next local midnight (+1 minute). Wake up hourly so a
+    // Sleep until one minute past the next local midnight. Wake hourly so a
     // key written directly into NVS by an external tool (which cannot notify
     // the task) takes effect without a reboot; network/key notifications
     // also interrupt the sleep. The hourly wake burns no API request.
     auto wait_until_tomorrow = [&](const std::string& used_key) {
+        // Absolute timestamp of tomorrow 00:01 local time. mktime normalizes
+        // the day-of-month overflow (and DST, via tm_isdst = -1), so the
+        // target stays correct regardless of when the hourly ticks land.
+        time_t now = time(nullptr);
+        struct tm next_day;
+        localtime_r(&now, &next_day);
+        next_day.tm_mday += 1;
+        next_day.tm_hour = 0;
+        next_day.tm_min = 1;
+        next_day.tm_sec = 0;
+        next_day.tm_isdst = -1;
+        time_t target = mktime(&next_day);
+
         for (;;) {
             uint32_t received = wait(60 * 60 * 1000);
-            time_t now = time(nullptr);
-            struct tm tm_local;
-            localtime_r(&now, &tm_local);
-            uint32_t seconds_left = static_cast<uint32_t>(
-                24 * 60 * 60 - (tm_local.tm_hour * 3600 + tm_local.tm_min * 60 +
-                                tm_local.tm_sec));
-            // One minute past midnight: the new day's data is available.
-            if (seconds_left <= 60) {
+            if (time(nullptr) >= target) {
                 return;
             }
             if ((received & (kNotifyKeyUpdated | kNotifyNetwork)) ||
