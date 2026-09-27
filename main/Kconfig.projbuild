@@ -193,10 +193,11 @@ choice BOARD_TYPE
         bool "Du ChatX Wi-Fi (嘟嘟开发板)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
-        bool "ElectronBot"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
+
+    config BOARD_TYPE_ES3C28P
+        bool "ES3C28P 2.8inch LCD (ESP32-S3)"
         depends on IDF_TARGET_ESP32S3
 
     config BOARD_TYPE_ES3C28P
