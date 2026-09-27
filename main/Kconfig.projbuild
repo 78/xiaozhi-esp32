@@ -26,9 +26,6 @@ choice
     config BOARD_TYPE_ES3C28P
         bool "ES3C28P 2.8inch LCD (ESP32-S3)"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ES3C28P
-        bool "ES3C28P 2.8inch LCD (ESP32-S3)"
-        depends on IDF_TARGET_ESP32S3
 endchoice
 
 config CUSTOM_ASSETS_FILE
@@ -199,6 +196,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P
+        bool "ES3C28P 2.8inch LCD (ESP32-S3)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP32-P4/P4X-Function-EV-Board"
