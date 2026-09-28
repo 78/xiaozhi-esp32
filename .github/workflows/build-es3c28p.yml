@@ -15,7 +15,7 @@ jobs:
         with:
           esp_idf_version: v6.1
           target: esp32s3
-          command: python scripts/build.py freenove-esp32s3-display-2.8-lcd --language th-TH --wake-word wn9_hiesp
+          command: python scripts/build.py freenove-esp32s3-touch-lcd-2-8 --language th-TH --wake-word wn9_hiesp
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
