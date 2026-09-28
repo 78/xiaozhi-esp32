@@ -1,0 +1,28 @@
+name: Build Terra firmware
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware (ESP-IDF v6.1)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          command: python scripts/build.py freenove-esp32s3-display-2.8-lcd --language th-TH --wake-word wn9_hiesp
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: terra-firmware
+          path: |
+            build/**/*.bin
+            releases/*.zip
+            output/**/*.bin
+          if-no-files-found: error
