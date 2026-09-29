@@ -547,7 +547,7 @@ class BoardSelectionTests(unittest.TestCase):
             "CONFIG_BOARD_TYPE_XMINI_C3",
         )
 
-    def test_common_and_core_changes_select_all(self):
+    def test_common_and_core_changes_select_representatives(self):
         for path in (
             "main/boards/common/board.cc",
             "main/application.cc",
@@ -555,10 +555,12 @@ class BoardSelectionTests(unittest.TestCase):
             "scripts/build_default_assets.py",
             "scripts/build.py",
         ):
-            with self.subTest(path=path):
+            with self.subTest(path=path), mock.patch.object(
+                build, "_load_representative_variants", return_value=self.variants[:1]
+            ):
                 self.assertEqual(
                     build._select_variants_for_changes(self.variants, [path]),
-                    self.variants,
+                    self.variants[:1],
                 )
 
     def test_docs_only_selects_none(self):

@@ -1,6 +1,8 @@
 name: Build Boards
 
 on:
+  # Manual runs exercise the full matrix, including CI-specific options.
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -32,39 +34,42 @@ jobs:
       - id: select
         name: Select variants based on changes
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          EVENT_NAME="${{ github.event_name }}"
-
-          # push 到 main 分支，编译全部变体
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            # Keep the full matrix out of an environment variable. A single
-            # Linux environment entry is limited to 128 KiB, and the variant
-            # JSON can exceed that as boards are added.
-            {
-              printf 'variants='
-              python scripts/build.py --list-boards --json
-            } >> "$GITHUB_OUTPUT"
-            exit 0
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          CHANGED_FILE="$RUNNER_TEMP/changed-files.txt"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            git ls-files > "$CHANGED_FILE"
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            # Checkout is the synthetic merge commit. Compare the PR branch
+            # from its merge base, excluding unrelated updates on main.
+            git diff --name-only --no-renames HEAD^1...HEAD^2 > "$CHANGED_FILE"
+          elif [[ "$BEFORE_SHA" =~ ^0+$ && "$GITHUB_REF" != "refs/heads/main" ]] && \
+               BASE_SHA=$(git merge-base HEAD origin/main); then
+            # First push of a ci/* branch has an all-zero before SHA.
+            git diff --name-only --no-renames "$BASE_SHA" HEAD > "$CHANGED_FILE"
+          elif [[ -n "$BEFORE_SHA" && ! "$BEFORE_SHA" =~ ^0+$ ]] && \
+               git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            git diff --name-only --no-renames "$BEFORE_SHA" HEAD > "$CHANGED_FILE"
+          else
+            # A missing baseline (e.g. an unavailable force-pushed commit)
+            # must not silently omit changed boards.
+            git ls-files > "$CHANGED_FILE"
           fi
 
-          # pull_request 场景
-          # actions/checkout checks out GitHub's synthetic PR merge commit. Its
-          # first and second parents are the exact base and head commits used
-          # for this run, even when the event SHAs are not exposed as refs in
-          # the job container.
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          BASE_SHA="HEAD^1"
-          HEAD_SHA="HEAD^2"
-          echo "Base: $(git rev-parse "$BASE_SHA"), Head: $(git rev-parse "$HEAD_SHA")"
+          cat "$CHANGED_FILE"
 
-          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
-          echo -e "Changed files:\n$CHANGED"
-
-          SELECTED=$(printf '%s\n' "$CHANGED" | python scripts/build.py --select-changed)
-          echo "variants=$SELECTED" >> $GITHUB_OUTPUT
+          # Keep the full manual matrix out of environment variables.
+          python scripts/build.py --select-changed < "$CHANGED_FILE" > "$RUNNER_TEMP/variants.json"
+          {
+            printf 'variants='
+            cat "$RUNNER_TEMP/variants.json"
+          } >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build ${{ matrix.full_name }}
+    name: Build ${{ matrix.ci_name || matrix.full_name }}
     needs: prepare
     if: ${{ needs.prepare.outputs.variants != '[]' }}
     strategy:
@@ -80,13 +85,21 @@ jobs:
 
       - name: Build current variant
         shell: bash
+        env:
+          BOARD: ${{ matrix.board }}
+          VARIANT: ${{ matrix.name }}
+          BUILD_OPTIONS_JSON: ${{ toJSON(matrix.ci_build_options) }}
         run: |
-          source $IDF_PATH/export.sh
-          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
+          source "$IDF_PATH/export.sh"
+          OPTIONS=()
+          if [[ "$BUILD_OPTIONS_JSON" != "null" && -n "$BUILD_OPTIONS_JSON" ]]; then
+            OPTIONS+=(--build-options-json "$BUILD_OPTIONS_JSON")
+          fi
+          python scripts/build.py "$BOARD" --name "$VARIANT" "${OPTIONS[@]}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: xiaozhi_${{ matrix.full_name }}_${{ github.sha }}
+          name: xiaozhi_${{ matrix.ci_name || matrix.full_name }}_${{ github.sha }}
           path: build/merged-binary.bin
           if-no-files-found: error
