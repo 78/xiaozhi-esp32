@@ -5,6 +5,7 @@
 #include "weather_key_store.h"
 #include "weather_parsers.h"
 #include "weather_service.h"
+#include "display_mode_manager.h"
 
 #include <esp_log.h>
 
@@ -47,6 +48,7 @@ CityChangeResult ChangeCity(const std::string& city_name) {
 
     city_store.SetCity(lookup.geo.city, lookup.geo.lat, lookup.geo.lon);
     WeatherService::GetInstance().OnCityUpdated();
+    DisplayModeManager::GetInstance().OnLocationUpdated();
     ESP_LOGI(TAG, "Manual city set to %s (%.4f, %.4f)", lookup.geo.city.c_str(),
              lookup.geo.lat, lookup.geo.lon);
 

@@ -18,6 +18,9 @@
 #include "lvgl_image.h"
 #include "lvgl_theme.h"
 #include "settings.h"
+#if CONFIG_WEATHER_DASHBOARD
+#include "display_mode_manager.h"
+#endif
 
 #define TAG "MCP"
 
@@ -75,10 +78,21 @@ void McpServer::AddCommonTools() {
     auto display = board.GetDisplay();
     if (display && display->GetTheme() != nullptr) {
         AddTool("self.screen.set_theme",
-                "Set the theme of the screen. The theme can be `light` or `dark`.",
+                "Set the screen color scheme. Pass `auto` to switch automatically "
+                "between day and night, or `light`/`dark` to pin a theme.",
                 PropertyList({Property("theme", kPropertyTypeString)}),
                 [display](const PropertyList& properties) -> ReturnValue {
                     auto theme_name = properties["theme"].value<std::string>();
+#if CONFIG_WEATHER_DASHBOARD
+                    bool parsed = false;
+                    DisplayMode mode =
+                        DisplayModeManager::ParseMode(theme_name, &parsed);
+                    if (parsed) {
+                        DisplayModeManager::GetInstance().SetMode(mode);
+                        return true;
+                    }
+                    return false;
+#else
                     auto& theme_manager = LvglThemeManager::GetInstance();
                     auto theme = theme_manager.GetTheme(theme_name);
                     if (theme != nullptr) {
@@ -86,6 +100,7 @@ void McpServer::AddCommonTools() {
                         return true;
                     }
                     return false;
+#endif
                 });
     }
 

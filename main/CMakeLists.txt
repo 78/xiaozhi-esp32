@@ -1112,6 +1112,8 @@ if(CONFIG_WEATHER_DASHBOARD)
         "almanac/solar_terms.cc"
         "display/dashboard/dashboard_mappings.cc"
         "display/dashboard/dashboard_ui.cc"
+        "display/solar_times.cc"
+        "display/display_mode_manager.cc"
         "display/dashboard/fonts/font_impact_64.c"
         "display/dashboard/fonts/font_impact_36.c"
         "display/dashboard/fonts/font_weather_symbols_26_4.c"

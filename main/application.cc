@@ -22,6 +22,7 @@
 #if CONFIG_WEATHER_DASHBOARD
 #include "weather_service.h"
 #include "almanac_service.h"
+#include "display_mode_manager.h"
 #endif
 
 #define TAG "Application"
@@ -321,6 +322,7 @@ void Application::HandleNetworkConnectedEvent() {
     WeatherService::GetInstance().Start();
     AlmanacService::GetInstance().OnNetworkConnected();
     AlmanacService::GetInstance().Start();
+    DisplayModeManager::GetInstance().Start();
 #endif
 }
 

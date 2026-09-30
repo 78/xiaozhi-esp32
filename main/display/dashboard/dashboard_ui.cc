@@ -9,6 +9,7 @@
 #include "misc/cache/instance/lv_image_cache.h"
 
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 
 // Font declarations must stay at global scope: the corresponding definitions
@@ -297,6 +298,48 @@ bool DashboardUI::IsVisible() const {
     return !lv_obj_has_flag(container_, LV_OBJ_FLAG_HIDDEN);
 }
 
+void DashboardUI::UpdateTheme() {
+    const Theme* theme = Board::GetInstance().GetDisplay()->GetTheme();
+    dark_ = theme != nullptr && theme->name() == "dark";
+
+    const uint32_t bg = dark_ ? 0x121212 : 0xFFFFFF;
+    const uint32_t primary = dark_ ? 0xE8EAED : 0x424242;
+    const uint32_t secondary = dark_ ? 0x9AA0A6 : 0x616161;
+    const uint32_t clock_hour = dark_ ? 0xF1F3F4 : 0x424242;
+    const uint32_t bar_track = dark_ ? 0x2E3134 : 0xE0E0E0;
+    const uint32_t bar_indicator = dark_ ? 0x8C919A : 0x9E9E9E;
+
+    lv_obj_set_style_bg_color(container_, lv_color_hex(bg), 0);
+
+    lv_obj_set_style_text_color(network_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(holiday_notice_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(city_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(aqi_line_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(yi_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(ji_label_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(temp_value_, lv_color_hex(primary), 0);
+    lv_obj_set_style_text_color(humid_value_, lv_color_hex(primary), 0);
+
+    lv_obj_set_style_text_color(hour_label_, lv_color_hex(clock_hour), 0);
+    lv_obj_set_style_text_color(minute_label_, lv_color_hex(0xFB8C00), 0);
+    lv_obj_set_style_text_color(second_label_, lv_color_hex(0xE53935), 0);
+
+    lv_obj_set_style_text_color(date_label_, lv_color_hex(secondary), 0);
+    lv_obj_set_style_text_color(weekday_label_, lv_color_hex(secondary), 0);
+
+    lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(bar_track), 0);
+    lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(bar_track), 0);
+    lv_obj_set_style_bg_color(temp_bar_, lv_color_hex(bar_indicator),
+                              LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(humid_bar_, lv_color_hex(bar_indicator),
+                              LV_PART_INDICATOR);
+
+    UpdateClock();
+    UpdateWeather(weather_snapshot_);
+    UpdateAlmanac(almanac_snapshot_);
+    lv_obj_invalidate(container_);
+}
+
 void DashboardUI::Show() {
     // Cancel any in-flight hide animation first (its deleted_cb would re-hide us);
     // lv_anim_delete invokes deleted_cb, so clear HIDDEN afterwards.
@@ -388,6 +431,7 @@ void DashboardUI::UpdateNetwork() {
 }
 
 void DashboardUI::UpdateWeather(const WeatherSnapshot& snapshot) {
+    weather_snapshot_ = snapshot;
     lv_label_set_text(city_label_,
                       (!snapshot.city.empty()) ? snapshot.city.c_str() : "--");
 
@@ -399,6 +443,7 @@ void DashboardUI::UpdateWeather(const WeatherSnapshot& snapshot) {
     // Load the colored icon <icon_code>.png from the assets image; fall back
     // to the generic 999 icon if the code is missing from the pack. Skip the
     // whole swap when the displayed icon already matches the snapshot.
+    bool icon_changed = false;
     if (!snapshot.icon_code.empty() &&
         snapshot.icon_code != loaded_icon_code_) {
         void* ptr = nullptr;
@@ -420,7 +465,15 @@ void DashboardUI::UpdateWeather(const WeatherSnapshot& snapshot) {
             weather_raw_image_ = new LvglRawImage(ptr, size);
             lv_image_set_src(weather_icon_image_, weather_raw_image_->image_dsc());
             loaded_icon_code_ = snapshot.icon_code;
+            icon_changed = true;
         }
+    }
+    // A background-service swap only triggers one area invalidation, which can
+    // be merged away (the icon band is then left unpainted/blank until the next
+    // full repaint, e.g. the fade-in on Show). Force the container to repaint,
+    // mirroring UpdateAlmanac. Show() repaints via its fade, so skip when hidden.
+    if (icon_changed && IsVisible()) {
+        lv_obj_invalidate(container_);
     }
 
     // Weather-text pill color follows the condition; its text is centered.
@@ -473,6 +526,12 @@ void DashboardUI::UpdateAlmanac(const AlmanacSnapshot& snapshot) {
 
 void DashboardUI::RenderAlmanac() {
     const auto& s = almanac_snapshot_;
+    // The lunar pill is black in light mode; invert it so it stays visible on
+    // the dark surface.
+    lv_obj_set_style_bg_color(lunar_label_,
+                              lv_color_hex(dark_ ? 0x2E3134 : 0x000000), 0);
+    lv_obj_set_style_text_color(lunar_label_,
+                                lv_color_hex(dark_ ? 0xE8EAED : 0xFFFFFF), 0);
     if (!s.valid) {
         // No almanac data (daily quota spent, service unreachable...): keep
         // the whole layout visible with placeholders instead of collapsing

@@ -1412,6 +1412,13 @@ void LcdDisplay::SetTheme(Theme* theme) {
 
     // No errors occurred. Save theme to settings
     Display::SetTheme(lvgl_theme);
+
+#if CONFIG_WEATHER_DASHBOARD
+    // Restyle the standby dashboard with the same theme just applied.
+    if (dashboard_) {
+        dashboard_->UpdateTheme();
+    }
+#endif
 }
 
 void LcdDisplay::SetHideSubtitle(bool hide) {

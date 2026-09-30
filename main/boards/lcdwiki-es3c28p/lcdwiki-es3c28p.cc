@@ -16,6 +16,7 @@
 #include "city_change.h"
 #include "almanac_key_store.h"
 #include "almanac_service.h"
+#include "display_mode_manager.h"
 #endif
 
 #include <driver/i2c_master.h>
@@ -294,6 +295,30 @@ private:
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&city_cmd));
 
+        const esp_console_cmd_t theme_cmd = {
+            .command = "theme",
+            .help = "Set color scheme: theme auto|light|dark",
+            .hint = nullptr,
+            .func = [](int argc, char** argv) -> int {
+                if (argc < 2) {
+                    printf("usage: theme auto|light|dark\r\n");
+                    return 1;
+                }
+                bool ok = false;
+                DisplayMode mode =
+                    DisplayModeManager::ParseMode(argv[1], &ok);
+                if (!ok) {
+                    printf("unknown mode: %s\r\n", argv[1]);
+                    return 1;
+                }
+                DisplayModeManager::GetInstance().SetMode(mode);
+                printf("theme mode: %s\r\n", argv[1]);
+                return 0;
+            },
+            .argtable = nullptr
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&theme_cmd));
+
         // The primary console is UART, so the built-in USB-Serial-JTAG REPL
         // helpers (guarded by CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG) are not
         // available. Install the interrupt-driven driver, switch the
@@ -346,7 +371,10 @@ private:
                     }
                 }
             },
-            "usb_console", 6 * 1024, stdout, 4, nullptr);
+            // ChangeCity() performs a synchronous HTTPS/TLS geocode request;
+            // mbedtls needs more than the previous 6KB and overflowed. Match
+            // the weather task's stack with margin.
+            "usb_console", 10 * 1024, stdout, 4, nullptr);
     }
 #endif
 

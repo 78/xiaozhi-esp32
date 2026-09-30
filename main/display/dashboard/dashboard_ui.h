@@ -19,6 +19,9 @@ public:
     void Hide();
     bool IsVisible() const;
 
+    // Restyle every element for the currently active light/dark theme. Must
+    // be called with the display lock held.
+    void UpdateTheme();
     void UpdateClock();
     void UpdateNetwork();
     void UpdateWeather(const WeatherSnapshot& snapshot);
@@ -26,6 +29,7 @@ public:
 
 private:
     void RenderAlmanac();
+    bool dark_ = false;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* network_label_ = nullptr;
     lv_obj_t* holiday_badge_label_ = nullptr;
@@ -53,6 +57,7 @@ private:
     lv_obj_t* ji_badge_ = nullptr;
     lv_obj_t* ji_label_ = nullptr;
     AlmanacSnapshot almanac_snapshot_;
+    WeatherSnapshot weather_snapshot_;
     lv_obj_t* temp_icon_ = nullptr;
     lv_obj_t* temp_bar_ = nullptr;
     lv_obj_t* temp_value_ = nullptr;
