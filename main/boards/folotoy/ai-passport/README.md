@@ -42,6 +42,178 @@ The three physical keys map to XiaoZhi's voice-assistant actions:
 Because the ladder shares one ADC pin, XiaoZhi reads it as three
 independent ADC buttons (the same pattern as the ESP-BOX-Lite).
 
+## Power management
+
+The Passport is a battery wearable, so the board gives up power in three stages,
+all counted from the last key press:
+
+| Idle | Stage | What happens |
+| --- | --- | --- |
+| 60 s | Dim | Backlight drops to 10%; nothing else changes |
+| 360 s | Soft sleep | Panel Sleep In, backlight off, radio stopped, wake word off, CPU down-clocked to 40 MHz |
+| 2160 s | Deep sleep | Entered from the soft-sleep stage; any key wakes the device through GPIO0 and restarts the application |
+
+`kDimSeconds`, `kSoftSleepSeconds`, `kDeepSleepSeconds`, `kDimBrightness` and
+`kStandbyCpuMinFreq` at the top of `ai_passport_board.cc` tune the policy. Three
+properties of this shape are deliberate:
+
+- **The soft-sleep stage is shallow on purpose.** It draws roughly 13 mA, which
+  over half an hour is about 2.5 mAh of the 520 mAh cell - under 1% of a charge.
+  The CPU keeps running, so a key press brings the whole device back in about a
+  second with the conversation, the page and the session intact, instead of
+  rebooting into a fresh idle state.
+- **The deep-sleep fallback is what makes that affordable.** Because it is
+  reached from the soft-sleep stage rather than directly, a Passport left alone
+  still ends up at deep-sleep current within 36 minutes. An unbounded
+  "soft sleep only" policy would look better for half an hour and then flatten
+  the cell overnight.
+- **Automatic light sleep is deliberately not enabled**, even though it would take
+  the soft-sleep stage below 1 mA in the same window. The countdown behind all
+  three deadlines runs on an `esp_timer` created with
+  `skip_unhandled_events = true`, and such a timer does not wake the chip out of
+  light sleep - so switching light sleep on would silently stretch 60 / 360 /
+  2160 into wall-clock times nobody asked for. `SetStandbyClock()` only scales
+  the CPU frequency, which has no such effect. `CONFIG_PM_ENABLE` in `config.json`
+  is what makes that call work.
+
+Every stage is gated by `Application::CanEnterSleepMode()`, so an ongoing
+conversation or playback pushes the deadline back instead of being interrupted.
+Any key press cancels the countdown (`OnPressDown`, so a long press counts too)
+and, from the soft-sleep stage, brings the device back. The NVS `sleep_mode` flag
+the provisioning page writes disables all three stages at once.
+
+That gate has two consequences worth knowing about:
+
+- A board that never reaches `kDeviceStateIdle` keeps the screen lit
+  indefinitely. The common case is an unprovisioned board sitting in Wi-Fi config
+  mode, which the state machine only lets move to activating or audio testing.
+  Sleeping outside the idle state would be a framework change affecting every
+  board, so it is not done here - a Passport delivered unconfigured should be
+  configured, not left on a shelf.
+- `PowerSaveTimer` stops checking that gate once it is past its sleep deadline,
+  so the board re-checks `CanEnterSleepMode()` itself in both stage transitions.
+  A conversation started by the wake word presses no key and therefore never
+  resets the tick counter; without the re-check the deep-sleep fallback would cut
+  it off mid-conversation.
+
+### Turning the screen and radio off
+
+Closing the audio path is the part that is easy to get wrong. The audio input
+task re-enables the codec on every read it starts, so calling
+`EnableInput(false)` from the board would be undone immediately. The stage instead
+switches the wake word off (`AudioService::EnableWakeWordDetection(false)`) and
+leaves the codec to `AudioService`, which closes the PCM path on its own once the
+input has been idle for `AUDIO_POWER_TIMEOUT_MS` (15 s). The wake path has to
+switch the wake word back on explicitly: the idle branch of the application state
+machine does not run again on its own, so without that the device would never
+hear its wake word again for the rest of the boot.
+
+`WifiManager::StopStation()` is the Wi-Fi half - it disconnects, stops the radio
+and fires the ordinary `NetworkEvent::Disconnected` the application already
+handles. The wake path uses `WifiManager::StartStation()` rather than
+`WifiBoard`'s connection helper, so no connect timeout is armed; a router that is
+still gone therefore cannot drop the board into Wi-Fi config mode behind the
+user's back.
+
+The three keys keep waking the device in every stage, but the press that wakes it
+must not also act:
+
+- `kSoftSleepClickGuardMs` (500 ms) drops the click and long-press actions of the
+  press that woke the device, so a wake press cannot change the volume or open the
+  audio channel.
+- From the soft-sleep stage the radio needs a moment to come back. OK during that
+  window shows the ordinary "connecting" hint instead of failing to open the
+  audio channel and raising an error alert.
+- `kBootKeyGuardMs` (2 s) drops key events when the boot itself was a wake from
+  the deep-sleep fallback. That reboot happens while the key is still held, and a
+  press already down when the button component starts would be graded a long press
+  (UP -> max volume, DOWN -> mute). A cold boot gets no guard, so OK during
+  `kDeviceStateStarting` keeps working as the provisioning entry point.
+
+### Deep sleep
+
+Deep sleep follows the FoloToy AI Passport BSP shutdown contract
+(`docs/reference/shinku-chen/deep-sleep-peripheral-power-off` in the BSP repo),
+in this order:
+
+1. Clear every previously armed wake source
+   (`esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL)`) and then arm the GPIO0
+   low-level wake source with IDF's
+   `esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown()`. Automatic light sleep
+   leaves the RTC timer armed for the next scheduled event, and a deep sleep that
+   inherits it wakes up again on the next OS tick - measured on hardware as a reset
+   roughly a second after sleeping, reported as `ESP_SLEEP_WAKEUP_TIMER` with an empty
+   GPIO wake status. ESP32-C3 has no EXT0/EXT1, and the GPIO call takes a pin
+   *bit mask*, so passing `GPIO_NUM_0` instead of `1ULL << GPIO_NUM_0` silently arms
+   nothing. If arming fails the board falls back to a timed wake so the device cannot
+   be stranded asleep.
+2. CW2017 `CONFIG=0xF0`, read back 5 ms later, retried once on mismatch. The
+   board init reverses this with the chip's restart-then-active cycle, so a
+   gauge that slept before a deep sleep reports again after the wake.
+3. ES8311 suspend: `esp_codec_dev` disable/close first, then the BSP's suspend
+   register sequence written through the codec control interface, with the key
+   registers read back. REG0E is checked as `0x7F`, not the BSP's `0xFF`: bit 7
+   of that register does not latch on this part, so the BSP's expectation can
+   never be met and its own board logs a verification failure on every sleep.
+   The registers that do matter (REG00/01/0D/12/45) are verified as written.
+   Both I2S channels are then stopped explicitly, so the codec is not left driving
+   inputs whose master went quiet once the pins are released. Codec construction
+   enables those channels once and only `esp_codec_dev_close()` stops them again,
+   so a board that never played anything since boot reaches this point with the
+   clocks still running.
+4. MCLK/BCLK/WS/DOUT/DIN released as inputs with no internal pulls.
+5. SDA/SCL released the same way (terminal: no I2C transaction is valid after
+   this point).
+6. Under the LVGL lock: panel display-off and Sleep In, backlight PWM stopped at
+   zero, then CS high / SCLK / MOSI / DC / backlight low, each held through deep
+   sleep with `gpio_deep_sleep_hold_en()`.
+
+A failed step is logged but never aborts the shutdown, so the device cannot be
+left awake with a half-shut-down board. If deep sleep somehow returns, the board
+restarts instead of trying to recover the released buses.
+
+Pin holds are latched in the RTC domain and survive the deep-sleep reset, so
+`gpio_hold_dis()` has to be called for every held pin on the way back up.
+`ReleaseDeepSleepHolds()` does that first thing in the board constructor. On this
+board the holds that survive a wake are GPIO1 (LCD CS) in `RTC_CNTL_PAD_HOLD_REG`
+and GPIO8/GPIO9 (LCD SCLK/MOSI) in `RTC_CNTL_DIG_PAD_HOLD_REG`; without the
+release they stay held and the panel never comes back.
+
+What software cannot fix: the Passport does not wire the amplifier enable to the
+MCU (`AUDIO_CODEC_PA_PIN` is `NC`), so amplifier standby current, regulator
+quiescent current, the external I2C pull-ups and cell self-discharge all remain.
+Isolate those on hardware if standby current still looks high.
+
+Status of hardware verification (ESP32-C3, IDF 6.0.2). Verified on the device for
+an earlier revision that went straight to deep sleep: board init and a stable idle
+loop; reaching `kDeviceStateIdle` after provisioning; a backlight stage firing on
+schedule; CW2017 sleep with a matching readback; the ES8311 suspend sequence
+passing its register readback; the I2S/I2C pin release; deep sleep actually
+sticking (no self-wake from a leftover wake source); a key press waking the device
+with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
+`esp_sleep_get_gpio_wakeup_status() == 0x1`; and the deep-sleep pin holds being
+released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
+readbacks).
+
+Not verified, and the list a first flash should work through: the soft-sleep stage
+as a whole (panel Sleep In/out, backlight and radio restoration, wake-word restart);
+whether the press that wakes the device is correctly swallowed by
+`kSoftSleepClickGuardMs`; whether `kBootKeyGuardMs` actually covers the boot window
+on this part; the idle, soft-sleep and deep-sleep currents (the 13 mA above is an
+estimate from the parts list, not a measurement); whether disabling
+`CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
+external 10 kOhm pull-up; and whether the panel and backlight visibly come back
+after a soft-sleep wake. A successful build is not hardware validation.
+
+A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
+it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
+`audio_testing` state re-opens the PCM path, not from this board's I2S handling -
+the board reports how many channels it actually changed, which is zero in this path.
+
+The soft-sleep stage keeps the CPU awake, so `pm: Frequency switching config:` shows
+`Light sleep: DISABLED` by design; a later change that wants to enable it has to
+move the three deadlines off the `skip_unhandled_events` timer first.
+
 ## Notes / calibration
 
 - Display orientation, color inversion and the backlight PWM polarity were
