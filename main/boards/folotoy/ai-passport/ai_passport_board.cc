@@ -269,12 +269,13 @@ private:
         // still held, and a press already down when the button component starts
         // would be graded a long press. Only that boot gets the guard: on a cold
         // boot OK during kDeviceStateStarting is the provisioning path and has
-        // to keep working.
-        esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-        if (cause == ESP_SLEEP_WAKEUP_GPIO || cause == ESP_SLEEP_WAKEUP_TIMER) {
+        // to keep working. The causes come back as a bitmap, and a board that hit
+        // the timed-wake fallback (GPIO arming failed) has to be guarded too.
+        const uint32_t wake_causes = esp_sleep_get_wakeup_causes();
+        if (wake_causes & ((1u << ESP_SLEEP_WAKEUP_GPIO) | (1u << ESP_SLEEP_WAKEUP_TIMER))) {
             key_guard_until_us_ = esp_timer_get_time() + (int64_t)kBootKeyGuardMs * 1000;
-            ESP_LOGI(TAG, "Woke from deep sleep (cause %d), holding keys for %d ms",
-                     (int)cause, kBootKeyGuardMs);
+            ESP_LOGI(TAG, "Woke from deep sleep (causes 0x%02x), holding keys for %d ms",
+                     (unsigned)wake_causes, kBootKeyGuardMs);
         }
 
         // One ADC1 unit shared by all three ladder keys. AdcButton reuses the
