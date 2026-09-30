@@ -203,7 +203,9 @@ alerts, no protocol or station disconnect and no codec reopen; the soft-sleep wa
 restoring the panel, backlight and clock with zero Wi-Fi activity (no station start,
 stop, scan or DHCP - the link is never dropped), the codec reopening on demand, and
 a full spoken exchange (wake -> conversation -> speech recognition -> answer ->
-volume keys) working afterwards. For an earlier revision that went straight to deep
+volume keys) working afterwards; and a single OK press waking the device out of
+soft sleep being swallowed outright - no state transition, no microphone open and no
+MQTT traffic followed it. For an earlier revision that went straight to deep
 sleep: CW2017 sleep with a matching readback; the ES8311 suspend sequence
 passing its register readback; the I2S/I2C pin release; deep sleep actually
 sticking (no self-wake from a leftover wake source); a key press waking the device
@@ -212,13 +214,11 @@ with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
 released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
 readbacks).
 
-Not verified: whether the press that wakes the device is correctly swallowed by
-`kSoftSleepClickGuardMs` (a single-press test, not two presses); whether
-`kBootKeyGuardMs` covers the boot window on this part; the idle, soft-sleep and
-deep-sleep currents (the 20 mA above is an estimate from the parts list, not a
-measurement); and whether disabling `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS`
-saves anything on top of the external 10 kOhm pull-up. A successful build is not
-hardware validation.
+Not verified: whether `kBootKeyGuardMs` covers the boot window on this part; the
+idle, soft-sleep and deep-sleep currents (the 20 mA above is an estimate from the
+parts list, not a measurement); and whether disabling
+`CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
+external 10 kOhm pull-up. A successful build is not hardware validation.
 
 A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
 it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
