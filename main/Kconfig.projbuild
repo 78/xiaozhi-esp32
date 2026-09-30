@@ -194,6 +194,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P_TERRA
+        bool "ES3C28P ESP32-S3 2.8-inch LCD (Terra)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP32-P4/P4X-Function-EV-Board"
         depends on IDF_TARGET_ESP32P4
@@ -250,9 +253,6 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD
         bool "Freenove ESP32-S3 Display 2.8-inch LCD"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_ES3C28P_TERRA
-        bool "ES3C28P ESP32-S3 2.8-inch LCD (Terra)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_GENJUTECH_S3_1_54TFT
         bool "GenjuTech ESP32-S3 1.54-inch TFT (亘具科技)"
