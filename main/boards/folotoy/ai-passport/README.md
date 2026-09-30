@@ -192,11 +192,19 @@ Isolate those on hardware if standby current still looks high.
 
 Status of hardware verification (ESP32-C3, IDF 6.1). Verified on the device: board
 init and a stable idle loop; reaching `kDeviceStateIdle` after provisioning; the dim
-stage firing on schedule and the soft-sleep stage 300 s after it, both at the
-expected wall-clock time (`Idle 60s` at 65 s and `Idle 360s` at 365 s of uptime,
-with the 4.7 s of startup subtracted); the CPU down-clock landing as a single call;
-and the panel and backlight transitions running without errors. For an earlier
-revision that went straight to deep sleep: CW2017 sleep with a matching readback; the ES8311 suspend sequence
+stage firing on schedule, the soft-sleep stage 300 s after it and the deep-sleep
+fallback at the 36-minute deadline, all at the expected wall-clock time (`Idle 60s`
+at 65 s and `Idle 360s` at 365 s of uptime, with the 4.7 s of startup subtracted;
+the fallback at boot + 2165 s, which is also where a key press woke the device out
+of it); the CPU down-clock landing as a single `esp_pm_configure` call, confirmed by
+the kernel's `pm: Frequency switching config: ... Light sleep: DISABLED`; the
+soft-sleep window staying silent for its whole 505-second run - no MQTT errors, no
+alerts, no protocol or station disconnect and no codec reopen; the soft-sleep wake
+restoring the panel, backlight and clock with zero Wi-Fi activity (no station start,
+stop, scan or DHCP - the link is never dropped), the codec reopening on demand, and
+a full spoken exchange (wake -> conversation -> speech recognition -> answer ->
+volume keys) working afterwards. For an earlier revision that went straight to deep
+sleep: CW2017 sleep with a matching readback; the ES8311 suspend sequence
 passing its register readback; the I2S/I2C pin release; deep sleep actually
 sticking (no self-wake from a leftover wake source); a key press waking the device
 with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
@@ -204,15 +212,13 @@ with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
 released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
 readbacks).
 
-Not verified, and the list a first flash should work through: whether the panel,
-backlight and codec visibly/audibly come back after a soft-sleep wake; whether the
-press that wakes the device is correctly swallowed by `kSoftSleepClickGuardMs`;
-whether `kBootKeyGuardMs` actually covers the boot window on this part; the idle,
-soft-sleep and deep-sleep currents (the 20 mA above is an estimate from the parts
-list, not a measurement); whether disabling
-`CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
-external 10 kOhm pull-up; and the deep-sleep fallback end to end. A successful
-build is not hardware validation.
+Not verified: whether the press that wakes the device is correctly swallowed by
+`kSoftSleepClickGuardMs` (a single-press test, not two presses); whether
+`kBootKeyGuardMs` covers the boot window on this part; the idle, soft-sleep and
+deep-sleep currents (the 20 mA above is an estimate from the parts list, not a
+measurement); and whether disabling `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS`
+saves anything on top of the external 10 kOhm pull-up. A successful build is not
+hardware validation.
 
 A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
 it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
