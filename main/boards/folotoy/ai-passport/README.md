@@ -224,3 +224,7 @@ move the three deadlines off the `skip_unhandled_events` timer first.
   pull-up. Re-measure with the Button page if thresholds drift.
 - CW2017 presence is optional; without the chip the status bar shows no
   battery level and the board keeps working.
+- `CONFIG_USE_ESP_WAKE_WORD` is off, so the board is key-driven. Turning it on
+  costs about 60 KB of heap (measured on hardware: the lowest free heap fell from
+  47-70 KB to 9.8 KB) and would contradict the soft-sleep stage, which releases
+  the microphone only because no wake word needs to keep listening for it.
