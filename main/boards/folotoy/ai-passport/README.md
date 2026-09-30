@@ -151,7 +151,7 @@ in this order:
    board init reverses this with the chip's restart-then-active cycle, so a
    gauge that slept before a deep sleep reports again after the wake.
 3. ES8311 suspend: `esp_codec_dev` disable/close first, then the BSP's suspend
-   register sequence written through the codec control interface, with the key
+   register sequence written through a board-owned I2C device handle, with the key
    registers read back. REG0E is checked as `0x7F`, not the BSP's `0xFF`: bit 7
    of that register does not latch on this part, so the BSP's expectation can
    never be met and its own board logs a verification failure on every sleep.

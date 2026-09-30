@@ -91,7 +91,9 @@ static constexpr uint64_t kFallbackWakeupUs = 60ULL * 60ULL * 1000000ULL;
 // BSP (components/bsp/src/bsp_audio.c). The codec-dev disable path this board
 // otherwise relies on is shallower (it leaves REG45 at 0x00) and is skipped
 // entirely when the PCM path was never opened, so the terminal sequence writes
-// the registers through the codec control interface instead.
+// the registers through a board-owned I2C device handle instead. The BSP owns
+// its own control interface for the same reason; this keeps the sequence in the
+// board layer rather than widening what the shared codec class exposes.
 // ============================================================================
 
 struct Es8311RegValue {
@@ -118,7 +120,15 @@ static constexpr Es8311RegValue kEs8311SuspendVerify[] = {
 
 static constexpr int kEs8311SuspendAttempts = 2;
 static constexpr int kEs8311SuspendRetryMs = 5;
+static constexpr int kEs8311I2cTimeoutMs = 100;
 
+// The deep-sleep path needs the I2S channel handles before the pins are released,
+// and those are protected on AudioCodec. Everything else it touches is public, so
+// stopping the channels is the whole subclass. It matters because codec
+// construction enables both channels once and only esp_codec_dev_close() stops
+// them again: a board that never played anything since boot would otherwise reach
+// the pin release with the clocks still running, leaving the codec driving inputs
+// whose master has gone quiet.
 class AiPassportAudioCodec : public Es8311AudioCodec {
 public:
     AiPassportAudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate,
@@ -128,57 +138,17 @@ public:
         : Es8311AudioCodec(i2c_master_handle, i2c_port, input_sample_rate, output_sample_rate,
                            mclk, bclk, ws, dout, din, pa_pin, es8311_addr) {}
 
-    // Stops both I2S channels on the way into deep sleep. Codec construction
-    // enables them once and only esp_codec_dev_close() stops them again, so a
-    // board that never played anything since boot reaches deep sleep with the
-    // clocks still running - and the pin release below would leave the codec
-    // driving inputs whose master has gone quiet.
     void StopI2s() {
-        if (dev_ != nullptr) {
-            // The PCM path is still open. Closing it is what disables both
-            // channels in the driver's own bookkeeping, so let that path do the
-            // work instead of stopping them behind its back.
-            EnableInput(false);
-            EnableOutput(false);
-            return;
-        }
-        DisableI2sChannels();
-    }
-
-    // Terminal suspend for the way into deep sleep: write and verify the
-    // ES8311 sleep sequence, then stop both I2S channels explicitly so the
-    // clocks are off before the pins are released. Failures are logged but
-    // never abort the shutdown - the pins and the panel still have to go down.
-    void EnterDeepSleepState() {
-        esp_err_t result = ESP_FAIL;
-        for (int attempt = 1; attempt <= kEs8311SuspendAttempts; attempt++) {
-            result = WriteSuspendSequence(attempt);
-            if (result == ESP_OK) {
-                break;
-            }
-            if (attempt < kEs8311SuspendAttempts) {
-                vTaskDelay(pdMS_TO_TICKS(kEs8311SuspendRetryMs));
-            }
-        }
-        if (result != ESP_OK) {
-            ESP_LOGE(TAG, "ES8311 suspend could not be verified, continuing shutdown");
-        }
-        StopI2s();
-    }
-
-private:
-    // TX before RX, matching the FoloToy BSP's audio_disable_i2s_channels().
-    void DisableI2sChannels() {
+        // TX before RX, matching the FoloToy BSP's audio_disable_i2s_channels().
         const i2s_chan_handle_t channels[] = {tx_handle_, rx_handle_};
         int changed = 0;
         for (auto* channel : channels) {
             if (channel == nullptr) {
                 continue;
             }
-            // esp_codec_dev closes the PCM path, and with it both channels, once
-            // the audio service idles out. Query the state first so a channel
-            // that is already where we want it is not touched - the driver logs
-            // an error for a redundant disable.
+            // Query the state first: esp_codec_dev has usually closed the PCM
+            // path, and with it both channels, by the time the audio service idles
+            // out. The driver logs an error for a redundant disable.
             i2s_chan_info_t info = {};
             if (i2s_channel_get_info(channel, &info) != ESP_OK) {
                 ESP_LOGW(TAG, "I2S channel state unavailable");
@@ -196,38 +166,6 @@ private:
         }
         ESP_LOGI(TAG, "I2S channels stopped (%d changed)", changed);
     }
-
-    esp_err_t WriteSuspendSequence(int attempt) {
-        if (ctrl_if_ == nullptr || ctrl_if_->write_reg == nullptr ||
-            ctrl_if_->read_reg == nullptr) {
-            ESP_LOGE(TAG, "ES8311 control interface unavailable");
-            return ESP_ERR_INVALID_STATE;
-        }
-
-        bool valid = true;
-        for (const auto& item : kEs8311SuspendSequence) {
-            uint8_t value = item.value;
-            if (ctrl_if_->write_reg(ctrl_if_, item.reg, 1, &value, 1) != ESP_CODEC_DEV_OK) {
-                ESP_LOGE(TAG, "ES8311 suspend write failed (attempt %d, REG%02X)",
-                         attempt, item.reg);
-                valid = false;
-            }
-        }
-        for (const auto& item : kEs8311SuspendVerify) {
-            uint8_t actual = 0;
-            if (ctrl_if_->read_reg(ctrl_if_, item.reg, 1, &actual, 1) != ESP_CODEC_DEV_OK ||
-                actual != item.value) {
-                ESP_LOGE(TAG, "ES8311 suspend verify failed (attempt %d, REG%02X "
-                              "expected=0x%02X actual=0x%02X)",
-                         attempt, item.reg, item.value, actual);
-                valid = false;
-            }
-        }
-        if (valid) {
-            ESP_LOGI(TAG, "ES8311 suspended and verified (attempt %d)", attempt);
-        }
-        return valid ? ESP_OK : ESP_FAIL;
-    }
 };
 
 class AiPassportBoard : public WifiBoard {
@@ -238,6 +176,10 @@ private:
     LcdDisplay* display_;
     esp_lcd_panel_handle_t panel_ = nullptr;
     Cw2017BatteryMonitor* battery_;
+    // Board-owned handle for the terminal ES8311 suspend sequence. The codec has
+    // its own handle through esp_codec_dev; this one is only used once the PCM
+    // path is closed and the chip is about to be powered down.
+    i2c_master_dev_handle_t es8311_handle_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
     // Set and cleared on the main task, read from the button task. It is one
     // byte, so the worst case is a wake press whose click is not swallowed.
@@ -279,6 +221,17 @@ private:
             },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
+
+        i2c_device_config_t es8311_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = AUDIO_CODEC_ES8311_ADDR,
+            .scl_speed_hz = 100 * 1000,
+            .scl_wait_us = 0,
+            .flags = {
+                .disable_ack_check = 0,
+            },
+        };
+        ESP_ERROR_CHECK(i2c_master_bus_add_device(codec_i2c_bus_, &es8311_cfg, &es8311_handle_));
 
         // CW2017 fuel gauge is optional; a missing chip just disables battery UI.
         battery_ = new Cw2017BatteryMonitor(codec_i2c_bus_, BATTERY_CW2017_ADDR);
@@ -793,7 +746,75 @@ private:
         // it also covers a board that never opened the PCM path at all.
         codec->EnableInput(false);
         codec->EnableOutput(false);
-        codec->EnterDeepSleepState();
+        SuspendEs8311();
+        // Last, so the clocks are already off when the pins are released below.
+        codec->StopI2s();
+    }
+
+    esp_err_t WriteEs8311Reg(uint8_t reg, uint8_t value) {
+        if (es8311_handle_ == nullptr) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        const uint8_t buffer[2] = {reg, value};
+        return i2c_master_transmit(es8311_handle_, buffer, sizeof(buffer), kEs8311I2cTimeoutMs);
+    }
+
+    esp_err_t ReadEs8311Reg(uint8_t reg, uint8_t* value) {
+        if (es8311_handle_ == nullptr) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        return i2c_master_transmit_receive(es8311_handle_, &reg, 1, value, 1,
+                                           kEs8311I2cTimeoutMs);
+    }
+
+    // One pass over the BSP's suspend sequence, then a readback of the registers
+    // that have to stick. Runs with the PCM path closed and the audio service
+    // idle, so the codec driver is not touching the same registers.
+    esp_err_t WriteEs8311SuspendSequence(int attempt) {
+        if (es8311_handle_ == nullptr) {
+            ESP_LOGE(TAG, "ES8311 device handle unavailable");
+            return ESP_ERR_INVALID_STATE;
+        }
+
+        bool valid = true;
+        for (const auto& item : kEs8311SuspendSequence) {
+            if (WriteEs8311Reg(item.reg, item.value) != ESP_OK) {
+                ESP_LOGE(TAG, "ES8311 suspend write failed (attempt %d, REG%02X)", attempt,
+                         item.reg);
+                valid = false;
+            }
+        }
+        for (const auto& item : kEs8311SuspendVerify) {
+            uint8_t actual = 0;
+            if (ReadEs8311Reg(item.reg, &actual) != ESP_OK || actual != item.value) {
+                ESP_LOGE(TAG, "ES8311 suspend verify failed (attempt %d, REG%02X "
+                              "expected=0x%02X actual=0x%02X)",
+                         attempt, item.reg, item.value, actual);
+                valid = false;
+            }
+        }
+        if (valid) {
+            ESP_LOGI(TAG, "ES8311 suspended and verified (attempt %d)", attempt);
+        }
+        return valid ? ESP_OK : ESP_FAIL;
+    }
+
+    // Terminal codec step. Failures are logged but never abort the shutdown - the
+    // pins and the panel still have to go down.
+    void SuspendEs8311() {
+        esp_err_t result = ESP_FAIL;
+        for (int attempt = 1; attempt <= kEs8311SuspendAttempts; attempt++) {
+            result = WriteEs8311SuspendSequence(attempt);
+            if (result == ESP_OK) {
+                break;
+            }
+            if (attempt < kEs8311SuspendAttempts) {
+                vTaskDelay(pdMS_TO_TICKS(kEs8311SuspendRetryMs));
+            }
+        }
+        if (result != ESP_OK) {
+            ESP_LOGE(TAG, "ES8311 suspend could not be verified, continuing shutdown");
+        }
     }
 
     void ReleasePins(const gpio_num_t* pins, size_t count, const char* label) {
