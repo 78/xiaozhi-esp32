@@ -113,10 +113,10 @@ struct Es8311RegValue {
 };
 
 // The FoloToy BSP writes REG0E before the REG00 reset pulse in the middle of
-// this list and then verifies REG0E == 0xFF. On this part bit 7 of REG0E does
-// not latch: writing 0xFF (before or after the reset) reads back as 0x7F, so the
-// verify below expects the value the hardware actually holds. Bits 0-6 - the
-// power-down bits the sequence is after - do stick.
+// this list and checks bits 6:0 of it (bsp_es8311_sleep_check.c). Bit 7 of that
+// register does not latch on this part, so writing the vendor value 0xFF reads
+// back as 0x7F - the check below expects that, and the power-down bits 0-6 the
+// sequence is after do stick.
 static constexpr Es8311RegValue kEs8311SuspendSequence[] = {
     {0x32, 0x00}, {0x17, 0x00}, {0x0E, 0xFF}, {0x12, 0x02},
     {0x14, 0x00}, {0x0D, 0xFA}, {0x15, 0x00}, {0x02, 0x10},
