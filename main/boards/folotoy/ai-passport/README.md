@@ -130,11 +130,14 @@ must not also act:
 - OK with the network down shows the ordinary "connecting" hint instead of failing
   to open the audio channel and raising an error alert. That covers a link that
   dropped on its own while the screen was off.
-- `kBootKeyGuardMs` (2 s) drops key events when the boot itself was a wake from
-  the deep-sleep fallback. That reboot happens while the key is still held, and a
-  press already down when the button component starts would be graded a long press
-  (UP -> max volume, DOWN -> mute). A cold boot gets no guard, so OK during
-  `kDeviceStateStarting` keeps working as the provisioning entry point.
+- A boot that came from the deep-sleep fallback drops key actions until the press
+  that woke the device comes up (`OnPressUp`), because that reboot happens while the
+  key is still held and the button component grades the held press a long press
+  (UP -> max volume, DOWN -> mute). Measured on hardware: a fixed 2-second window
+  expired before the long press was graded, so the guard follows the release
+  instead and only uses `kBootKeyGuardMs` (10 s) as the safety net for a stuck key.
+  A cold boot gets no guard, so OK during `kDeviceStateStarting` keeps working as
+  the provisioning entry point.
 
 ### Deep sleep
 
@@ -205,18 +208,22 @@ stop, scan or DHCP - the link is never dropped), the codec reopening on demand, 
 a full spoken exchange (wake -> conversation -> speech recognition -> answer ->
 volume keys) working afterwards; and a single OK press waking the device out of
 soft sleep being swallowed outright - no state transition, no microphone open and no
-MQTT traffic followed it. For an earlier revision that went straight to deep
-sleep: CW2017 sleep with a matching readback; the ES8311 suspend sequence
-passing its register readback; the I2S/I2C pin release; deep sleep actually
+MQTT traffic followed it; and a deep-sleep wake with the key still held keeping that
+press from being graded a long press - no mute, and the guard lifting on the release
+(`Wake key released, key actions active again`). For an earlier revision that went
+straight to deep sleep: CW2017 sleep with a matching readback; the ES8311 suspend
+sequence passing its register readback; the I2S/I2C pin release; deep sleep actually
 sticking (no self-wake from a leftover wake source); a key press waking the device
 with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
 `esp_sleep_get_gpio_wakeup_status() == 0x1`; and the deep-sleep pin holds being
 released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
-readbacks).
+readbacks). The terminal shutdown sequence itself is verified through the current
+code path as well: `CW2017 asleep (CONFIG=0xF0 verified)`, `ES8311 suspended and
+verified (attempt 1)` and the I2S/I2C pin release all reported clean on the way into
+the fallback.
 
-Not verified: whether `kBootKeyGuardMs` covers the boot window on this part; the
-idle, soft-sleep and deep-sleep currents (the 20 mA above is an estimate from the
-parts list, not a measurement); and whether disabling
+Not verified: the idle, soft-sleep and deep-sleep currents (the 20 mA above is an
+estimate from the parts list, not a measurement); and whether disabling
 `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
 external 10 kOhm pull-up. A successful build is not hardware validation.
 
@@ -243,3 +250,9 @@ move the three deadlines off the `skip_unhandled_events` timer first.
   costs about 60 KB of heap (measured on hardware: the lowest free heap fell from
   47-70 KB to 9.8 KB) and would contradict the soft-sleep stage, which releases
   the microphone only because no wake word needs to keep listening for it.
+- `ES8311_CODEC_DEFAULT_ADDR` is the 8-bit form (`0x30`); an `i2c_device_config_t`
+  takes the 7-bit address. esp_codec_dev shifts it when it builds the codec's own
+  handle, and the terminal suspend sequence here talks through a board-owned handle,
+  so that one shifts too (`kEs8311I2cAddress`). Using the unshifted address talks to
+  nothing: measured on hardware, every register readback returned `0xF0` and both
+  suspend attempts failed.

@@ -83,10 +83,10 @@ static constexpr int kDimBrightness = 10;
 // Click guard after a soft-sleep wake: the press that woke the device must not
 // also change the volume or open the audio channel.
 static constexpr int kSoftSleepClickGuardMs = 500;
-// Key guard after a deep-sleep wake. The fallback reboots the chip while the key
-// is still held, and a press already down when the button component starts would
-// be graded a long press (UP -> max volume, DOWN -> mute).
-static constexpr int kBootKeyGuardMs = 2000;
+// Safety net for the key guard after a deep-sleep wake. The guard itself ends when
+// the key that woke the device comes up; this bounds it so a stuck key cannot leave
+// the device unusable.
+static constexpr int kBootKeyGuardMs = 10000;
 // ESP32-C3 caps at 160 MHz.
 static constexpr int kCpuMaxFreq = 160;
 // Standby clock. DFS does not stop the tick, which is what keeps the three
@@ -132,6 +132,13 @@ static constexpr Es8311RegValue kEs8311SuspendVerify[] = {
 static constexpr int kEs8311SuspendAttempts = 2;
 static constexpr int kEs8311SuspendRetryMs = 5;
 static constexpr int kEs8311I2cTimeoutMs = 100;
+
+// ES8311_CODEC_DEFAULT_ADDR is the 8-bit form (0x30); an i2c_device_config_t takes
+// the 7-bit address. esp_codec_dev shifts it the same way when it builds the codec's
+// own handle (audio_codec_ctrl_i2c.c: device_address = i2c_cfg->addr >> 1), so the
+// board has to as well - an unshifted address talks to nothing and every register
+// access fails silently.
+static constexpr uint8_t kEs8311I2cAddress = AUDIO_CODEC_ES8311_ADDR >> 1;
 
 // The deep-sleep path needs the I2S channel handles before the pins are released,
 // and those are protected on AudioCodec. Everything else it touches is public, so
@@ -199,6 +206,10 @@ private:
     int soft_sleep_ticks_ = 0;
     // esp_timer_get_time() deadline below which key clicks are ignored.
     int64_t key_guard_until_us_ = 0;
+    // Set when this boot was a deep-sleep wake. The rebound key is still held while
+    // the button component starts, so actions stay blocked until it comes up.
+    bool boot_key_held_ = false;
+    int64_t boot_key_guard_until_us_ = 0;
     // Set from the button task on every key press. PowerSaveTimer resets its own
     // counter on the same press, but both stage transitions are scheduled onto the
     // main task and can still run just before the wake handler does. Without this
@@ -213,10 +224,17 @@ private:
         return esp_timer_get_time() - last_key_us_ >= (int64_t)seconds * 1000000;
     }
 
-    // True while a key event should be dropped rather than acted on. Keys never
-    // stop waking the device - only their click and long-press actions are held
-    // back (see kBootKeyGuardMs and kSoftSleepClickGuardMs).
-    bool KeyEventsBlocked() const { return esp_timer_get_time() < key_guard_until_us_; }
+    // True while a key event should be dropped rather than acted on: the click of
+    // the press that woke the device out of soft sleep, or any action while the
+    // press that woke it out of deep sleep is still held. Keys never stop waking the
+    // device - only their click and long-press actions are held back.
+    bool KeyEventsBlocked() const {
+        const int64_t now = esp_timer_get_time();
+        if (now < key_guard_until_us_) {
+            return true;
+        }
+        return boot_key_held_ && now < boot_key_guard_until_us_;
+    }
 
     void InitializeCodecI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -235,7 +253,7 @@ private:
 
         i2c_device_config_t es8311_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = AUDIO_CODEC_ES8311_ADDR,
+            .device_address = kEs8311I2cAddress,
             .scl_speed_hz = 100 * 1000,
             .scl_wait_us = 0,
             .flags = {
@@ -277,16 +295,20 @@ private:
         }
 
         // Waking from the deep-sleep fallback reboots the chip while the key is
-        // still held, and a press already down when the button component starts
-        // would be graded a long press. Only that boot gets the guard: on a cold
-        // boot OK during kDeviceStateStarting is the provisioning path and has
-        // to keep working. The causes come back as a bitmap, and a board that hit
-        // the timed-wake fallback (GPIO arming failed) has to be guarded too.
+        // still held. The button component starts a few hundred milliseconds later,
+        // registers that press, and grades it a long press once it has been down for
+        // the component's threshold - UP would jump to full volume, DOWN would mute.
+        // A fixed window cannot cover this: measured on hardware, a 2 s guard expired
+        // before the long press was graded. The key is not released until the user
+        // lets go, so the guard instead lasts until that release, with a deadline as
+        // the safety net. Only that boot gets the guard: on a cold boot OK during
+        // kDeviceStateStarting is the provisioning path and has to keep working.
         const uint32_t wake_causes = esp_sleep_get_wakeup_causes();
         if (wake_causes & ((1u << ESP_SLEEP_WAKEUP_GPIO) | (1u << ESP_SLEEP_WAKEUP_TIMER))) {
-            key_guard_until_us_ = esp_timer_get_time() + (int64_t)kBootKeyGuardMs * 1000;
-            ESP_LOGI(TAG, "Woke from deep sleep (causes 0x%02x), holding keys for %d ms",
-                     (unsigned)wake_causes, kBootKeyGuardMs);
+            boot_key_held_ = true;
+            boot_key_guard_until_us_ = esp_timer_get_time() + (int64_t)kBootKeyGuardMs * 1000;
+            ESP_LOGI(TAG, "Woke from deep sleep (causes 0x%02x), holding keys until release",
+                     (unsigned)wake_causes);
         }
 
         // One ADC1 unit shared by all three ladder keys. AdcButton reuses the
@@ -373,6 +395,14 @@ private:
                         esp_timer_get_time() + (int64_t)kSoftSleepClickGuardMs * 1000;
                 }
                 WakeUpPowerSaveTimer();
+            });
+            // Ends the deep-sleep wake guard: once the key is up, the user is holding
+            // nothing and the next press is a normal one.
+            button->OnPressUp([this]() {
+                if (boot_key_held_) {
+                    boot_key_held_ = false;
+                    ESP_LOGI(TAG, "Wake key released, key actions active again");
+                }
             });
         }
     }
