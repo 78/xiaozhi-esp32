@@ -251,6 +251,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD
         bool "Freenove ESP32-S3 Display 2.8-inch LCD"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P_TERRA
+        bool "ES3C28P ESP32-S3 2.8-inch LCD (Terra)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_GENJUTECH_S3_1_54TFT
         bool "GenjuTech ESP32-S3 1.54-inch TFT (亘具科技)"
         depends on IDF_TARGET_ESP32S3
