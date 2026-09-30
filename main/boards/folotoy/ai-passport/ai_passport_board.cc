@@ -38,7 +38,7 @@ enum {
 // Idle power policy: three stages, each counted from the last key press.
 //
 //     60 s    the backlight drops to kDimBrightness; nothing else changes
-//    360 s    screen and radio off - the "soft sleep" stage
+//    360 s    screen and codec off, CPU down-clocked - the "soft sleep" stage
 //   2160 s    deep sleep, entered from the soft-sleep stage as a fallback
 //
 // All three are gated by Application::CanEnterSleepMode(), which PowerSaveTimer
@@ -49,10 +49,21 @@ enum {
 // The soft-sleep stage is deliberately shallow: the CPU keeps running and DFS
 // only drops it to kStandbyCpuMinFreq. That is affordable because the
 // deep-sleep fallback caps how long the stage can last - half an hour at the
-// ~13 mA it draws is about 2.5 mAh of the 520 mAh cell, well under 1% of a full
-// charge. Pausing the renderer (lvgl_port_stop) and letting the chip enter
-// automatic light sleep would take the stage under 1 mAh in the same window,
-// but each needs hardware validation of its own; both are left for a follow-up.
+// ~20 mA it draws is about 10 mAh of the 520 mAh cell, around 2% of a charge.
+// Pausing the renderer (lvgl_port_stop) and letting the chip enter automatic
+// light sleep would take the stage below 1 mAh in the same window, but both need
+// hardware validation of their own; both are left for a follow-up.
+//
+// The radio is deliberately left up. Stopping the station is worth about 10 mA,
+// but the device would then be unreachable for the whole window: no server push,
+// a Wi-Fi reconnect on every wake, and - measured on hardware - a protocol that
+// keeps retrying into a user-visible error alert (and a notification sound) once
+// the application is idle again. Keeping the link costs roughly 1% of a charge
+// per cycle and buys an instant wake and a reachable device. A longer window
+// would change that arithmetic: over eight hours the radio is worth about a
+// third of the cell, and turning it off would have to come with a way to quiet
+// the protocol while it is down.
+//
 // The fallback is what makes the trade-off work: because it is reached from the
 // soft-sleep stage, the device still ends up at deep-sleep current within the
 // hour, so a forgotten Passport does not flatten its cell overnight.
@@ -60,7 +71,7 @@ enum {
 
 // Backlight drops to kDimBrightness this long after the last input.
 static constexpr int kDimSeconds = 60;
-// Screen and radio off this long after the last input.
+// Screen, codec and CPU down this long after the last input.
 static constexpr int kSoftSleepSeconds = 360;
 // Deep sleep this long after the last input.
 static constexpr int kDeepSleepSeconds = 2160;
@@ -338,9 +349,10 @@ private:
         ok->OnClick([this]() {
             if (KeyEventsBlocked()) return;
             Application::GetInstance().Schedule([this]() {
-                // A soft-sleep wake brings Wi-Fi back asynchronously. Opening the
-                // audio channel before it is up would only raise an error alert,
-                // so show the ordinary "connecting" hint instead.
+                // Opening the audio channel with the network down would only
+                // raise an error alert, so show the ordinary "connecting" hint
+                // instead. Covers a wake from soft sleep as well as a link that
+                // dropped on its own with the screen off.
                 if (!WifiManager::GetInstance().IsConnected()) {
                     GetDisplay()->ShowNotification(Lang::Strings::CONNECTING);
                     return;
@@ -558,7 +570,7 @@ private:
             return;
         }
         soft_sleep_active_ = true;
-        ESP_LOGI(TAG, "Idle %ds: screen off, Wi-Fi off", kSoftSleepSeconds);
+        ESP_LOGI(TAG, "Idle %ds: screen off, codec off, CPU down-clocked", kSoftSleepSeconds);
 
         // Order matters. The audio input task re-enables the codec on every read
         // it starts, so switching the wake word off first and leaving the codec
@@ -570,10 +582,6 @@ private:
         SleepPanel();
         GetBacklight()->SetBrightness(0);
         SetStandbyClock(true);
-
-        // StopStation() disconnects and stops the radio, and fires the ordinary
-        // NetworkEvent::Disconnected the application already handles.
-        WifiManager::GetInstance().StopStation();
     }
 
     void ExitSoftSleep() {
@@ -594,11 +602,6 @@ private:
         Application::GetInstance().GetAudioService().EnableWakeWordDetection(true);
 
         SetStandbyClock(false);
-
-        // StartStation() is the WifiManager entry point, not WifiBoard's, so no
-        // connect timeout is armed and a router that is still gone cannot drop
-        // the board into Wi-Fi config mode behind the user's back.
-        WifiManager::GetInstance().StartStation();
     }
 
     // Holding the LVGL lock waits out the flush in flight and blocks new ones

@@ -50,15 +50,15 @@ all counted from the last key press:
 | Idle | Stage | What happens |
 | --- | --- | --- |
 | 60 s | Dim | Backlight drops to 10%; nothing else changes |
-| 360 s | Soft sleep | Panel Sleep In, backlight off, radio stopped, wake word off, CPU down-clocked to 40 MHz |
+| 360 s | Soft sleep | Panel Sleep In, backlight off, codec off, CPU down-clocked to 40 MHz |
 | 2160 s | Deep sleep | Entered from the soft-sleep stage; any key wakes the device through GPIO0 and restarts the application |
 
 `kDimSeconds`, `kSoftSleepSeconds`, `kDeepSleepSeconds`, `kDimBrightness` and
 `kStandbyCpuMinFreq` at the top of `ai_passport_board.cc` tune the policy. Three
 properties of this shape are deliberate:
 
-- **The soft-sleep stage is shallow on purpose.** It draws roughly 13 mA, which
-  over half an hour is about 2.5 mAh of the 520 mAh cell - under 1% of a charge.
+- **The soft-sleep stage is shallow on purpose.** It draws roughly 20 mA, which
+  over half an hour is about 10 mAh of the 520 mAh cell - around 2% of a charge.
   The CPU keeps running, so a key press brings the whole device back in about a
   second with the conversation, the page and the session intact, instead of
   rebooting into a fresh idle state.
@@ -96,7 +96,7 @@ That gate has two consequences worth knowing about:
   resets the tick counter; without the re-check the deep-sleep fallback would cut
   it off mid-conversation.
 
-### Turning the screen and radio off
+### Turning the screen and audio off
 
 Closing the audio path is the part that is easy to get wrong. The audio input
 task re-enables the codec on every read it starts, so calling
@@ -108,12 +108,18 @@ switch the wake word back on explicitly: the idle branch of the application stat
 machine does not run again on its own, so without that the device would never
 hear its wake word again for the rest of the boot.
 
-`WifiManager::StopStation()` is the Wi-Fi half - it disconnects, stops the radio
-and fires the ordinary `NetworkEvent::Disconnected` the application already
-handles. The wake path uses `WifiManager::StartStation()` rather than
-`WifiBoard`'s connection helper, so no connect timeout is armed; a router that is
-still gone therefore cannot drop the board into Wi-Fi config mode behind the
-user's back.
+The radio stays up. `WifiManager::StopStation()` is worth about 10 mA, but it was
+measured on hardware to cost more than the current it saves: with the station
+stopped the MQTT protocol keeps retrying - `esp_mqtt` on its own timer plus the
+protocol's 60-second one - and once the application is idle again one of those
+attempts surfaces `Lang::Strings::SERVER_NOT_CONNECTED` as a user-visible alert,
+which also plays a notification sound and briefly reopens the codec on a device
+that is supposed to be asleep. The alert latches, so it is still on screen after
+the next key press. Keeping the link avoids all of that, keeps server push and an
+alive session, and makes the wake instant because no Wi-Fi reconnect is needed.
+The arithmetic changes with the window: over eight hours the radio is worth about
+a third of the cell, so a longer window would have to stop the station and quiet
+the protocol while it is down.
 
 The three keys keep waking the device in every stage, but the press that wakes it
 must not also act:
@@ -121,9 +127,9 @@ must not also act:
 - `kSoftSleepClickGuardMs` (500 ms) drops the click and long-press actions of the
   press that woke the device, so a wake press cannot change the volume or open the
   audio channel.
-- From the soft-sleep stage the radio needs a moment to come back. OK during that
-  window shows the ordinary "connecting" hint instead of failing to open the
-  audio channel and raising an error alert.
+- OK with the network down shows the ordinary "connecting" hint instead of failing
+  to open the audio channel and raising an error alert. That covers a link that
+  dropped on its own while the screen was off.
 - `kBootKeyGuardMs` (2 s) drops key events when the boot itself was a wake from
   the deep-sleep fallback. That reboot happens while the key is still held, and a
   press already down when the button component starts would be graded a long press
@@ -184,10 +190,13 @@ MCU (`AUDIO_CODEC_PA_PIN` is `NC`), so amplifier standby current, regulator
 quiescent current, the external I2C pull-ups and cell self-discharge all remain.
 Isolate those on hardware if standby current still looks high.
 
-Status of hardware verification (ESP32-C3, IDF 6.0.2). Verified on the device for
-an earlier revision that went straight to deep sleep: board init and a stable idle
-loop; reaching `kDeviceStateIdle` after provisioning; a backlight stage firing on
-schedule; CW2017 sleep with a matching readback; the ES8311 suspend sequence
+Status of hardware verification (ESP32-C3, IDF 6.1). Verified on the device: board
+init and a stable idle loop; reaching `kDeviceStateIdle` after provisioning; the dim
+stage firing on schedule and the soft-sleep stage 300 s after it, both at the
+expected wall-clock time (`Idle 60s` at 65 s and `Idle 360s` at 365 s of uptime,
+with the 4.7 s of startup subtracted); the CPU down-clock landing as a single call;
+and the panel and backlight transitions running without errors. For an earlier
+revision that went straight to deep sleep: CW2017 sleep with a matching readback; the ES8311 suspend sequence
 passing its register readback; the I2S/I2C pin release; deep sleep actually
 sticking (no self-wake from a leftover wake source); a key press waking the device
 with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
@@ -195,15 +204,15 @@ with `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO` and
 released on the way back up (confirmed through `RTC_CNTL_PAD/DIG_PAD_HOLD` register
 readbacks).
 
-Not verified, and the list a first flash should work through: the soft-sleep stage
-as a whole (panel Sleep In/out, backlight and radio restoration, wake-word restart);
-whether the press that wakes the device is correctly swallowed by
-`kSoftSleepClickGuardMs`; whether `kBootKeyGuardMs` actually covers the boot window
-on this part; the idle, soft-sleep and deep-sleep currents (the 13 mA above is an
-estimate from the parts list, not a measurement); whether disabling
+Not verified, and the list a first flash should work through: whether the panel,
+backlight and codec visibly/audibly come back after a soft-sleep wake; whether the
+press that wakes the device is correctly swallowed by `kSoftSleepClickGuardMs`;
+whether `kBootKeyGuardMs` actually covers the boot window on this part; the idle,
+soft-sleep and deep-sleep currents (the 20 mA above is an estimate from the parts
+list, not a measurement); whether disabling
 `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
-external 10 kOhm pull-up; and whether the panel and backlight visibly come back
-after a soft-sleep wake. A successful build is not hardware validation.
+external 10 kOhm pull-up; and the deep-sleep fallback end to end. A successful
+build is not hardware validation.
 
 A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
 it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
