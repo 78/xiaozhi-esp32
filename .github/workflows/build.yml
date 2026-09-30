@@ -67,10 +67,12 @@ jobs:
     name: Build ${{ matrix.full_name }}
     needs: prepare
     if: ${{ needs.prepare.outputs.variants != '[]' }}
+      
     strategy:
-      fail-fast: false  # 单个变体失败不影响其它变体
       matrix:
-        include: ${{ fromJson(needs.prepare.outputs.variants) }}
+        include:
+          - full_name: espressif-esp32-s3
+            board: nologo/xingzhi-abs-2.0     
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:v6.1
@@ -82,8 +84,7 @@ jobs:
         shell: bash
         run: |
           source $IDF_PATH/export.sh
-          python scripts/build.py ${{ matrix.board }} --name ${{ matrix.name }}
-
+          python scripts/build.py ${{ matrix.board }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
