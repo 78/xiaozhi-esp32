@@ -124,20 +124,23 @@ the protocol while it is down.
 The three keys keep waking the device in every stage, but the press that wakes it
 must not also act:
 
-- `kSoftSleepClickGuardMs` (500 ms) drops the click and long-press actions of the
-  press that woke the device, so a wake press cannot change the volume or open the
-  audio channel.
+- One wake-key guard drops the whole press, not a window. It is armed on the
+  press-down that wakes the device out of soft sleep, or from the key level sampled
+  when the button component starts after a deep-sleep wake, and it is released when
+  the component reports the end of that press sequence (`BUTTON_PRESS_END`). That is
+  what keeps a long press from getting through: the component grades it 2 s after
+  the press started, measured on hardware to be past any fixed window short enough
+  to leave a normal press alone. `kWakeKeyGuardMs` (10 s) is only a safety net for a
+  release event that never arrives.
+- A deep-sleep wake whose key was already released before the button component
+  starts arms no guard, so the next press acts normally - there is no wake press
+  left to drop.
+- A cold boot gets no guard, so OK during `kDeviceStateStarting` keeps working as
+  the provisioning entry point.
 - OK with the network down shows the ordinary "connecting" hint instead of failing
   to open the audio channel and raising an error alert. That covers a link that
-  dropped on its own while the screen was off.
-- A boot that came from the deep-sleep fallback drops key actions until the press
-  that woke the device comes up (`OnPressUp`), because that reboot happens while the
-  key is still held and the button component grades the held press a long press
-  (UP -> max volume, DOWN -> mute). Measured on hardware: a fixed 2-second window
-  expired before the long press was graded, so the guard follows the release
-  instead and only uses `kBootKeyGuardMs` (10 s) as the safety net for a stuck key.
-  A cold boot gets no guard, so OK during `kDeviceStateStarting` keeps working as
-  the provisioning entry point.
+  dropped on its own while the screen was off. Provisioning and the Wi-Fi-config
+  speaker test open no audio channel, so they are not gated on the station.
 
 ### Deep sleep
 
@@ -209,8 +212,11 @@ a full spoken exchange (wake -> conversation -> speech recognition -> answer ->
 volume keys) working afterwards; and a single OK press waking the device out of
 soft sleep being swallowed outright - no state transition, no microphone open and no
 MQTT traffic followed it; and a deep-sleep wake with the key still held keeping that
-press from being graded a long press - no mute, and the guard lifting on the release
-(`Wake key released, key actions active again`). For an earlier revision that went
+press from being graded a long press - no mute. Both runs used the earlier
+window-and-release guard; the guard has since been reworked so that a whole press
+sequence is dropped, and the reworked paths (soft-sleep wake as a short press and as
+a long press, a deep-sleep wake whose key is already released, and OK during
+`kDeviceStateStarting`) still have to be re-checked on hardware. For an earlier revision that went
 straight to deep sleep: CW2017 sleep with a matching readback; the ES8311 suspend
 sequence passing its register readback; the I2S/I2C pin release; deep sleep actually
 sticking (no self-wake from a leftover wake source); a key press waking the device

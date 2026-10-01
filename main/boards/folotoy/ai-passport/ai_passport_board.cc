@@ -80,13 +80,10 @@ static constexpr int kDeepSleepSeconds = 2160;
 static constexpr int kDeepSleepAfterSoftSleepTicks = kDeepSleepSeconds - kSoftSleepSeconds;
 // Dim level in percent. A display already at or below it is left alone.
 static constexpr int kDimBrightness = 10;
-// Click guard after a soft-sleep wake: the press that woke the device must not
-// also change the volume or open the audio channel.
-static constexpr int kSoftSleepClickGuardMs = 500;
-// Safety net for the key guard after a deep-sleep wake. The guard itself ends when
-// the key that woke the device comes up; this bounds it so a stuck key cannot leave
-// the device unusable.
-static constexpr int kBootKeyGuardMs = 10000;
+// Safety net for the wake-key guard. The guard itself ends when the press that
+// woke the device finishes, so this only bounds a release event that never
+// arrives, or a key that is stuck down.
+static constexpr int kWakeKeyGuardMs = 10000;
 // ESP32-C3 caps at 160 MHz.
 static constexpr int kCpuMaxFreq = 160;
 // Standby clock. DFS does not stop the tick, which is what keeps the three
@@ -186,10 +183,43 @@ public:
     }
 };
 
+// AdcButton with the two things the shared Button wrapper does not forward: the
+// end of a press sequence and the current key level. Both are what let the board
+// drop exactly one press - the one that woke it - instead of guessing with a time
+// window.
+class PassportAdcButton : public AdcButton {
+public:
+    using AdcButton::AdcButton;
+
+    // BUTTON_PRESS_END is emitted after the sequence's click or long press, so a
+    // guard released here has already filtered those out.
+    void OnPressEnd(std::function<void()> callback) {
+        on_press_end_ = callback;
+        iot_button_register_cb(button_handle_, BUTTON_PRESS_END, nullptr,
+                               [](void* handle, void* usr_data) {
+                                   auto* button = static_cast<PassportAdcButton*>(usr_data);
+                                   if (button->on_press_end_) {
+                                       button->on_press_end_();
+                                   }
+                               },
+                               this);
+    }
+
+    // Samples the ladder on demand. Used once at boot: the key that woke the
+    // device out of deep sleep is still held while the component starts, so this
+    // separates that press from a wake whose key was already released.
+    bool IsKeyDown() const {
+        return iot_button_get_key_level(button_handle_) == BUTTON_ACTIVE;
+    }
+
+private:
+    std::function<void()> on_press_end_;
+};
+
 class AiPassportBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
-    Button* adc_button_[kAdcButtonNum];
+    PassportAdcButton* adc_button_[kAdcButtonNum];
     adc_oneshot_unit_handle_t adc_handle_ = nullptr;
     LcdDisplay* display_;
     esp_lcd_panel_handle_t panel_ = nullptr;
@@ -200,16 +230,18 @@ private:
     i2c_master_dev_handle_t es8311_handle_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
     // Set and cleared on the main task, read from the button task. It is one
-    // byte, so the worst case is a wake press whose click is not swallowed.
+    // byte, so the worst case is a wake press whose actions are not dropped.
     bool soft_sleep_active_ = false;
     bool deep_sleep_started_ = false;
     int soft_sleep_ticks_ = 0;
-    // esp_timer_get_time() deadline below which key clicks are ignored.
-    int64_t key_guard_until_us_ = 0;
-    // Set when this boot was a deep-sleep wake. The rebound key is still held while
-    // the button component starts, so actions stay blocked until it comes up.
-    bool boot_key_held_ = false;
-    int64_t boot_key_guard_until_us_ = 0;
+    // Set while the press that woke the device is still in flight, so that press
+    // cannot also change the volume or open the audio channel. The guard ends with
+    // that press sequence rather than with a fixed window: the component grades a
+    // long press 2 s after the press started, which is past any window short
+    // enough to leave a normal press alone.
+    bool wake_key_guard_ = false;
+    // esp_timer_get_time() deadline the guard cannot outlive (kWakeKeyGuardMs).
+    int64_t wake_key_guard_until_us_ = 0;
     // Set from the button task on every key press. PowerSaveTimer resets its own
     // counter on the same press, but both stage transitions are scheduled onto the
     // main task and can still run just before the wake handler does. Without this
@@ -224,16 +256,27 @@ private:
         return esp_timer_get_time() - last_key_us_ >= (int64_t)seconds * 1000000;
     }
 
-    // True while a key event should be dropped rather than acted on: the click of
-    // the press that woke the device out of soft sleep, or any action while the
-    // press that woke it out of deep sleep is still held. Keys never stop waking the
-    // device - only their click and long-press actions are held back.
+    // True while a key event should be dropped rather than acted on. Keys never
+    // stop waking the device - only the actions of the wake press are held back.
     bool KeyEventsBlocked() const {
-        const int64_t now = esp_timer_get_time();
-        if (now < key_guard_until_us_) {
-            return true;
+        return wake_key_guard_ && esp_timer_get_time() < wake_key_guard_until_us_;
+    }
+
+    // Arms the guard for a press that is about to wake the device. The deadline
+    // keeps a missed sequence end from leaving the keys dead.
+    void ArmWakeKeyGuard() {
+        wake_key_guard_ = true;
+        wake_key_guard_until_us_ = esp_timer_get_time() + (int64_t)kWakeKeyGuardMs * 1000;
+    }
+
+    // Ends the guard with the press sequence that owns it. Called from PRESS_END,
+    // so the click and long press of that press have already been filtered out.
+    void EndWakeKeyGuard() {
+        if (!wake_key_guard_) {
+            return;
         }
-        return boot_key_held_ && now < boot_key_guard_until_us_;
+        wake_key_guard_ = false;
+        ESP_LOGI(TAG, "Wake key sequence finished, key actions active again");
     }
 
     void InitializeCodecI2c() {
@@ -289,6 +332,16 @@ private:
         app.ToggleChatState();
     }
 
+    // A live link is only needed by the ToggleChat() paths that would open the
+    // audio channel. Provisioning is entered from kDeviceStateStarting and the
+    // Wi-Fi-config screen uses the key to toggle the speaker test, so gating the
+    // key on the station would make both unreachable.
+    bool ToggleChatNeedsNetwork() const {
+        const auto state = Application::GetInstance().GetDeviceState();
+        return state != kDeviceStateStarting && state != kDeviceStateWifiConfiguring &&
+               state != kDeviceStateAudioTesting;
+    }
+
     void InitializeButtons() {
         for (int i = 0; i < kAdcButtonNum; i++) {
             adc_button_[i] = nullptr;
@@ -297,19 +350,13 @@ private:
         // Waking from the deep-sleep fallback reboots the chip while the key is
         // still held. The button component starts a few hundred milliseconds later,
         // registers that press, and grades it a long press once it has been down for
-        // the component's threshold - UP would jump to full volume, DOWN would mute.
-        // A fixed window cannot cover this: measured on hardware, a 2 s guard expired
-        // before the long press was graded. The key is not released until the user
-        // lets go, so the guard instead lasts until that release, with a deadline as
-        // the safety net. Only that boot gets the guard: on a cold boot OK during
-        // kDeviceStateStarting is the provisioning path and has to keep working.
+        // the component's 2 s threshold - UP would jump to full volume, DOWN would
+        // mute. So that press has to be dropped as a whole. Only a boot from sleep
+        // can have one: on a cold boot OK during kDeviceStateStarting is the
+        // provisioning path and has to keep working.
         const uint32_t wake_causes = esp_sleep_get_wakeup_causes();
-        if (wake_causes & ((1u << ESP_SLEEP_WAKEUP_GPIO) | (1u << ESP_SLEEP_WAKEUP_TIMER))) {
-            boot_key_held_ = true;
-            boot_key_guard_until_us_ = esp_timer_get_time() + (int64_t)kBootKeyGuardMs * 1000;
-            ESP_LOGI(TAG, "Woke from deep sleep (causes 0x%02x), holding keys until release",
-                     (unsigned)wake_causes);
-        }
+        const bool wake_boot =
+            (wake_causes & ((1u << ESP_SLEEP_WAKEUP_GPIO) | (1u << ESP_SLEEP_WAKEUP_TIMER))) != 0;
 
         // One ADC1 unit shared by all three ladder keys. AdcButton reuses the
         // handle when adc_config.adc_handle is non-null, so the same physical
@@ -327,17 +374,41 @@ private:
         adc_cfg.button_index = kAdcButtonUp;      // UP:   ~0 mV
         adc_cfg.min = BSP_ADC_BUTTON_UP_MIN;
         adc_cfg.max = BSP_ADC_BUTTON_UP_MAX;
-        adc_button_[kAdcButtonUp] = new AdcButton(adc_cfg);
+        adc_button_[kAdcButtonUp] = new PassportAdcButton(adc_cfg);
 
         adc_cfg.button_index = kAdcButtonDown;    // DOWN: ~300 mV
         adc_cfg.min = BSP_ADC_BUTTON_DOWN_MIN;
         adc_cfg.max = BSP_ADC_BUTTON_DOWN_MAX;
-        adc_button_[kAdcButtonDown] = new AdcButton(adc_cfg);
+        adc_button_[kAdcButtonDown] = new PassportAdcButton(adc_cfg);
 
         adc_cfg.button_index = kAdcButtonOk;      // OK:   ~595 mV
         adc_cfg.min = BSP_ADC_BUTTON_OK_MIN;
         adc_cfg.max = BSP_ADC_BUTTON_OK_MAX;
-        adc_button_[kAdcButtonOk] = new AdcButton(adc_cfg);
+        adc_button_[kAdcButtonOk] = new PassportAdcButton(adc_cfg);
+
+        if (wake_boot) {
+            // The wake press is still down here, so the key level tells a real wake
+            // press from a wake whose key was released before the component started.
+            // Arming the guard for the second kind would only swallow the next,
+            // genuine press.
+            bool wake_press_down = false;
+            for (auto* button : adc_button_) {
+                if (button->IsKeyDown()) {
+                    wake_press_down = true;
+                    break;
+                }
+            }
+            if (wake_press_down) {
+                ArmWakeKeyGuard();
+                ESP_LOGI(TAG,
+                         "Woke from deep sleep (causes 0x%02x) with a key down, "
+                         "holding key actions until it comes up",
+                         (unsigned)wake_causes);
+            } else {
+                ESP_LOGI(TAG, "Woke from deep sleep (causes 0x%02x), wake key already released",
+                         (unsigned)wake_causes);
+            }
+        }
 
         // Button callbacks run on the button task; schedule all UI/audio
         // work onto the main task so LVGL and codec access stay on one thread.
@@ -374,8 +445,9 @@ private:
                 // Opening the audio channel with the network down would only
                 // raise an error alert, so show the ordinary "connecting" hint
                 // instead. Covers a wake from soft sleep as well as a link that
-                // dropped on its own with the screen off.
-                if (!WifiManager::GetInstance().IsConnected()) {
+                // dropped on its own with the screen off. Provisioning and the
+                // Wi-Fi-config speaker test do not open one.
+                if (ToggleChatNeedsNetwork() && !WifiManager::GetInstance().IsConnected()) {
                     GetDisplay()->ShowNotification(Lang::Strings::CONNECTING);
                     return;
                 }
@@ -385,25 +457,21 @@ private:
 
         // Cancel the idle countdown on press-down rather than on click, so a key
         // held for a long press also wakes the screen and the CPU immediately.
-        // This is the only key path that is never blocked: it is what wakes the
-        // device, and the click that follows it is what the guard above drops.
+        // Press-down itself is never blocked: it is what wakes the device.
         for (auto* button : adc_button_) {
             button->OnPressDown([this]() {
                 last_key_us_ = esp_timer_get_time();
+                // The press that brings the device out of soft sleep is dropped as
+                // a whole, long press included.
                 if (soft_sleep_active_) {
-                    key_guard_until_us_ =
-                        esp_timer_get_time() + (int64_t)kSoftSleepClickGuardMs * 1000;
+                    ArmWakeKeyGuard();
                 }
                 WakeUpPowerSaveTimer();
             });
-            // Ends the deep-sleep wake guard: once the key is up, the user is holding
-            // nothing and the next press is a normal one.
-            button->OnPressUp([this]() {
-                if (boot_key_held_) {
-                    boot_key_held_ = false;
-                    ESP_LOGI(TAG, "Wake key released, key actions active again");
-                }
-            });
+            // Not released on press-up: the click that belongs to the wake press is
+            // graded a tick after it, so the guard has to outlive the release and
+            // only end with the sequence.
+            button->OnPressEnd([this]() { EndWakeKeyGuard(); });
         }
     }
 
