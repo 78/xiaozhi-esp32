@@ -5,6 +5,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,3 +28,15 @@ jobs:
             releases/*.zip
             output/**/*.bin
           if-no-files-found: error
+
+      - name: Publish merged-binary.bin as a pre-release (direct download link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="terra-fw-${{ github.run_number }}"
+          cp build/merged-binary.bin merged-binary.bin
+          gh release create "$TAG" merged-binary.bin \
+            --target "${{ github.sha }}" \
+            --title "Terra firmware $TAG" \
+            --notes "es3c28p-terra build from ${{ github.sha }}" \
+            --prerelease
