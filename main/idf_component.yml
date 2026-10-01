@@ -1,5 +1,9 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  espressif/ip101:
+    version: ^1.1.0
+    rules:
+    - if: target in [esp32p4]
   waveshare/esp_lcd_sh8601: 1.0.2
   espressif/esp_lcd_co5300: ^2.1.0
   espressif/esp_lcd_ili9341: ^2.1.0

@@ -4,20 +4,24 @@
 #include "display.h"
 #include "sdkconfig.h"
 
-#include <cJSON.h>
 #include <driver/gpio.h>
 #include <esp_eth.h>
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_mac.h>
-#include <esp_network.h>
 #include <esp_netif.h>
-#include <material_symbols.h>
+#include <esp_network.h>
+#include <cJSON.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <material_symbols.h>
 #include <soc/soc_caps.h>
 
 #include <utility>
+
+#if CONFIG_XIAOZHI_ETH_PHY_IP101
+#include <esp_eth_phy_ip101.h>
+#endif
 
 static const char* TAG = "EthernetBoard";
 
@@ -35,7 +39,7 @@ static eth_esp32_emac_config_t CreateEmacConfig() {
     config.smi_gpio.mdio_num = CONFIG_XIAOZHI_ETH_MDIO_GPIO;
     config.interface = EMAC_DATA_INTERFACE_RMII;
     config.clock_config.rmii.clock_mode = EMAC_CLK_EXT_IN;
-    config.clock_config.rmii.clock_gpio = static_cast<emac_rmii_clock_gpio_t>(50);
+    config.clock_config.rmii.clock_gpio = 50;
     config.dma_burst_len = ETH_DMA_BURST_LEN_32;
     config.intr_priority = 0;
 #if SOC_EMAC_USE_MULTI_IO_MUX || SOC_EMAC_MII_USE_GPIO_MATRIX
@@ -48,15 +52,13 @@ static eth_esp32_emac_config_t CreateEmacConfig() {
 #endif
 #if !SOC_EMAC_RMII_CLK_OUT_INTERNAL_LOOPBACK
     config.clock_config_out_in.rmii.clock_mode = EMAC_CLK_EXT_IN;
-    config.clock_config_out_in.rmii.clock_gpio = static_cast<emac_rmii_clock_gpio_t>(-1);
+    config.clock_config_out_in.rmii.clock_gpio = -1;
 #endif
     config.mdc_freq_hz = 0;
     return config;
 }
 
-std::string EthernetBoard::GetBoardType() {
-    return "ethernet";
-}
+std::string EthernetBoard::GetBoardType() { return "ethernet"; }
 
 void EthernetBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
     network_event_callback_ = std::move(callback);
@@ -141,7 +143,8 @@ void EthernetBoard::NetworkTask() {
 
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif_, eth_glue_));
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, EthEventHandler, this));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, GotIpEventHandler, this));
+    ESP_ERROR_CHECK(
+        esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, GotIpEventHandler, this));
 
     ret = esp_eth_start(eth_handle_);
     if (ret != ESP_OK) {
@@ -150,7 +153,8 @@ void EthernetBoard::NetworkTask() {
     }
 }
 
-void EthernetBoard::EthEventHandler(void* arg, const char* event_base, int32_t event_id, void* event_data) {
+void EthernetBoard::EthEventHandler(void* arg, const char* event_base, int32_t event_id,
+                                    void* event_data) {
     auto* board = static_cast<EthernetBoard*>(arg);
     uint8_t mac_addr[6] = {0};
     esp_eth_handle_t eth_handle = *(esp_eth_handle_t*)event_data;
@@ -158,8 +162,8 @@ void EthernetBoard::EthEventHandler(void* arg, const char* event_base, int32_t e
     switch (event_id) {
         case ETHERNET_EVENT_CONNECTED:
             esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
-            ESP_LOGI(TAG, "Ethernet link up, MAC %02x:%02x:%02x:%02x:%02x:%02x",
-                     mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+            ESP_LOGI(TAG, "Ethernet link up, MAC %02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0],
+                     mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
             break;
         case ETHERNET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "Ethernet link down");
@@ -181,7 +185,8 @@ void EthernetBoard::EthEventHandler(void* arg, const char* event_base, int32_t e
     }
 }
 
-void EthernetBoard::GotIpEventHandler(void* arg, const char* event_base, int32_t event_id, void* event_data) {
+void EthernetBoard::GotIpEventHandler(void* arg, const char* event_base, int32_t event_id,
+                                      void* event_data) {
     auto* board = static_cast<EthernetBoard*>(arg);
     auto* event = static_cast<ip_event_got_ip_t*>(event_data);
     const esp_netif_ip_info_t* ip_info = &event->ip_info;
@@ -221,15 +226,16 @@ NetworkInterface* EthernetBoard::GetNetwork() {
 }
 
 const char* EthernetBoard::GetNetworkStateIcon() {
-    return connected_ ? MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR : MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
+    return connected_ ? MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR
+                      : MATERIAL_SYMBOLS_ANDROID_CELL_4_BAR_OFF;
 }
 
 std::string EthernetBoard::GetEthernetMacAddress() {
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_ETH);
     char mac_str[18];
-    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2],
+             mac[3], mac[4], mac[5]);
     return std::string(mac_str);
 }
 
@@ -245,9 +251,7 @@ std::string EthernetBoard::GetBoardJson() {
     return json;
 }
 
-void EthernetBoard::SetPowerSaveLevel(PowerSaveLevel level) {
-    (void)level;
-}
+void EthernetBoard::SetPowerSaveLevel(PowerSaveLevel level) { (void)level; }
 
 std::string EthernetBoard::GetDeviceStatusJson() {
     auto& board = Board::GetInstance();
