@@ -9,9 +9,9 @@
 //音频iis部分
 #define AUDIO_I2S_GPIO_MCLK      GPIO_NUM_4  //MCLK
 #define AUDIO_I2S_GPIO_BCLK      GPIO_NUM_5  //SCK
-#define AUDIO_I2S_GPIO_DIN       GPIO_NUM_8  //mic data in (ES3C28P: swapped vs Freenove)
+#define AUDIO_I2S_GPIO_DIN       GPIO_NUM_6  //mic data in (BSP_I2S_DSIN in ngttai/esp32_s3_es3c28p)
 #define AUDIO_I2S_GPIO_WS        GPIO_NUM_7  //LRC
-#define AUDIO_I2S_GPIO_DOUT      GPIO_NUM_6  //speaker data out (ES3C28P: swapped vs Freenove)
+#define AUDIO_I2S_GPIO_DOUT      GPIO_NUM_8  //speaker data out (BSP_I2S_DOUT in ngttai/esp32_s3_es3c28p)
 #define AUDIO_CODEC_PA_PIN       GPIO_NUM_1  //PA
 
 //音频iic部分
