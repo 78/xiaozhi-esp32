@@ -6,6 +6,14 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config WIFI_AP_SSID_PREFIX
+    string "Wi-Fi config hotspot name prefix"
+    default "Xiaozhi"
+    help
+        Prefix of the hotspot the device opens for Wi-Fi setup. The last two MAC bytes
+        are appended so several devices can be told apart, e.g. "Xiaozhi-1A2B".
+        Spaces are allowed here; they are replaced with '-' in the DHCP hostname.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
