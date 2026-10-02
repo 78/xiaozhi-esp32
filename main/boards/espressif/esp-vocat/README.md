@@ -83,3 +83,28 @@ idf.py build
 ```bash
 idf.py flash
 ```
+
+## Peripheral I2C error handling
+
+Battery register reads run on the battery worker, with at most three attempts
+for timeout/invalid-response/transfer failures, a 50 ms transfer timeout and
+10/20 ms retry delays. Other errors return immediately. Successful sampling
+runs every two seconds; a failed cycle backs off for five seconds and does not
+trigger battery emotes. The worker's own failure warning is limited to once
+per ten seconds; driver logging is unchanged.
+
+Battery status queries use a mutex-protected, complete last-good snapshot
+instead of performing transfers in UI callbacks. Samples expire after ten
+seconds; absent/stale readings return `false`, never a fabricated empty battery.
+Touch performs one checked transfer and skips gesture processing on failure,
+so a failed read cannot synthesize a release. The first valid battery sample
+establishes the initial charging state without a false charger-insertion event.
+
+This contains peripheral read errors; it does not diagnose power instability,
+reset the shared bus, change codec startup or disable watchdog/brownout checks.
+Temperature sensor handling is unchanged. Host regression tests use an I2C
+failure double and do not replace physical fault injection:
+
+```bash
+python3 -m unittest discover -s scripts/tests -p test_esp_vocat_i2c.py -v
+```
