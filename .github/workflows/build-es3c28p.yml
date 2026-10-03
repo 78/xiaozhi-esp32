@@ -1,0 +1,42 @@
+name: Build Terra firmware
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware (ESP-IDF v6.1)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          command: python scripts/build.py es3c28p-terra --language th-TH --wake-word wn9_hiesp
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: terra-firmware
+          path: |
+            build/**/*.bin
+            releases/*.zip
+            output/**/*.bin
+          if-no-files-found: error
+
+      - name: Publish merged-binary.bin as a pre-release (direct download link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="terra-fw-${{ github.run_number }}"
+          cp build/merged-binary.bin merged-binary.bin
+          gh release create "$TAG" merged-binary.bin \
+            --target "${{ github.sha }}" \
+            --title "Terra firmware $TAG" \
+            --notes "es3c28p-terra build from ${{ github.sha }}" \
+            --prerelease

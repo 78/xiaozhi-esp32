@@ -6,6 +6,14 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config WIFI_AP_SSID_PREFIX
+    string "Wi-Fi config hotspot name prefix"
+    default "Xiaozhi"
+    help
+        Prefix of the hotspot the device opens for Wi-Fi setup. The last two MAC bytes
+        are appended so several devices can be told apart, e.g. "Xiaozhi-1A2B".
+        Spaces are allowed here; they are replaced with '-' in the DHCP hostname.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
@@ -193,6 +201,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P_TERRA
+        bool "ES3C28P ESP32-S3 2.8-inch LCD (Terra)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP32-P4/P4X-Function-EV-Board"
