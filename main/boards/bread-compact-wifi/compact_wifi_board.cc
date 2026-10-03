@@ -9,6 +9,7 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
+#include "pan_tilt_head.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -31,6 +32,7 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    PanTiltHead head_;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -52,24 +54,24 @@ private:
         // SSD1306 config
         esp_lcd_panel_io_i2c_config_t io_config = {
             .dev_addr = 0x3C,
-            .scl_speed_hz = 400 * 1000,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
             .control_phase_bytes = 1,
             .dc_bit_offset = 6,
             .lcd_cmd_bits = 8,
             .lcd_param_bits = 8,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
             .flags = {
                 .dc_low_on_data = 0,
                 .disable_control_phase = 0,
             },
+            .scl_speed_hz = 400 * 1000,
         };
 
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(display_i2c_bus_, &io_config, &panel_io_));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
 
         ESP_LOGI(TAG, "Install SSD1306 driver");
         esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = GPIO_NUM_NC;
+        panel_config.reset_gpio_num = -1;
         panel_config.bits_per_pixel = 1;
 
         esp_lcd_panel_ssd1306_config_t ssd1306_config = {
@@ -150,6 +152,7 @@ private:
     // 物联网初始化，逐步迁移到 MCP 协议
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
+        head_.RegisterMcpTools();
     }
 
 public:
@@ -161,6 +164,8 @@ public:
         InitializeDisplayI2c();
         InitializeSsd1306Display();
         InitializeButtons();
+        head_.Initialize();
+        head_.Start();
         InitializeTools();
     }
 
