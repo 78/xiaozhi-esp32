@@ -9,6 +9,10 @@
 #include <atomic>
 #include <memory>
 
+#if CONFIG_WEATHER_DASHBOARD
+class DashboardUI;
+#endif
+
 #define PREVIEW_IMAGE_DURATION_MS 5000
 
 class LcdDisplay : public LvglDisplay {
@@ -32,6 +36,10 @@ protected:
     esp_timer_handle_t preview_timer_ = nullptr;
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
+#if CONFIG_WEATHER_DASHBOARD
+    std::unique_ptr<DashboardUI> dashboard_;
+    void SetupDashboard();
+#endif
 
     void InitializeLcdThemes();
     virtual bool Lock(int timeout_ms = 0) override;
@@ -54,6 +62,10 @@ public:
 
     // Set whether to hide chat messages/subtitles
     virtual void SetHideSubtitle(bool hide) override;
+#if CONFIG_WEATHER_DASHBOARD
+    virtual void ShowDashboard() override;
+    virtual void HideDashboard() override;
+#endif
 };
 
 // SPI LCD display

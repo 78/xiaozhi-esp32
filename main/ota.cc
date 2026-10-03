@@ -19,7 +19,10 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <expected>
 #include <system_error>
 #include <vector>
@@ -197,15 +200,29 @@ NetworkResult<> Ota::CheckVersion() {
         cJSON *timezone_offset = cJSON_GetObjectItem(server_time, "timezone_offset");
         
         if (cJSON_IsNumber(timestamp)) {
-            // 设置系统时间
+            // 设置系统时间。timestamp 是 UTC 毫秒，直接作为 UTC 写入系统时钟；
+            // 本地时区通过 TZ 环境变量表达，避免把本地时间伪装成 UTC。
             struct timeval tv;
             double ts = timestamp->valuedouble;
-            
-            // 如果有时区偏移，计算本地时间
+
             if (cJSON_IsNumber(timezone_offset)) {
-                ts += (timezone_offset->valueint * 60 * 1000); // 转换分钟为毫秒
+                // POSIX TZ 的偏移符号与 UTC 偏移相反：UTC+8 写作 "LCL-8"。
+                int offset_min = timezone_offset->valueint;
+                char tz_sign = offset_min >= 0 ? '-' : '+';
+                int abs_min = std::abs(offset_min);
+                int tz_hour = abs_min / 60;
+                int tz_minute = abs_min % 60;
+                char tz[24];
+                if (tz_minute == 0) {
+                    snprintf(tz, sizeof(tz), "LCL%c%d", tz_sign, tz_hour);
+                } else {
+                    snprintf(tz, sizeof(tz), "LCL%c%d:%02d", tz_sign, tz_hour,
+                             tz_minute);
+                }
+                setenv("TZ", tz, 1);
+                tzset();
             }
-            
+
             tv.tv_sec = (time_t)(ts / 1000);  // 转换毫秒为秒
             tv.tv_usec = (suseconds_t)((long long)ts % 1000) * 1000;  // 剩余的毫秒转换为微秒
             settimeofday(&tv, NULL);

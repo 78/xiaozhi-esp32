@@ -18,6 +18,13 @@ Settings::~Settings() {
     }
 }
 
+bool Settings::HasKey(const std::string& key) {
+    if (nvs_handle_ == 0) {
+        return false;
+    }
+    return nvs_find_key(nvs_handle_, key.c_str(), nullptr) == ESP_OK;
+}
+
 std::string Settings::GetString(const std::string& key, const std::string& default_value) {
     if (nvs_handle_ == 0) {
         return default_value;
