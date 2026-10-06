@@ -109,6 +109,18 @@ A tool registered this way will not appear in a regular `tools/list` response. T
 
 Board-specific tools are appended after these by each board's `InitializeTools()`.
 
+### Optional MCP client tools - `CONFIG_USE_MCP_CLIENT`
+
+Disabled by default. When enabled in menuconfig (`Xiaozhi Assistant` -> `Enable MCP client tools`), the device can also act as an MCP *client* and let the model use tools hosted on other MCP servers (Streamable HTTP transport):
+
+| Tool | Description |
+|------|-------------|
+| `self.mcp.discover` | Search the public [MCP registry](https://registry.modelcontextprotocol.io) for remote servers matching a free-text `query`. Returns up to 5 candidates with `name`, `description` and `url`. |
+| `self.mcp.connect` | Connect to the server at `url` and return its `tools/list` result. Read-only - no remote tool is called. Optional `auth_token` is sent as a Bearer token (https only). |
+| `self.mcp.call_tool` | Call `tool_name` on the server at `url` with `arguments` (a JSON object encoded as a string). Optional `auth_token` as above. |
+
+Each `connect` / `call_tool` runs its own `initialize` handshake rather than holding a session open. Error bodies returned by the remote server (for example a 401 explaining how to obtain an API key) are passed back to the model as the tool error so it can act on them.
+
 ### User-only tools - from `AddUserOnlyTools`
 
 These tools are hidden by default. The backend must pass `withUserTools=true` to `tools/list` to see them. They are intended for companion apps / end users rather than the AI model.
