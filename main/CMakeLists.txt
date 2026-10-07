@@ -3,6 +3,7 @@ set(SOURCES "audio/audio_codec.cc"
             "audio/audio_debugger.cc"
             "audio/audio_service.cc"
             "audio/demuxer/ogg_demuxer.cc"
+            "notify/notify_player.cc"
             "audio/codecs/no_audio_codec.cc"
             "audio/codecs/box_audio_codec.cc"
             "audio/codecs/es8311_audio_codec.cc"
@@ -201,6 +202,22 @@ elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S3)
+    set(BOARD_DIR "maza-ai/esp32-s3")
+    list(APPEND SOURCES
+        "display/epd_display/epd_display.cc"
+        "display/epd_display/epd_display_2_9.cc"
+    )
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S31)
+    set(BOARD_DIR "maza-ai/esp32-s31")
+    list(APPEND SOURCES
+        "display/epd_display/epd_display.cc"
+        "display/epd_display/epd_display_2_9.cc"
+    )
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
     set(BOARD_DIR "m5stack/stopwatch")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
@@ -302,9 +319,9 @@ elseif(CONFIG_BOARD_TYPE_ESP_SENSAIRSHUTTLE)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_TOUCH_LCD_3_5)
     set(BOARD_DIR "waveshare/esp32-touch-lcd-3.5")
-    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
-    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
-    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX)
     set(BOARD_DIR "waveshare/esp32-s3-cam")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -562,6 +579,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32_S31_KORVO_1)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP_MOSAICO)
+    set(BOARD_DIR "espressif/esp-mosaico")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_DIR "bread-compact-wifi-lcd")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -569,6 +591,11 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BOARD_DIR "lilygo/t-circle-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V11)
+    set(BOARD_DIR "lilygo/t-circle-s3-v11")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
@@ -712,6 +739,13 @@ elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_GUITION_JC4827W543)
+    set(BOARD_DIR "guition/jc4827w543")
+    # 16px, not the 20px most 480-wide boards use: the assets partition is 1MB
+    # and the 20px common font alone is 1228KB. See the board README.
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WDMOMO_CGC)
     set(BOARD_DIR "wdmomo/esp32-cgc")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
@@ -797,6 +831,11 @@ elseif(CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
     set(BOARD_DIR "surfer-c3-1.14tft")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_FOLOTOY_AI_PASSPORT)
+    set(BOARD_DIR "folotoy/ai-passport")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
@@ -923,8 +962,12 @@ elseif(CONFIG_LANGUAGE_AR_SA)
     set(LANG_DIR "ar-SA")
 elseif(CONFIG_LANGUAGE_HI_IN)
     set(LANG_DIR "hi-IN")
+elseif(CONFIG_LANGUAGE_MR_IN)
+    set(LANG_DIR "mr-IN")
 elseif(CONFIG_LANGUAGE_PT_PT)
     set(LANG_DIR "pt-PT")
+elseif(CONFIG_LANGUAGE_PT_BR)
+    set(LANG_DIR "pt-BR")
 elseif(CONFIG_LANGUAGE_PL_PL)
     set(LANG_DIR "pl-PL")
 elseif(CONFIG_LANGUAGE_CS_CZ)
@@ -1035,6 +1078,9 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_XIAOZHI_NETWORK_ETHERNET AND CONFIG_XIAOZHI_ETH_PHY_IP101)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__ip101)
+endif()
 if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         m5stack__m5pm1
@@ -1087,6 +1133,12 @@ idf_component_register(SRCS ${SOURCES}
                         ${MAIN_PRIV_REQUIRES_EXTRA}
                     )
 
+# Keep project-owned C++ on GNU C++23. ESP-IDF 6 may default to a newer
+# dialect; pin the baseline so main/ does not depend on it.
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+endif()
+
 # Use target_compile_definitions to define the reported board identity
 # If BOARD_NAME is empty, use BOARD_TYPE
 if(NOT BOARD_NAME)
@@ -1110,6 +1162,23 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION)
                         PRIVATE BUILTIN_TEXT_FONT=${BUILTIN_TEXT_FONT} BUILTIN_ICON_FONT=${BUILTIN_ICON_FONT}
                         PRIVATE TEXT_FONT_SIZE=${TEXT_FONT_SIZE} TEXT_FONT_BPP=${TEXT_FONT_BPP}
                         )
+    # ESP32-S3 LVGL builtin pool: PSRAM boards allocate it from PSRAM.
+    # Boards that set CONFIG_SPIRAM=n must not keep the 1MB chip-default
+    # pool as a .dram0.bss array (build.py also switches those variants
+    # back to CLIB malloc).
+    if(CONFIG_IDF_TARGET_ESP32S3)
+        idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)
+        if(lvgl_lib)
+            target_include_directories(${lvgl_lib} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/display")
+            if(CONFIG_SPIRAM)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_psram_pool.h\"")
+            elseif(CONFIG_LV_USE_BUILTIN_MALLOC)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_no_psram_pool.h\"")
+            endif()
+        endif()
+    endif()
 endif()
 
 # Add generation rules
@@ -1170,21 +1239,36 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
 endif()
 
 if(CONFIG_BOARD_TYPE_ESP_HI)
-set(URL "https://github.com/espressif2022/image_player/raw/main/test_apps/test_8bit")
+# Pin AAF assets to a fixed image_player commit so builds stay reproducible.
+# Only pack AAF files referenced by emoji_display.cc — the full test_8bit set
+# plus wakenet models overflows the 1MB assets partition on the 4MB ESP-HI
+# flash map (see #2228).
+set(URL "https://github.com/espressif2022/image_player/raw/d61e0ccb1d7b0a2a214d0c90f5451fd683f41682/test_apps/test_8bit")
 set(EMOJI_DIR "${CMAKE_BINARY_DIR}/emoji")
 file(MAKE_DIRECTORY ${EMOJI_DIR})
 
-# List all files to download
-set(FILES_TO_DOWNLOAD "")
-list(APPEND FILES_TO_DOWNLOAD "Anger_enter.aaf" "Anger_loop.aaf" "Anger_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "happy_enter.aaf" "happy_loop.aaf" "happ_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "sad_enter.aaf" "sad_loop.aaf" "sad_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "scorn_enter.aaf" "scorn_loop.aaf" "scorn_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "left_enter.aaf" "left_loop.aaf" "left_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "right_enter.aaf" "right_loop.aaf" "right_return.aaf")
-list(APPEND FILES_TO_DOWNLOAD "asking.aaf" "blink_once.aaf" "blink_quick.aaf")
-list(APPEND FILES_TO_DOWNLOAD "connecting.aaf" "panic_enter.aaf" "panic_loop.aaf")
-list(APPEND FILES_TO_DOWNLOAD "panic_return.aaf" "wake.aaf")
+set(FILES_TO_DOWNLOAD
+    "Anger_loop.aaf"
+    "asking.aaf"
+    "blink_quick.aaf"
+    "connecting.aaf"
+    "happy_loop.aaf"
+    "panic_loop.aaf"
+    "sad_loop.aaf"
+    "scorn_loop.aaf"
+    "wake.aaf"
+)
+
+# Drop leftover AAF files from previous full-set downloads so they are not packed.
+file(GLOB EXISTING_AAF "${EMOJI_DIR}/*.aaf")
+foreach(EXISTING IN LISTS EXISTING_AAF)
+    get_filename_component(EXISTING_NAME "${EXISTING}" NAME)
+    list(FIND FILES_TO_DOWNLOAD "${EXISTING_NAME}" _aaf_idx)
+    if(_aaf_idx EQUAL -1)
+        file(REMOVE "${EXISTING}")
+        message(STATUS "Removed unused ESP-HI emoji asset ${EXISTING_NAME}")
+    endif()
+endforeach()
 
 foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
     set(REMOTE_FILE "${URL}/${FILENAME}")
@@ -1251,6 +1335,12 @@ function(build_default_assets_bin)
 
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
     list(APPEND BUILD_ARGS "--noto_fonts_path" "${NOTO_FONTS_PATH}")
+
+    # Enforce assets.bin fits the flash partition (e.g. ESP-HI 4MB map uses 1MB assets).
+    partition_table_get_partition_info(assets_partition_size "--partition-name assets" "size")
+    if(assets_partition_size)
+        list(APPEND BUILD_ARGS "--max_size" "${assets_partition_size}")
+    endif()
 
     # Create custom command to build assets
     add_custom_command(

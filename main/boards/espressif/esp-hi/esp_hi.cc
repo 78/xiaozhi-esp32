@@ -9,6 +9,7 @@
 #include <driver/spi_common.h>
 #include <esp_wifi.h>
 #include <esp_event.h>
+#include <vector>
 
 #include "display/lcd_display.h"
 #include <esp_lcd_panel_vendor.h>
@@ -32,25 +33,44 @@
 
 #define TAG "ESP_HI"
 
+// Named static payloads: C++ compound-literal pointers must outlive panel init.
+static const uint8_t st7735_cmd_b1[] = {0x05, 0x3A, 0x3A};
+static const uint8_t st7735_cmd_b2[] = {0x05, 0x3A, 0x3A};
+static const uint8_t st7735_cmd_b3[] = {0x05, 0x3A, 0x3A, 0x05, 0x3A, 0x3A};
+static const uint8_t st7735_cmd_b4[] = {0x03};
+static const uint8_t st7735_cmd_c0[] = {0x44, 0x04, 0x04};
+static const uint8_t st7735_cmd_c1[] = {0xC0};
+static const uint8_t st7735_cmd_c2[] = {0x0D, 0x00};
+static const uint8_t st7735_cmd_c3[] = {0x8D, 0x6A};
+static const uint8_t st7735_cmd_c4[] = {0x8D, 0xEE};
+static const uint8_t st7735_cmd_c5[] = {0x08};
+static const uint8_t st7735_cmd_e0[] = {0x0F, 0x10, 0x03, 0x03, 0x07, 0x02, 0x00, 0x02,
+                                        0x07, 0x0C, 0x13, 0x38, 0x0A, 0x0E, 0x03, 0x10};
+static const uint8_t st7735_cmd_e1[] = {0x10, 0x0B, 0x04, 0x04, 0x10, 0x03, 0x00, 0x03,
+                                        0x03, 0x09, 0x17, 0x33, 0x0B, 0x0C, 0x06, 0x10};
+static const uint8_t st7735_cmd_35[] = {0x00};
+static const uint8_t st7735_cmd_3a[] = {0x05};
+static const uint8_t st7735_cmd_36[] = {0xC8};
+
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {
-    {0x11, NULL, 0, 120},     // Sleep out, Delay 120ms
-    {0xB1, (uint8_t []){0x05, 0x3A, 0x3A}, 3, 0},
-    {0xB2, (uint8_t []){0x05, 0x3A, 0x3A}, 3, 0},
-    {0xB3, (uint8_t []){0x05, 0x3A, 0x3A, 0x05, 0x3A, 0x3A}, 6, 0},
-    {0xB4, (uint8_t []){0x03}, 1, 0},   // Dot inversion
-    {0xC0, (uint8_t []){0x44, 0x04, 0x04}, 3, 0},
-    {0xC1, (uint8_t []){0xC0}, 1, 0},
-    {0xC2, (uint8_t []){0x0D, 0x00}, 2, 0},
-    {0xC3, (uint8_t []){0x8D, 0x6A}, 2, 0},
-    {0xC4, (uint8_t []){0x8D, 0xEE}, 2, 0},
-    {0xC5, (uint8_t []){0x08}, 1, 0},
-    {0xE0, (uint8_t []){0x0F, 0x10, 0x03, 0x03, 0x07, 0x02, 0x00, 0x02, 0x07, 0x0C, 0x13, 0x38, 0x0A, 0x0E, 0x03, 0x10}, 16, 0},
-    {0xE1, (uint8_t []){0x10, 0x0B, 0x04, 0x04, 0x10, 0x03, 0x00, 0x03, 0x03, 0x09, 0x17, 0x33, 0x0B, 0x0C, 0x06, 0x10}, 16, 0},
-    {0x35, (uint8_t []){0x00}, 1, 0},
-    {0x3A, (uint8_t []){0x05}, 1, 0},
-    {0x36, (uint8_t []){0xC8}, 1, 0},
-    {0x29, NULL, 0, 0},     // Display on
-    {0x2C, NULL, 0, 0},     // Memory write
+    {0x11, NULL, 0, 120},  // Sleep out, Delay 120ms
+    {0xB1, st7735_cmd_b1, sizeof(st7735_cmd_b1), 0},
+    {0xB2, st7735_cmd_b2, sizeof(st7735_cmd_b2), 0},
+    {0xB3, st7735_cmd_b3, sizeof(st7735_cmd_b3), 0},
+    {0xB4, st7735_cmd_b4, sizeof(st7735_cmd_b4), 0},  // Dot inversion
+    {0xC0, st7735_cmd_c0, sizeof(st7735_cmd_c0), 0},
+    {0xC1, st7735_cmd_c1, sizeof(st7735_cmd_c1), 0},
+    {0xC2, st7735_cmd_c2, sizeof(st7735_cmd_c2), 0},
+    {0xC3, st7735_cmd_c3, sizeof(st7735_cmd_c3), 0},
+    {0xC4, st7735_cmd_c4, sizeof(st7735_cmd_c4), 0},
+    {0xC5, st7735_cmd_c5, sizeof(st7735_cmd_c5), 0},
+    {0xE0, st7735_cmd_e0, sizeof(st7735_cmd_e0), 0},
+    {0xE1, st7735_cmd_e1, sizeof(st7735_cmd_e1), 0},
+    {0x35, st7735_cmd_35, sizeof(st7735_cmd_35), 0},
+    {0x3A, st7735_cmd_3a, sizeof(st7735_cmd_3a), 0},
+    {0x36, st7735_cmd_36, sizeof(st7735_cmd_36), 0},
+    {0x29, NULL, 0, 0},  // Display on
+    {0x2C, NULL, 0, 0},  // Memory write
 };
 
 static const led_strip_config_t bsp_strip_config = {
@@ -238,7 +258,8 @@ private:
         buscfg.sclk_io_num = DISPLAY_CLK_PIN;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_WIDTH * 10 * sizeof(uint16_t);
+        // Full-frame clear + emoji strips need room for one landscape row band.
+        buscfg.max_transfer_sz = DISPLAY_WIDTH * DISPLAY_HEIGHT * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
@@ -261,8 +282,8 @@ private:
 
         // 初始化液晶屏驱动芯片
         ESP_LOGD(TAG, "Install LCD driver");
-        const ili9341_vendor_config_t vendor_config = {
-            .init_cmds = &vendor_specific_init[0],
+        static const ili9341_vendor_config_t vendor_config = {
+            .init_cmds = vendor_specific_init,
             .init_cmds_size = sizeof(vendor_specific_init) / sizeof(ili9341_lcd_init_cmd_t),
         };
 
@@ -270,12 +291,13 @@ private:
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
         panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = (void *) &vendor_config;
+        panel_config.vendor_config = (void*)&vendor_config;
         ESP_ERROR_CHECK(esp_lcd_new_panel_ili9341(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
+        // Software reset (RST is NC) needs extra settle time before init commands.
+        vTaskDelay(pdMS_TO_TICKS(120));
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
         esp_lcd_panel_invert_color(panel, false);
         esp_lcd_panel_set_gap(panel, 0, 24);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
@@ -283,6 +305,10 @@ private:
         ESP_LOGI(TAG, "LCD panel create success, %p", panel);
 
         esp_lcd_panel_disp_on_off(panel, true);
+
+        // Clear residual GRAM so a failed assets load does not leave snow on screen.
+        std::vector<uint16_t> black(DISPLAY_WIDTH * DISPLAY_HEIGHT, 0);
+        esp_lcd_panel_draw_bitmap(panel, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, black.data());
 
         ESP_LOGI(TAG, "Create emoji widget, panel: %p, panel_io: %p", panel, panel_io);
         display_ = new anim::EmojiWidget(panel, panel_io);

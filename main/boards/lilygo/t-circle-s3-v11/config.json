@@ -1,0 +1,11 @@
+{
+    "manufacturer": "lilygo",
+    "type": "lilygo-t-circle-s3-v11",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lilygo-t-circle-s3-v11",
+            "sdkconfig_append": []
+        }
+    ]
+}

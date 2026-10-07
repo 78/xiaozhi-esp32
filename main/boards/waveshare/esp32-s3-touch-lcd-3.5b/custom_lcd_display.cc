@@ -119,7 +119,7 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
             case LV_DISPLAY_ROTATION_90:
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < trans_width; x++) {
-                        *(to + x * height + (height - y - 1)) = *(from + y * width + x_start_tmp + x);
+                        *(to + x * height + (height - y - 1)) = *(from + y * width + (x_start_tmp - x_start) + x);
                     }
                 }
                 x_draw_start = ver_res - y_end - 1;
@@ -130,7 +130,7 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
             case LV_DISPLAY_ROTATION_270:
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < trans_width; x++) {
-                        *(to + (trans_width - x - 1) * height + y) = *(from + y * width + x_start_tmp + x);
+                        *(to + (trans_width - x - 1) * height + y) = *(from + y * width + (x_start_tmp - x_start) + x);
                     }
                 }
                 x_draw_start = y_start;
@@ -141,7 +141,7 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
             case LV_DISPLAY_ROTATION_180:
                 for (int y = 0; y < trans_height; y++) {
                     for (int x = 0; x < width; x++) {
-                        *(to + (trans_height - y - 1)*width + (width - x - 1)) = *(from + y_start_tmp * width + y * (width) + x);
+                        *(to + (trans_height - y - 1)*width + (width - x - 1)) = *(from + (y_start_tmp - y_start) * width + y * (width) + x);
                     }
                 }
                 x_draw_start = hor_res - x_end - 1;
@@ -152,7 +152,7 @@ void CustomLcdDisplay::lvgl_port_flush_callback(lv_display_t *drv, const lv_area
             case LV_DISPLAY_ROTATION_0:
                 for (int y = 0; y < trans_height; y++) {
                     for (int x = 0; x < width; x++) {
-                        *(to + y * (width) + x) = *(from + y_start_tmp * width + y * (width) + x);
+                        *(to + y * (width) + x) = *(from + (y_start_tmp - y_start) * width + y * (width) + x);
                     }
                 }
                 x_draw_start = x_start;

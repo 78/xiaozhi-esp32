@@ -217,6 +217,7 @@ public:
                 ctrl_->SetStatusColor(0, 64, 0);   // green
                 break;
             case kDeviceStateSpeaking:
+            case kDeviceStateNotifying:
                 ctrl_->SetStatusColor(64, 0, 0);   // red
                 break;
             default:

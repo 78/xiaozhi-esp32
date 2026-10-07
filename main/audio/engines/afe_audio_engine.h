@@ -56,6 +56,7 @@ private:
     static constexpr EventBits_t kWakeWordEnabled = 1 << 0;
     static constexpr EventBits_t kVoiceProcessingEnabled = 1 << 1;
     static constexpr EventBits_t kAfeActive = 1 << 2;
+    static constexpr size_t kProcessingTaskStackSize = 4096;
 
     AudioCodec* codec_ = nullptr;
     srmodel_list_t* models_ = nullptr;
@@ -64,6 +65,8 @@ private:
     esp_afe_sr_data_t* afe_data_ = nullptr;
     EventGroupHandle_t event_group_ = nullptr;
     TaskHandle_t processing_task_ = nullptr;
+    StaticTask_t* processing_task_buffer_ = nullptr;
+    StackType_t* processing_task_stack_ = nullptr;
     int frame_samples_ = 0;
     bool is_speaking_ = false;
     std::atomic<bool> device_aec_enabled_{false};

@@ -9,6 +9,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
+from pathlib import Path
 
 # Switch to project root directory
 os.chdir(Path(__file__).resolve().parent.parent)
@@ -53,9 +54,22 @@ def get_project_version() -> Optional[str]:
                 return line.split("\"")[1]
     return None
 
+def _get_idf_command() -> list[str]:
+    """Get the command used to invoke the active ESP-IDF."""
+    idf_path = os.environ.get("IDF_PATH")
+
+    if idf_path:
+        idf_py = Path(idf_path) / "tools" / "idf.py"
+        if idf_py.is_file():
+            return [sys.executable, str(idf_py)]
+
+    raise RuntimeError(
+        "ESP-IDF environment is not initialized correctly. "
+        "IDF_PATH/tools/idf.py was not found."
+    )
 
 def _run_idf(*args: str, preview: bool = False) -> None:
-    command = ["idf.py"]
+    command = _get_idf_command()
     if preview:
         command.append("--preview")
     command.extend(args)
@@ -396,6 +410,10 @@ _OPTIONAL_CAMERA_ENABLE_SYMBOLS = {
     # build, but expose them automatically for an explicitly enabled variant.
     "CONFIG_BOARD_TYPE_ESP_VOCAT": "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE",
 }
+# Match both `new Esp32Camera` and `new (std::nothrow) Esp32Camera` (and EspVideo).
+_COMMON_CAMERA_CONSTRUCTOR_RE = re.compile(
+    r"\bnew(?:\s*\(\s*std::nothrow\s*\))?\s+Esp(?:32Camera|Video)\b"
+)
 
 
 def _sdkconfig_assignments(options: list[str]) -> dict[str, str]:
@@ -496,6 +514,22 @@ def _build_option_definitions(
     source = _board_source_text(board)
     definitions: list[dict[str, Any]] = []
 
+    network_choice = _kconfig_choice("XIAOZHI_NETWORK_TYPE")
+    if board_config in network_choice["board_configs"]:
+        definitions.append({
+            "key": "network_type",
+            "type": "select",
+            "default": (
+                "ethernet"
+                if assignments.get("CONFIG_XIAOZHI_NETWORK_ETHERNET") == "y"
+                else "wifi"
+            ),
+            "choices": [
+                {"value": "wifi", "label": "Wi-Fi"},
+                {"value": "ethernet", "label": "Ethernet"},
+            ],
+        })
+
     for choice_name in ("DISPLAY_OLED_TYPE", "DISPLAY_LCD_TYPE"):
         choice = _kconfig_choice(choice_name)
         if board_config not in choice["board_configs"]:
@@ -572,7 +606,7 @@ def _build_option_definitions(
 
     camera_enable_symbol = _OPTIONAL_CAMERA_ENABLE_SYMBOLS.get(board_config)
     has_common_camera = (
-        ("new Esp32Camera" in source or "new EspVideo" in source)
+        _COMMON_CAMERA_CONSTRUCTOR_RE.search(source) is not None
         and (
             camera_enable_symbol is None
             or assignments.get(camera_enable_symbol) == "y"
@@ -641,6 +675,13 @@ def _build_options_sdkconfig(
     """Expand semantic build options into a complete, mutually-exclusive fragment."""
     by_key = {definition["key"]: definition for definition in definitions}
     result: list[str] = []
+
+    if "network_type" in options:
+        ethernet = options["network_type"] == "ethernet"
+        result.extend((
+            f"CONFIG_XIAOZHI_NETWORK_WIFI={'n' if ethernet else 'y'}",
+            f"CONFIG_XIAOZHI_NETWORK_ETHERNET={'y' if ethernet else 'n'}",
+        ))
 
     if "display_model" in options:
         selected = options["display_model"]
@@ -964,16 +1005,63 @@ def _collect_variants(
     return sorted(variants, key=lambda variant: (variant["board"], variant["name"]))
 
 
+_CI_REPRESENTATIVE_VARIANTS = Path("scripts/ci/representative-variants.json")
+
+
+def _load_representative_variants(
+    variants: list[dict[str, Any]],
+    path: Path = _CI_REPRESENTATIVE_VARIANTS,
+) -> list[dict[str, Any]]:
+    """Resolve the reviewed CI list against the current SDK's valid variants."""
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise ValueError(f"{path}: expected schema_version 1")
+    entries = manifest.get("variants")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{path}: variants must be a non-empty list")
+    available = {(item["board"], item["name"]): item for item in variants}
+    selected: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError(f"{path}: each variant must be an object")
+        unknown = set(entry) - {"board", "name", "reason", "build_options"}
+        if unknown:
+            raise ValueError(f"{path}: unknown fields: {', '.join(sorted(unknown))}")
+        for field in ("board", "name", "reason"):
+            if not isinstance(entry.get(field), str) or not entry[field].strip():
+                raise ValueError(f"{path}: missing non-empty {field}")
+        identity = (entry["board"], entry["name"])
+        if identity in seen:
+            raise ValueError(f"{path}: duplicate representative variant {identity}")
+        seen.add(identity)
+        if identity not in available:
+            raise ValueError(
+                f"{path}: representative variant {identity} is unavailable; "
+                "check the board name and active ESP-IDF version (CI uses 6.1)"
+            )
+        variant = dict(available[identity])
+        options = entry.get("build_options", {})
+        _normalize_build_options(variant["build_options"], options)
+        if options:
+            variant["ci_build_options"] = options
+            # Keep CI artifact identities separate from OTA board names.
+            variant["ci_name"] = f"{variant['full_name']}-ci"
+        selected.append(variant)
+    return selected
+
+
 def _select_variants_for_changes(
-    variants: list[dict[str, str]], changed_files: list[str]
-) -> list[dict[str, str]]:
-    """Select variants affected by a git diff.
+    variants: list[dict[str, Any]], changed_files: list[str]
+) -> list[dict[str, Any]]:
+    """Select representative builds plus every directly affected board variant.
 
     Board ownership is resolved using the longest known board directory prefix,
     so nested paths such as waveshare/esp32-c6-touch-amoled-2.06 are preserved.
     """
     known_boards = sorted({variant["board"] for variant in variants}, key=len, reverse=True)
     affected: set[str] = set()
+    common_changed = False
     global_paths = {
         ".github/workflows/build.yml",
         "CMakeLists.txt",
@@ -981,6 +1069,7 @@ def _select_variants_for_changes(
         "scripts/build.py",
         "scripts/gen_lang.py",
         "scripts/versions.py",
+        "dependencies.lock",
     }
 
     for raw_path in changed_files:
@@ -990,9 +1079,11 @@ def _select_variants_for_changes(
         if (path in global_paths or path.startswith("components/") or
                 path.startswith("partitions/") or
                 path.startswith("sdkconfig.defaults") or
+                path.startswith("scripts/ci/") or
                 (path.startswith("main/") and not path.startswith("main/boards/")) or
                 path.startswith("main/boards/common/")):
-            return variants
+            common_changed = True
+            continue
 
         prefix = "main/boards/"
         if path.startswith(prefix):
@@ -1005,7 +1096,19 @@ def _select_variants_for_changes(
             if board is not None:
                 affected.add(board)
 
-    return [variant for variant in variants if variant["board"] in affected]
+    selected = _load_representative_variants(variants) if common_changed else []
+    # An option-specific representative (e.g. Ethernet) does not replace the
+    # board's default release variant (Wi-Fi) when that board itself changes.
+    selected_defaults = {
+        (variant["board"], variant["name"])
+        for variant in selected if not variant.get("ci_build_options")
+    }
+    selected.extend(
+        variant for variant in variants
+        if variant["board"] in affected
+        and (variant["board"], variant["name"]) not in selected_defaults
+    )
+    return selected
 
 
 
@@ -1098,7 +1201,14 @@ def _symbol_supports_target(symbol: str, target: str) -> bool:
             continue
         if in_symbol and stripped.startswith(("config ", "choice ", "endchoice", "menu ", "endmenu")):
             break
-        if in_symbol and "depends on" in stripped and target_flag in stripped:
+        if (
+            in_symbol
+            and "depends on" in stripped
+            and re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(target_flag)}(?![A-Za-z0-9_])",
+                stripped,
+            )
+        ):
             return True
     return False
 
@@ -1111,9 +1221,26 @@ def _resolve_board_config(
     variant_name: Optional[str] = None,
 ) -> str:
     """Resolve CONFIG_BOARD_TYPE_xxx for current board build."""
+    def validate_target(symbol: str) -> str:
+        if not _symbol_supports_target(symbol, target):
+            raise ValueError(
+                f"Board config {symbol} for {board_type!r} does not support "
+                f"target {target!r}"
+            )
+        return symbol
+
     explicit = _extract_board_config_from_sdkconfig_append(sdkconfig_append)
+    candidates = _find_board_config_candidates(board_type)
+    if not candidates:
+        raise ValueError(f"Cannot find board config symbol for {board_type}")
+
     if explicit and _board_config_symbol_exists(explicit):
-        return explicit
+        if explicit not in candidates:
+            raise ValueError(
+                f"Board config {explicit} does not select board directory "
+                f"{board_type!r}"
+            )
+        return validate_target(explicit)
     if explicit:
         print(
             f"[WARN] Explicit board config {explicit} does not exist in Kconfig; "
@@ -1121,11 +1248,8 @@ def _resolve_board_config(
             file=sys.stderr,
         )
 
-    candidates = _find_board_config_candidates(board_type)
-    if not candidates:
-        raise ValueError(f"Cannot find board config symbol for {board_type}")
     if len(candidates) == 1:
-        return candidates[0]
+        return validate_target(candidates[0])
 
     if variant_name:
         expected = "CONFIG_BOARD_TYPE_" + re.sub(
@@ -1135,11 +1259,11 @@ def _resolve_board_config(
         ).strip("_")
         by_variant = [candidate for candidate in candidates if candidate == expected]
         if len(by_variant) == 1:
-            return by_variant[0]
+            return validate_target(by_variant[0])
 
     by_target = [c for c in candidates if _symbol_supports_target(c, target)]
     if len(by_target) == 1:
-        return by_target[0]
+        return validate_target(by_target[0])
     if len(by_target) > 1:
         selected = by_target[0]
         print(
@@ -1147,32 +1271,12 @@ def _resolve_board_config(
             f"target-matched candidates={by_target}, selecting first: {selected}",
             file=sys.stderr,
         )
-        return selected
+        return validate_target(selected)
 
-    target_u = target.upper()
-    target_short = target_u.replace("ESP32", "")
-    by_name = [
-        c for c in candidates
-        if target_u in c or f"_{target_short}" in c
-    ]
-    if len(by_name) == 1:
-        return by_name[0]
-    if len(by_name) > 1:
-        selected = by_name[0]
-        print(
-            f"[WARN] Ambiguous board config for {board_type} (target={target}), "
-            f"name-matched candidates={by_name}, selecting first: {selected}",
-            file=sys.stderr,
-        )
-        return selected
-
-    selected = candidates[0]
-    print(
-        f"[WARN] Ambiguous board config for {board_type} (target={target}), "
-        f"candidates={candidates}, selecting first: {selected}",
-        file=sys.stderr,
+    raise ValueError(
+        f"No board config for {board_type!r} supports target {target!r}; "
+        f"candidates: {candidates}"
     )
-    return selected
 
 
 # Kconfig "select" entries are not automatically applied when we simply append
@@ -1187,6 +1291,13 @@ _AUTO_SELECT_RULES: dict[str, list[str]] = {
         "CONFIG_BT_BLE_BLUFI_ENABLE=y",
     ],
 }
+
+# sdkconfig.defaults.esp32s3 keeps a 1MB LVGL TLSF pool for PSRAM. Without
+# PSRAM that pool becomes a .dram0.bss array and overflows internal SRAM.
+_NO_SPIRAM_LVGL_OPTIONS = [
+    "CONFIG_LV_USE_BUILTIN_MALLOC=n",
+    "CONFIG_LV_USE_CLIB_MALLOC=y",
+]
 
 
 def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
@@ -1203,6 +1314,10 @@ def _apply_auto_selects(sdkconfig_append: list[str]) -> list[str]:
                 # must do the same instead of keeping the earlier value.
                 items = _merge_sdkconfig_options(items, deps)
                 break
+
+    assignments = _sdkconfig_assignments(items)
+    if assignments.get("CONFIG_SPIRAM") == "n":
+        items = _merge_sdkconfig_options(items, _NO_SPIRAM_LVGL_OPTIONS)
 
     return items
 
@@ -1491,7 +1606,9 @@ def build_board(
         )
 
         user_options: list[str] = []
-        validation_symbols: list[tuple[list[str], str]] = []
+        validation_symbols: list[tuple[list[str], str]] = [
+            ([board_type_config], "board selection"),
+        ]
         build_option_sdkconfig: list[str] = []
         selected_language = None
         selected_wake_word = None

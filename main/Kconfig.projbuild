@@ -67,8 +67,12 @@ choice
         bool "Arabic"
     config LANGUAGE_HI_IN
         bool "Hindi"
+    config LANGUAGE_MR_IN
+        bool "Marathi"
     config LANGUAGE_PT_PT
         bool "Portuguese"
+    config LANGUAGE_PT_BR
+        bool "Portuguese (Brazil)"
     config LANGUAGE_PL_PL
         bool "Polish"
     config LANGUAGE_CS_CZ
@@ -223,6 +227,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_HI
         bool "Espressif ESP-HI"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_ESP_MOSAICO
+        bool "Espressif ESP-Mosaico"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_ESP_SENSAIRSHUTTLE
         bool "Espressif ESP-SensairShuttle"
         depends on IDF_TARGET_ESP32C5
@@ -238,11 +245,17 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP_SPOT_S3
         bool "Espressif Spot-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_FOLOTOY_AI_PASSPORT
+        bool "FoloToy AI Passport (ESP32-C3)"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD
         bool "Freenove ESP32-S3 Display 2.8-inch LCD"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_GENJUTECH_S3_1_54TFT
         bool "GenjuTech ESP32-S3 1.54-inch TFT (亘具科技)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_GUITION_JC4827W543
+        bool "Guition JC4827W543 4.3-inch ESP32-S3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_HU_087
         bool "HU-087"
@@ -298,6 +311,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_CIRCLE_S3_V11
+        bool "LILYGO T-Circle-S3 V1.1 (PDM mic)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro MVSR LoRa"
         depends on IDF_TARGET_ESP32S3
@@ -352,6 +368,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_MAGICLICK_C3_V2
         bool "Magiclick C3 V2 (神奇按钮)"
         depends on IDF_TARGET_ESP32C3
+    config BOARD_TYPE_MAZA_AI_ESP32_S3
+        bool "Maza AI ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_MAZA_AI_ESP32_S31
+        bool "Maza AI ESP32-S31"
+        depends on IDF_TARGET_ESP32S31
     config BOARD_TYPE_MINSI_K08_DUAL
         bool "Minsi K08 Dual Network (敏思科技)"
         depends on IDF_TARGET_ESP32S3
@@ -850,6 +872,15 @@ choice DISPLAY_STYLE
             || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
             || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
+
+config JC4827W543_EXTERNAL_AMP
+    bool "JC4827W543: external I2S amplifier instead of the on-board NS4168"
+    depends on BOARD_TYPE_GUITION_JC4827W543
+    default n
+    help
+        The board carries an NS4168 wired to the P7 speaker connector, which is
+        what a stock unit uses. Enable this only if you drive an external I2S
+        amplifier from the expansion headers instead.
 
 config USE_MULTILINE_CHAT_MESSAGE
     bool "Use multiline chat message display (default mode only)"

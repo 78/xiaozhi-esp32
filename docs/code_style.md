@@ -65,6 +65,22 @@ Make sure `clang-format` is available before you use it:
 - Includes are sorted automatically.
 - Access specifiers are indented by -4 spaces.
 
+## C++ Runtime and Error Handling
+
+- Project-owned C++ code targets GNU C++23. Do not require newer language features in `main/`.
+- C++ exceptions and RTTI are disabled. Do not use `throw`, `try`/`catch`, `dynamic_cast`, or
+  `typeid`.
+- Use RAII for owned resources, including ESP-IDF handles and C APIs with explicit cleanup
+  functions. Raw pointers are non-owning unless an interface documents otherwise.
+- Return `std::expected<T, E>` for recoverable failures that need an error value. Prefer a small
+  enum or `esp_err_t` in hot paths, and translate errors to strings at protocol or UI boundaries.
+- Check an `expected` before dereferencing it. Do not call `value()` on an unchecked result because
+  a bad access terminates the firmware when exceptions are disabled.
+- Treat violated programmer invariants as fatal with an assertion or explicit abort; do not model
+  them as recoverable runtime errors.
+- Realtime audio paths use bounded queues and avoid repeated allocation. Use fixed-capacity storage
+  when the maximum is known; add a pool only after profiling shows churn or fragmentation.
+
 ### Notes
 
 1. Make sure the code has been formatted before committing.

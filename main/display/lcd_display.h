@@ -53,7 +53,7 @@ public:
     virtual void SetTheme(Theme* theme) override;
 
     // Set whether to hide chat messages/subtitles
-    void SetHideSubtitle(bool hide);
+    virtual void SetHideSubtitle(bool hide) override;
 };
 
 // SPI LCD display
