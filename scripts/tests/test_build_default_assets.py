@@ -15,6 +15,19 @@ SPEC.loader.exec_module(BUILD)
 
 
 class BuildDefaultAssetsTest(unittest.TestCase):
+    def test_wake_commands_split_alternatives(self):
+        commands = BUILD.build_wake_commands(" te er la | hei te er la||te er la", "เทอร่า")
+        self.assertEqual(
+            [c["command"] for c in commands], ["te er la", "hei te er la"]
+        )
+        self.assertTrue(all(c["text"] == "เทอร่า" and c["action"] == "wake" for c in commands))
+
+    def test_wake_commands_single_phrase_unchanged(self):
+        self.assertEqual(
+            BUILD.build_wake_commands("xiao tu dou", "小土豆"),
+            [{"command": "xiao tu dou", "text": "小土豆", "action": "wake"}],
+        )
+
     def test_text_font_metadata_uses_bundle_charset_size_and_bpp(self):
         with tempfile.TemporaryDirectory() as directory:
             assets = Path(directory)

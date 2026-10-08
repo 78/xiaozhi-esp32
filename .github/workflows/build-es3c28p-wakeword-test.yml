@@ -7,14 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       wake_word:
-        description: "Custom wake word, pinyin separated by spaces (Chinese Multinet)"
-        default: "te er la"
+        description: "Pinyin phrase(s); several alternatives separated by | (all wake the device)"
+        default: "te er la|hei te er la|te e la"
       display:
         description: "Text sent to the server after wake word detection"
         default: "เทอร่า"
       threshold:
         description: "Threshold 1-99 (smaller = more sensitive)"
-        default: "20"
+        default: "8"
+      log_floor:
+        description: "Tuning aid: also LOG weaker matches down to this % (0 = off). Never wakes below threshold."
+        default: "2"
 
 jobs:
   build:
@@ -31,6 +34,7 @@ jobs:
           WW: ${{ inputs.wake_word }}
           WW_DISPLAY: ${{ inputs.display }}
           WW_THRESHOLD: ${{ inputs.threshold }}
+          WW_LOG_FLOOR: ${{ inputs.log_floor }}
         run: |
           python3 - <<'PY'
           import json, os
@@ -39,6 +43,8 @@ jobs:
           cfg = json.load(open(src, encoding="utf-8"))
           threshold = int(os.environ["WW_THRESHOLD"])
           assert 1 <= threshold <= 99
+          floor = int(os.environ.get("WW_LOG_FLOOR") or 0)
+          assert 0 <= floor <= 99
           extra = [
               "CONFIG_WAKE_WORD_DISABLED=n",
               "CONFIG_USE_ESP_WAKE_WORD=n",
@@ -49,6 +55,7 @@ jobs:
               'CONFIG_CUSTOM_WAKE_WORD="%s"' % os.environ["WW"],
               'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="%s"' % os.environ["WW_DISPLAY"],
               "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=%d" % threshold,
+              "CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR=%d" % floor,
           ]
           for b in cfg["builds"]:
               b["sdkconfig_append"] = list(b.get("sdkconfig_append", [])) + extra

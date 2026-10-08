@@ -686,6 +686,18 @@ def read_custom_wake_word_from_sdkconfig(sdkconfig_path):
     return None
 
 
+def build_wake_commands(wake_word, display):
+    """Split CONFIG_CUSTOM_WAKE_WORD on '|' into one wake command per alternative phrase."""
+    commands = []
+    seen = set()
+    for phrase in wake_word.split('|'):
+        phrase = phrase.strip()
+        if phrase and phrase not in seen:
+            seen.add(phrase)
+            commands.append({"command": phrase, "text": display, "action": "wake"})
+    return commands
+
+
 def get_language_from_multinet_models(multinet_models):
     """
     Determine language from multinet model names
@@ -985,13 +997,10 @@ def main():
             "language": language,
             "duration": 3000,  # Default duration in ms
             "threshold": custom_wake_word_config['threshold'],
-            "commands": [
-                {
-                    "command": custom_wake_word_config['wake_word'],
-                    "text": custom_wake_word_config['display'],
-                    "action": "wake"
-                }
-            ]
+            "commands": build_wake_commands(
+                custom_wake_word_config['wake_word'],
+                custom_wake_word_config['display'],
+            ),
         }
         print(f"  custom wake word: {custom_wake_word_config['wake_word']} ({custom_wake_word_config['display']})")
         print(f"  wake word language: {language}")

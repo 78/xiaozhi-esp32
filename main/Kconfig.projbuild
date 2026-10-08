@@ -926,7 +926,9 @@ config CUSTOM_WAKE_WORD
     default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        Custom Wake Word, use pinyin for Chinese, separated by spaces
+        Custom Wake Word, use pinyin for Chinese, separated by spaces.
+        Several alternative phrases can be given separated by '|'
+        (for example "te er la|hei te er la"); any of them wakes the device.
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
@@ -942,6 +944,18 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     depends on USE_CUSTOM_WAKE_WORD
     help
         Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
+
+config CUSTOM_WAKE_WORD_LOG_FLOOR
+    int "Custom Wake Word Log Floor (%) - tuning aid, 0 = off"
+    default 0
+    range 0 99
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        Tuning aid. When set below the threshold, MultiNet also reports weaker
+        matches down to this probability. They are only logged
+        ("Wake word candidate below threshold") and never wake the device;
+        wake-up still requires the threshold. Use it to see how close real
+        utterances come to the threshold. 0 disables it (default).
 
 config SEND_WAKE_WORD_DATA
     bool "Send Wake Word Data"
