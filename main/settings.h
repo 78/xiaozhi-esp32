@@ -9,6 +9,7 @@ public:
     Settings(const std::string& ns, bool read_write = false);
     ~Settings();
 
+    bool HasKey(const std::string& key);
     std::string GetString(const std::string& key, const std::string& default_value = "");
     void SetString(const std::string& key, const std::string& value);
     int32_t GetInt(const std::string& key, int32_t default_value = 0);
