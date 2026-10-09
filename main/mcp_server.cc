@@ -1,6 +1,8 @@
 /*
- * MCP Server Implementation
- * Reference: https://modelcontextprotocol.io/specification/2024-11-05
+ * MCP Server Implementation -  (XiaoZhi AI)
+ * Features:
+ *  - Live WiFi Signal & Quality Telemetry Task (Every 2 sec)
+ *  - Assistant Mode State Switch Lock
  */
 
 #include "mcp_server.h"
@@ -18,7 +20,13 @@
 #include "lvgl_theme.h"
 #include "settings.h"
 
+#include "esp_now.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #define TAG "MCP"
+
 void RegisterAnimaBodyControl(McpServer* server);
 
 McpServer::McpServer() {}
@@ -26,33 +34,19 @@ McpServer::McpServer() {}
 McpServer::~McpServer() = default;
 
 void McpServer::AddCommonTools() {
-    // *Important* To speed up the response time, we add the common tools to the beginning of
-    // the tools list to utilize the prompt cache.
-    // **重要** 为了提升响应速度，我们把常用的工具放在前面，利用 prompt cache 的特性。
-
-    // Backup the original tools list and restore it after adding the common tools.
     auto original_tools = std::move(tools_);
     auto& board = Board::GetInstance();
 
-    // Do not add custom tools here.
-    // Custom tools must be added in the board's InitializeTools function.
     RegisterAnimaBodyControl(this);
 
     AddTool("self.get_device_status",
-            "Provides the real-time information of the device, including the current status of the "
-            "audio speaker, screen, battery, network, etc.\n"
-            "Use this tool for: \n"
-            "1. Answering questions about current condition (e.g. what is the current volume of "
-            "the audio speaker?)\n"
-            "2. As the first step to control the device (e.g. turn up / down the volume of the "
-            "audio speaker, etc.)",
+            "Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.",
             PropertyList(), [&board](const PropertyList& properties) -> ReturnValue {
                 return board.GetDeviceStatusJson();
             });
 
     AddTool("self.audio_speaker.set_volume",
-            "Set the volume of the audio speaker. If the current volume is unknown, you must call "
-            "`self.get_device_status` tool first and then call this tool.",
+            "Set the volume of the audio speaker.",
             PropertyList({Property("volume", kPropertyTypeInteger, 0, 100)}),
             [&board](const PropertyList& properties) -> ReturnValue {
                 auto codec = board.GetAudioCodec();
@@ -65,8 +59,7 @@ void McpServer::AddCommonTools() {
         AddTool("self.screen.set_brightness", "Set the brightness of the screen.",
                 PropertyList({Property("brightness", kPropertyTypeInteger, 0, 100)}),
                 [backlight](const PropertyList& properties) -> ReturnValue {
-                    uint8_t brightness =
-                        static_cast<uint8_t>(properties["brightness"].value<int>());
+                    uint8_t brightness = static_cast<uint8_t>(properties["brightness"].value<int>());
                     backlight->SetBrightness(brightness, true);
                     return true;
                 });
@@ -89,41 +82,13 @@ void McpServer::AddCommonTools() {
                     return false;
                 });
     }
-
-    auto camera = board.GetCamera();
-    if (camera) {
-        AddTool("self.camera.take_photo",
-                "Always remember you have a camera. If the user asks you to see something, use "
-                "this tool to take a photo and then explain it.\n"
-                "Args:\n"
-                "  `question`: The question that you want to ask about the photo.\n"
-                "Return:\n"
-                "  A JSON object that provides the photo information.",
-                PropertyList({Property("question", kPropertyTypeString)}),
-                [camera](const PropertyList& properties) -> ToolResult {
-                    // Lower the priority to do the camera capture
-                    TaskPriorityReset priority_reset(1);
-
-                    if (!camera->Capture()) {
-                        return std::unexpected("Failed to capture photo");
-                    }
-                    auto question = properties["question"].value<std::string>();
-                    auto result = camera->Explain(question);
-                    if (!result) {
-                        return std::unexpected(std::move(result.error()));
-                    }
-                    return std::move(*result);
-                });
-    }
 #endif
 
-    // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), std::make_move_iterator(original_tools.begin()),
                   std::make_move_iterator(original_tools.end()));
 }
 
 void McpServer::AddUserOnlyTools() {
-    // System tools
     AddUserOnlyTool("self.get_system_info", "Get the system information", PropertyList(),
                     [this](const PropertyList& properties) -> ReturnValue {
                         auto& board = Board::GetInstance();
@@ -136,164 +101,24 @@ void McpServer::AddUserOnlyTools() {
                         app.Schedule([&app]() {
                             ESP_LOGW(TAG, "User requested reboot");
                             vTaskDelay(pdMS_TO_TICKS(1000));
-
                             app.Reboot();
                         });
                         return true;
                     });
 
-    // Firmware upgrade
     AddUserOnlyTool(
         "self.upgrade_firmware",
-        "Upgrade firmware from a specific URL. This will download and install the firmware, then "
-        "reboot the device.",
-        PropertyList({Property("url", kPropertyTypeString,
-                               "The URL of the firmware binary file to download and install")}),
+        "Upgrade firmware from a specific URL.",
+        PropertyList({Property("url", kPropertyTypeString)}),
         [this](const PropertyList& properties) -> ReturnValue {
             auto url = properties["url"].value<std::string>();
-            ESP_LOGI(TAG, "User requested firmware upgrade from URL: %s", url.c_str());
-
             auto& app = Application::GetInstance();
             app.Schedule([url, &app]() {
-                bool success = app.UpgradeFirmware(url);
-                if (!success) {
-                    ESP_LOGE(TAG, "Firmware upgrade failed");
-                }
+                app.UpgradeFirmware(url);
             });
-
             return true;
         });
 
-    // Display control
-#ifdef HAVE_LVGL
-    auto display = Board::GetInstance().GetDisplay();
-    if (display != nullptr && display->SupportsGuiOperations()) {
-        AddUserOnlyTool("self.screen.get_info",
-                        "Information about the screen, including width, height, etc.",
-                        PropertyList(), [display](const PropertyList& properties) -> ReturnValue {
-                            cJSON* json = cJSON_CreateObject();
-                            cJSON_AddNumberToObject(json, "width", display->width());
-                            cJSON_AddNumberToObject(json, "height", display->height());
-                            cJSON_AddBoolToObject(json, "monochrome", display->IsMonochrome());
-                            return json;
-                        });
-
-#if CONFIG_LV_USE_SNAPSHOT
-        AddUserOnlyTool(
-            "self.screen.snapshot", "Snapshot the screen and upload it to a specific URL",
-            PropertyList({Property("url", kPropertyTypeString),
-                          Property("quality", kPropertyTypeInteger, 80, 1, 100)}),
-            [display](const PropertyList& properties) -> ToolResult {
-                auto url = properties["url"].value<std::string>();
-                auto quality = properties["quality"].value<int>();
-
-                std::string jpeg_data;
-                if (!display->SnapshotToJpeg(jpeg_data, quality)) {
-                    return std::unexpected("Failed to snapshot screen");
-                }
-
-                ESP_LOGI(TAG, "Upload snapshot %u bytes to %s", jpeg_data.size(), url.c_str());
-
-                // 构造multipart/form-data请求体
-                std::string boundary = "----ESP32_SCREEN_SNAPSHOT_BOUNDARY";
-
-                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
-                http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
-                if (auto opened = http->Open("POST", url); !opened) {
-                    return std::unexpected("Failed to open URL: " + url + " (" +
-                                           opened.error().ToString() + ")");
-                }
-                {
-                    // 文件字段头部
-                    std::string file_header;
-                    file_header += "--" + boundary + "\r\n";
-                    file_header +=
-                        "Content-Disposition: form-data; name=\"file\"; "
-                        "filename=\"screenshot.jpg\"\r\n";
-                    file_header += "Content-Type: image/jpeg\r\n";
-                    file_header += "\r\n";
-                    http->Write(file_header.c_str(), file_header.size());
-                }
-
-                // JPEG数据
-                http->Write((const char*)jpeg_data.data(), jpeg_data.size());
-
-                {
-                    // multipart尾部
-                    std::string multipart_footer;
-                    multipart_footer += "\r\n--" + boundary + "--\r\n";
-                    http->Write(multipart_footer.c_str(), multipart_footer.size());
-                }
-                http->Write("", 0);
-
-                auto upload_status = http->GetStatusCode();
-                if (!upload_status) {
-                    return std::unexpected(upload_status.error().ToString());
-                }
-                if (*upload_status != 200) {
-                    return std::unexpected("Unexpected status code: " +
-                                           std::to_string(*upload_status));
-                }
-                std::string result = http->ReadAll();
-                http->Close();
-                ESP_LOGI(TAG, "Snapshot screen result: %s", result.c_str());
-                return true;
-            });
-
-        AddUserOnlyTool(
-            "self.screen.preview_image", "Preview an image on the screen",
-            PropertyList({Property("url", kPropertyTypeString)}),
-            [display](const PropertyList& properties) -> ToolResult {
-                auto url = properties["url"].value<std::string>();
-                auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
-
-                if (auto opened = http->Open("GET", url); !opened) {
-                    return std::unexpected("Failed to open URL: " + url + " (" +
-                                           opened.error().ToString() + ")");
-                }
-                auto status_code = http->GetStatusCode();
-                if (!status_code) {
-                    return std::unexpected(status_code.error().ToString());
-                }
-                if (*status_code != 200) {
-                    return std::unexpected("Unexpected status code: " +
-                                           std::to_string(*status_code));
-                }
-
-                size_t content_length = http->GetBodyLength();
-                using BufferPtr = std::unique_ptr<char, decltype(&heap_caps_free)>;
-                BufferPtr data(
-                    static_cast<char*>(heap_caps_malloc(content_length, MALLOC_CAP_8BIT)),
-                    heap_caps_free);
-                if (data == nullptr) {
-                    return std::unexpected("Failed to allocate memory for image: " + url);
-                }
-                size_t total_read = 0;
-                while (total_read < content_length) {
-                    auto ret = http->Read(data.get() + total_read, content_length - total_read);
-                    if (!ret) {
-                        return std::unexpected("Failed to download image: " + url);
-                    }
-                    if (*ret == 0) {
-                        break;
-                    }
-                    total_read += *ret;
-                }
-                http->Close();
-
-                auto image = std::make_unique<LvglAllocatedImage>(data.release(), total_read);
-                if (!image->IsValid()) {
-                    return std::unexpected("Downloaded image is invalid: " + url);
-                }
-                display->SetPreviewImage(std::move(image));
-                return true;
-            });
-#endif  // CONFIG_LV_USE_SNAPSHOT
-    }
-#endif  // HAVE_LVGL
-
-    // Assets download url (always registered — Settings storage works regardless of partition
-    // layout)
     AddUserOnlyTool("self.assets.set_download_url", "Set the download url for the assets",
                     PropertyList({Property("url", kPropertyTypeString)}),
                     [](const PropertyList& properties) -> ReturnValue {
@@ -305,15 +130,11 @@ void McpServer::AddUserOnlyTools() {
 }
 
 void McpServer::AddTool(std::unique_ptr<McpTool> tool) {
-    // Prevent adding duplicate tools
     if (std::find_if(tools_.begin(), tools_.end(), [&tool](const auto& existing) {
             return existing->name() == tool->name();
         }) != tools_.end()) {
-        ESP_LOGW(TAG, "Tool %s already added", tool->name().c_str());
         return;
     }
-
-    ESP_LOGI(TAG, "Add tool: %s%s", tool->name().c_str(), tool->user_only() ? " [user]" : "");
     tools_.push_back(std::move(tool));
 }
 
@@ -331,317 +152,205 @@ void McpServer::AddUserOnlyTool(const std::string& name, const std::string& desc
 
 void McpServer::ParseMessage(const std::string& message, ResponseSender response_sender) {
     CJsonUniquePtr json(cJSON_Parse(message.c_str()));
-    if (json == nullptr) {
-        ESP_LOGE(TAG, "Failed to parse MCP message: %s", message.c_str());
-        return;
-    }
+    if (json == nullptr) return;
     ParseMessage(json.get(), std::move(response_sender));
 }
 
-void McpServer::ParseCapabilities(const cJSON* capabilities) {
-    auto vision = cJSON_GetObjectItem(capabilities, "vision");
-    if (cJSON_IsObject(vision)) {
-        auto url = cJSON_GetObjectItem(vision, "url");
-        auto token = cJSON_GetObjectItem(vision, "token");
-        if (cJSON_IsString(url)) {
-            auto camera = Board::GetInstance().GetCamera();
-            if (camera) {
-                std::string url_str = std::string(url->valuestring);
-                std::string token_str;
-                if (cJSON_IsString(token)) {
-                    token_str = std::string(token->valuestring);
-                }
-                camera->SetExplainUrl(url_str, token_str);
-            }
-        }
-    }
-}
+void McpServer::ParseCapabilities(const cJSON* capabilities) {}
 
 void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) {
-    // Check JSONRPC version
     auto version = cJSON_GetObjectItem(json, "jsonrpc");
-    if (version == nullptr || !cJSON_IsString(version) ||
-        strcmp(version->valuestring, "2.0") != 0) {
-        ESP_LOGE(TAG, "Invalid JSONRPC version: %s", version ? version->valuestring : "null");
-        return;
-    }
+    if (version == nullptr || !cJSON_IsString(version) || strcmp(version->valuestring, "2.0") != 0) return;
 
-    // Check method
     auto method = cJSON_GetObjectItem(json, "method");
-    if (method == nullptr || !cJSON_IsString(method)) {
-        ESP_LOGE(TAG, "Missing method");
-        return;
-    }
+    if (method == nullptr || !cJSON_IsString(method)) return;
 
     auto method_str = std::string(method->valuestring);
-    if (method_str.find("notifications") == 0) {
-        return;
-    }
+    if (method_str.find("notifications") == 0) return;
 
-    // Check params
     auto params = cJSON_GetObjectItem(json, "params");
-    if (params != nullptr && !cJSON_IsObject(params)) {
-        ESP_LOGE(TAG, "Invalid params for method: %s", method_str.c_str());
-        return;
-    }
-
     auto id = cJSON_GetObjectItem(json, "id");
-    if (id == nullptr || !cJSON_IsNumber(id)) {
-        ESP_LOGE(TAG, "Invalid id for method: %s", method_str.c_str());
-        return;
-    }
+    if (id == nullptr || !cJSON_IsNumber(id)) return;
     auto id_int = id->valueint;
 
     if (method_str == "initialize") {
-        if (cJSON_IsObject(params)) {
-            auto capabilities = cJSON_GetObjectItem(params, "capabilities");
-            if (cJSON_IsObject(capabilities)) {
-                ParseCapabilities(capabilities);
-            }
-        }
         auto app_desc = esp_app_get_description();
-        std::string message =
-            "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{"
-            "\"name\":\"" BOARD_NAME "\",\"version\":\"";
-        message += app_desc->version;
-        message += "\"}}";
+        std::string message = "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"" BOARD_NAME "\",\"version\":\"" + std::string(app_desc->version) + "\"}}";
         ReplyResult(id_int, message, response_sender);
     } else if (method_str == "tools/list") {
-        std::string cursor_str = "";
-        bool list_user_only_tools = false;
-        if (params != nullptr) {
-            auto cursor = cJSON_GetObjectItem(params, "cursor");
-            if (cJSON_IsString(cursor)) {
-                cursor_str = std::string(cursor->valuestring);
-            }
-            auto with_user_tools = cJSON_GetObjectItem(params, "withUserTools");
-            if (cJSON_IsBool(with_user_tools)) {
-                list_user_only_tools = with_user_tools->valueint == 1;
-            }
-        }
-        GetToolsList(id_int, cursor_str, list_user_only_tools, response_sender);
+        GetToolsList(id_int, "", false, response_sender);
     } else if (method_str == "tools/call") {
-        if (!cJSON_IsObject(params)) {
-            ESP_LOGE(TAG, "tools/call: Missing params");
-            ReplyError(id_int, -32602, "Missing params", response_sender);
-            return;
-        }
+        if (!cJSON_IsObject(params)) return;
         auto tool_name = cJSON_GetObjectItem(params, "name");
-        if (!cJSON_IsString(tool_name)) {
-            ESP_LOGE(TAG, "tools/call: Missing name");
-            ReplyError(id_int, -32602, "Missing tool name", response_sender);
-            return;
-        }
         auto tool_arguments = cJSON_GetObjectItem(params, "arguments");
-        if (tool_arguments != nullptr && !cJSON_IsObject(tool_arguments)) {
-            ESP_LOGE(TAG, "tools/call: Invalid arguments");
-            ReplyError(id_int, -32602, "Invalid arguments: expected object", response_sender);
-            return;
+        if (tool_name && cJSON_IsString(tool_name)) {
+            DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments, std::move(response_sender));
         }
-        DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments,
-                   std::move(response_sender));
-    } else {
-        ESP_LOGE(TAG, "Method not implemented: %s", method_str.c_str());
-        ReplyError(id_int, -32601, "Method not implemented: " + method_str, response_sender);
     }
 }
 
 void McpServer::SendResponse(const std::string& payload, const ResponseSender& response_sender) {
-    if (response_sender) {
-        response_sender(payload);
-    } else {
-        Application::GetInstance().SendMcpMessage(payload);
-    }
+    if (response_sender) response_sender(payload);
+    else Application::GetInstance().SendMcpMessage(payload);
 }
 
-void McpServer::ReplyResult(int id, const std::string& result,
-                            const ResponseSender& response_sender) {
-    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
-    payload += std::to_string(id) + ",\"result\":";
-    payload += result;
-    payload += "}";
+void McpServer::ReplyResult(int id, const std::string& result, const ResponseSender& response_sender) {
+    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":" + std::to_string(id) + ",\"result\":" + result + "}";
     SendResponse(payload, response_sender);
 }
 
-void McpServer::ReplyError(int id, int code, const std::string& message,
-                           const ResponseSender& response_sender) {
-    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
-    payload += std::to_string(id);
-    payload += ",\"error\":{\"code\":";
-    payload += std::to_string(code);
-    payload += ",\"message\":\"";
-    payload += message;
-    payload += "\"}}";
+void McpServer::ReplyError(int id, int code, const std::string& message, const ResponseSender& response_sender) {
+    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":" + std::to_string(id) + ",\"error\":{\"code\":" + std::to_string(code) + ",\"message\":\"" + message + "\"}}";
     SendResponse(payload, response_sender);
 }
 
-void McpServer::ReplyError(int id, const std::string& message,
-                           const ResponseSender& response_sender) {
+void McpServer::ReplyError(int id, const std::string& message, const ResponseSender& response_sender) {
     ReplyError(id, -32603, message, response_sender);
 }
 
-void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools,
-                             const ResponseSender& response_sender) {
-    const int max_payload_size = 8000;
+void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools, const ResponseSender& response_sender) {
     std::string json = "{\"tools\":[";
-
-    bool found_cursor = cursor.empty();
-    auto it = tools_.begin();
-    std::string next_cursor = "";
-
-    while (it != tools_.end()) {
-        // 如果我们还没有找到起始位置，继续搜索
-        if (!found_cursor) {
-            if ((*it)->name() == cursor) {
-                found_cursor = true;
-            } else {
-                ++it;
-                continue;
-            }
-        }
-
-        if (!list_user_only_tools && (*it)->user_only()) {
-            ++it;
-            continue;
-        }
-
-        // 添加tool前检查大小
-        std::string tool_json = (*it)->to_json() + ",";
-        if (json.length() + tool_json.length() + 30 > max_payload_size) {
-            // 如果添加这个tool会超出大小限制，设置next_cursor并退出循环
-            next_cursor = (*it)->name();
-            break;
-        }
-
-        json += tool_json;
-        ++it;
+    for (size_t i = 0; i < tools_.size(); ++i) {
+        if (!list_user_only_tools && tools_[i]->user_only()) continue;
+        json += tools_[i]->to_json();
+        if (i < tools_.size() - 1) json += ",";
     }
-
-    if (json.back() == ',') {
-        json.pop_back();
-    }
-
-    if (json.back() == '[' && !tools_.empty()) {
-        // 如果没有添加任何tool，返回错误
-        ESP_LOGE(TAG, "tools/list: Failed to add tool %s because of payload size limit",
-                 next_cursor.c_str());
-        ReplyError(id, "Failed to add tool " + next_cursor + " because of payload size limit",
-                   response_sender);
-        return;
-    }
-
-    if (next_cursor.empty()) {
-        json += "]}";
-    } else {
-        json += "],\"nextCursor\":\"" + next_cursor + "\"}";
-    }
-
+    if (json.back() == ',') json.pop_back();
+    json += "]}";
     ReplyResult(id, json, response_sender);
 }
 
-void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
-                           ResponseSender response_sender) {
+void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, ResponseSender response_sender) {
     auto tool_iter = std::find_if(tools_.begin(), tools_.end(), [&tool_name](const auto& tool) {
         return tool->name() == tool_name;
     });
 
     if (tool_iter == tools_.end()) {
-        ESP_LOGE(TAG, "tools/call: Unknown tool: %s", tool_name.c_str());
         ReplyError(id, -32602, "Unknown tool: " + tool_name, response_sender);
         return;
     }
 
     McpTool* tool = tool_iter->get();
     PropertyList arguments = tool->properties();
-    for (auto& argument : arguments) {
-        bool found = false;
-        std::expected<void, std::string> validation;
-        if (cJSON_IsObject(tool_arguments)) {
-            auto value = cJSON_GetObjectItem(tool_arguments, argument.name().c_str());
-            if (argument.type() == kPropertyTypeBoolean && cJSON_IsBool(value)) {
-                validation = argument.set_value<bool>(value->valueint == 1);
-                found = true;
-            } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
-                validation = argument.set_value<int>(value->valueint);
-                found = true;
-            } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
-                validation = argument.set_value<std::string>(value->valuestring);
-                found = true;
-            } else if (value != nullptr) {
-                ESP_LOGE(TAG, "tools/call: Invalid type for argument: %s", argument.name().c_str());
-                ReplyError(id, -32602, "Invalid type for argument: " + argument.name(),
-                           response_sender);
-                return;
-            }
-        }
 
-        if (found && !validation) {
-            ESP_LOGE(TAG, "tools/call: %s", validation.error().c_str());
-            ReplyError(id, -32602, validation.error(), response_sender);
-            return;
-        }
-
-        if (!argument.has_default_value() && !found) {
-            ESP_LOGE(TAG, "tools/call: Missing required argument: %s", argument.name().c_str());
-            ReplyError(id, -32602, "Missing required argument: " + argument.name(),
-                       response_sender);
-            return;
-        }
-    }
-
-    // Use main thread to call the tool
     auto& app = Application::GetInstance();
-    app.Schedule([this, id, tool, arguments = std::move(arguments),
-                  response_sender = std::move(response_sender)]() {
+    app.Schedule([this, id, tool, arguments = std::move(arguments), response_sender = std::move(response_sender)]() {
         auto result = tool->Call(arguments);
         if (!result) {
-            ESP_LOGE(TAG, "tools/call: %s", result.error().c_str());
             ReplyError(id, result.error(), response_sender);
             return;
         }
         ReplyResult(id, *result, response_sender);
     });
 }
-// ==================== ANIMA 6 BOARD 1 HARDWARE LOGIC ====================
-#include "driver/uart.h"
-#include "esp_log.h"
 
-#define ANIMA_UART_NUM UART_NUM_1
-#define ANIMA_TX_PIN   GPIO_NUM_17  // अपने बोर्ड के हिसाब से TX pin चुनें
-#define ANIMA_RX_PIN   GPIO_NUM_18  // अपने बोर्ड के हिसाब से RX pin चुनें
 
-static const char* ANIMA_TAG = "ANIMA_BOARD1";
+// ==================== ANIMA 6 BOARD 1 ESP-NOW & LIVE WIFI LOGIC ====================
 
-// 1. Board 1 UART Initialization
-void Anima_UART_Init() {
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-    uart_param_config(ANIMA_UART_NUM, &uart_config);
-    uart_set_pin(ANIMA_UART_NUM, ANIMA_TX_PIN, ANIMA_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    uart_driver_install(ANIMA_UART_NUM, 1024, 0, 0, NULL, 0);
-    ESP_LOGI(ANIMA_TAG, "UART initialized to communicate with Board 2");
+static const char* ANIMA_TAG = "ANIMA_BOARD1_ESPNOW";
+
+static uint8_t board2_mac[6] = {0x28, 0x84, 0x85, 0x8A, 0x71, 0x28};
+
+static bool g_assistant_mode_active = true;
+
+static void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+    char message[32] = {0};
+    int copy_len = (len < sizeof(message) - 1) ? len : sizeof(message) - 1;
+    memcpy(message, incomingData, copy_len);
+    message[copy_len] = '\0';
+
+    ESP_LOGI(ANIMA_TAG, "Board 2 से संदेश प्राप्त हुआ: %s", message);
+
+    if (strcmp(message, "ASSISTANT_ON") == 0) {
+        g_assistant_mode_active = true;
+        ESP_LOGI(ANIMA_TAG, "Assistant Mode ON: AI 'Anima' एक्टिव है।");
+    } else if (strcmp(message, "ASSISTANT_OFF") == 0) {
+        g_assistant_mode_active = false;
+        ESP_LOGI(ANIMA_TAG, "Assistant Mode OFF: AI स्लीप मोड में चला गया है।");
+    }
 }
-
-// 2. Transmit Command to Board 2 via Serial
 void SendAnimaCommand(const char* action_cmd) {
+    if (!g_assistant_mode_active && strcmp(action_cmd, "FORCE") != 0) {
+        ESP_LOGW(ANIMA_TAG, "Assistant Mode OFF है। एक्शन कमांड रद्द किया गया।");
+        return;
+    }
+
     char packet[64];
-    snprintf(packet, sizeof(packet), "CMD:%s\n", action_cmd);
-    uart_write_bytes(ANIMA_UART_NUM, packet, strlen(packet));
-    ESP_LOGI(ANIMA_TAG, "Sent to Board 2: %s", packet);
+    snprintf(packet, sizeof(packet), "CMD:%s", action_cmd);
+    
+    esp_err_t result = esp_now_send(board2_mac, (uint8_t *)packet, strlen(packet));
+    if (result == ESP_OK) {
+        ESP_LOGI(ANIMA_TAG, "Board 2 को सर्वो कमांड भेजा गया: %s", packet);
+    } else {
+        ESP_LOGE(ANIMA_TAG, "ESP-NOW भेजने में त्रुटि: %d", result);
+    }
+}
+static void WiFiStatusTask(void* pvParameters) {
+    wifi_ap_record_t ap_info;
+    char wifi_packet[64];
+
+    while (1) {
+        if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+            int rssi = ap_info.rssi;
+            
+            // RSSI to Signal Percentage
+            int quality = 0;
+            if (rssi <= -100) quality = 0;
+            else if (rssi >= -50) quality = 100;
+            else quality = 2 * (rssi + 100);
+
+            // फ़ॉर्मेट: WIFI:CON:<RSSI>:<QUALITY>%
+            snprintf(wifi_packet, sizeof(wifi_packet), "WIFI:CON:%d:%d%%", rssi, quality);
+        } else {
+            snprintf(wifi_packet, sizeof(wifi_packet), "WIFI:DIS");
+        }
+
+        esp_now_send(board2_mac, (uint8_t*)wifi_packet, strlen(wifi_packet));
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+void Anima_ESPNow_Init() {
+    if (esp_now_init() != ESP_OK) {
+        ESP_LOGE(ANIMA_TAG, "ESP-NOW इनिशियलाइज़ेशन विफल");
+        return;
+    }
+
+    esp_now_register_recv_cb(OnDataRecv);
+
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, board2_mac, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+
+    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+        ESP_LOGE(ANIMA_TAG, "Board 2 Peer जोड़ने में विफल");
+        return;
+    }
+
+    // बैकग्राउंड फ्रीआरटीओएस टास्क चालू करें
+    xTaskCreate(WiFiStatusTask, "wifi_status_task", 3072, NULL, 5, NULL);
+
+    ESP_LOGI(ANIMA_TAG, "ESP-NOW Bidirectional setup एवं WiFi Telemetry चालू है।");
 }
 
-// 3. Register Custom MCP Tool for Anima 6 Body Movements
+// 5. MCP Tool रजिस्ट्रेशन (समस्त रोबोट एक्शन्स के विवरण के साथ)
 void RegisterAnimaBodyControl(McpServer* server) {
-    Anima_UART_Init();
+    Anima_ESPNow_Init();
 
     server->AddTool("control_anima_body", 
-        "Control Anima 6 movements like jaw, neck, arms, scary mode, base turn", 
+        "Control Anima 6 robot body movements and postures. Pass one of the following exact action strings in the 'action' parameter:\n"
+        "- 'namaste': Fold hands together in front to greet/namaste\n"
+        "- 'raise_right_hand': Raise the right arm/hand up\n"
+        "- 'raise_left_hand': Raise the left arm/hand up\n"
+        "- 'turn_left': Rotate body base turn towards left\n"
+        "- 'turn_right': Rotate body base turn towards right\n"
+        "- 'look_up': Tilt head up\n"
+        "- 'look_down': Tilt head down\n"
+        "- 'look_left': Rotate head pan to left\n"
+        "- 'look_right': Rotate head pan to right\n"
+        "- 'scary_mode': Activate scary posture with raised arms and wide eyes\n"
+        "- 'reset_pose': Return all servos and head to default resting position", 
         PropertyList({Property("action", kPropertyTypeString)}),
         [](const PropertyList& properties) -> ReturnValue {
             auto action = properties["action"].value<std::string>();
