@@ -253,7 +253,7 @@ static uint8_t board2_mac[6] = {0x28, 0x84, 0x85, 0x8A, 0x71, 0x28};
 
 static bool g_assistant_mode_active = true;
 
-static void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+static void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incomingData, int len) {
     char message[32] = {0};
     int copy_len = (len < sizeof(message) - 1) ? len : sizeof(message) - 1;
     memcpy(message, incomingData, copy_len);
@@ -269,6 +269,7 @@ static void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len
         ESP_LOGI(ANIMA_TAG, "Assistant Mode OFF: AI स्लीप मोड में चला गया है।");
     }
 }
+
 void SendAnimaCommand(const char* action_cmd) {
     if (!g_assistant_mode_active && strcmp(action_cmd, "FORCE") != 0) {
         ESP_LOGW(ANIMA_TAG, "Assistant Mode OFF है। एक्शन कमांड रद्द किया गया।");
