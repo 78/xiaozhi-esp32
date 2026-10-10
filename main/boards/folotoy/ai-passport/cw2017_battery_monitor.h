@@ -19,6 +19,11 @@ public:
     // possible sleep/reset state). Safe to call once at board init.
     bool Initialize();
 
+    // Puts the gauge into its sleep state ahead of a terminal deep sleep.
+    // Returns 0 on success, -1 when unavailable or when the readback verify
+    // failed twice in a row.
+    int EnterSleep();
+
     // Battery state of charge in percent (0-100), or -1 when unavailable.
     int GetBatteryLevel();
 
@@ -33,6 +38,8 @@ private:
     uint8_t device_address_;
     bool present_ = false;
 
+    int ReadReg(uint8_t reg, uint8_t* value);
+    int WriteReg(uint8_t reg, uint8_t value);
     int ReadReg16(uint8_t reg, uint16_t* value);
 };
 

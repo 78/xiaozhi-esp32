@@ -1,0 +1,32 @@
+{
+    "manufacturer": "guition",
+    "type": "guition-jc4827w543",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "guition-jc4827w543",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_USE_AFE_WAKE_WORD=n",
+                "CONFIG_USE_ESP_WAKE_WORD=n",
+                "CONFIG_USE_CUSTOM_WAKE_WORD=n"
+            ]
+        },
+        {
+            "name": "guition-jc4827w543-ext-amp",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_WAKE_WORD_DISABLED=y",
+                "CONFIG_USE_AFE_WAKE_WORD=n",
+                "CONFIG_USE_ESP_WAKE_WORD=n",
+                "CONFIG_USE_CUSTOM_WAKE_WORD=n",
+                "CONFIG_JC4827W543_EXTERNAL_AMP=y"
+            ]
+        }
+    ]
+}

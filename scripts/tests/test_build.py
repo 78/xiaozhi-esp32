@@ -183,6 +183,22 @@ class VersionTests(unittest.TestCase):
                         f"through menuconfig or build parameters, not {option}",
                     )
 
+    def test_gc0308_camera_sdkconfig_keys_use_digit_zero(self):
+        # ESP-IDF silently ignores unknown Kconfig keys. The GC0308 sensor
+        # option names use digit 0 (CAMERA_GC0308), not letter O (GCO308).
+        for config_path in sorted(
+            (ROOT / "main/boards").rglob("config*.json")
+        ):
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            for build_config in config.get("builds", []):
+                for option in build_config.get("sdkconfig_append", []):
+                    self.assertNotIn(
+                        "GCO308",
+                        option,
+                        f"{config_path}: GC0308 camera Kconfig keys use digit "
+                        f"0, not letter O: {option}",
+                    )
+
     def test_default_flash_options_are_not_repeated(self):
         def read_defaults(path):
             values = {}
@@ -531,7 +547,7 @@ class BoardSelectionTests(unittest.TestCase):
             "CONFIG_BOARD_TYPE_XMINI_C3",
         )
 
-    def test_common_and_core_changes_select_all(self):
+    def test_common_and_core_changes_select_representatives(self):
         for path in (
             "main/boards/common/board.cc",
             "main/application.cc",
@@ -539,10 +555,12 @@ class BoardSelectionTests(unittest.TestCase):
             "scripts/build_default_assets.py",
             "scripts/build.py",
         ):
-            with self.subTest(path=path):
+            with self.subTest(path=path), mock.patch.object(
+                build, "_load_representative_variants", return_value=self.variants[:1]
+            ):
                 self.assertEqual(
                     build._select_variants_for_changes(self.variants, [path]),
-                    self.variants,
+                    self.variants[:1],
                 )
 
     def test_docs_only_selects_none(self):

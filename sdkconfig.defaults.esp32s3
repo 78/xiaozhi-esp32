@@ -21,9 +21,10 @@ CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 
 CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=y
 
-# Keep the camera DMA bounce buffer out of internal SRAM so AFE/WakeNet10
-# still has a usable internal heap after boot.
-CONFIG_CAMERA_PSRAM_DMA=y
+# Use an internal DMA bounce buffer so incomplete RGB frames can be rejected.
+# Limit its size to preserve internal heap for AFE and WakeNet.
+CONFIG_CAMERA_PSRAM_DMA=n
+CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=16384
 
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
 
