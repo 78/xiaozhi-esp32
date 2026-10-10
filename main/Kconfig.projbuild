@@ -6,6 +6,14 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config WIFI_AP_SSID_PREFIX
+    string "Wi-Fi config hotspot name prefix"
+    default "Xiaozhi"
+    help
+        Prefix of the hotspot the device opens for Wi-Fi setup. The last two MAC bytes
+        are appended so several devices can be told apart, e.g. "Xiaozhi-1A2B".
+        Spaces are allowed here; they are replaced with '-' in the DHCP hostname.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
@@ -193,6 +201,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ELECTRON_BOT
         bool "ElectronBot"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ES3C28P_TERRA
+        bool "ES3C28P ESP32-S3 2.8-inch LCD (Terra)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD
         bool "Espressif ESP32-P4/P4X-Function-EV-Board"
@@ -933,7 +944,9 @@ config CUSTOM_WAKE_WORD
     default "xiao tu dou"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        Custom Wake Word, use pinyin for Chinese, separated by spaces
+        Custom Wake Word, use pinyin for Chinese, separated by spaces.
+        Several alternative phrases can be given separated by '|'
+        (for example "te er la|hei te er la"); any of them wakes the device.
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
@@ -949,6 +962,18 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     depends on USE_CUSTOM_WAKE_WORD
     help
         Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
+
+config CUSTOM_WAKE_WORD_LOG_FLOOR
+    int "Custom Wake Word Log Floor (%) - tuning aid, 0 = off"
+    default 0
+    range 0 99
+    depends on USE_CUSTOM_WAKE_WORD
+    help
+        Tuning aid. When set below the threshold, MultiNet also reports weaker
+        matches down to this probability. They are only logged
+        ("Wake word candidate below threshold") and never wake the device;
+        wake-up still requires the threshold. Use it to see how close real
+        utterances come to the threshold. 0 disables it (default).
 
 config SEND_WAKE_WORD_DATA
     bool "Send Wake Word Data"

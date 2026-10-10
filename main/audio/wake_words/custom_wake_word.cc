@@ -92,7 +92,24 @@ bool CustomWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) 
         owns_models_ = models_ != nullptr;
 #ifdef CONFIG_CUSTOM_WAKE_WORD
         threshold_ = CONFIG_CUSTOM_WAKE_WORD_THRESHOLD / 100.0f;
-        commands_.push_back({CONFIG_CUSTOM_WAKE_WORD, CONFIG_CUSTOM_WAKE_WORD_DISPLAY, "wake"});
+        {
+            // Alternative phrases are separated by '|'.
+            std::string phrases = CONFIG_CUSTOM_WAKE_WORD;
+            size_t start = 0;
+            while (start <= phrases.size()) {
+                size_t end = phrases.find('|', start);
+                if (end == std::string::npos) {
+                    end = phrases.size();
+                }
+                std::string phrase = phrases.substr(start, end - start);
+                size_t first = phrase.find_first_not_of(' ');
+                size_t last = phrase.find_last_not_of(' ');
+                if (first != std::string::npos) {
+                    commands_.push_back({phrase.substr(first, last - first + 1), CONFIG_CUSTOM_WAKE_WORD_DISPLAY, "wake"});
+                }
+                start = end + 1;
+            }
+        }
 #endif
     } else {
         models_ = models_list;
@@ -118,7 +135,17 @@ bool CustomWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) 
 
     multinet_ = esp_mn_handle_from_name(mn_name_);
     multinet_model_data_ = multinet_->create(mn_name_, duration_);
-    multinet_->set_det_threshold(multinet_model_data_, threshold_);
+    float det_threshold = threshold_;
+#ifdef CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR
+    // Tuning aid: let MultiNet report weaker matches so they can be logged.
+    // Wake-up still requires threshold_ (checked in FeedSamples).
+    if (CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR > 0 &&
+        CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR / 100.0f < threshold_) {
+        det_threshold = CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR / 100.0f;
+        ESP_LOGW(TAG, "Log floor active: reporting candidates from %.3f, waking at %.3f", det_threshold, threshold_);
+    }
+#endif
+    multinet_->set_det_threshold(multinet_model_data_, det_threshold);
     input_buffer_.reserve(multinet_->get_samp_chunksize(multinet_model_data_));
     esp_mn_commands_clear();
     for (int i = 0; i < commands_.size(); i++) {
@@ -189,9 +216,21 @@ void CustomWakeWord::FeedSamples(const int16_t* data, size_t samples, bool mono)
         if (mn_state == ESP_MN_STATE_DETECTED) {
             esp_mn_results_t *mn_result = multinet_->get_results(multinet_model_data_);
             for (int i = 0; i < mn_result->num && running_; i++) {
+                int command_index = mn_result->command_id[i] - 1;
+                if (command_index < 0 || command_index >= static_cast<int>(commands_.size())) {
+                    continue;
+                }
+#ifdef CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR
+                // Only meaningful when the log floor lowered MultiNet's own threshold.
+                if (CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR > 0 && mn_result->prob[i] < threshold_) {
+                    ESP_LOGI(TAG, "Wake word candidate below threshold: command_id=%d, string=%s, prob=%f (threshold=%f)",
+                            mn_result->command_id[i], mn_result->string, mn_result->prob[i], threshold_);
+                    continue;
+                }
+#endif
                 ESP_LOGI(TAG, "Custom wake word detected: command_id=%d, string=%s, prob=%f", 
                         mn_result->command_id[i], mn_result->string, mn_result->prob[i]);
-                auto& command = commands_[mn_result->command_id[i] - 1];
+                auto& command = commands_[command_index];
                 if (command.action == "wake") {
                     last_detected_wake_word_ = command.text;
                     running_ = false;
