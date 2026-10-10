@@ -1,0 +1,36 @@
+{
+    "type": "duoduo-s3-voice",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "duoduo-s3-voice",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_LCD_ST7789_240X320=y"
+            ]
+        },
+        {
+            "name": "duoduo-s3-voice-r8",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_OCTAL=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\"",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_LCD_ST7789_240X320=y"
+            ]
+        },
+        {
+            "name": "duoduo-s3-voice-n16r8",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM_MODE_OCTAL=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_LCD_ST7789_240X320=y"
+            ]
+        }
+    ]
+}
