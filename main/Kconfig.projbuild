@@ -1000,6 +1000,17 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+config USE_MCP_CLIENT
+    bool "Enable MCP client tools (discover / connect / call external MCP servers)"
+    default n
+    help
+        Adds the self.mcp.discover, self.mcp.connect and self.mcp.call_tool tools,
+        which let the model search the public MCP registry and use tools hosted on
+        other MCP servers over Streamable HTTP.
+        Off by default: it adds three tools to every conversation's tool list and
+        lets the model make outbound HTTPS requests (optionally with a bearer
+        token it was given) to arbitrary servers.
+
 menu "WiFi Configuration Method"
     help
         WiFi Configuration Method Selection
