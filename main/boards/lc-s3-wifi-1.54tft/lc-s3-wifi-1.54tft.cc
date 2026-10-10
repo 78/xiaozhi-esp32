@@ -105,13 +105,11 @@ private:
             app.ToggleChatState();
         });
 
-        boot_button_.OnLongPress([this]() {
-            auto& app = Application::GetInstance();
-            app.SetDeviceState(kDeviceStateWifiConfiguring);
-            EnterWifiConfigMode();
-        });
+        boot_button_.OnLongPress(
+            [this]() { Application::GetInstance().Schedule([this]() { EnterWifiConfigMode(); }); });
 
         volume_up_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -122,11 +120,13 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -137,6 +137,7 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
