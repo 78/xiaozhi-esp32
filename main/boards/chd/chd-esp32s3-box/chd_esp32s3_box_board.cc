@@ -560,8 +560,8 @@ private:
         bool mirror_y   = DISPLAY_MIRROR_Y;
         bool swap_xy    = DISPLAY_SWAP_XY;
         if (display_mode) {         // 竖屏模式
-            width       = height;
-            height      = width;
+            width       = DISPLAY_WIDTH;
+            height      = DISPLAY_HEIGHT;
             mirror_x    = mirror_x ? false : true;
             mirror_y    = mirror_y;
             swap_xy     = swap_xy ? false : true;
@@ -703,7 +703,7 @@ private:
         auto& mcp_server = McpServer::GetInstance();    // 定义设备的属性
         mcp_server.AddTool("self.camera.set_camera_flipped", "翻转摄像头图像方向", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             Settings settings("chd_esp_box3", true);
-            bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 1));
+            bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 0));
             camera_->SetHMirror(flipped);
             camera_->SetVFlip(flipped);
             settings.SetInt("camera-flipped", flipped ? 1 : 0);
@@ -723,7 +723,7 @@ private:
             [](const PropertyList& properties) -> ReturnValue {
                 auto mode = properties["mode"].value<std::string>();
                 auto& app = Application::GetInstance();
-                vTaskDelay(pdMS_TO_TICKS(2000));
+                // vTaskDelay(pdMS_TO_TICKS(2000));
                 if (mode == "kAecOff") {
                     app.SetAecMode(kAecOff);
                     return "{\"success\": true, \"message\": \"AEC对话打断模式已关闭\"}";

@@ -200,7 +200,7 @@ private:
         mcp_server.AddTool("self.camera.set_camera_flipped", "翻转摄像头图像方向", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             Settings settings("chd_esp_eye", true);
             // 考虑到部分复刻使用了不可动摄像头的设计，默认启用翻转
-            bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 1));
+            bool flipped = !static_cast<bool>(settings.GetInt("camera-flipped", 0));
             camera_->SetHMirror(flipped);
             camera_->SetVFlip(flipped);
             settings.SetInt("camera-flipped", flipped ? 1 : 0);

@@ -179,6 +179,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "Bread Compact Wi-Fi + LCD + Camera (面包板)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CHD_ESP32S3_BOX
+        bool "CHD ESP32-S3-BOX (虫洞)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CHD_ESP32S3_EYE
+        bool "CHD ESP32-S3-EYE (虫洞)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI Camera Module"
         depends on IDF_TARGET_ESP32S3
@@ -262,12 +268,6 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_JIUCHUAN
         bool "Jiuchuan ESP32-S3 (九川智能)"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_CHD_ESP32S3_BOX
-        bool "虫洞 ESP32-S3-BOX"
-        depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_CHD_ESP32S3_EYE
-        bool "虫洞 ESP32-S3-EYE"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_KEVIN_BOX_2
         bool "Kevin Box 2"
@@ -806,6 +806,17 @@ choice WK_BOARD_TYPE
         bool "不带电机驱动"
 endchoice
 
+choice DISPLAY_CHD_ESP32S3_BOX
+    depends on BOARD_TYPE_CHD_ESP32S3_BOX
+    prompt "CHD ESP32S3 BOX LCD Type"
+    default CHD_ESP32S3_BOX_LCD_28
+    help
+        LCD Display Type
+    config CHD_ESP32S3_BOX_LCD_28
+        bool "LCD 28 ST7789 240*320"
+    config CHD_ESP32S3_BOX_LCD_35
+        bool "LCD 35 ST7796 320*480"
+endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32_S3_KORVO_2_V3 || BOARD_TYPE_ESP32_S3_KORVO_2_V3_RNDIS

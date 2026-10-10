@@ -6,7 +6,6 @@
         {
             "name": "chd-esp32s3-eye",
             "sdkconfig_append": [
-                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y"
             ]
         }
     ]

@@ -44,9 +44,12 @@
 // 屏幕选择,在下面选项中只打开一个,横屏竖屏模式通过语音直接切换,各版本屏幕重点关注尺寸，
 // 如果不清除选择哪个选项，可询问客服
 
-// #define USE_LCD_3_5                 // 3.5寸屏幕        ST7796
+#if CONFIG_CHD_ESP32S3_BOX_LCD_35
+    #define USE_LCD_3_5                 // 3.5寸屏幕        ST7796
 // #define USE_LCD_3_5_TFT             // 3.5寸屏幕        ST7796
-#define USE_LCD_2_8                    // 2.8寸屏幕    ST7789
+#else
+    #define USE_LCD_2_8                    // 2.8寸屏幕    ST7789
+#endif
 
 // *****虫洞开发板配置选择******结束*****
 #ifdef USE_LCD_3_5
