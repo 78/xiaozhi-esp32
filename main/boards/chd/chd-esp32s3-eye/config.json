@@ -1,0 +1,12 @@
+{
+    "manufacturer": "chd",
+    "type": "chd-esp32s3-eye",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "chd-esp32s3-eye",
+            "sdkconfig_append": [
+            ]
+        }
+    ]
+}
