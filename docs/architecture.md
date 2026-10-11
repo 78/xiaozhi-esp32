@@ -85,9 +85,11 @@ infrared proximity switch. Its valid measurement range and the obstacle
 threshold for stopping motion must be established from the selected module and
 physical tests; do not assume it can reliably detect at 1 cm.
 
-For multi-step tasks, the firmware must include the current `intent` and the
-previous action result in the next agent request. Otherwise the model cannot
-reliably mark steps complete or continue a story across independent requests.
+For multi-step tasks, `intent` is an LLM-authored plan and working context.
+The LLM is the authority that decides which step is current, marks steps
+complete, and updates or clears the plan; firmware must not advance intent
+steps algorithmically. The firmware carries the latest intent and previous
+action result into the next agent request so the LLM can make that decision.
 The JSON schema, validation limits, safety behavior, and prompt wording remain
 to be finalized before implementing the response parser.
 
