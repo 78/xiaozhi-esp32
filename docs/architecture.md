@@ -46,7 +46,7 @@ loop or audio tasks.
 | Board | Seeed XIAO ESP32S3 Sense, 8 MB flash, 8 MB PSRAM |
 | Motors | CNMAWAY GA12-N20, 6 V, 150 RPM, approximately 1:100 gearbox |
 | Motor driver | DRV8833, dual channel |
-| Encoders | AS5600 with 6 x 2.5 mm diametric magnets, I2C |
+| Encoder | One AS5600 with a 6 x 2.5 mm diametric magnet, I2C |
 | Range sensor | VL53L0X GY-530, I2C, default address 0x29 |
 | Display | 1.69-inch ST7789V3, 240 x 280, SPI |
 | Audio output | MAX98357A I2S mono amplifier and 8-ohm speaker |
@@ -61,9 +61,6 @@ before the board implementation is wired into the build.
   filesystem component.
 - Confirm flash size, OTA requirements, and a non-overlapping partition layout.
   The existing `partitions/v2/8m.csv` must not be changed until these are known.
-- Decide how multiple AS5600 encoders will share the I2C bus: their fixed I2C
-  address is 0x36, so multiple devices on the same bus need a mux, separate
-  buses, or a different encoder interface.
 - Decide where robot MCP tools are registered in the application lifecycle.
 
 This is a planning scaffold only. The new board and modules are not yet wired
