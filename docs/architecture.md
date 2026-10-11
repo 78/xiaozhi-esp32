@@ -133,6 +133,29 @@ thresholds, units, age representation, history window, image transport, and
 empty-STT encoding remain to be specified. The firmware reports observations
 and action outcomes; the LLM interprets them and owns intent progression.
 
+### Context and memory lifetimes
+
+The agent needs three distinct context stores:
+
+- **Conversation history:** a bounded chronological log of user utterances and
+  robot replies, trimmed to the context budget when building a request. It may
+  be persisted as a file if history must survive reboot; retention and size
+  limits remain to be decided.
+- **Current intent:** the latest plan returned by the LLM, replaced only when
+  the LLM returns an updated value. It is temporary task state and can live in
+  RAM; persist it only if continuing an in-progress task after reboot is a
+  requirement.
+- **Sensor memory:** a bounded in-memory ring buffer of timestamped readings
+  and action outcomes. The prompt builder selects the newest valid entries
+  and includes their age; stale or overwritten samples are not treated as
+  current state. Avoid writing every sample to flash.
+
+These are logical stores, not a commitment to particular files or filesystem.
+Their schemas, capacities, timestamp source, stale-data policy, and reboot
+behavior must be specified before implementation. A separate long-term memory
+for learned skills or user-approved facts is a different feature from the
+short-lived working context above.
+
 ## Decisions pending before implementation
 
 - Define configuration and persistent-data formats and size limits.
