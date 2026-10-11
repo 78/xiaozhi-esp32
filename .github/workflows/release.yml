@@ -34,9 +34,9 @@ jobs:
       - name: Require the default branch for a public release
         if: ${{ inputs.publish }}
         env:
-          RELEASE_REF: ${{ github.ref_name }}
+          RELEASE_REF: ${{ github.ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: test "$RELEASE_REF" = "$DEFAULT_BRANCH"
+        run: test "$RELEASE_REF" = "refs/heads/$DEFAULT_BRANCH"
 
       - name: Test build and release tooling
         run: python3 -m unittest discover -s scripts/tests -v

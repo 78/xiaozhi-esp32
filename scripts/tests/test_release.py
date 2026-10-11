@@ -105,23 +105,35 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 release.firmware_metadata(image)
 
+    def test_draft_lookup_uses_the_list_endpoint_and_handles_pagination(self):
+        draft = {"id": 123, "tag_name": "v2.5.2", "draft": True}
+        first_page = [{"tag_name": f"v0.0.{n}"} for n in range(20)]
+        with patch.object(release, "gh_json", side_effect=[first_page, [draft]]) as api:
+            self.assertEqual(release.find_release("78/xiaozhi-esp32", "v2.5.2"), draft)
+            self.assertEqual([call.args[1] for call in api.call_args_list],
+                             ["releases?per_page=20&page=1", "releases?per_page=20&page=2"])
+        with patch.object(release, "gh_json", return_value=[]):
+            self.assertIsNone(release.find_release("78/xiaozhi-esp32", "v2.5.2"))
+
     def test_published_release_and_moved_tag_are_never_overwritten(self):
         manifest = self.manifest()
-        with patch.object(release, "gh_json", return_value={"draft": False}):
+        with patch.object(release, "find_release", return_value={"draft": False}):
             with self.assertRaisesRegex(ValueError, "already published"):
                 release.preflight("78/xiaozhi-esp32", manifest)
-        with patch.object(release, "gh_json", side_effect=[None, {"object": {"type": "commit", "sha": "b" * 40}}]):
+        with patch.object(release, "find_release", return_value=None), \
+                patch.object(release, "gh_json", return_value={"object": {"type": "commit", "sha": "b" * 40}}):
             with self.assertRaisesRegex(ValueError, "different commit"):
                 release.preflight("78/xiaozhi-esp32", manifest)
 
     def test_annotated_tag_and_existing_draft_must_target_the_same_source(self):
         manifest = self.manifest()
         draft = {"draft": True, "target_commitish": manifest["source_sha"]}
-        replies = [draft, {"object": {"type": "tag", "sha": "b" * 40}},
+        replies = [{"object": {"type": "tag", "sha": "b" * 40}},
                    {"object": {"type": "commit", "sha": manifest["source_sha"]}}]
-        with patch.object(release, "gh_json", side_effect=replies):
+        with patch.object(release, "find_release", return_value=draft), \
+                patch.object(release, "gh_json", side_effect=replies):
             self.assertEqual(release.preflight("78/xiaozhi-esp32", manifest), draft)
-        with patch.object(release, "gh_json", return_value={"draft": True, "target_commitish": "main"}):
+        with patch.object(release, "find_release", return_value={"draft": True, "target_commitish": "main"}):
             with self.assertRaisesRegex(ValueError, "different commit"):
                 release.preflight("78/xiaozhi-esp32", manifest)
 
@@ -132,9 +144,11 @@ class ReleaseTests(unittest.TestCase):
                 assets.mkdir()
                 self.package(assets)
                 meta = Path(folder) / "meta"
+                draft = {"id": 123, "draft": True, "target_commitish": self.manifest()["source_sha"]}
                 def remote(repository, endpoint, **kwargs):
                     if endpoint == "releases/latest":
                         return None
+                    self.assertEqual(endpoint, "releases/123")
                     files = list(assets.iterdir()) + [meta / "release-manifest.json", meta / "SHA256SUMS"]
                     attachments = [{"name": p.name, "size": p.stat().st_size,
                                     "digest": "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest()}
@@ -143,6 +157,7 @@ class ReleaseTests(unittest.TestCase):
                         attachments[0]["digest"] = "sha256:" + "0" * 64
                     return {"html_url": "https://example.com/release", "assets": attachments}
                 with patch.object(release, "preflight", return_value=None), \
+                        patch.object(release, "find_release", return_value=draft), \
                         patch.object(release, "gh_json", side_effect=remote), \
                         patch.object(release.subprocess, "check_output", return_value=json.dumps({"body": "Changes"})), \
                         patch.object(release.subprocess, "run") as run:
