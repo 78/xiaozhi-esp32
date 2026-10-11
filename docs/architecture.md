@@ -156,6 +156,29 @@ behavior must be specified before implementation. A separate long-term memory
 for learned skills or user-approved facts is a different feature from the
 short-lived working context above.
 
+### Display emotion engine contract
+
+The display uses a procedural, time-driven face renderer, not GIF playback or
+an image/frame stream from the LLM. The LLM selects an emotion identifier;
+firmware sends that state to the renderer, which generates eye geometry,
+transitions, blinking, gaze motion, and applicable overlays locally.
+
+The current HTML prototype defines these 16 renderer emotion keys:
+`neutral`, `happy`, `sad`, `surprised`, `angry`, `sleep`, `scared`,
+`confused`, `wink`, `curious`, `warm`, `alert`, `awe`, `proud`, `monocle`,
+and `idea`. These are renderer states, not GIF filenames or image assets.
+The prototype also demonstrates animated behaviors such as blink-mediated
+emotion changes, immediate wink, pupil saccades, breathing, jitter, tears,
+sparkles, sleep Zs, monocle, idea bulb, and text overlay.
+
+The current agent-prompt draft returns `imotion` as one emoji from a smaller
+10-emoji set. Define an explicit, validated mapping from those response values
+to renderer keys before implementing the parser and display interface.
+Unknown values should fall back to a documented neutral state; they must not
+be treated as filenames, URLs, or animation payloads. The HTML is a visual
+prototype/reference for a later native C renderer port, not firmware runtime
+code.
+
 ## Decisions pending before implementation
 
 - Define configuration and persistent-data formats and size limits.
