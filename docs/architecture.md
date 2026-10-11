@@ -72,9 +72,51 @@ loop or audio tasks.
 The MVP uses the XIAO Sense camera and PDM microphone. The initially considered
 AS5600 encoder and VL53L0X range sensor are deferred. A second MCU is also
 deferred; the MVP display remains connected to the XIAO. The proposed GPIO
-groups are display D10/D9/D8/D7, DRV8833 D0/D1/D2/D3, and MAX98357A D4/D5/D6.
-Validate the exact module signal mapping, GPIO restrictions, and boot behavior
-before committing these assignments to board code.
+assignments are based on JonnyBot's selected modules, not copied from Huy
+Vector's Wall-E AI. Huy's [materials page](https://www.huyvector.org/robots-kinetic/wall-e-ai)
+confirms the XIAO ESP32-S3 Sense, but lists a 1.54-inch display, MAX98357BGA
+amplifier, Mini L298N driver, and 17-68 RPM gear motors. JonnyBot uses a
+1.69-inch ST7789V3, MAX98357A breakout, DRV8833, and GA12-N20 motors. Huy's
+[public installer repository](https://github.com/huyvector/wall-e-ai-installer)
+contains a prebuilt firmware image, not its source or a verified GPIO wiring
+table. Therefore Wall-E is a useful build reference, but its exact peripheral
+pinout cannot be assumed to apply here.
+
+The proposed JonnyBot GPIO assignments are:
+
+| XIAO pin | ESP32-S3 GPIO | Signal |
+| --- | ---: | --- |
+| D0 | 1 | DRV8833 AIN1 (left motor) |
+| D1 | 2 | DRV8833 AIN2 (left motor) |
+| D2 | 3 | Reserved; leave unconnected (JTAG-source strap) |
+| D3 | 4 | DRV8833 BIN1 (right motor) |
+| D4 | 5 | DRV8833 BIN2 (right motor) |
+| D5 | 6 | MAX98357A BCLK |
+| D6 | 43 | MAX98357A L/RCLK (WS) |
+| D7 | 44 | MAX98357A DIN |
+| D8 | 7 | ST7789 SCLK (module may label this SCL) |
+| D9 | 8 | ST7789 MOSI (module may label this SDA or DIN) |
+| D10 | 9 | ST7789 DC |
+
+To fit the display without consuming another GPIO, connect its active-low CS
+to GND; it is the only SPI device on this bus. Connect display RESET to the
+XIAO reset line and backlight to 3V3, subject to the display module's onboard
+current limiting. Tie DRV8833 nSLEEP high to 3V3. Add pulldowns to all four
+motor inputs so the outputs remain inactive during boot and reset, and set
+those GPIO outputs low before enabling motor control in firmware. Use a
+separate motor supply and connect its ground to XIAO ground.
+
+This pin plan reserves GPIO3 rather than risking a motor-control output on a
+strap pin. GPIO43/44 are also UART0 pins, so use native USB Serial/JTAG for
+logs and do not route the console through UART0. Sense expansion-board microSD
+uses GPIO7/8/9; disconnect it using the Seeed board's J3 SD-enable pads before
+sharing these pins with the display. The four camera and two PDM-microphone
+GPIOs remain reserved for the built-in Sense peripherals.
+
+The signal names follow common breakouts. Confirm the arriving display board's
+labels and onboard pullups/resistors before soldering; if CS cannot be strapped
+low or RESET/backlight need independent GPIO control, this 11-pin allocation
+must be revisited rather than silently reusing a pin.
 
 ## Agent interaction contract (draft)
 
