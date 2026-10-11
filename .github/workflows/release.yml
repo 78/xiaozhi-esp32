@@ -1,0 +1,135 @@
+name: Release Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish as the latest release (false leaves a draft)
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+# Two release runs must never race to update the same tag or its attachments.
+concurrency:
+  group: firmware-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate release and select all variants
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+      tag: ${{ steps.prepare.outputs.tag }}
+      variants: ${{ steps.prepare.outputs.variants }}
+      firmware_count: ${{ steps.prepare.outputs.firmware_count }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Require the default branch for a public release
+        if: ${{ inputs.publish }}
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: test "$RELEASE_REF" = "$DEFAULT_BRANCH"
+
+      - name: Test build and release tooling
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: Prepare complete release manifest
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          python3 scripts/release.py prepare \
+            --idf-version 6.1.0 \
+            --source-sha "$RELEASE_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output-dir "$RUNNER_TEMP/release-metadata" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-manifest
+          path: ${{ runner.temp }}/release-metadata/release-manifest.json
+          if-no-files-found: error
+          overwrite: true
+
+  build:
+    name: Build ${{ matrix.full_name }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.variants) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Build and package release variant
+        shell: bash
+        env:
+          BOARD: ${{ matrix.board }}
+          VARIANT: ${{ matrix.name }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          idf.py --version
+          python scripts/build.py "$BOARD" --name "$VARIANT" --zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-firmware-${{ matrix.full_name }}
+          path: releases/${{ needs.prepare.outputs.tag }}_${{ matrix.full_name }}.zip
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+  release:
+    name: Verify every firmware and publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-manifest
+          path: release-metadata
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-firmware-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify packages, upload, and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH: ${{ inputs.publish }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          OPTIONS=()
+          if [[ "$PUBLISH" == "true" ]]; then
+            OPTIONS+=(--make-public)
+          fi
+          python3 scripts/release.py publish \
+            --manifest release-metadata/release-manifest.json \
+            --assets-dir release-assets \
+            --metadata-dir release-metadata \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-url "$RUN_URL" "${OPTIONS[@]}"
+          echo "### ${{ needs.prepare.outputs.tag }}: ${{ needs.prepare.outputs.firmware_count }} firmware packages" >> "$GITHUB_STEP_SUMMARY"
+          echo "$RUN_URL" >> "$GITHUB_STEP_SUMMARY"
