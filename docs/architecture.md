@@ -56,6 +56,34 @@ This is a dependency order, not a requirement to copy upstream files. Keep an
 inventory of which existing XiaoZhi components remain unchanged and record
 the reason for each adaptation so future upstream updates remain tractable.
 
+## XiaoZhi code reuse inventory
+
+The repository already contains XiaoZhi's runtime; the work is to preserve and
+reuse it, not copy it into a parallel JonnyBot firmware. `main/robot/` and
+`main/net/` are currently placeholders. The current implementation boundaries
+suggest this reuse plan:
+
+| Existing layer | Current implementation | JonnyBot treatment |
+| --- | --- | --- |
+| Application lifecycle and legal device-state transitions | `main/application.*`, `main/device_state_machine.*` | Reuse unchanged as the firmware shell. Schedule robot-agent state changes through the existing main-task/event pattern; do not replace the event loop. |
+| Audio capture, processing, encoding, playback, queues, wake word and AEC | `main/audio/audio_service.*`, `audio_engine.h`, `audio/engines/*`, `audio/audio_codec.*` | Reuse unchanged. These APIs already separate the speech pipeline from board-specific pin configuration and codec I/O. |
+| Audio device interface and available simple PDM/I2S codec | `main/audio/audio_codec.*`, `main/audio/codecs/no_audio_codec.*` | Reuse the existing codec implementation if the XIAO's PDM mic and the selected MAX98357A wiring match its simplex PDM/I2S contract; otherwise adapt only the board codec layer. Confirm pin conflicts and format before selecting it. |
+| Wi-Fi provisioning, network lifecycle and board callbacks | `main/boards/common/board.*`, `wifi_board.*`, plus the selected provisioning components | Reuse the common behavior. Implement a JonnyBot board class and configuration; do not put its pins into common code. |
+| MQTT and WebSocket XiaoZhi-server transports | `main/protocols/protocol.*`, `mqtt_protocol.*`, `websocket_protocol.*` | Preserve unchanged for the existing XiaoZhi-server path. Direct DeepSeek/Yandex REST calls are a different contract and belong in JonnyBot network/agent code rather than changing these transports. |
+| MCP tool registration, schema validation and dispatch | `main/mcp_server.*` | Reuse the dispatcher and property validation. Add robot tools through the existing `AddTool` API, with callbacks that queue work instead of blocking. There is no `Board::InitializeTools()` hook. |
+| Generic display and LVGL/SPI LCD framework | `main/display/display.*`, `lcd_display.*`, `lvgl_display/*` | Reuse the framework and panel abstraction where compatible. Board code must initialize the ST7789V3 with the actual module settings; JonnyBot's procedural face renderer is new display behavior. |
+| Camera interface and ESP32-S3 camera support | `main/boards/common/camera.h`, `esp32_camera.*` | Reuse the camera API/driver where compatible. Add the XIAO-specific sensor, GPIO and capture configuration in the board implementation. |
+| Scalar persistent settings and immutable/downloaded assets | `main/settings.*`, `main/assets.*` | Keep using settings for small configuration values and assets for firmware resources. Neither is the conversation/intent/skill file store. |
+| Build and board selection | `scripts/build.py`, `main/Kconfig.projbuild`, `main/CMakeLists.txt`, board `config.json` | Follow the existing selection chain for the unique JonnyBot board. The chain is not yet wired to a JonnyBot board implementation. |
+| Robot actions, agent contract, direct REST clients, prompt/context and persistent conversation/skills | `main/robot/` and `main/net/` are placeholders | Implement as JonnyBot-specific modules after the reuse layer is verified. Mutable-file storage needs a separate filesystem/partition decision; current asset storage is not a general writable filesystem. |
+
+The audio and camera compatibility entries are conditional, not claims that
+the current board drivers already target XIAO Sense. The XIAO board and pin
+configuration must connect those existing abstractions to its onboard devices.
+The current user-facing XiaoZhi application remains a distinct runtime
+integration question: preserve its lifecycle and services, then decide which
+parts of its server conversation flow JonnyBot replaces with its own agent.
+
 ## Robot modules
 
 The planned `main/robot/` modules are `motors`, `safety`, `memory`, `intent`,
