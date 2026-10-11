@@ -32,10 +32,24 @@ def gh_json(repository, endpoint, optional=False):
     return json.loads(result.stdout)
 
 
+def find_release(repository, tag):
+    # GitHub's by-tag endpoint does not return unpublished drafts. The list
+    # endpoint includes drafts visible to this token, even before a tag exists.
+    page = 1
+    while True:
+        releases = gh_json(repository, f"releases?per_page=20&page={page}")
+        for item in releases:
+            if item["tag_name"] == tag:
+                return item
+        if len(releases) < 20:
+            return None
+        page += 1
+
+
 def preflight(repository, manifest):
     """Refuse to replace a published release or move an existing tag."""
     tag, sha = manifest["tag"], manifest["source_sha"]
-    release = gh_json(repository, f"releases/tags/{tag}", optional=True)
+    release = find_release(repository, tag)
     if release is not None:
         if not release["draft"]:
             raise ValueError(f"{tag} is already published")
@@ -178,7 +192,12 @@ def publish(repository, manifest, assets_dir, metadata_dir, run_url, make_public
             "gh", "release", "upload", manifest["tag"], "--repo", repository,
             "--clobber", *map(str, files[start:start + 20]),
         ], check=True)
-    remote = gh_json(repository, f"releases/tags/{manifest['tag']}")
+    # Resolve the new draft once, then keep its stable ID for verification.
+    # A draft's synthetic untagged URL can change when its metadata changes.
+    draft = find_release(repository, manifest["tag"])
+    if draft is None or not draft["draft"] or draft["target_commitish"] != manifest["source_sha"]:
+        raise ValueError("Expected draft release is missing or targets another commit")
+    remote = gh_json(repository, f"releases/{draft['id']}")
     if {a["name"] for a in remote["assets"]} != set(expected):
         raise ValueError("Uploaded release asset set is incomplete")
     for asset in remote["assets"]:
