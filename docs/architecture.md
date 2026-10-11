@@ -39,6 +39,21 @@ The planned `main/net/` modules are a shared HTTP client and DeepSeek, Yandex
 STT, and Yandex TTS clients. REST requests must not block the application event
 loop or audio tasks.
 
+## Confirmed hardware target
+
+| Component | Specification |
+| --- | --- |
+| Board | Seeed XIAO ESP32S3 Sense, 8 MB flash, 8 MB PSRAM |
+| Motors | CNMAWAY GA12-N20, 6 V, 150 RPM, approximately 1:100 gearbox |
+| Motor driver | DRV8833, dual channel |
+| Encoders | AS5600 with 6 x 2.5 mm diametric magnets, I2C |
+| Range sensor | VL53L0X GY-530, I2C, default address 0x29 |
+| Display | 1.69-inch ST7789V3, 240 x 280, SPI |
+| Audio output | MAX98357A I2S mono amplifier and 8-ohm speaker |
+
+Board pin assignments and peripheral bus topology still need to be recorded
+before the board implementation is wired into the build.
+
 ## Decisions pending before implementation
 
 - Define configuration and persistent-data formats and size limits.
@@ -46,8 +61,9 @@ loop or audio tasks.
   filesystem component.
 - Confirm flash size, OTA requirements, and a non-overlapping partition layout.
   The existing `partitions/v2/8m.csv` must not be changed until these are known.
-- Confirm the exact microphone, amplifier, display, motor driver, encoders, and
-  range sensor, then record their pin assignments in the board configuration.
+- Decide how multiple AS5600 encoders will share the I2C bus: their fixed I2C
+  address is 0x36, so multiple devices on the same bus need a mux, separate
+  buses, or a different encoder interface.
 - Decide where robot MCP tools are registered in the application lifecycle.
 
 This is a planning scaffold only. The new board and modules are not yet wired
