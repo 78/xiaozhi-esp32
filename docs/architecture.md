@@ -93,6 +93,46 @@ action result into the next agent request so the LLM can make that decision.
 The JSON schema, validation limits, safety behavior, and prompt wording remain
 to be finalized before implementing the response parser.
 
+### Working-prompt context example
+
+The request can combine elapsed time, conversation history, the LLM-maintained
+intent, timestamped sensor readings, the previous action, a camera image, and
+the latest STT text. This is an illustrative layout, not a finalized prompt
+template or sensor schema:
+
+```text
+СИТУАЦИЯ:
+Время: 1.5
+
+ИСТОРИЯ ДИАЛОГА:
+Человек: Подъедь к баллончику
+Робот: Поворачиваюсь к баллончику. Потом подъеду ближе.
+
+ТЕКУЩЕЕ НАМЕРЕНИЕ:
+Step 1: [x] повернуть корпус, чтобы баллончик был в центре кадра
+Step 2: [>] определить расстояние и подъехать
+Step 3: убедиться, что баллончик вблизи, сообщить человеку
+
+ДАННЫЕ СЕНСОРОВ:
+  энкодер: пройдено 0.00 м [возраст: 0.01с]
+  дальномер: свободно (>10 см) [возраст: 0.02с]
+
+ПРЕДЫДУЩЕЕ ДЕЙСТВИЕ:
+turn_right(angle_deg=30) [возраст: 1.5с]
+
+[КАДР С КАМЕРЫ]
+<base64 JPEG, QVGA>
+
+ГОЛОС ЧЕЛОВЕКА (STT):
+<пусто>
+```
+
+Sensor values and their ages should be measured when captured, so the model
+can distinguish recent readings from stale context. The exact distance
+thresholds, units, age representation, history window, image transport, and
+empty-STT encoding remain to be specified. The firmware reports observations
+and action outcomes; the LLM interprets them and owns intent progression.
+
 ## Decisions pending before implementation
 
 - Define configuration and persistent-data formats and size limits.
