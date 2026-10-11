@@ -24,6 +24,38 @@ partitions/                         # Flash partition tables
 docs/                               # Architecture and protocol documentation
 ```
 
+## Implementation order
+
+JonnyBot should preserve XiaoZhi behavior wherever it already meets the
+requirements, rather than replacing the firmware wholesale or starting with
+board bring-up as the main milestone. Since this repository is already based
+on XiaoZhi, "port unchanged" means retaining and reusing its existing
+implementations without unnecessary edits, then making them reachable from
+the JonnyBot build.
+
+1. Inventory XiaoZhi modules and trace their build/runtime dependencies.
+   Classify each as reuse unchanged, adapt for JonnyBot hardware or behavior,
+   or implement as JonnyBot-specific. Establish the current build/test
+   baseline and identify the smallest board/build integration needed to run
+   the reused code.
+2. Wire in the unchanged XiaoZhi functionality and verify it before adding
+   JonnyBot features. Keep changes to shared XiaoZhi code isolated and
+   requirement-driven.
+3. Adapt only the modules whose contracts or hardware differ, such as board
+   initialization, the external display/audio output, or the agent/network
+   integration. Validate each adaptation against the preserved behavior.
+4. Implement JonnyBot-specific logic on top of those stable interfaces:
+   action parsing and execution, calibrated motor control, prompt/context
+   assembly, conversation and intent memory, skill storage, and the procedural
+   face renderer. Define the memory formats and action contracts before their
+   consumers are implemented.
+5. Integrate and validate the complete flow; hardware-dependent checks wait
+   until the modules arrive.
+
+This is a dependency order, not a requirement to copy upstream files. Keep an
+inventory of which existing XiaoZhi components remain unchanged and record
+the reason for each adaptation so future upstream updates remain tractable.
+
 ## Robot modules
 
 The planned `main/robot/` modules are `motors`, `safety`, `memory`, `intent`,
