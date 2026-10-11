@@ -64,6 +64,33 @@ loop or audio tasks.
 Board pin assignments and peripheral bus topology still need to be recorded
 before the board implementation is wired into the build.
 
+## Agent interaction contract (draft)
+
+The agent receives a camera frame and the user's recognized text, then returns
+one strict JSON action per interaction. The proposed fields are `action`,
+`params`, `reasoning`, `speak_human`, `imotion`, `intent`, and `write_skill`.
+The action set is `move_forward`, `move_backward`, `turn_left`, `turn_right`,
+`stop`, `idle`, and `speak`.
+
+Translation actions use `distance_m` and `speed` (proposed ranges 0.05-2.0 m
+and 0.1-0.4 m/s). Turns use `angle_deg` (5-180 degrees, default 90). Movement
+is distance-based: the motor controller uses the AS5600 feedback to stop at
+the requested approximate travel distance, not a duration-based delay. The
+single encoder does not provide precise odometry; calibration and limitations
+from slip, turns, and uneven surfaces must be reflected in feedback to the
+agent.
+
+The range sensor is a forward-facing VL53L0X time-of-flight sensor, not an
+infrared proximity switch. Its valid measurement range and the obstacle
+threshold for stopping motion must be established from the selected module and
+physical tests; do not assume it can reliably detect at 1 cm.
+
+For multi-step tasks, the firmware must include the current `intent` and the
+previous action result in the next agent request. Otherwise the model cannot
+reliably mark steps complete or continue a story across independent requests.
+The JSON schema, validation limits, safety behavior, and prompt wording remain
+to be finalized before implementing the response parser.
+
 ## Decisions pending before implementation
 
 - Define configuration and persistent-data formats and size limits.
