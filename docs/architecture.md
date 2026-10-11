@@ -34,13 +34,14 @@ able to interrupt motion independently of normal command processing. MCP tools
 should enqueue requests rather than execute blocking motion in their callbacks.
 
 The single wheel encoder is intended to estimate rough travel distance, not to
-provide SLAM or precise odometry. Distance-based motion should stop when the
-calibrated encoder estimate reaches the requested distance, with a timeout as
-a fail-safe. Wheel slip, turns, and uneven surfaces make the estimate
-approximate. After each action, report estimated travel and the range sensor's
-before/after readings so the agent can use them as feedback on the next
-iteration. The VL53L0X measures distance to an obstacle; it does not by itself
-identify which object was approached.
+provide SLAM or precise odometry. A movement action specifies a target
+`distance` in its JSON; the motor controller uses encoder feedback to stop
+after approximately that travel distance, rather than running for a specified
+`delay`. Wheel slip, turns, and uneven surfaces make the estimate approximate.
+After each action, report estimated travel and the range sensor's before/after
+readings so the agent can use them as feedback on the next iteration. The
+VL53L0X measures distance to an obstacle; it does not by itself identify which
+object was approached.
 
 ## Network modules
 
