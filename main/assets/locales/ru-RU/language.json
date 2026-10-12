@@ -30,7 +30,7 @@
         "SERVER_TIMEOUT": "Тайм-аут ожидания ответа",
         "SERVER_ERROR": "Ошибка отправки, проверьте сеть",
         "CONNECT_TO_HOTSPOT": "Точка доступа: ",
-        "ACCESS_VIA_BROWSER": "Доступ через браузер: ",
+        "ACCESS_VIA_BROWSER": " Доступ через браузер: ",
         "WIFI_CONFIG_MODE": "Режим настройки Wi-Fi",
         "ENTERING_WIFI_CONFIG_MODE": "Вход в режим настройки Wi-Fi...",
         "SCANNING_WIFI": "Сканирование Wi-Fi...",
