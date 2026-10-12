@@ -487,13 +487,24 @@ void McpServer::ReplyResult(int id, const std::string& result,
 
 void McpServer::ReplyError(int id, int code, const std::string& message,
                            const ResponseSender& response_sender) {
+    CJsonUniquePtr json_message(cJSON_CreateString(message.c_str()));
+    if (json_message == nullptr) {
+        ESP_LOGE(TAG, "Failed to allocate MCP error message");
+        return;
+    }
+    CJsonStringUniquePtr encoded_message(cJSON_PrintUnformatted(json_message.get()));
+    if (encoded_message == nullptr) {
+        ESP_LOGE(TAG, "Failed to serialize MCP error message");
+        return;
+    }
+
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id);
     payload += ",\"error\":{\"code\":";
     payload += std::to_string(code);
-    payload += ",\"message\":\"";
-    payload += message;
-    payload += "\"}}";
+    payload += ",\"message\":";
+    payload += encoded_message.get();
+    payload += "}}";
     SendResponse(payload, response_sender);
 }
 

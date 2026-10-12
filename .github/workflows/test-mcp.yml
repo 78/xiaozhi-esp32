@@ -1,0 +1,33 @@
+name: MCP host tests
+
+on:
+  push:
+    paths:
+      - 'main/mcp_server.*'
+      - 'main/cjson_utils.h'
+      - 'main/boards/common/press_to_talk_mcp_tool.*'
+      - 'scripts/tests/test_mcp_server.py'
+      - '.github/workflows/test-mcp.yml'
+  pull_request:
+    paths:
+      - 'main/mcp_server.*'
+      - 'main/cjson_utils.h'
+      - 'main/boards/common/press_to_talk_mcp_tool.*'
+      - 'scripts/tests/test_mcp_server.py'
+      - '.github/workflows/test-mcp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install host test dependencies
+        run: sudo apt-get update && sudo apt-get install -y g++ libcjson-dev libmbedtls-dev
+      - name: Test MCP dispatcher
+        env:
+          CXX: g++
+        run: python3 -B -m unittest discover -s scripts/tests -p test_mcp_server.py -v
