@@ -235,6 +235,8 @@ bool HiLilyMusicPlayer::Play(std::string title, std::string artist) {
     requested_title_ = std::move(title);
     requested_artist_ = std::move(artist);
     pending_ = true; paused_ = false;
+    position_ms_ = 0;
+    playback_error_.clear();
     ++generation_;
     if (!task_) {
         // MP3 decode, TLS and LVGL share scarce internal RAM on N4R2.
@@ -295,6 +297,8 @@ std::string HiLilyMusicPlayer::StatusJson() {
     cJSON_AddStringToObject(root, "state", state);
     cJSON_AddStringToObject(root, "requested_song", requested_title_.c_str());
     cJSON_AddStringToObject(root, "requested_artist", requested_artist_.c_str());
+    cJSON_AddNumberToObject(root, "position_ms", position_ms_);
+    cJSON_AddStringToObject(root, "last_error", playback_error_.c_str());
     char* raw = cJSON_PrintUnformatted(root);
     std::string json = raw ? raw : "{}";
     if (raw) cJSON_free(raw);
@@ -302,7 +306,11 @@ std::string HiLilyMusicPlayer::StatusJson() {
     return json;
 }
 void HiLilyMusicPlayer::UpdatePosition(uint32_t generation, uint32_t elapsed_ms) {
-    if (Cancelled(generation)) return;
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        if (generation != generation_) return;
+        position_ms_ = elapsed_ms;
+    }
     display_->SetMusicPosition(elapsed_ms, true);
 }
 void HiLilyMusicPlayer::WorkerEntry(void* arg) {
@@ -323,10 +331,10 @@ void HiLilyMusicPlayer::Worker() {
             active_ = true;
         }
         const bool completed = StreamOne(generation,song,artist);
-        (void)completed;
         {
             std::lock_guard<std::mutex> guard(mutex_);
             active_ = false;
+            if (!completed && generation == generation_) playback_error_ = "stream_failed";
             // Keep the previous screen until the replacement track takes over.
             if (!pending_ && generation == generation_ && display_) display_->ClearMusic();
         }
@@ -466,6 +474,9 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
                               info.sample_rate,info.channel,playback);
             if (!playback.empty()) {
                 if (!AwaitPlay(generation))break;
+                // OutputData is synchronous: stop/pause is checked again
+                // immediately before submitting each decoded PCM block.
+                if (!AwaitPlay(generation)) break;
                 codec->OutputData(playback);
                 resampler.elapsed_samples+=playback.size();
                 ++frames_decoded;

@@ -36,5 +36,7 @@ private:
     TaskHandle_t task_ = nullptr;
     uint32_t generation_ = 0;
     bool pending_ = false, paused_ = false, active_ = false;
+    uint32_t position_ms_ = 0;
+    std::string playback_error_;
 };
 #endif
