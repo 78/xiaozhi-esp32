@@ -398,16 +398,37 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
     Resampler resampler;
     std::vector<int16_t> playback;
     bool ended = false,success = false,decode_error=false;
+    unsigned consecutive_read_failures = 0;
     uint32_t frames_decoded = 0;
+    bool pause_was_reported = false;
     while (!Cancelled(generation)) {
+        // Update LVGL on pause without advancing the audio clock.
+        bool paused_now = false;
+        {
+            std::lock_guard<std::mutex> guard(mutex_);
+            paused_now = paused_;
+        }
+        if (paused_now != pause_was_reported) {
+            display_->SetMusicPosition(static_cast<uint32_t>(
+                static_cast<uint64_t>(resampler.elapsed_samples)*1000/kOutputHz), !paused_now);
+            pause_was_reported = paused_now;
+        }
         if (!AwaitPlay(generation)) break;
         // When paused, don't read the TCP stream. Keep microphone wake detection alive.
         if (!ended && pending.size() < kMaxEncoded-kInputBlock) {
             auto count = http->Read(reinterpret_cast<char*>(input.data()),input.size());
             if (!count) {
-                ESP_LOGW(TAG,"MP3 read error");
-                break;
+                // A transient timeout must not tear down the decoder. The
+                // provider may recover without requiring a new MP3 session.
+                if (++consecutive_read_failures > 3) {
+                    ESP_LOGW(TAG,"MP3 stream interrupted after retries");
+                    break;
+                }
+                ESP_LOGW(TAG,"MP3 read timeout (%u/3)",consecutive_read_failures);
+                vTaskDelay(pdMS_TO_TICKS(250 * consecutive_read_failures));
+                continue;
             }
+            consecutive_read_failures = 0;
             if (*count == 0) ended = true;
             else pending.insert(pending.end(),input.begin(),input.begin()+*count);
         }
@@ -455,6 +476,7 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
         if (!raw.consumed && !frame.decoded_size) {
             if (ended) {success=frames_decoded>0;break;}
             if (pending.size() >= kMaxEncoded-kInputBlock) {decode_error=true;break;}
+            vTaskDelay(pdMS_TO_TICKS(5));
         }
     }
     release();

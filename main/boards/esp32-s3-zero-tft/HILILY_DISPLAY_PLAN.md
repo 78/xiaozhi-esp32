@@ -181,3 +181,16 @@ the device**. This does **not** prevent the upstream XiaoZhi server from also
 passing the same utterance to DeepSeek. For guaranteed zero-DeepSeek music
 routing, deploy a trusted gateway/server feature that consumes matching
 music STT intents before the LLM stage and forwards a direct music event.
+
+## Online music reliability follow-up (2026-10-14)
+
+- Added bounded read-timeout retry (three retries, increasing short delays).
+  This is **not** a full reconnect/HTTP Range resume; after retries the player
+  exits instead of replaying the beginning or desynchronizing lyrics.
+- Pause now sends a frozen position to the LVGL music display. Resume advances
+  from the same PCM sample counter.
+- MP3 streaming remains online-only: no SD-card player or SD dependencies.
+- Further items remain: dedicated producer/consumer ring buffer, radio
+  station API/provider verification, spectrum FFT, and arbitration against
+  concurrent TTS output. These are not claimed as completed.
+- Compile, size, and device testing are required before shipping.
