@@ -178,10 +178,21 @@ class VersionTests(unittest.TestCase):
                 for option in build_config.get("sdkconfig_append", []):
                     self.assertFalse(
                         option.startswith("CONFIG_LANGUAGE_")
-                        or option.startswith("CONFIG_SR_WN_"),
+                        or option.startswith("CONFIG_SR_WN_")
+                        or option.startswith("CONFIG_CUSTOM_WAKE_WORD")
+                        or re.match(r"CONFIG_USE_(?:ESP|AFE|CUSTOM)_WAKE_WORD=", option)
+                        or (option.startswith("CONFIG_WAKE_WORD_DISABLED=")
+                            and option != "CONFIG_WAKE_WORD_DISABLED=y"),
                         f"{config_path}: configure language and wake word "
                         f"through menuconfig or build parameters, not {option}",
                     )
+
+        for path in ROOT.glob("sdkconfig.defaults*"):
+            self.assertNotRegex(
+                path.read_text(encoding="utf-8"),
+                r"CONFIG_(?:SR_WN_|USE_(?:ESP|AFE|CUSTOM)_WAKE_WORD|WAKE_WORD_DISABLED)",
+                f"{path}: build.py selects the wake-word model and implementation",
+            )
 
     def test_gc0308_camera_sdkconfig_keys_use_digit_zero(self):
         # ESP-IDF silently ignores unknown Kconfig keys. The GC0308 sensor
@@ -1031,13 +1042,25 @@ class BuildOptionTests(unittest.TestCase):
             ],
         )
 
-    def test_wake_word_disabled_removes_target_default_model(self):
+    def test_hiesp_alias_supports_full_and_lite_targets(self):
+        for target, expected in (
+            ("esp32s3", "wn9_hiesp"), ("esp32s31", "wn9_hiesp"),
+            ("esp32p4", "wn9_hiesp"), ("esp32", "wn9_hiesp"),
+            ("esp32c3", "wn9s_hiesp"), ("esp32c5", "wn9s_hiesp"),
+            ("esp32c6", "wn9s_hiesp"),
+        ):
+            with self.subTest(target=target):
+                model, options, _ = build._wake_word_sdkconfig_options("hiesp", target)
+                self.assertEqual(model, expected)
+                self.assertIn(f"CONFIG_SR_WN_{expected.upper()}=y", options)
+
+    def test_wake_word_disabled_selects_no_model(self):
         model, options, symbols = build._wake_word_sdkconfig_options(
             "disabled",
             "esp32s3",
         )
         self.assertEqual(model, "disabled")
-        self.assertIn("CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=n", options)
+        self.assertFalse(any(option.startswith("CONFIG_SR_WN_") for option in options))
         self.assertIn("CONFIG_USE_AFE_WAKE_WORD=n", options)
         self.assertIn("CONFIG_USE_ESP_WAKE_WORD=n", options)
         self.assertIn("CONFIG_WAKE_WORD_DISABLED=y", options)
@@ -1061,6 +1084,10 @@ class BuildOptionTests(unittest.TestCase):
         self.assertFalse(
             build._board_supports_wake_word("esp32s3", ["CONFIG_SPIRAM=n"])
         )
+        for target in ("esp32c3", "esp32c5", "esp32c6", "esp32s3", "esp32p4", "esp32s31"):
+            self.assertFalse(build._board_supports_wake_word(
+                target, ["CONFIG_SPIRAM=y", "CONFIG_WAKE_WORD_DISABLED=y"]
+            ))
 
     def test_user_options_override_board_options(self):
         merged = build._merge_sdkconfig_options(
@@ -1469,6 +1496,23 @@ class LanguageBuildTests(unittest.TestCase):
                             [expected],
                         )
                         validate.assert_any_call([expected.split("=", 1)[0]], "--language")
+                        models = [item for item in fragment if item.startswith("CONFIG_SR_WN_")]
+                        if variant["wake_word_supported"]:
+                            chinese = language in {"zh-CN", "zh-TW"}
+                            if target in {"esp32c3", "esp32c5", "esp32c6"}:
+                                model = "WN9S_NIHAOXIAOZHI" if chinese else "WN9S_HIESP"
+                            else:
+                                model = "WN9_NIHAOXIAOZHI_TTS" if chinese else "WN9_HIESP"
+                            self.assertEqual(models, [f"CONFIG_SR_WN_{model}=y"])
+                            validate.assert_any_call(
+                                ["CONFIG_USE_AFE_WAKE_WORD" if target in {"esp32s3", "esp32s31", "esp32p4"}
+                                 else "CONFIG_USE_ESP_WAKE_WORD", f"CONFIG_SR_WN_{model}"],
+                                "--wake-word",
+                            )
+                        else:
+                            self.assertEqual(models, [])
+                            self.assertIn("CONFIG_WAKE_WORD_DISABLED=y", fragment)
+                            validate.assert_any_call(["CONFIG_WAKE_WORD_DISABLED"], "--wake-word")
 
     def test_cli_default_and_explicit_locale_use_the_real_build_pipeline(self):
         with (
@@ -1498,6 +1542,50 @@ class LanguageBuildTests(unittest.TestCase):
                         )
                     prepare.assert_not_called()
                     configure.assert_not_called()
+
+    def test_explicit_wake_word_overrides_language_default(self):
+        with self.mock_idf() as (_, configure, _):
+            for language, wake_word, expected in (
+                ("en-US", "nihaoxiaozhi", "CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=y"),
+                ("zh-CN", "hiesp", "CONFIG_SR_WN_WN9_HIESP=y"),
+                ("zh-TW", "wn9_jarvis_tts", "CONFIG_SR_WN_WN9_JARVIS_TTS=y"),
+                ("en-US", "disabled", None),
+            ):
+                with self.subTest(language=language, wake_word=wake_word):
+                    build.build_board(
+                        "bread-compact-wifi", name_filter="bread-compact-wifi",
+                        language=language, wake_word=wake_word, idf_version=(6, 1, 0),
+                    )
+                    fragment = configure.call_args.args[1]
+                    self.assertEqual(
+                        [item for item in fragment if item.startswith("CONFIG_SR_WN_")],
+                        [] if expected is None else [expected],
+                    )
+                    if expected is None:
+                        self.assertIn("CONFIG_WAKE_WORD_DISABLED=y", fragment)
+
+    def test_unavailable_wake_word_is_rejected_before_sdk_mutations(self):
+        with self.mock_idf() as (prepare, configure, _):
+            for board, name in (
+                ("magiclick/c3", "magiclick-c3"),
+                ("guition/jc4827w543", "guition-jc4827w543"),
+                ("m5stack/atoms3-echo-base", "atoms3-echo-base"),
+                ("bread-compact-esp32", "bread-compact-esp32"),
+            ):
+                with self.subTest(board=board):
+                    with self.assertRaisesRegex(ValueError, "disabled or unsupported"):
+                        build.build_board(board, name_filter=name, wake_word="hiesp",
+                                          idf_version=(6, 1, 0))
+                    prepare.assert_not_called()
+                    configure.assert_not_called()
+
+    def test_explicit_disable_is_allowed_on_boards_without_wake_word_support(self):
+        with self.mock_idf() as (_, configure, _):
+            build.build_board("magiclick/c3", name_filter="magiclick-c3",
+                              wake_word="disabled", idf_version=(6, 1, 0))
+            fragment = configure.call_args.args[1]
+            self.assertIn("CONFIG_WAKE_WORD_DISABLED=y", fragment)
+            self.assertFalse(any(item.startswith("CONFIG_SR_WN_") for item in fragment))
 
 
 class VariantSelectionTests(unittest.TestCase):

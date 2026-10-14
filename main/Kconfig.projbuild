@@ -915,10 +915,11 @@ config USE_MULTILINE_CHAT_MESSAGE
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
-    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
     default WAKE_WORD_DISABLED
     help
-        Choose the type of wake word implementation to use
+        Choose the type of wake word implementation to use.
+        scripts/build.py selects a compatible implementation and model automatically.
+        When configuring manually, select the corresponding ESP-SR models as well.
 
     config WAKE_WORD_DISABLED
         bool "Disabled"

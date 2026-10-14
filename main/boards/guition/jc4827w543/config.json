@@ -9,10 +9,7 @@
                 "CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y",
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
-                "CONFIG_WAKE_WORD_DISABLED=y",
-                "CONFIG_USE_AFE_WAKE_WORD=n",
-                "CONFIG_USE_ESP_WAKE_WORD=n",
-                "CONFIG_USE_CUSTOM_WAKE_WORD=n"
+                "CONFIG_WAKE_WORD_DISABLED=y"
             ]
         },
         {
@@ -22,9 +19,6 @@
                 "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/4m.csv\"",
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
                 "CONFIG_WAKE_WORD_DISABLED=y",
-                "CONFIG_USE_AFE_WAKE_WORD=n",
-                "CONFIG_USE_ESP_WAKE_WORD=n",
-                "CONFIG_USE_CUSTOM_WAKE_WORD=n",
                 "CONFIG_JC4827W543_EXTERNAL_AMP=y"
             ]
         }
