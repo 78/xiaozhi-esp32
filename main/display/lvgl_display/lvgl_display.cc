@@ -259,15 +259,39 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             icon = levels[level_index];
         }
         DisplayLockGuard lock(this);
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+        // Show numerical percentage and charging bolt on 240x240 Lily LCD.
+        static int last_lily_level = -1;
+        static bool last_lily_charging = false;
+        if (battery_label_ != nullptr &&
+            (battery_icon_ != icon || last_lily_level != battery_level ||
+             last_lily_charging != charging)) {
+            battery_icon_ = icon;
+            last_lily_level = battery_level;
+            last_lily_charging = charging;
+            lv_label_set_text_fmt(battery_label_, "%s%d%%", icon, battery_level);
+        }
+#else
         if (battery_label_ != nullptr && battery_icon_ != icon) {
             battery_icon_ = icon;
             lv_label_set_text(battery_label_, battery_icon_);
         }
+#endif
 
         // Check low battery popup only when clock tick event is triggered
         // Because when initializing, the battery level is not ready yet.
         if (low_battery_popup_ != nullptr && !update_all) {
-            if (strcmp(icon, MATERIAL_SYMBOLS_BATTERY_ANDROID_0) == 0 && discharging) {
+            #if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+            // Require actual battery telemetry and no charging; 20% itself
+            // is NOT yet low. Alerts appear at 19% or below.
+            const bool low_battery = battery_level < 20 && discharging;
+#else
+            const bool low_battery = (strcmp(icon, MATERIAL_SYMBOLS_BATTERY_ANDROID_0) == 0) && discharging;
+#endif
+            if (low_battery) {
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+                lv_label_set_text(low_battery_label_, "Pin yếu, vui lòng sạc thiết bị");
+#endif
                 if (lv_obj_has_flag(low_battery_popup_,
                                     LV_OBJ_FLAG_HIDDEN)) {  // Show if low battery popup is hidden
                     lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);

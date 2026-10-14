@@ -26,7 +26,14 @@
 // TFT ST7789 240x240, four-wire SPI (assumed controller).
 #define DISPLAY_RST_PIN          GPIO_NUM_8
 #define DISPLAY_CS_PIN           GPIO_NUM_9
+// Battery sensing uses ADC1 CH9/GPIO10 when enabled. Move LCD DC to GPIO15.
+#if CONFIG_HILILY_BATTERY_MONITOR
+#define DISPLAY_DC_PIN           GPIO_NUM_15
+#define BATTERY_ADC_GPIO        GPIO_NUM_10
+#define BATTERY_CHARGING_GPIO   GPIO_NUM_16
+#else
 #define DISPLAY_DC_PIN           GPIO_NUM_10
+#endif
 #define DISPLAY_MOSI_PIN         GPIO_NUM_11
 #define DISPLAY_CLK_PIN          GPIO_NUM_12
 #define DISPLAY_BACKLIGHT_PIN    GPIO_NUM_13

@@ -5,6 +5,10 @@
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
+#if CONFIG_HILILY_BATTERY_MONITOR
+#include "adc_battery_monitor.h"
+#include <driver/gpio.h>
+#endif
 
 #include <driver/spi_common.h>
 #include <esp_lcd_panel_io.h>
@@ -102,6 +106,35 @@ public:
             AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN,
             I2S_STD_SLOT_LEFT);
         return &audio_codec;
+    }
+
+    bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+#if CONFIG_HILILY_BATTERY_MONITOR
+        // Enable only after wiring a voltage divider (VBAT -> 100k -> GPIO10
+        // -> 100k -> GND) and a 3.3V-safe, active-low CHRG# signal to GPIO16.
+        static AdcBatteryMonitor battery(ADC_UNIT_1, ADC_CHANNEL_9,
+                                        100000.0f, 100000.0f, GPIO_NUM_NC);
+        static const bool initialized = []() {
+            gpio_config_t cfg = {};
+            cfg.pin_bit_mask = 1ULL << BATTERY_CHARGING_GPIO;
+            cfg.mode = GPIO_MODE_INPUT;
+            cfg.pull_up_en = GPIO_PULLUP_ENABLE;
+            return gpio_config(&cfg) == ESP_OK;
+        }();
+        if (!initialized) {
+            return false;
+        }
+        level = battery.GetBatteryLevel();
+        charging = gpio_get_level(BATTERY_CHARGING_GPIO) == 0;
+        discharging = !charging;
+        return true;
+#else
+        // No battery-sense circuit => don't invent battery percentage/status.
+        (void)level;
+        (void)charging;
+        (void)discharging;
+        return false;
+#endif
     }
 
     Display* GetDisplay() override {

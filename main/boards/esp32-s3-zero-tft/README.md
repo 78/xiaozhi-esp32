@@ -114,3 +114,14 @@ The current embedded vendor portal **does not have a dedicated manual
 the literal portal HTML requires a separately versioned override/fork of
 `78/esp-wifi-connect` (rather than editing generated
 `managed_components`). This is not falsely claimed as integrated.
+
+## Display goals
+
+See [HILILY_DISPLAY_PLAN.md](HILILY_DISPLAY_PLAN.md) for Worker weather/location,
+Vietnamese lunar calendar, mascot emotion assets, music playback lyric/timing,
+and battery charging/low-level rules. These features are not yet all wired
+end-to-end, especially battery module and synchronized music player.
+
+Enable battery status (only after wiring the specified 1-cell voltage divider
+and charger CHRG# pin) with `CONFIG_HILILY_BATTERY_MONITOR=y` in a build option.
+The LCD DC pin changes from GPIO10 to GPIO15 under this option.

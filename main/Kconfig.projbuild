@@ -179,6 +179,17 @@ choice BOARD_TYPE
     config BOARD_TYPE_ESP32_S3_ZERO_TFT
         bool "ESP32-S3 Zero N4R2 + ST7789 240x240 + INMP441 + PCM5102A"
         depends on IDF_TARGET_ESP32S3
+
+config HILILY_BATTERY_MONITOR
+    bool "Hi Lily: battery % and charger active-low detect (GPIO10 ADC + GPIO16 CHRG#)"
+    depends on BOARD_TYPE_ESP32_S3_ZERO_TFT
+    default n
+    help
+        Enable only with a 1-cell Li-ion/LiPo voltage divider from VBAT
+        (100k upper, 100k lower) to GPIO10, and 3.3V-safe CHRG# active low
+        on GPIO16. LCD DC is moved from GPIO10 to GPIO15 when enabled.
+        This has NOT been calibrated for an actual cell/charger module.
+
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "Bread Compact Wi-Fi + LCD + Camera (面包板)"
         depends on IDF_TARGET_ESP32S3
