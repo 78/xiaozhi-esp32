@@ -65,7 +65,7 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v6.1
+      image: espressif/idf:release-v6.1
     strategy:
       fail-fast: false
       matrix:
