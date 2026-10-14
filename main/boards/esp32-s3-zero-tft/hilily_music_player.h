@@ -18,6 +18,7 @@ public:
     bool Pause();
     bool Resume();
     bool Stop();
+    std::string StatusJson();
     // Optional shortcut for finalized Vietnamese STT commands.
     // This executes locally, without waiting for an LLM tool invocation.
     bool HandleRecognizedSpeech(const std::string& recognized_text);

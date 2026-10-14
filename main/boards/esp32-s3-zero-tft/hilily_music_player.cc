@@ -275,6 +275,20 @@ bool HiLilyMusicPlayer::AwaitPlay(uint32_t generation) {
         vTaskDelay(pdMS_TO_TICKS(45));
     }
 }
+std::string HiLilyMusicPlayer::StatusJson() {
+    std::lock_guard<std::mutex> guard(mutex_);
+    const char* state = pending_ ? "loading" : active_ ? (paused_ ? "paused" : "playing") : "idle";
+    cJSON* root = cJSON_CreateObject();
+    if (!root) return "{\"state\":\"error\"}";
+    cJSON_AddStringToObject(root, "state", state);
+    cJSON_AddStringToObject(root, "requested_song", requested_title_.c_str());
+    cJSON_AddStringToObject(root, "requested_artist", requested_artist_.c_str());
+    char* raw = cJSON_PrintUnformatted(root);
+    std::string json = raw ? raw : "{}";
+    if (raw) cJSON_free(raw);
+    cJSON_Delete(root);
+    return json;
+}
 void HiLilyMusicPlayer::UpdatePosition(uint32_t generation, uint32_t elapsed_ms) {
     if (Cancelled(generation)) return;
     display_->SetMusicPosition(elapsed_ms, true);
@@ -298,10 +312,11 @@ void HiLilyMusicPlayer::Worker() {
         }
         const bool completed = StreamOne(generation,song,artist);
         (void)completed;
-        if (display_) display_->ClearMusic();
         {
             std::lock_guard<std::mutex> guard(mutex_);
             active_ = false;
+            // Keep the previous screen until the replacement track takes over.
+            if (!pending_ && generation == generation_ && display_) display_->ClearMusic();
         }
     }
 }
@@ -311,11 +326,16 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
     auto* codec = Board::GetInstance().GetAudioCodec();
     if (!codec || !display_) return false;
     Track track;
-    if (!ResolveTrack(worker_base_, title, artist, track) || Cancelled(generation)) {
+    std::string base;
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        base = worker_base_;
+    }
+    if (!ResolveTrack(base, title, artist, track) || Cancelled(generation)) {
         ESP_LOGW(TAG, "No playable Worker track");
         return false;
     }
-    const std::string lrc = ReadLyrics(worker_base_,track.lyric);
+    const std::string lrc = ReadLyrics(base,track.lyric);
     if (Cancelled(generation)) return false;
     // Starting a new song updates metadata but keeps the audio clock at 0.
     display_->SetMusicTrack(track.title, track.artist, track.duration_ms, lrc);
@@ -340,7 +360,7 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
     http->SetTimeout(12000);
     http->SetHeader("Accept", "audio/mpeg, audio/mp3, application/octet-stream");
     http->SetHeader("Accept-Encoding", "identity");
-    if (!http->Open("GET",worker_base_+track.audio)) {
+    if (!http->Open("GET",base+track.audio)) {
         ESP_LOGE(TAG,"Could not open Worker MP3 stream");
         http->Close();
         esp_audio_simple_dec_close(decoder);

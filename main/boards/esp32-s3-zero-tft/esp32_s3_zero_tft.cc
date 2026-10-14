@@ -116,6 +116,10 @@ public:
                     return std::unexpected("Cannot queue music playback");
                 return std::string("Music command queued on device");
             });
+        mcp.AddTool("self.music.status", "Get the local Hi Lily online music playback state",
+            PropertyList(), [](const PropertyList&) -> ReturnValue {
+                return HiLilyMusicPlayer::GetInstance().StatusJson();
+            });
         mcp.AddTool("self.music.pause", "Pause local Hi Lily music",
             PropertyList(), [](const PropertyList&) -> ReturnValue {
                 return HiLilyMusicPlayer::GetInstance().Pause();
