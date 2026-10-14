@@ -8,7 +8,7 @@
 
 Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
     gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk, bool pa_inverted) {
+    gpio_num_t pa_pin, uint8_t es8311_addr, bool use_mclk, bool pa_inverted, bool digital_mic) {
     duplex_ = true; // 是否双工
     input_reference_ = false; // 是否使用参考输入，实现回声消除
     input_channels_ = 1; // 输入通道数
@@ -16,6 +16,7 @@ Es8311AudioCodec::Es8311AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     output_sample_rate_ = output_sample_rate;
     pa_pin_ = pa_pin;
     pa_inverted_ = pa_inverted;
+    digital_mic_ = digital_mic;
     input_gain_ = 30;
 
     assert(input_sample_rate_ == output_sample_rate_);
@@ -72,6 +73,21 @@ void Es8311AudioCodec::ResetCodec() {
     ESP_LOGI(TAG, "ES8311 software reset complete");
 }
 
+void Es8311AudioCodec::ApplyDigitalMicMode() {
+    // Boards wiring a PDM microphone to the ES8311 DMIC input (e.g. the
+    // LMD4737 on RockBase NM-EPD-420) need register 0x14 bit7 (DMIC enable)
+    // and bit6 (DMIC polarity) set. The esp_codec_dev ES8311 driver leaves
+    // the codec in analog-mic mode, so patch the register after every open
+    // while preserving the driver-programmed PGA gain in the low nibble.
+    uint8_t reg = 0;
+    ESP_ERROR_CHECK(static_cast<esp_err_t>(
+        ctrl_if_->read_reg(ctrl_if_, 0x14, 1, &reg, 1)));
+    reg |= 0xC0;
+    ESP_ERROR_CHECK(static_cast<esp_err_t>(
+        ctrl_if_->write_reg(ctrl_if_, 0x14, 1, &reg, 1)));
+    ESP_LOGI(TAG, "ES8311 digital mic mode enabled (reg 0x14 = 0x%02X)", reg);
+}
+
 Es8311AudioCodec::~Es8311AudioCodec() {
     esp_codec_dev_delete(dev_);
 
@@ -101,6 +117,9 @@ void Es8311AudioCodec::UpdateDeviceState() {
         ESP_ERROR_CHECK(esp_codec_dev_open(dev_, &fs));
         ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, input_gain_));
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(dev_, output_volume_));
+        if (digital_mic_) {
+            ApplyDigitalMicMode();
+        }
     } else if (!input_enabled_ && !output_enabled_ && dev_ != nullptr) {
         ESP_ERROR_CHECK(esp_codec_dev_close(dev_));
         esp_codec_dev_delete(dev_);

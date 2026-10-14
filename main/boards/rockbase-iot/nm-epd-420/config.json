@@ -1,0 +1,14 @@
+{
+    "manufacturer": "rockbase-iot",
+    "type": "nm-epd-420",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "nm-epd-420-bw",
+            "sdkconfig_append": [
+                "CONFIG_USE_WECHAT_MESSAGE_STYLE=n",
+                "CONFIG_USE_MULTILINE_CHAT_MESSAGE=y"
+            ]
+        }
+    ]
+}

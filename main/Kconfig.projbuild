@@ -431,6 +431,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_QUANDONG_S3_DEV
         bool "Quandong ESP32-S3 Development Board (全动)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_ROCKBASE_NM_EPD_420
+        bool "RockBase IoT NM-EPD-420 e-Paper 4.2"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_RYMCU_BIGSMART
         bool "RYMCU BigSmart"
         depends on IDF_TARGET_ESP32S3
