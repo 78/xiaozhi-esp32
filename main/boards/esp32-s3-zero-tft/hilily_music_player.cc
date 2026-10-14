@@ -191,11 +191,11 @@ bool HiLilyMusicPlayer::HandleRecognizedSpeech(const std::string& recognized_tex
     while (!text.empty() && (text.back()=='.' || text.back()=='!' ||
            text.back()=='?' || text.back()==' ')) text.pop_back();
 
+    if (text.find("tạm dừng nhạc") != std::string::npos ||
+        text.find("tạm dừng bài hát") != std::string::npos) return Pause();
     if (text.find("dừng nhạc") != std::string::npos ||
         text.find("tắt nhạc") != std::string::npos ||
         text.find("dừng bài hát") != std::string::npos) return Stop();
-    if (text.find("tạm dừng nhạc") != std::string::npos ||
-        text.find("tạm dừng bài hát") != std::string::npos) return Pause();
     if (text.find("tiếp tục nhạc") != std::string::npos ||
         text.find("phát tiếp nhạc") != std::string::npos) return Resume();
 
