@@ -687,6 +687,13 @@ void Application::InitializeProtocol() {
                     glyphs.clear();
                 }
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+                // Recognize a small, deterministic set of Vietnamese music
+                // commands and call Worker directly without LLM tool routing.
+                // Upstream XiaoZhi may nevertheless also invoke DeepSeek;
+                // suppressing that requires a change in the STT gateway.
+                HiLilyMusicPlayer::GetInstance().HandleRecognizedSpeech(text->valuestring);
+#endif
                 Schedule([display, message = std::string(text->valuestring),
                           glyphs = std::move(glyphs), bpp]() {
                     display->AddTextGlyphs(glyphs, bpp);

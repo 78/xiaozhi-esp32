@@ -183,6 +183,41 @@ struct Resampler {
 };
 }  // namespace
 
+bool HiLilyMusicPlayer::HandleRecognizedSpeech(const std::string& recognized_text) {
+    // This is a deterministic local shortcut, not a claim that the upstream
+    // XiaoZhi backend has disabled its LLM. The WSS backend may still respond.
+    if (recognized_text.empty() || recognized_text.size() > 300) return false;
+    std::string text = recognized_text;
+    while (!text.empty() && (text.back()=='.' || text.back()=='!' ||
+           text.back()=='?' || text.back()==' ')) text.pop_back();
+
+    if (text.find("dừng nhạc") != std::string::npos ||
+        text.find("tắt nhạc") != std::string::npos ||
+        text.find("dừng bài hát") != std::string::npos) return Stop();
+    if (text.find("tạm dừng nhạc") != std::string::npos ||
+        text.find("tạm dừng bài hát") != std::string::npos) return Pause();
+    if (text.find("tiếp tục nhạc") != std::string::npos ||
+        text.find("phát tiếp nhạc") != std::string::npos) return Resume();
+
+    const char* prefixes[] = {"phát bài ", "mở bài ", "nghe bài ",
+                              "bật bài ", "phát nhạc ", "mở nhạc "};
+    for (const char* prefix : prefixes) {
+        const auto pos=text.find(prefix);
+        if (pos==std::string::npos || pos>75) continue;
+        auto song=text.substr(pos+std::strlen(prefix));
+        if (song.empty() || song.size()>100) return false;
+        std::string artist;
+        const auto of=song.find(" của ");
+        if (of!=std::string::npos) {
+            artist=song.substr(of+5);
+            song=song.substr(0,of);
+        }
+        if(song.empty()||song.size()>100||artist.size()>100)return false;
+        return Play(song,artist);
+    }
+    return false;
+}
+
 HiLilyMusicPlayer& HiLilyMusicPlayer::GetInstance() {
     static HiLilyMusicPlayer player;
     return player;

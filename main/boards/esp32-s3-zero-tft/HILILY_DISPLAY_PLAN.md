@@ -170,3 +170,14 @@ Use the host in `HILILY_WORKER_BASE_URL`; it must match the deployed Worker.
 Worker Master music API needs working upstream provider and lyric content.
 No commercial music availability is guaranteed. Flash/RAM and hardware
 integration still require real ESP-IDF 6.x build and on-board test.
+
+### Voice command fast-path
+
+Firmware now intercepts finalized incoming XiaoZhi STT text for Vietnamese
+patterns such as `phát bài <song>`, `phát bài <song> của <artist>`,
+`tạm dừng nhạc`, `tiếp tục nhạc`, and `dừng nhạc`.
+It invokes the local MP3 player immediately, bypassing an **LLM tool call on
+the device**. This does **not** prevent the upstream XiaoZhi server from also
+passing the same utterance to DeepSeek. For guaranteed zero-DeepSeek music
+routing, deploy a trusted gateway/server feature that consumes matching
+music STT intents before the LLM stage and forwards a direct music event.

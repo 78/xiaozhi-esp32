@@ -18,6 +18,9 @@ public:
     bool Pause();
     bool Resume();
     bool Stop();
+    // Optional shortcut for finalized Vietnamese STT commands.
+    // This executes locally, without waiting for an LLM tool invocation.
+    bool HandleRecognizedSpeech(const std::string& recognized_text);
 private:
     HiLilyMusicPlayer() = default;
     static void WorkerEntry(void* arg);
