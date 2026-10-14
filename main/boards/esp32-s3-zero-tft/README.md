@@ -23,6 +23,7 @@ board has **not yet been hardware-validated**. The LCD controller is assumed to 
 | TFT ST7789 | BL / LED | 13 (PWM) |
 | Onboard WS2812 RGB LED | Data | 21 (already connected) |
 | Onboard BOOT button | Input | 0 (already connected) |
+| External WAKE button | NO pushbutton | GPIO14 to GND (internal pull-up) |
 
 All modules must share GND. INMP441 uses 3.3V power; respect each module's
 power/logic specifications. PCM5102A is **line-level**, not a speaker power
@@ -34,8 +35,11 @@ to PCM5102A.
 
 Do not use GPIO19/20 for external peripherals; they serve native USB.
 Avoid GPIO3/45/46 (strapping pins) and GPIO33-37 (not exposed on Zero).
-GPIO21 is dedicated to the onboard WS2812. BOOT on GPIO0 is for both USB
-download mode and short-click chat toggling after normal boot.
+GPIO21 is dedicated to the onboard WS2812. **Both BOOT (GPIO0) and external
+WAKE (GPIO14)** start/toggle the conversation when clicked. Holding either
+button for 2 seconds enters Wi-Fi provisioning after normal boot.
+Keep GPIO0 high during reset for normal boot; holding BOOT through reset
+enters the ROM download mode. Never wire the external button to GPIO0.
 
 ## Display notes
 
@@ -50,13 +54,16 @@ soldering and change `config.h` in this board only if necessary.
 Use **ESP-IDF v6.1** (v6.0.1 minimum in this repository):
 
 ```sh
-python scripts/build.py esp32-s3-zero-tft --name esp32-s3-zero-tft --language vi-VN --wake-word disabled
+python scripts/build.py esp32-s3-zero-tft --name esp32-s3-zero-tft --language vi-VN
 idf.py size
 ```
 
 The preset selects `partitions/v2/4m.csv`, **Quad PSRAM** instead of the
-ESP32-S3 default Octal mode, and no wake word / AFE for the first
-resource-constrained smoke test. The 4MB partition layout is **factory-only**:
+ESP32-S3 default Octal mode, and the built-in **WakeNet9 Hi Lily** model (`wn9_hilili_tts`),
+with speech-processing/AEC and wake-word audio upload off for the
+memory-constrained first build. The LVGL pool is reduced to 256KB and its
+image cache to 64KB on this board, to leave PSRAM for WakeNet9/AFE.
+**The compiled model and firmware are NOT yet confirmed to fit**. The 4MB partition layout is **factory-only**:
 it has **no dual OTA app slots**, so firmware OTA A/B is not available.
 Verify that the compiled app and assets fit in their partitions. A successful
 compile does not imply working mic, playback, LCD, Wi-Fi or wake word.
@@ -75,3 +82,35 @@ INMP441 L/R must be held low to match left-channel capture.
 
 Acoustic echo cancellation with a playback reference is **not configured**
 for this external mic/DAC pair. Do not assume full-duplex AEC will work.
+
+## Hi Lily wake word + pushbuttons
+
+The default variant explicitly selects `CONFIG_USE_AFE_WAKE_WORD=y`,
+`CONFIG_SR_WN_WN9_HILILI_TTS=y`, and disables the old Chinese WakeNet
+model. Hi Lily is an actual WakeNet9 model (not merely a changed label).
+It requires the ESP-SR 2.4.7 package to provide the symbol and model.
+The runtime fetches speech assets from the 4MB layout's 1MB assets partition.
+If the assets image or firmware exceeds that partition, the **4MB physical
+flash is a blocker**, not an option to declare a bigger flash in sdkconfig.
+No successful ESP-IDF build or physical wake test is claimed here.
+
+To switch off wake detection for comparison:
+```sh
+python scripts/build.py esp32-s3-zero-tft --name esp32-s3-zero-tft --language vi-VN --wake-word disabled
+```
+
+## Wi-Fi configuration on phone
+
+The firmware uses `78/esp-wifi-connect` v3.3.1. Hold either button for
+about 2 seconds while the device is running (or configure automatically
+on first boot). Connect your phone to the `Xiaozhi-XXXX` hotspot.
+Open **http://192.168.4.1**. The existing portal automatically fetches
+`GET /scan` every 5 seconds, shows selectable detected SSIDs, allows
+entering the password, and uses `POST /submit` to connect. Only 2.4GHz
+Wi-Fi is supported by ESP32-S3.
+
+The current embedded vendor portal **does not have a dedicated manual
+"Quét Wi-Fi" button**; the list already rescans automatically. Changing
+the literal portal HTML requires a separately versioned override/fork of
+`78/esp-wifi-connect` (rather than editing generated
+`managed_components`). This is not falsely claimed as integrated.

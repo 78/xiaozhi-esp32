@@ -156,8 +156,15 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_image_cache_resize(2 * 1024 * 1024, true);
         ESP_LOGI(TAG, "Use 2MB of PSRAM for image cache");
     } else if (psram_size_mb >= 2) {
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+        // 2MB Quad PSRAM must accommodate WakeNet9/AFE and LVGL together.
+        // Reserve image-cache headroom for speech recognition on this board.
+        lv_image_cache_resize(64 * 1024, true);
+        ESP_LOGI(TAG, "Use 64KB image cache for ESP32-S3 Zero N4R2");
+#else
         lv_image_cache_resize(512 * 1024, true);
         ESP_LOGI(TAG, "Use 512KB of PSRAM for image cache");
+#endif
     }
 #endif
 

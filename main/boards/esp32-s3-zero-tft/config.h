@@ -20,6 +20,7 @@
 #define AUDIO_I2S_SPK_GPIO_DOUT   GPIO_NUM_7
 
 #define BOOT_BUTTON_GPIO         GPIO_NUM_0
+#define WAKE_BUTTON_GPIO         GPIO_NUM_14  // External NO pushbutton to GND
 #define BUILTIN_LED_GPIO         GPIO_NUM_21  // Onboard WS2812
 
 // TFT ST7789 240x240, four-wire SPI (assumed controller).

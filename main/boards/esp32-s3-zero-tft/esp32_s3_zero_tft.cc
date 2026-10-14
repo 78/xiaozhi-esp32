@@ -17,6 +17,7 @@
 class Esp32S3ZeroTftBoard : public WifiBoard {
 private:
     Button boot_button_;
+    Button wake_button_;
     Display* display_ = nullptr;
 
     void InitializeSpi() {
@@ -64,18 +65,28 @@ private:
     }
 
     void InitializeButtons() {
-        boot_button_.OnClick([this]() {
+        // Both buttons activate the same conversation path. The external button
+        // is active-low, using the internal pull-up configured by Button.
+        auto on_short_press = [this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
                 return;
             }
             app.ToggleChatState();
-        });
+        };
+        // A deliberate long press enters Wi-Fi provisioning after normal boot.
+        auto on_long_press = [this]() {
+            EnterWifiConfigMode();
+        };
+        boot_button_.OnClick(on_short_press);
+        wake_button_.OnClick(on_short_press);
+        boot_button_.OnLongPress(on_long_press);
+        wake_button_.OnLongPress(on_long_press);
     }
 
 public:
-    Esp32S3ZeroTftBoard() : boot_button_(BOOT_BUTTON_GPIO) {
+    Esp32S3ZeroTftBoard() : boot_button_(BOOT_BUTTON_GPIO), wake_button_(WAKE_BUTTON_GPIO) {
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
