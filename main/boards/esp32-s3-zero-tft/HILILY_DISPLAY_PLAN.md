@@ -145,3 +145,28 @@ position after pause, resume and seek. Worker metadata/lyric URLs alone do
 not provide that position. The ESP32 PCM music transport and Worker lyric
 fetch bridge are **not yet wired**; do not describe this as fully working
 music playback. The UI is board-local and does not affect other devices.
+
+## Direct Worker streaming architecture
+
+Firmware has a board-specific local MP3 streaming engine. Device MCP calls
+`self.music.play(song,artist)`, `self.music.pause`, `self.music.resume`,
+`self.music.stop` enqueue local actions. The same authenticated XiaoZhi
+device websocket may deliver `{"type":"music","action":"play","song":"..."}`
+without involving an LLM **if the gateway supports STT intent routing**.
+
+- Device HTTP GET `/stream_pcm?song=...&artist=...` (metadata JSON)
+- HTTP GET `/proxy_lyric?... ` (time-synced LRC)
+- HTTP GET `/proxy_audio?...` (raw MP3; never put audio bytes in MCP JSON)
+- On-device Espressif MP3 decoder -> mono 24kHz resample -> PCM5102A I2S
+- Update lyric from consumed PCM samples (pause freezes the timeline).
+- AudioService Opus output gated while local MP3 uses the DAC.
+
+A local MCP tool *being advertised to Xiaozhi* does NOT mean voice is
+automatically routed without DeepSeek. The backend gateway must recognize a
+voice music command after STT and forward the `type:music` message directly.
+This repository alone cannot replace the STT/server routing.
+
+Use the host in `HILILY_WORKER_BASE_URL`; it must match the deployed Worker.
+Worker Master music API needs working upstream provider and lyric content.
+No commercial music availability is guaranteed. Flash/RAM and hardware
+integration still require real ESP-IDF 6.x build and on-board test.

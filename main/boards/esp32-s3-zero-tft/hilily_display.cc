@@ -209,6 +209,10 @@ void HiLilyDisplay::UpdateStatusBar(bool update_all) {
             if(emoji_box_)lv_obj_add_flag(emoji_box_,LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(music_panel_,LV_OBJ_FLAG_HIDDEN);
+            if (idle) {
+                lv_obj_remove_flag(panel_, LV_OBJ_FLAG_HIDDEN);
+                if (emoji_box_) lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+            } else if (emoji_box_) lv_obj_remove_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
         }
         was_music_=music_active;
     }

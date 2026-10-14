@@ -1,4 +1,7 @@
 #include "application.h"
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+#include "boards/esp32-s3-zero-tft/hilily_music_player.h"
+#endif
 #include "assets.h"
 #include "assets/lang_config.h"
 #include "audio_codec.h"
@@ -616,6 +619,29 @@ void Application::InitializeProtocol() {
                       subtitles = std::move(subtitles)]() mutable {
                 StartNotification(std::move(url), std::move(subtitles));
             });
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+        } else if (strcmp(type->valuestring, "music") == 0) {
+            // A trusted XiaoZhi gateway can send this command after STT routing,
+            // without asking DeepSeek to invoke a tool. This channel must be
+            // authenticated by the upstream device WSS session.
+            auto action = cJSON_GetObjectItem(root, "action");
+            if (!cJSON_IsString(action)) return;
+            auto& music = HiLilyMusicPlayer::GetInstance();
+            if (strcmp(action->valuestring, "play") == 0) {
+                auto song = cJSON_GetObjectItem(root, "song");
+                auto artist = cJSON_GetObjectItem(root, "artist");
+                if (cJSON_IsString(song) && strlen(song->valuestring) <= 100) {
+                    music.Play(song->valuestring,
+                         cJSON_IsString(artist) && strlen(artist->valuestring)<=100 ? artist->valuestring : "");
+                }
+            } else if (strcmp(action->valuestring, "pause") == 0) {
+                music.Pause();
+            } else if (strcmp(action->valuestring, "resume") == 0) {
+                music.Resume();
+            } else if (strcmp(action->valuestring, "stop") == 0) {
+                music.Stop();
+            }
+#endif
         } else if (strcmp(type->valuestring, "tts") == 0) {
             auto state = cJSON_GetObjectItem(root, "state");
             if (!cJSON_IsString(state)) {

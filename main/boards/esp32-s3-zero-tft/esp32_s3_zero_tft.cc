@@ -7,6 +7,8 @@
 #include "led/single_led.h"
 #include "hilily_display.h"
 #include "hilily_home_client.h"
+#include "hilily_music_player.h"
+#include "mcp_server.h"
 #if CONFIG_HILILY_BATTERY_MONITOR
 #include "hilily_battery.h"
 #endif
@@ -99,6 +101,33 @@ public:
         InitializeDisplay();
         InitializeButtons();
         StartHiLilyHomeClient(display_, HILILY_WORKER_HOME_URL);
+        auto& music = HiLilyMusicPlayer::GetInstance();
+        music.Configure(display_, HILILY_WORKER_BASE_URL);
+        // Device-local MCP commands. A gateway may invoke them directly without an LLM.
+        auto& mcp = McpServer::GetInstance();
+        mcp.AddTool("self.music.play",
+            "Play music locally on Hi Lily. ESP32 calls Worker Master directly for MP3 and timed LRC.",
+            PropertyList({Property("song", kPropertyTypeString).SetMaxLength(100),
+                          Property("artist", kPropertyTypeString, std::string(""))}),
+            [](const PropertyList& p) -> ToolResult {
+                const auto& song=p["song"].value<std::string>();
+                const auto& artist=p["artist"].value<std::string>();
+                if (!HiLilyMusicPlayer::GetInstance().Play(song,artist))
+                    return std::unexpected("Cannot queue music playback");
+                return std::string("Music command queued on device");
+            });
+        mcp.AddTool("self.music.pause", "Pause local Hi Lily music",
+            PropertyList(), [](const PropertyList&) -> ReturnValue {
+                return HiLilyMusicPlayer::GetInstance().Pause();
+            });
+        mcp.AddTool("self.music.resume", "Resume local Hi Lily music",
+            PropertyList(), [](const PropertyList&) -> ReturnValue {
+                return HiLilyMusicPlayer::GetInstance().Resume();
+            });
+        mcp.AddTool("self.music.stop", "Stop local Hi Lily music",
+            PropertyList(), [](const PropertyList&) -> ReturnValue {
+                return HiLilyMusicPlayer::GetInstance().Stop();
+            });
         GetBacklight()->RestoreBrightness();
     }
 

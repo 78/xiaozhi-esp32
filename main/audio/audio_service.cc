@@ -326,11 +326,14 @@ void AudioService::AudioInputTask() {
 void AudioService::AudioOutputTask() {
     while (true) {
         std::unique_lock<std::mutex> lock(audio_queue_mutex_);
-        audio_queue_cv_.wait(
-            lock, [this]() { return !audio_playback_queue_.empty() || service_stopped_.load(); });
+        audio_queue_cv_.wait(lock, [this]() {
+            return service_stopped_.load() ||
+                   (!external_playback_active_.load() && !audio_playback_queue_.empty());
+        });
         if (service_stopped_.load()) {
             break;
         }
+        if (external_playback_active_.load()) continue;
 
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
@@ -607,6 +610,7 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
 }
 
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
+    if (external_playback_active_.load()) return false;
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
     const uint32_t generation = playback_generation_;
     if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
@@ -795,6 +799,23 @@ bool AudioService::IsPlaybackIdle() {
     return IsPlaybackDrainedLocked();
 }
 
+void AudioService::BeginExternalPlayback() {
+    // Suspend Opus output; wait until the in-flight PCM buffer has left I2S.
+    // ResetDecoder invalidates Opus frames already being decoded.
+    external_playback_active_.store(true);
+    ResetDecoder();
+    std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+    audio_queue_cv_.wait(lock, [this]() { return !output_in_flight_ || service_stopped_.load(); });
+    last_output_time_ = std::chrono::steady_clock::now();
+}
+
+void AudioService::EndExternalPlayback() {
+    ResetDecoder();
+    last_output_time_ = std::chrono::steady_clock::now();
+    external_playback_active_.store(false);
+    audio_queue_cv_.notify_all();
+}
+
 void AudioService::ResetDecoder() {
     bool notify_drained = false;
     {
@@ -841,7 +862,7 @@ void AudioService::CheckAndUpdateAudioPowerState() {
         // input task instead of closing the codec from the esp_timer task.
         xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_INPUT_STOP_REQUEST);
     }
-    if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
+    if (!external_playback_active_.load() && output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
         // Keep TX clock when duplex RX is active; otherwise RX may stall on some boards.
         if (!(codec_->duplex() && codec_->input_enabled())) {
             codec_->EnableOutput(false);

@@ -22,7 +22,8 @@
                 "CONFIG_LV_MEM_SIZE_KILOBYTES=256",
                 "CONFIG_HILILY_BATTERY_MONITOR=y",
                 "CONFIG_HILILY_VBUS_SENSE=n",
-                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y"
+                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y",
+                "CONFIG_AUDIO_DECODER_MP3_SUPPORT=y"
             ]
         }
     ]

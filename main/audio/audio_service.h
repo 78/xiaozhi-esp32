@@ -146,6 +146,9 @@ public:
     void PlaySound(const std::string_view& sound);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
+    // Exclusive I2S ownership for local streamed MP3. Does not stop microphone/WakeNet.
+    void BeginExternalPlayback();
+    void EndExternalPlayback();
     void SetModelsList(srmodel_list_t* models_list);
 
 private:
@@ -192,6 +195,7 @@ private:
     FixedQueue<AudioTask, MAX_PLAYBACK_TASKS_IN_QUEUE> audio_playback_queue_;
     bool decode_in_flight_ = false;
     bool output_in_flight_ = false;
+    std::atomic<bool> external_playback_active_{false};
     bool playback_drained_notified_ = true;
     uint32_t playback_generation_ = 0;
     // For server AEC
