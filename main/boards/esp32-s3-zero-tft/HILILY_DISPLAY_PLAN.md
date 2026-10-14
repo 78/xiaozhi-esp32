@@ -133,3 +133,15 @@ Hardware isn't yet specified or attached, so the battery feature remains
 5. Battery 21%: no warning; 20%: no warning; 19% discharging: warning;
    charging 19%: lightning and warning dismissed.
 6. Battery sensing disconnected/unavailable: don't display fabricated percent.
+
+## Music lyric UI implementation (2026-10-14)
+
+`HiLilyDisplay` now implements `SetMusicTrack(title, artist, duration_ms, lrc)`,
+`SetMusicPosition(position_ms, playing)` and `ClearMusic()` for a one-current-line
+LRC display, title/artist and `mm:ss / mm:ss` progress. It parses multiple LRC
+stamps per line and sorts by timestamp. It **does not** run an independent
+clock. The real audio player must call `SetMusicPosition` with actual playback
+position after pause, resume and seek. Worker metadata/lyric URLs alone do
+not provide that position. The ESP32 PCM music transport and Worker lyric
+fetch bridge are **not yet wired**; do not describe this as fully working
+music playback. The UI is board-local and does not affect other devices.
