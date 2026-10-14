@@ -181,14 +181,24 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
 
 config HILILY_BATTERY_MONITOR
-    bool "Hi Lily: battery % and charger active-low detect (GPIO10 ADC + GPIO16 CHRG#)"
+    bool "Hi Lily: measure one-cell 18650 voltage via 100k+100k GPIO10 ADC"
     depends on BOARD_TYPE_ESP32_S3_ZERO_TFT
+    default y
+    help
+        VBAT -> 100k -> GPIO10 (ADC1 channel 9) -> 100k -> GND.
+        Displays estimated state of charge, not laboratory fuel gauge data.
+        Battery cell must be connected via protection/charger electronics.
+
+config HILILY_VBUS_SENSE
+    bool "Hi Lily: show lightning icon if safe divided 5V VBUS is present on GPIO16"
+    depends on HILILY_BATTERY_MONITOR
     default n
     help
-        Enable only with a 1-cell Li-ion/LiPo voltage divider from VBAT
-        (100k upper, 100k lower) to GPIO10, and 3.3V-safe CHRG# active low
-        on GPIO16. LCD DC is moved from GPIO10 to GPIO15 when enabled.
-        This has NOT been calibrated for an actual cell/charger module.
+        Requires TWO ADDITIONAL resistors, besides the 18650 divider:
+        USB 5V VBUS -> 100k -> GPIO16 -> 150k -> GND.
+        5V nominal gives 3.0V at GPIO16. Do not feed 5V directly to ESP32.
+        This detects 5V presence only, NOT actual charging state.
+        For real charge-status, connect a safe CHRG pin on a charger IC.
 
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "Bread Compact Wi-Fi + LCD + Camera (面包板)"

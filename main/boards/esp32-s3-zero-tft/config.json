@@ -19,7 +19,10 @@
                 "CONFIG_USE_ESP_WAKE_WORD=n",
                 "CONFIG_SEND_WAKE_WORD_DATA=n",
                 "CONFIG_USE_AUDIO_PROCESSOR=n",
-                "CONFIG_LV_MEM_SIZE_KILOBYTES=256"
+                "CONFIG_LV_MEM_SIZE_KILOBYTES=256",
+                "CONFIG_HILILY_BATTERY_MONITOR=y",
+                "CONFIG_HILILY_VBUS_SENSE=n",
+                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y"
             ]
         }
     ]

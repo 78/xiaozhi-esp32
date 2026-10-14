@@ -5,8 +5,12 @@
 #include "button.h"
 #include "config.h"
 #include "led/single_led.h"
+#include "hilily_display.h"
+#include "hilily_home_client.h"
 #if CONFIG_HILILY_BATTERY_MONITOR
-#include "adc_battery_monitor.h"
+#include "hilily_battery.h"
+#endif
+#if CONFIG_HILILY_VBUS_SENSE
 #include <driver/gpio.h>
 #endif
 
@@ -22,7 +26,7 @@ class Esp32S3ZeroTftBoard : public WifiBoard {
 private:
     Button boot_button_;
     Button wake_button_;
-    Display* display_ = nullptr;
+    HiLilyDisplay* display_ = nullptr;
 
     void InitializeSpi() {
         spi_bus_config_t bus_config = {};
@@ -62,7 +66,7 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
 
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+        display_ = new HiLilyDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                      DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
                                      DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         ESP_LOGI(TAG, "ST7789 240x240 initialized (SPI2)");
@@ -94,6 +98,7 @@ public:
         InitializeSpi();
         InitializeDisplay();
         InitializeButtons();
+        StartHiLilyHomeClient(display_, HILILY_WORKER_HOME_URL);
         GetBacklight()->RestoreBrightness();
     }
 
@@ -110,29 +115,24 @@ public:
 
     bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
 #if CONFIG_HILILY_BATTERY_MONITOR
-        // Enable only after wiring a voltage divider (VBAT -> 100k -> GPIO10
-        // -> 100k -> GND) and a 3.3V-safe, active-low CHRG# signal to GPIO16.
-        static AdcBatteryMonitor battery(ADC_UNIT_1, ADC_CHANNEL_9,
-                                        100000.0f, 100000.0f, GPIO_NUM_NC);
-        static const bool initialized = []() {
+        static HiLilyBattery battery;
+        if (!battery.ReadLevel(level)) return false;
+#if CONFIG_HILILY_VBUS_SENSE
+        static bool vbus_initialized = []() {
             gpio_config_t cfg = {};
-            cfg.pin_bit_mask = 1ULL << BATTERY_CHARGING_GPIO;
+            cfg.pin_bit_mask = 1ULL << VBUS_SENSE_GPIO;
             cfg.mode = GPIO_MODE_INPUT;
-            cfg.pull_up_en = GPIO_PULLUP_ENABLE;
+            cfg.pull_down_en = GPIO_PULLDOWN_ENABLE;
             return gpio_config(&cfg) == ESP_OK;
         }();
-        if (!initialized) {
-            return false;
-        }
-        level = battery.GetBatteryLevel();
-        charging = gpio_get_level(BATTERY_CHARGING_GPIO) == 0;
+        charging = vbus_initialized && gpio_get_level(VBUS_SENSE_GPIO) == 1;
+#else
+        charging = false;  // Charging state unknown without a separate VBUS/CHRG sensor.
+#endif
         discharging = !charging;
         return true;
 #else
-        // No battery-sense circuit => don't invent battery percentage/status.
-        (void)level;
-        (void)charging;
-        (void)discharging;
+        (void)level; (void)charging; (void)discharging;
         return false;
 #endif
     }
