@@ -381,7 +381,11 @@ python scripts/build.py my-custom-board \
   --wake-word wn9_jarvis_tts
 ```
 
-`--language` accepts a locale listed under `main/assets/locales/`.
+The project's Kconfig default language is English (`en-US`). `scripts/build.py`
+also selects English when `--language` is omitted, including when the previous
+build used another language. Pass `--language zh-CN` for Chinese, or another
+locale listed under `main/assets/locales/`. This selects interface text and
+voice prompts; wake-word selection is independent.
 `--wake-word` accepts an ESP-SR model name, `nihaoxiaozhi` (which selects the
 compatible model for the target), or `disabled`. ESP32-C3/C5/C6 targets support
 WakeNet9s (`wn9s_*`) models; ESP32-S3/P4/S31 builds automatically use the AFE

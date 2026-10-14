@@ -34,7 +34,7 @@ dependencies:
     rules:
     - if: target not in [esp32]
   78/uart-eth-modem:
-    version: ~0.7.0
+    version: ~0.7.1
     rules:
     - if: target not in [esp32]
   78/xiaozhi-fonts: ~2.0.0

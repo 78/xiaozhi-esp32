@@ -1418,6 +1418,88 @@ class BuildOptionTests(unittest.TestCase):
             build._normalize_build_options([], {"raw_sdkconfig": "CONFIG_FOO=y"})
 
 
+class LanguageBuildTests(unittest.TestCase):
+    @contextlib.contextmanager
+    def mock_idf(self):
+        # Resolve real board presets and build options; replace only SDK execution.
+        with (
+            mock.patch.object(build, "_prepare_target") as prepare,
+            mock.patch.object(build, "_configure_build") as configure,
+            mock.patch.object(build, "_validate_configured_symbols") as validate,
+            mock.patch.object(build, "_validate_configured_options"),
+            mock.patch.object(build, "_run_idf"),
+            mock.patch.object(build, "merge_bin"),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            yield prepare, configure, validate
+
+    def test_all_variants_default_to_english_and_accept_every_language(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            variants = build._collect_variants(idf_version=(6, 1, 0))
+        cmake = (ROOT / "main/CMakeLists.txt").read_text(encoding="utf-8")
+        language_options = {
+            locale: f"CONFIG_LANGUAGE_{symbol}=y"
+            for symbol, locale in re.findall(
+                r"(?:if|elseif)\(CONFIG_LANGUAGE_([A-Z_]+)\)\s*"
+                r'set\(LANG_DIR "([^"]+)"\)', cmake,
+            )
+        }
+        self.assertTrue(variants)
+        self.assertEqual(set(language_options), set(build._collect_languages()))
+        with self.mock_idf() as (_, configure, validate):
+            for variant in variants:
+                for language in (None, *language_options):
+                    with self.subTest(board=variant["board"], name=variant["name"],
+                                      language=language):
+                        configure.reset_mock()
+                        validate.reset_mock()
+                        options = {} if language is None else {"language": language}
+                        build.build_board(
+                            variant["board"], name_filter=variant["name"],
+                            idf_version=(6, 1, 0), **options,
+                        )
+                        configure.assert_called_once()
+                        target, fragment, name, _ = configure.call_args.args
+                        self.assertEqual(target, variant["target"])
+                        self.assertEqual(name, variant["name"])
+                        expected = language_options["en-US" if language is None else language]
+                        self.assertEqual(
+                            [item for item in fragment if item.startswith("CONFIG_LANGUAGE_")],
+                            [expected],
+                        )
+                        validate.assert_any_call([expected.split("=", 1)[0]], "--language")
+
+    def test_cli_default_and_explicit_locale_use_the_real_build_pipeline(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 1, 0)),
+            self.mock_idf() as (_, configure, validate),
+        ):
+            for args, expected in (
+                ([], "CONFIG_LANGUAGE_EN_US=y"),
+                (["--language", "ZH_cn"], "CONFIG_LANGUAGE_ZH_CN=y"),
+            ):
+                with self.subTest(args=args):
+                    configure.reset_mock()
+                    validate.reset_mock()
+                    build.main(["bread-compact-wifi", "--name", "bread-compact-wifi", *args])
+                    fragment = configure.call_args.args[1]
+                    self.assertIn(expected, fragment)
+                    validate.assert_any_call([expected.split("=", 1)[0]], "--language")
+
+    def test_invalid_language_stops_before_sdk_mutations(self):
+        with self.mock_idf() as (prepare, configure, _):
+            for language in ("xx-YY", ""):
+                with self.subTest(language=language):
+                    with self.assertRaisesRegex(ValueError, "Unsupported language"):
+                        build.build_board(
+                            "bread-compact-wifi", name_filter="bread-compact-wifi",
+                            language=language, idf_version=(6, 1, 0),
+                        )
+                    prepare.assert_not_called()
+                    configure.assert_not_called()
+
+
 class VariantSelectionTests(unittest.TestCase):
     def setUp(self):
         self.variants = [

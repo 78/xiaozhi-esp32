@@ -20,6 +20,7 @@ os.chdir(Path(__file__).resolve().parent.parent)
 
 
 _DEFAULT_IDF_VERSION = (6, 0, 2)
+_DEFAULT_LANGUAGE = "en-US"
 
 _LITE_WAKE_WORD_TARGETS = {"esp32c3", "esp32c5", "esp32c6"}
 _AFE_WAKE_WORD_TARGETS = {"esp32s3", "esp32p4", "esp32s31"}
@@ -1535,7 +1536,7 @@ def build_board(
         config_filename: config.json name (default: config.json)
         name_filter: build["name"] to compile
         create_zip: package merged-binary.bin under releases/ when true
-        language: optional locale such as en-US
+        language: optional locale such as zh-CN; defaults to en-US when omitted
         wake_word: optional ESP-SR model name or "disabled"
         build_options: optional semantic, board-validated option values
     """
@@ -1610,15 +1611,15 @@ def build_board(
             ([board_type_config], "board selection"),
         ]
         build_option_sdkconfig: list[str] = []
-        selected_language = None
         selected_wake_word = None
         selected_build_options: Optional[dict[str, object]] = None
-        if language is not None:
-            selected_language, option = _language_sdkconfig_option(language)
-            user_options.append(option)
-            validation_symbols.append(
-                ([option.split("=", 1)[0]], "--language")
-            )
+        selected_language, option = _language_sdkconfig_option(
+            _DEFAULT_LANGUAGE if language is None else language
+        )
+        user_options.append(option)
+        validation_symbols.append(
+            ([option.split("=", 1)[0]], "--language")
+        )
         if wake_word is not None:
             (
                 selected_wake_word,
@@ -1656,8 +1657,7 @@ def build_board(
         print(f"target: {target}")
         if manufacturer:
             print(f"manufacturer: {manufacturer}")
-        if selected_language:
-            print(f"language: {selected_language}")
+        print(f"language: {selected_language}")
         if selected_wake_word:
             print(f"wake_word: {selected_wake_word}")
         if selected_build_options is not None:
@@ -1769,7 +1769,10 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser.add_argument(
         "--language",
         metavar="LOCALE",
-        help="Firmware language locale, for example zh-CN or en-US",
+        help=(
+            f"Firmware language locale (default: {_DEFAULT_LANGUAGE}), "
+            "for example zh-CN or en-US"
+        ),
     )
     parser.add_argument(
         "--wake-word",
