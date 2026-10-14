@@ -4,6 +4,7 @@
 #include "board.h"
 #include "audio_codec.h"
 #include "esp_audio_simple_dec.h"
+#include "esp_audio_dec.h"
 #include "esp_mp3_dec.h"
 
 #include <esp_crt_bundle.h>
@@ -281,11 +282,16 @@ bool HiLilyMusicPlayer::StreamOne(uint32_t generation, const std::string& title,
     }
     const std::string lrc = ReadLyrics(worker_base_,track.lyric);
     if (Cancelled(generation)) return false;
+    // Starting a new song updates metadata but keeps the audio clock at 0.
     display_->SetMusicTrack(track.title, track.artist, track.duration_ms, lrc);
-    esp_audio_err_t mp3_reg = esp_mp3_dec_register();
-    if (mp3_reg != ESP_AUDIO_ERR_OK) {
-        ESP_LOGE(TAG,"MP3 decoder register failed %d",mp3_reg);
-        return false;
+    // Register once and tolerate an already-registered MP3 decoder.
+    if (esp_audio_dec_check_audio_type(ESP_AUDIO_TYPE_MP3) != ESP_AUDIO_ERR_OK) {
+        esp_audio_err_t reg = esp_mp3_dec_register();
+        if (reg != ESP_AUDIO_ERR_OK &&
+            esp_audio_dec_check_audio_type(ESP_AUDIO_TYPE_MP3) != ESP_AUDIO_ERR_OK) {
+            ESP_LOGE(TAG,"MP3 decoder register failed %d",reg);
+            return false;
+        }
     }
     esp_audio_simple_dec_cfg_t decoder_cfg = {};
     decoder_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3;

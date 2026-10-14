@@ -83,8 +83,14 @@ void HiLilyDisplay::SetMusicTrack(std::string title, std::string artist, uint32_
 void HiLilyDisplay::SetMusicPosition(uint32_t position_ms,bool playing) {
     std::lock_guard<std::mutex> lock(music_mutex_);
     if(!music_active_)return;
-    music_position_ms_=music_duration_ms_ ? std::min(position_ms,music_duration_ms_) : position_ms;
-    music_playing_=playing; ++music_revision_;
+    uint32_t next = music_duration_ms_ ? std::min(position_ms,music_duration_ms_) : position_ms;
+    // Limit LVGL redraws to ~7Hz; seek/pause still forces an immediate redraw.
+    const bool changed_state = music_playing_ != playing;
+    if (!changed_state && next >= music_position_ms_ &&
+        next - music_position_ms_ < 140 && next != music_duration_ms_) return;
+    music_position_ms_ = next;
+    music_playing_ = playing;
+    ++music_revision_;
 }
 void HiLilyDisplay::ClearMusic() {
     std::lock_guard<std::mutex> lock(music_mutex_);
