@@ -10,6 +10,7 @@
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
+#include <esp_heap_caps.h>
 #include <cJSON.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -236,11 +237,22 @@ bool HiLilyMusicPlayer::Play(std::string title, std::string artist) {
     pending_ = true; paused_ = false;
     ++generation_;
     if (!task_) {
-        if (xTaskCreate(WorkerEntry, "hilily_mp3", 12288, this, 3, &task_) != pdPASS) {
+        // MP3 decode, TLS and LVGL share scarce internal RAM on N4R2.
+        // Allocate the music worker stack in external PSRAM when available.
+        TaskHandle_t created = nullptr;
+        BaseType_t ok = xTaskCreatePinnedToCoreWithCaps(
+            WorkerEntry, "hilily_mp3", 12288, this, 3, &created, tskNO_AFFINITY,
+            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (ok != pdPASS) {
+            ESP_LOGW(TAG, "PSRAM music task unavailable; retrying internal stack");
+            ok = xTaskCreate(WorkerEntry, "hilily_mp3", 12288, this, 3, &created);
+        }
+        if (ok != pdPASS) {
             task_ = nullptr;
             pending_ = false;
             return false;
         }
+        task_ = created;
     }
     return true;
 }
