@@ -946,6 +946,9 @@ class BuildOptionTests(unittest.TestCase):
                 language,
             )
 
+    def test_belarusian_is_supported(self):
+        self.assertIn("be-BY", build._collect_languages())
+
     def test_languages_are_discovered_from_build_configuration(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
