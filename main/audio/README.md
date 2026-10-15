@@ -19,6 +19,16 @@ that instance, so enabling both no longer creates two AFE pipelines. For custom
 MultiNet wake words, AFE fetch output is passed to `CustomWakeWord`; MultiNet is
 not created on the smaller targets.
 
+`AudioService::GetWakeWords()` returns the phrases supported by the initialized
+engine, independently of the last detected phrase. WakeNet lists only active
+models; MultiNet lists the display text of commands with the `wake` action.
+After successful startup, the first idle state enables wake-word detection and
+shows these phrases in an assistant chat message after idle UI cleanup. The
+message is removed after five seconds on OLED and LCD displays. The timeout only
+removes the matching hint, preserving newer messages and alerts. Disabled or failed
+wake-word detection and startup errors suppress the hint; subsequent idle transitions
+do not repeat it.
+
 The AFE configuration currently uses `FD_LOW_COST` AEC with
 `AEC_NLP_LEVEL_VERYAGGR`. WebRTC/NSNet noise suppression is intentionally
 disabled because the project does not ship an NSNet model.

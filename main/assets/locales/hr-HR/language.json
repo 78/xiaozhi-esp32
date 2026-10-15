@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Prebacivanje na Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Prebacivanje na 4G...",
         "STANDBY": "Pripravnost",
+        "WAKE_WORD_HINT": "Recite „%s” da me probudite.",
         "CONNECT_TO": "Poveži se s ",
         "CONNECTING": "Povezivanje...",
         "CONNECTION_SUCCESSFUL": "Uspješno povezivanje",

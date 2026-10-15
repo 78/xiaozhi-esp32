@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Byter till Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Byter till 4G...",
         "STANDBY": "Standby",
+        "WAKE_WORD_HINT": "Säg \"%s\" för att väcka mig.",
         "CONNECT_TO": "Anslut till ",
         "CONNECTING": "Ansluter...",
         "CONNECTION_SUCCESSFUL": "Anslutningen lyckades",

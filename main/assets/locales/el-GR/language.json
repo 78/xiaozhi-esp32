@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Μετάβαση σε Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Μετάβαση σε 4G...",
         "STANDBY": "Αναμονή",
+        "WAKE_WORD_HINT": "Πείτε «%s» για να με ξυπνήσετε.",
         "CONNECT_TO": "Σύνδεση σε ",
         "CONNECTING": "Σύνδεση...",
         "CONNECTION_SUCCESSFUL": "Επιτυχής σύνδεση",

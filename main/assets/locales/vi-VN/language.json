@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Đang chuyển sang Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Đang chuyển sang 4G...",
         "STANDBY": "Chờ",
+        "WAKE_WORD_HINT": "Hãy nói \"%s\" để đánh thức tôi.",
         "CONNECT_TO": "Kết nối đến ",
         "CONNECTING": "Đang kết nối...",
         "CONNECTION_SUCCESSFUL": "Kết nối thành công",

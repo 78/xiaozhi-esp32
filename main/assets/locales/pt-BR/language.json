@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Mudando para Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Mudando para 4G...",
         "STANDBY": "Em espera",
+        "WAKE_WORD_HINT": "Diga \"%s\" para me acordar.",
         "CONNECT_TO": "Conectar a ",
         "CONNECTING": "Conectando...",
         "CONNECTED_TO": "Conectado a ",

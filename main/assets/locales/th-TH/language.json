@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "กำลังเปลี่ยนเป็น Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "กำลังเปลี่ยนเป็น 4G...",
         "STANDBY": "พร้อม",
+        "WAKE_WORD_HINT": "พูดว่า \"%s\" เพื่อปลุกฉัน",
         "CONNECT_TO": "เชื่อมต่อกับ ",
         "CONNECTING": "กำลังเชื่อมต่อ...",
         "CONNECTION_SUCCESSFUL": "เชื่อมต่อสำเร็จ",

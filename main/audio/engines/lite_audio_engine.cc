@@ -78,6 +78,11 @@ bool LiteAudioEngine::HasWakeWord() const {
     return wake_word_ != nullptr;
 }
 
+std::vector<std::string> LiteAudioEngine::GetWakeWords() const {
+    std::lock_guard<std::mutex> lock(wake_word_mutex_);
+    return wake_word_ ? wake_word_->GetWakeWords() : std::vector<std::string>{};
+}
+
 bool LiteAudioEngine::IsWakeWordDetectionEnabled() const {
     return wake_word_enabled_;
 }

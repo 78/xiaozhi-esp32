@@ -1205,6 +1205,7 @@ add_custom_command(
             --output "${LANG_HEADER}"
     DEPENDS
         ${LANG_JSON}
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json
         ${PROJECT_DIR}/scripts/gen_lang.py
     COMMENT "Generating ${LANG_DIR} language config"
 )

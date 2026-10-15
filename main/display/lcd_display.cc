@@ -831,6 +831,38 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
 }
 
+void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr || role == nullptr || content == nullptr) {
+        return;
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(content_); ++i) {
+        auto container = lv_obj_get_child(content_, i);
+        auto bubble = container;
+        auto bubble_role = static_cast<const char*>(lv_obj_get_user_data(bubble));
+        if (bubble_role == nullptr && lv_obj_get_child_cnt(bubble) > 0) {
+            bubble = lv_obj_get_child(bubble, 0);
+            bubble_role = static_cast<const char*>(lv_obj_get_user_data(bubble));
+        }
+        if (bubble_role == nullptr || strcmp(bubble_role, role) != 0 ||
+            lv_obj_get_child_cnt(bubble) == 0) {
+            continue;
+        }
+        auto label = lv_obj_get_child(bubble, 0);
+        if (strcmp(lv_label_get_text(label), content) != 0) {
+            continue;
+        }
+        if (chat_message_label_ == label) {
+            chat_message_label_ = nullptr;
+        }
+        lv_obj_del(container);
+        if (lv_obj_get_child_cnt(content_) == 0 && emoji_label_ != nullptr) {
+            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+        return;
+    }
+}
+
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
@@ -1115,6 +1147,20 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
     }
 #endif
+}
+
+void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr || content == nullptr ||
+        strcmp(lv_label_get_text(chat_message_label_), content) != 0) {
+        return;
+    }
+    // The classic layout has one text slot and does not distinguish message roles.
+    lv_anim_delete(chat_message_label_, nullptr);
+    lv_label_set_text(chat_message_label_, "");
+    if (bottom_bar_ != nullptr) {
+        lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void LcdDisplay::ClearChatMessages() {
