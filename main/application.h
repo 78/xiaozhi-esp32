@@ -151,6 +151,13 @@ private:
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
+    // Morning briefing radio (part 1 is voice, parts 2-12 use listen.detect).
+    bool briefing_active_ = false;
+    bool briefing_tts_started_ = false;
+    bool briefing_tts_stopped_ = false;
+    bool briefing_waiting_response_ = false;
+    uint8_t briefing_part_ = 0;
+    int64_t briefing_last_activity_us_ = 0;
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
 
@@ -164,6 +171,9 @@ private:
     void HandleNetworkDisconnectedEvent();
     void HandleActivationDoneEvent();
     void HandleWakeWordDetectedEvent();
+    void HandleBriefingStt(const std::string& text);
+    void MaybeContinueBriefing();
+    void CancelBriefing(const char* reason);
     void ContinueOpenAudioChannel(ListeningMode mode);
     void BeginWakeWordInvoke(const std::string& wake_word);
     void ContinueWakeWordInvoke(const std::string& wake_word);
