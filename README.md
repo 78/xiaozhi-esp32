@@ -140,6 +140,7 @@ For server deployment on personal computers, refer to the following open-source 
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java server
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang server
 - [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golang server
+- [korexil/gpu-duet](https://github.com/korexil/gpu-duet) Offline server with a local LLM + voice-cloning TTS on one 8 GB GPU (Windows)
 
 Other client projects using the XiaoZhi communication protocol:
 
