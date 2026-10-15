@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Перемикання на Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Перемикання на 4G...",
         "STANDBY": "Очікування",
+        "WAKE_WORD_HINT": "Скажіть «%s», щоб розбудити мене.",
         "CONNECT_TO": "Підключитися до ",
         "CONNECTING": "Підключення...",
         "CONNECTED_TO": "Підключено до ",

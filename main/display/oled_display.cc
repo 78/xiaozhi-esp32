@@ -169,6 +169,24 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
     }
 }
 
+void OledDisplay::RemoveChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr || content == nullptr) {
+        return;
+    }
+    // OLED has one text slot and does not distinguish message roles.
+    std::string content_str = content;
+    std::replace(content_str.begin(), content_str.end(), '\n', ' ');
+    if (content_str != lv_label_get_text(chat_message_label_)) {
+        return;
+    }
+    lv_anim_delete(chat_message_label_, nullptr);
+    lv_label_set_text(chat_message_label_, "");
+    if (content_right_ != nullptr) {
+        lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 void OledDisplay::SetupUI_128x64() {
     DisplayLockGuard lock(this);
 

@@ -45,6 +45,8 @@ public:
     virtual void ShowNotification(const std::string& notification, int duration_ms = 3000);
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
+    // Remove a matching message without clearing newer content, when supported.
+    virtual void RemoveChatMessage(const char* role, const char* content) {}
     virtual void ClearChatMessages();
     virtual void SetTheme(Theme* theme);
     virtual Theme* GetTheme() { return current_theme_; }
