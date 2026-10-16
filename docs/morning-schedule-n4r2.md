@@ -1,35 +1,39 @@
-# Hi Lily N4R2 – Đồng bộ lịch bản tin sáng từ Cloudflare Master Worker v4.5.6
+# Hi Lily N4R2 – Đồng bộ lịch bản tin sáng từ Cloudflare Master Worker v4.5.7
 
 ## Mô hình
 
 - **Family Admin D1** lưu `morning_configs` và `morning_runs` theo `device_id`. ESP32 không được tự chọn hồ sơ Family khác.
 - **Master Worker** `/api/device/morning/config` (GET) cấp đúng lịch của loa đã xác thực, có `server_unix` và `Asia/Ho_Chi_Minh`.
 - **Master Worker** `/api/device/morning/event` (POST) gọi vào Admin D1 để **claim** lượt `started` theo `device_id + day`, chống phát nhiều lần một ngày; sau khi hoàn thành/hủy gửi `completed`, `interrupted`, `failed`.
-- ESP32 không dùng `WORKER_TOKEN`, `FAMILY_SERVICE_TOKEN` hoặc quyền Admin. Mỗi loa có token riêng trong secret `MORNING_DEVICE_TOKENS`.
+- ESP32 không dùng `WORKER_TOKEN`, `FAMILY_SERVICE_TOKEN` hoặc quyền Admin. Mỗi loa có một token phạm vi hẹp **được Master Worker tự tính từ `WORKER_TOKEN` đã có**. Không tạo thêm secret Cloudflare.
 
 ## 1. Deploy Master Worker
 
-Tải mã `xiaozhi-master-v4.5.6-device-schedule.js` do ChatGPT cung cấp và dán **toàn bộ** vào Cloudflare Master Worker đang chạy (giữ nguyên các Worker bindings và tool khác).
+Tải mã `xiaozhi-master-v4.5.7-simplified-auth.js` do ChatGPT cung cấp và dán **toàn bộ** vào Cloudflare Master Worker đang chạy (giữ nguyên các Worker bindings và tool khác).
 
-Trong **Settings → Variables and Secrets**, thêm Secret **`MORNING_DEVICE_TOKENS`** dạng **chuỗi JSON**, ví dụ:
-```json
-{"vip_01":"PUT_RANDOM_64_HEX_CHARACTERS_HERE","vip_02":"ANOTHER_RANDOM_64_HEX_CHARACTER_TOKEN"}
-```
-**Không** điền chuỗi mẫu trên. Mỗi thiết bị bắt buộc có token khác nhau, ngẫu nhiên ≥32 ký tự; không đưa token thật vào GitHub. Trong Windows PowerShell 5.1, có thể tạo token 32 byte:
-```powershell
-$bytes = New-Object byte[] 32
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($bytes)
-$token = -join ($bytes | ForEach-Object { $_.ToString("x2") })
-$token
-```
-Duy trì **Service binding `FAMILY_ADMIN`** và Secret **`FAMILY_SERVICE_TOKEN`** sẵn có; chúng được Worker dùng để đọc D1. Không sửa Admin Worker ở bước này.
+**Không thêm `MORNING_DEVICE_TOKENS` hoặc một khóa Cloudflare mới nào.** Nếu đã tạo biến này ở bản 4.5.6, có thể xóa khỏi Cloudflare sau khi v4.5.7 deploy thành công. Master dùng **`WORKER_TOKEN` hiện có** để tính HMAC-SHA256 theo đúng `device_id` và cấp một token riêng cho loa. Vẫn giữ Service binding `FAMILY_ADMIN` và secret `FAMILY_SERVICE_TOKEN` sẵn có. Không sửa Admin Worker.
 
-### Thử API bằng PowerShell (đổi địa chỉ Worker và mã/token thực tế)
+### Lấy mã của một loa một lần – PowerShell
+
 ```powershell
 $base = "https://xiaozhi-master.nguyennha-020201.workers.dev"
 $id = "vip_01"
-$token = "TOKEN_RIENG_CUA_VIP_01"
+$master = Read-Host "Nhap WORKER_TOKEN dang su dung"
+$token = (Invoke-RestMethod -Uri "$base/api/family/morning/provision-device" -Headers @{
+  Authorization = "Bearer $master"
+  "X-Xiaozhi-Device-ID" = $id
+}).device_token
+$master = $null
+$token
+```
+
+- **`$token`** là token 64 ký tự của `vip_01`, không phải `WORKER_TOKEN`. Dùng nó trong firmware ESP32; **không ghi vào GitHub**.
+- Muốn cấp cho loa khác, đổi `$id` thành `vip_02` rồi chạy lại với cùng `WORKER_TOKEN`. Mỗi loa nhận token khác nhau.
+- Nếu đổi `WORKER_TOKEN` sau này, tất cả token thiết bị phải được cấp lại.
+- Endpoint cấp token chỉ hoạt động khi đăng nhập bằng `WORKER_TOKEN` chính xác, không hoạt động với token thiết bị.
+
+### Thử API bằng PowerShell
+```powershell
 Invoke-RestMethod -Uri "$base/api/device/morning/config" -Headers @{
   Authorization = "Bearer $token"
   "X-Xiaozhi-Device-ID" = $id
