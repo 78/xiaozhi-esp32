@@ -3,6 +3,10 @@
 #include "hilily_music_player.h"
 #include "application.h"
 #include "config.h"
+#include "settings.h"
+
+#include <esp_mac.h>
+#include <esp_system.h>
 
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
@@ -105,46 +109,156 @@ struct MorningEvent {
     std::string action, day, reason;
     int completed = -1;
 };
+
+// Runtime identity persists in NVS; no device key is compiled into the
+// distributable N4R2 image. Each physical ESP32 owns a fresh 256-bit secret.
+struct PairState {
+    std::string hardware_id, secret, code, device_id;
+    bool started = false;
+    bool paired = false;
+    int64_t next_request_us = 0;
+    int64_t next_display_us = 0;
+};
+PairState pair;
+
+std::string RandomHex32() {
+    uint8_t bytes[32];
+    esp_fill_random(bytes, sizeof(bytes));
+    char hex[65];
+    for (int i=0;i<32;i++) snprintf(hex+i*2, 3, "%02x", bytes[i]);
+    return std::string(hex,64);
+}
+
+void NewPairCode() {
+    char pin[9];
+    snprintf(pin,sizeof(pin),"%08u",static_cast<unsigned>(esp_random()%100000000U));
+    pair.code=pin;
+    Settings nvs("morning_pair",true);
+    nvs.SetString("pin",pair.code);
+}
+
+void InitializePairIdentity() {
+    uint8_t mac[6]={};
+    if (esp_read_mac(mac,ESP_MAC_WIFI_STA)!=ESP_OK) {
+        ESP_LOGE(TAG,"MAC address unavailable; morning pairing disabled");
+        return;
+    }
+    char hw[16]={};
+    snprintf(hw,sizeof(hw),"s3_%02x%02x%02x%02x%02x%02x",
+             mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    pair.hardware_id=hw;
+    Settings nvs("morning_pair",true);
+    pair.secret=nvs.GetString("secret","");
+    if(pair.secret.size()!=64) {
+        pair.secret=RandomHex32();
+        nvs.SetString("secret",pair.secret);
+    }
+    pair.code=nvs.GetString("pin","");
+    if(pair.code.size()!=8) NewPairCode();
+    ESP_LOGI(TAG,"Morning pairing hardware ID: %s",pair.hardware_id.c_str());
+}
+
+void ShowPairingCode(HiLilyDisplay* display) {
+    if(!display||pair.paired||pair.hardware_id.empty())return;
+    const std::string notice=std::string("GHEP LOA tren Dashboard")
+        +"\nID: "+pair.hardware_id+"\nMA: "+pair.code;
+    Application::GetInstance().Schedule([display,notice](){
+        if(Application::GetInstance().GetDeviceState()==kDeviceStateIdle)
+            display->SetChatMessage("system",notice.c_str());
+    });
+    ESP_LOGI(TAG,"Pairing pending; enter the 8-digit PIN displayed on the speaker");
+}
 std::mutex event_mutex;
 std::deque<MorningEvent> event_queue;
 
 bool DeviceHttp(const char* endpoint, bool post, const std::string& body,
-                int& status, std::string* response_text = nullptr) {
-#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
-    const char* id = CONFIG_HILILY_MORNING_DEVICE_ID;
-    const char* token = CONFIG_HILILY_MORNING_DEVICE_TOKEN;
-    if (!id[0] || strlen(token) < 32) return false;
+                int& status, std::string* response_text=nullptr) {
+    if(pair.hardware_id.empty()||pair.secret.size()!=64)return false;
     RequestContext response;
-    esp_http_client_config_t cfg = {};
-    cfg.url = endpoint;
-    cfg.method = post ? HTTP_METHOD_POST : HTTP_METHOD_GET;
-    cfg.timeout_ms = 8000;
-    cfg.crt_bundle_attach = esp_crt_bundle_attach;
-    cfg.event_handler = OnHttpEvent;
-    cfg.user_data = &response;
-    cfg.buffer_size = 1024;
-    esp_http_client_handle_t client = esp_http_client_init(&cfg);
-    if (!client) return false;
-    const std::string authorization = std::string("Bearer ") + token;
-    esp_http_client_set_header(client, "Authorization", authorization.c_str());
-    esp_http_client_set_header(client, "X-Xiaozhi-Device-ID", id);
-    if (post) {
-        esp_http_client_set_header(client, "Content-Type", "application/json");
-        esp_http_client_set_post_field(client, body.c_str(), body.size());
+    esp_http_client_config_t cfg={};
+    cfg.url=endpoint;
+    cfg.method=post?HTTP_METHOD_POST:HTTP_METHOD_GET;
+    cfg.timeout_ms=8000;
+    cfg.crt_bundle_attach=esp_crt_bundle_attach;
+    cfg.event_handler=OnHttpEvent;
+    cfg.user_data=&response;
+    cfg.buffer_size=1024;
+    esp_http_client_handle_t client=esp_http_client_init(&cfg);
+    if(!client)return false;
+    const std::string bearer=std::string("Bearer ")+pair.secret;
+    esp_http_client_set_header(client,"Authorization",bearer.c_str());
+    esp_http_client_set_header(client,"X-Xiaozhi-Hardware-ID",pair.hardware_id.c_str());
+    if(post) {
+        esp_http_client_set_header(client,"Content-Type","application/json");
+        esp_http_client_set_post_field(client,body.c_str(),body.size());
     }
-    const esp_err_t err = esp_http_client_perform(client);
-    status = esp_http_client_get_status_code(client);
+    const esp_err_t err=esp_http_client_perform(client);
+    status=esp_http_client_get_status_code(client);
     esp_http_client_cleanup(client);
-    if (response_text) *response_text = std::move(response.payload);
-    if (err != ESP_OK || response.overflow) {
-        ESP_LOGW(TAG, "Morning device API transport error: %s", esp_err_to_name(err));
+    if(response_text)*response_text=std::move(response.payload);
+    if(err!=ESP_OK||response.overflow) {
+        ESP_LOGW(TAG,"Device API transport failed: %s",esp_err_to_name(err));
         return false;
     }
     return true;
-#else
-    (void)endpoint; (void)post; (void)body; (void)status; (void)response_text;
-    return false;
-#endif
+}
+
+bool PairRequest(bool start, int& status, std::string& text) {
+    cJSON* root=cJSON_CreateObject();
+    if(!root)return false;
+    cJSON_AddStringToObject(root,"hardware_id",pair.hardware_id.c_str());
+    cJSON_AddStringToObject(root,"secret",pair.secret.c_str());
+    if(start)cJSON_AddStringToObject(root,"code",pair.code.c_str());
+    char* raw=cJSON_PrintUnformatted(root);
+    const std::string body=raw?raw:"";
+    if(raw)cJSON_free(raw);
+    cJSON_Delete(root);
+    if(body.empty())return false;
+    return DeviceHttp(start?HILILY_WORKER_BASE_URL "/api/device/pair/start":
+                            HILILY_WORKER_BASE_URL "/api/device/pair/poll",
+                      true,body,status,&text);
+}
+
+bool ProcessPairing(HiLilyDisplay* display) {
+    if(pair.hardware_id.empty())return false;
+    if(pair.paired)return true;
+    if(esp_timer_get_time()<pair.next_request_us)return false;
+    pair.next_request_us=esp_timer_get_time()+15LL*1000000;
+    int status=0;
+    std::string result;
+    if(!PairRequest(!pair.started,status,result))return false;
+    cJSON* body=cJSON_ParseWithLength(result.data(),result.size());
+    if(body) {
+        const char* state=JsonString(body,"status");
+        if(status==200&&state&&strcmp(state,"paired")==0) {
+            const char* assigned=JsonString(body,"device_id");
+            if(assigned&&strlen(assigned)>=2&&strlen(assigned)<=64) {
+                pair.device_id=assigned;
+                pair.paired=true;
+                ESP_LOGI(TAG,"Morning schedule paired to Family device %s",assigned);
+                Application::GetInstance().Schedule([display,assigned=pair.device_id](){
+                    display->SetChatMessage("system",("Da ghep loa: "+assigned).c_str());
+                });
+            } else {
+                // A successful /start response only confirms the credential.
+                // The /poll response supplies the bound Family device ID.
+                pair.started=true;
+            }
+        } else if((status==202||status==200)&&state&&strcmp(state,"pending")==0) {
+            pair.started=true;
+        } else if(status==200&&state&&strcmp(state,"expired")==0) {
+            NewPairCode();
+            pair.started=false;
+            pair.next_request_us=0;
+        }
+        cJSON_Delete(body);
+    }
+    if(!pair.paired && esp_timer_get_time()>=pair.next_display_us) {
+        ShowPairingCode(display);
+        pair.next_display_us=esp_timer_get_time()+20LL*1000000;
+    }
+    if(status==401 && pair.started)pair.started=false;
+    return pair.paired;
 }
 
 bool FetchMorning(MorningConfig& cfg) {
@@ -168,7 +282,7 @@ bool FetchMorning(MorningConfig& cfg) {
     const bool has_time = time && strlen(time)==5 && sscanf(time, "%2d:%2d", &hh, &mm)==2 &&
                           hh>=0 && hh<=23 && mm>=0 && mm<=59 && time[2]==':';
     bool valid = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root,"ok")) &&
-        device && strcmp(device,CONFIG_HILILY_MORNING_DEVICE_ID)==0 &&
+        device && device==pair.device_id &&
         zone && strcmp(zone,"Asia/Ho_Chi_Minh")==0 &&
         cJSON_IsBool(enabled) && cJSON_IsArray(days) && cJSON_GetArraySize(days)>=1 &&
         cJSON_GetArraySize(days)<=7 && cJSON_IsNumber(sec) &&
@@ -200,7 +314,7 @@ bool PostMorningEvent(const MorningEvent& ev, int& status) {
     if (!obj) return false;
     cJSON_AddStringToObject(obj,"day",ev.day.c_str());
     cJSON_AddStringToObject(obj,"run_id",
-        (std::string(CONFIG_HILILY_MORNING_DEVICE_ID) + "-" + ev.day).c_str());
+        (pair.device_id + "-" + ev.day).c_str());
     cJSON_AddStringToObject(obj,"action",ev.action.c_str());
     cJSON_AddNumberToObject(obj,"last_completed_segment",ev.completed);
     if (!ev.reason.empty()) cJSON_AddStringToObject(obj,"reason",ev.reason.c_str());
@@ -243,6 +357,7 @@ struct HomeTaskArgs { HiLilyDisplay* display; std::string url; };
 
 void HomeTask(void* parameter) {
     auto* args = static_cast<HomeTaskArgs*>(parameter);
+    InitializePairIdentity();
     vTaskDelay(pdMS_TO_TICKS(20000)); // Allow Wi-Fi and TLS to initialize.
     MorningConfig config;
     std::string claimed_day;
@@ -254,11 +369,13 @@ void HomeTask(void* parameter) {
             next_home_us=esp_timer_get_time()+(ok?20LL*60:60)*1000000;
         }
 #if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
-        if (CONFIG_HILILY_MORNING_DEVICE_ID[0] &&
-            strlen(CONFIG_HILILY_MORNING_DEVICE_TOKEN)>=32) {
+        if (ProcessPairing(args->display)) {
             if (esp_timer_get_time()>=next_schedule_us) {
                 config.valid=false; // Fail closed if a refresh fails.
                 const bool ok=FetchMorning(config);
+                // Fail closed on transient HTTP errors without forgetting the
+                // pairing: only explicitly revoked credentials require re-pairing.
+                if(!ok) ESP_LOGW(TAG,"Morning schedule refresh failed; skipping until retry");
                 next_schedule_us=esp_timer_get_time()+(ok?120LL:60LL)*1000000;
             }
             std::tm vn={};
