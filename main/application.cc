@@ -1,7 +1,6 @@
 #include "application.h"
 #if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
 #include "boards/esp32-s3-zero-tft/hilily_music_player.h"
-#include "boards/esp32-s3-zero-tft/hilily_home_client.h"
 #endif
 #include "assets.h"
 #include "assets/lang_config.h"
@@ -1001,18 +1000,6 @@ void Application::HandleStopListeningEvent() {
 void Application::CancelBriefing(const char* reason) {
     if (!briefing_active_) return;
     ESP_LOGI(TAG, "Morning radio stopped at %u/12: %s", briefing_part_, reason);
-#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
-    if (!briefing_scheduled_day_.empty()) {
-        const bool complete = strcmp(reason,"completed")==0;
-        const bool interrupt = strcmp(reason,"user_wake_word")==0 ||
-            strcmp(reason,"manual_stop")==0 || strcmp(reason,"manual_toggle")==0 ||
-            strcmp(reason,"manual_listen")==0 || strcmp(reason,"speech_aborted")==0 ||
-            strcmp(reason,"user_requested_stop")==0 || strcmp(reason,"new_user_request")==0;
-        const char* action = complete?"completed":(interrupt?"interrupted":"failed");
-        const int completed = complete ? 11 : static_cast<int>(briefing_part_) - 2;
-        QueueHiLilyMorningEvent(action,briefing_scheduled_day_,completed,reason);
-    }
-#endif
     briefing_scheduled_day_.clear();
     briefing_active_ = false;
     briefing_tts_started_ = false;
@@ -1077,14 +1064,13 @@ bool Application::CanStartScheduledBriefing() {
 void Application::StartScheduledMorningBriefing(const std::string& day) {
     Schedule([this, day]() {
 #if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
-        // A user can start talking between D1's claim and this callback.
+        // A user can start talking between local NVS marking and this callback.
         if (!CanStartScheduledBriefing() || briefing_active_ || !protocol_ ||
             !ota_ || !ota_->HasWebsocketConfig() ||
             !audio_service_.IsPlaybackIdle()) {
-            QueueHiLilyMorningEvent("failed",day,-1,"device_became_busy");
             return;
         }
-        // Exactly one active readout: source is D1 schedule, not a local timer.
+        // Only one automatic readout per Vietnam day; NVS tracks the day.
         briefing_active_ = true;
         briefing_part_ = 1;
         briefing_scheduled_day_ = day;
