@@ -289,6 +289,10 @@ bool HiLilyMusicPlayer::AwaitPlay(uint32_t generation) {
         vTaskDelay(pdMS_TO_TICKS(45));
     }
 }
+bool HiLilyMusicPlayer::IsBusy() {
+    std::lock_guard<std::mutex> guard(mutex_);
+    return pending_ || active_ || paused_;
+}
 std::string HiLilyMusicPlayer::StatusJson() {
     std::lock_guard<std::mutex> guard(mutex_);
     const char* state = pending_ ? "loading" : active_ ? (paused_ ? "paused" : "playing") : "idle";

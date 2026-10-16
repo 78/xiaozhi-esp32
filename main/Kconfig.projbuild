@@ -1196,4 +1196,22 @@ menu "TAIJIPAI_S3_CONFIG"
         启动双声道
 endmenu
 
+
+# Optional authenticated morning schedule; only ESP32-S3-Zero N4R2 uses this.
+# Per-device bearer token is compiled into device flash, never the Master
+# WORKER_TOKEN or FAMILY_SERVICE_TOKEN. Leave blank to disable scheduling.
+config HILILY_MORNING_DEVICE_ID
+    string "Hi Lily Morning Device ID (Family Admin ID)"
+    depends on BOARD_TYPE_ESP32_S3_ZERO_TFT
+    default ""
+
+config HILILY_MORNING_DEVICE_TOKEN
+    string "Hi Lily Morning Device Token (individual 32+ character token)"
+    depends on BOARD_TYPE_ESP32_S3_ZERO_TFT
+    default ""
+    help
+        Must equal the per-device token in Cloudflare secret MORNING_DEVICE_TOKENS.
+        Build a private firmware per device; do not commit the token to Git.
+        Empty disables scheduled briefing. Never use WORKER_TOKEN here.
+
 endmenu

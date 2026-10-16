@@ -1,6 +1,7 @@
 #include "application.h"
 #if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
 #include "boards/esp32-s3-zero-tft/hilily_music_player.h"
+#include "boards/esp32-s3-zero-tft/hilily_home_client.h"
 #endif
 #include "assets.h"
 #include "assets/lang_config.h"
@@ -1000,6 +1001,19 @@ void Application::HandleStopListeningEvent() {
 void Application::CancelBriefing(const char* reason) {
     if (!briefing_active_) return;
     ESP_LOGI(TAG, "Morning radio stopped at %u/12: %s", briefing_part_, reason);
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+    if (!briefing_scheduled_day_.empty()) {
+        const bool complete = strcmp(reason,"completed")==0;
+        const bool interrupt = strcmp(reason,"user_wake_word")==0 ||
+            strcmp(reason,"manual_stop")==0 || strcmp(reason,"manual_toggle")==0 ||
+            strcmp(reason,"manual_listen")==0 || strcmp(reason,"speech_aborted")==0 ||
+            strcmp(reason,"user_requested_stop")==0 || strcmp(reason,"new_user_request")==0;
+        const char* action = complete?"completed":(interrupt?"interrupted":"failed");
+        const int completed = complete ? 11 : static_cast<int>(briefing_part_) - 2;
+        QueueHiLilyMorningEvent(action,briefing_scheduled_day_,completed,reason);
+    }
+#endif
+    briefing_scheduled_day_.clear();
     briefing_active_ = false;
     briefing_tts_started_ = false;
     briefing_tts_stopped_ = false;
@@ -1018,6 +1032,7 @@ void Application::HandleBriefingStt(const std::string& text) {
     }
     if (!IsBriefingRequest(text) || IsBriefingFollowup(text)) return;
     briefing_active_ = true;
+    briefing_scheduled_day_.clear(); // Manual voice activation, no D1 scheduled run.
     briefing_part_ = 1;
     briefing_tts_started_ = false;
     briefing_tts_stopped_ = false;
@@ -1047,6 +1062,61 @@ void Application::MaybeContinueBriefing() {
     ESP_LOGI(TAG, "Morning radio auto-continue part %u/12", briefing_part_);
     protocol_->SendWakeWordDetected(BriefingFollowup(briefing_part_));
 }
+
+bool Application::CanStartScheduledBriefing() {
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+    // Safe to query from the HTTP task: state is atomic and music uses a mutex.
+    // Everything else (protocol, audio, briefing flags) is rechecked on main.
+    return GetDeviceState()==kDeviceStateIdle &&
+        !HiLilyMusicPlayer::GetInstance().IsBusy();
+#else
+    return false;
+#endif
+}
+
+void Application::StartScheduledMorningBriefing(const std::string& day) {
+    Schedule([this, day]() {
+#if CONFIG_BOARD_TYPE_ESP32_S3_ZERO_TFT
+        // A user can start talking between D1's claim and this callback.
+        if (!CanStartScheduledBriefing() || briefing_active_ || !protocol_ ||
+            !ota_ || !ota_->HasWebsocketConfig() ||
+            !audio_service_.IsPlaybackIdle()) {
+            QueueHiLilyMorningEvent("failed",day,-1,"device_became_busy");
+            return;
+        }
+        // Exactly one active readout: source is D1 schedule, not a local timer.
+        briefing_active_ = true;
+        briefing_part_ = 1;
+        briefing_scheduled_day_ = day;
+        briefing_tts_started_ = false;
+        briefing_tts_stopped_ = false;
+        briefing_waiting_response_ = true;
+        briefing_last_activity_us_ = esp_timer_get_time();
+        if (!SetDeviceState(kDeviceStateConnecting)) {
+            CancelBriefing("state_transition_failed");
+            return;
+        }
+        if (!protocol_->IsAudioChannelOpened() && !protocol_->OpenAudioChannel()) {
+            CancelBriefing("websocket_open_failed");
+            SetDeviceState(kDeviceStateIdle);
+            return;
+        }
+        SetListeningMode(GetDefaultListeningMode());
+        // Plain text as confirmed via the user's XiaoZhi PC listen.detect test.
+        // Do not send microphone audio or a second wake-word message.
+        protocol_->SendWakeWordDetected(
+            "Đọc bản tin sáng tự động của gia đình hôm nay. "
+            "Đây là đoạn một trên mười hai. Hãy sử dụng cấu hình gia đình và "
+            "dữ liệu Master MCP mới nhất. Chỉ đọc đoạn đầu, khoảng một trăm "
+            "đến một trăm năm mươi từ, không hỏi có muốn nghe tiếp.");
+        ESP_LOGI(TAG,"Morning radio scheduled start for %s (Asia/Ho_Chi_Minh)",
+                 day.c_str());
+#else
+        (void)day;
+#endif
+    });
+}
+
 void Application::HandleWakeWordDetectedEvent() {
     CancelBriefing("user_wake_word");
     if (!protocol_) {

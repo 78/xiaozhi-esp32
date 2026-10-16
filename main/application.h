@@ -107,6 +107,10 @@ public:
      * Sends MAIN_EVENT_STOP_LISTENING to be handled in Run()
      */
     void StopListening();
+    // Safe for the board's existing HTTP task to query; actual start rechecks
+    // state on the Application main task and never interrupts active playback.
+    bool CanStartScheduledBriefing();
+    void StartScheduledMorningBriefing(const std::string& vietnam_day);
 
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
@@ -157,6 +161,7 @@ private:
     bool briefing_tts_stopped_ = false;
     bool briefing_waiting_response_ = false;
     uint8_t briefing_part_ = 0;
+    std::string briefing_scheduled_day_; // empty for a voice-requested briefing
     int64_t briefing_last_activity_us_ = 0;
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
