@@ -8,8 +8,10 @@ HUD's look on the round screen and the R2D2 Core as its server.
   face during conversations; the stock UI shows through while starting,
   configuring Wi-Fi, activating or upgrading.
 - `r2d2_face.*`: port of the HUD face (r2d2 repo, `edge/dashboard/face.py`).
-- `r2d2_status.*`: polls `GET /satellite/status` on the Core for weather and
-  clock sync.
+- `r2d2_nav.*`: smartwatch-like touch navigation; the Core describes each
+  screen, the firmware draws it. Long press: talk to Jarvis.
+- `r2d2_core_client.*`: every request to the Core on one task (status and
+  clock, navigation, screens, actions, camera JPEG).
 
 Build:
 
