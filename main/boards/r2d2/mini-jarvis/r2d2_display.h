@@ -7,6 +7,9 @@
 // the Core sends with an answer ({"r2d2": "chart"} custom message) takes the
 // screen for its ttl, or until shortly after the conversation ends.
 //
+// Between night_start and night_end (local), an idle screen dims to the night
+// level 10 s after the last touch or conversation, and lights up on either.
+//
 // The stock UI (LcdDisplay) is still built underneath and keeps working for
 // everything this layer doesn't cover: while the device is starting,
 // configuring Wi-Fi, activating or upgrading, the layer hides and the stock
@@ -19,6 +22,9 @@
 #include "r2d2_face.h"
 #include "r2d2_nav.h"
 
+#include <esp_timer.h>
+
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -53,6 +59,9 @@ public:
     void OnAction(uint32_t seq, bool ok);
     // From the touch panel, via the main task.
     void OnGesture(Gesture gesture, int x, int y);
+    // Night dimming while idle (window and level from the Core's status poll).
+    void SetNight(int start_hour, int end_hour, int brightness);
+    void NoteActivity() { last_activity_us_ = esp_timer_get_time(); }  // any task: a touch began
 
 private:
     void Refresh();       // display lock held
@@ -60,6 +69,7 @@ private:
     void ShowWeather();   // display lock held
     static void OnTick(lv_timer_t* timer);
     void ShowChart(const cJSON* payload);  // display lock held
+    void UpdateNight(int64_t now_us);       // display lock held
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* idle_ = nullptr;
@@ -80,6 +90,10 @@ private:
     lv_obj_t* chart_range_ = nullptr;
     lv_obj_t* chart_state_ = nullptr;
     int64_t chart_until_us_ = 0;
+    int night_start_ = 20, night_end_ = 7, night_level_ = 10;
+    bool night_dimmed_ = false;
+    std::atomic<int64_t> last_activity_us_{0};
+    int64_t next_night_check_us_ = 0;
     lv_timer_t* timer_ = nullptr;
     CoreClient* client_ = nullptr;
     std::unique_ptr<NavView> nav_;

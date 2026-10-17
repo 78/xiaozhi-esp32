@@ -211,6 +211,15 @@ bool CoreClient::PollStatus() {
         if (cJSON_IsString(icon)) weather.icon = icon->valuestring;
         weather.rain_pct = cJSON_IsNumber(rain) ? rain->valueint : -1;
     }
+    cJSON* night = cJSON_GetObjectItem(root, "night");
+    if (cJSON_IsObject(night)) {
+        cJSON* start = cJSON_GetObjectItem(night, "start_hour");
+        cJSON* end = cJSON_GetObjectItem(night, "end_hour");
+        cJSON* level = cJSON_GetObjectItem(night, "brightness");
+        if (cJSON_IsNumber(start) && cJSON_IsNumber(end) && cJSON_IsNumber(level)) {
+            display_->SetNight(start->valueint, end->valueint, level->valueint);
+        }
+    }
     cJSON_Delete(root);
     display_->SetWeather(weather);
     display_->UpdateStatusBar(true);  // the clock may have just been set

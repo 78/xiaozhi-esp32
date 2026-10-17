@@ -238,6 +238,7 @@ private:
             if (!t.down) {
                 t = Touch{true, false, point.x, point.y, point.x, point.y, now_ms};
                 if (board->power_save_timer_) board->power_save_timer_->WakeUp();  // any touch lights the screen
+                board->display_->NoteActivity();  // also lifts the night dimming
                 return;
             }
             t.x = point.x;

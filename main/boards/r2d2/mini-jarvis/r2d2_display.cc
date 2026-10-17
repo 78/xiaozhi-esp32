@@ -1,6 +1,7 @@
 #include "r2d2_display.h"
 
 #include "application.h"
+#include "backlight.h"
 #include "board.h"
 #include "device_state.h"
 #include "r2d2_core_client.h"
@@ -10,6 +11,7 @@
 #include <esp_timer.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <ctime>
@@ -31,6 +33,8 @@ constexpr uint32_t kTickMs = 100;
 constexpr int64_t kTalkPeriodUs = 300 * 1000;   // speaking mouth changes
 constexpr int64_t kIdlePeriodUs = 1200 * 1000;  // listening/thinking glances
 constexpr int64_t kErrorHoldUs = 4 * 1000 * 1000;
+constexpr int64_t kNightCheckUs = 1000 * 1000;
+constexpr int64_t kNightAfterActivityUs = 10 * 1000 * 1000;  // dim again this long after a touch/conversation
 constexpr int kChartW = 190, kChartH = 78;
 constexpr int64_t kChartAfterTalkUs = 3 * 1000 * 1000;  // a chart outlives its conversation by this much
 constexpr uint32_t kHairline = 0x262E3F;
@@ -152,8 +156,43 @@ void R2d2Display::SetupUI() {
 
 void R2d2Display::OnTick(lv_timer_t* timer) {
     auto* self = static_cast<R2d2Display*>(lv_timer_get_user_data(timer));
-    if (self->nav_) self->nav_->Tick(esp_timer_get_time());
+    int64_t now = esp_timer_get_time();
+    if (self->nav_) self->nav_->Tick(now);
     self->Refresh();
+    self->UpdateNight(now);
+}
+
+void R2d2Display::SetNight(int start_hour, int end_hour, int brightness) {
+    DisplayLockGuard lock(this);
+    night_start_ = std::clamp(start_hour, 0, 23);
+    night_end_ = std::clamp(end_hour, 0, 23);
+    night_level_ = std::clamp(brightness, 1, 100);
+    next_night_check_us_ = 0;
+}
+
+void R2d2Display::UpdateNight(int64_t now_us) {
+    if (now_us < next_night_check_us_) return;
+    next_night_check_us_ = now_us + kNightCheckUs;
+    auto backlight = Board::GetInstance().GetBacklight();
+    if (!backlight) return;
+    bool idle = Application::GetInstance().GetDeviceState() == kDeviceStateIdle;
+    if (!idle) last_activity_us_ = now_us;  // a conversation counts as activity until it ends
+
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    int h = tm_now.tm_hour;
+    bool night = tm_now.tm_year >= 2025 - 1900 &&
+                 (night_start_ > night_end_ ? (h >= night_start_ || h < night_end_)
+                                            : (h >= night_start_ && h < night_end_));
+    bool dim = night && idle && now_us - last_activity_us_ > kNightAfterActivityUs;
+    if (dim && !night_dimmed_) {
+        backlight->SetBrightness(night_level_);  // not permanent: the saved level stays the day one
+        night_dimmed_ = true;
+    } else if (!dim && night_dimmed_) {
+        backlight->RestoreBrightness();
+        night_dimmed_ = false;
+    }
 }
 
 bool R2d2Display::OnNav(cJSON* nav) {
