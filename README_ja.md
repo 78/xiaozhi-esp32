@@ -140,6 +140,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Javaサーバー
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golangサーバー
 - [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golangサーバー
+- [korexil/gpu-duet](https://github.com/korexil/gpu-duet) 8 GB の GPU 1 枚でローカル LLM + 音声クローン TTS を動かすオフラインサーバー（Windows）
 
 シャオジー通信プロトコルを利用した他のクライアントプロジェクト：
 
