@@ -440,6 +440,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3 1.28 Box"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_R2D2_MINI_JARVIS
+        bool "R2D2 mini-jarvis (Spotpear ESP32-S3 1.28 Box)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3 1.54 MUMA"
         depends on IDF_TARGET_ESP32S3
