@@ -1,0 +1,13 @@
+{
+    "manufacturer": "spotpear",
+    "type": "sp-esp32-s3-1.28-box",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "sp-esp32-s3-1.28-box-r2d2",
+            "sdkconfig_append": [
+                "CONFIG_OTA_URL=\"http://192.168.31.103:8101/satellite/ota/\""
+            ]
+        }
+    ]
+}
