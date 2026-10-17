@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <cstring>
-#include <sstream>
+#include <string_view>
 #include <vector>
 
 #include <esp_heap_caps.h>
@@ -167,12 +167,17 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
             if (words == nullptr) {
                 continue;
             }
-            std::stringstream stream(words);
-            std::string word;
-            while (std::getline(stream, word, ';')) {
+            std::string_view remaining(words);
+            while (!remaining.empty()) {
+                const auto end = remaining.find(';');
+                const auto word = remaining.substr(0, end);
                 if (!word.empty()) {
-                    wake_words_.push_back(word);
+                    wake_words_.emplace_back(word);
                 }
+                if (end == std::string_view::npos) {
+                    break;
+                }
+                remaining.remove_prefix(end + 1);
             }
         }
     }
