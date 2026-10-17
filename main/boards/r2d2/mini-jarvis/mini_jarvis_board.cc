@@ -130,7 +130,10 @@ private:
         rtc_gpio_set_direction(GPIO_NUM_3, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_set_level(GPIO_NUM_3, 1);
 
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 290);
+        // On battery: dim after 60 s idle, never power off. The Spotpear default
+        // (off after 290 s) cut the power latch and deep-slept with no wake-up
+        // source, so a satellite left off the charger went dark for good.
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             GetDisplay()->SetPowerSaveMode(true);
             GetBacklight()->SetBrightness(1);
@@ -234,6 +237,7 @@ private:
         if (point.num > 0) {
             if (!t.down) {
                 t = Touch{true, false, point.x, point.y, point.x, point.y, now_ms};
+                if (board->power_save_timer_) board->power_save_timer_->WakeUp();  // any touch lights the screen
                 return;
             }
             t.x = point.x;
