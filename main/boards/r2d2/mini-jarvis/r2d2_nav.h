@@ -25,6 +25,10 @@ class CoreClient;
 
 enum class Gesture { kTap, kLeft, kRight, kUp, kDown };  // kLeft: the finger moved left
 
+// Microphone gain (dB, ES8311 steps of 6), saved in NVS "r2d2"/"mic_gain".
+constexpr int kDefaultMicGainDb = 36;
+constexpr int kMinMicGainDb = 18, kMaxMicGainDb = 42, kMicGainStepDb = 6;
+
 class NavView {
 public:
     NavView(lv_obj_t* parent, CoreClient* client);
@@ -54,12 +58,14 @@ private:
         std::vector<float> chart;                                  // NAN = gap
         std::string chart_value, chart_range;
         bool loading = true;
+        bool failed = false;  // no answer: a tap retries
     };
 
-    void GoArea(int area, const std::string& open = "");
-    void Push(const std::string& id);
+    void GoArea(int area, const std::string& open = "", const std::string& open_title = "");
+    void Push(const std::string& id, const std::string& title);
     void Pop();
-    void Load(const std::string& id, bool quiet = false);  // quiet: keep showing the old content
+    // quiet: keep showing the old content; title: shown while it loads.
+    void Load(const std::string& id, bool quiet = false, const std::string& title = "");
     void Render();
     void RenderDots();
     void RenderList();
@@ -78,6 +84,7 @@ private:
     lv_obj_t* footer_ = nullptr;
     lv_obj_t* footer_arrow_ = nullptr;
     lv_obj_t* note_ = nullptr;
+    lv_obj_t* spinner_ = nullptr;
     std::vector<lv_obj_t*> rows_;
     std::vector<lv_obj_t*> row_labels_, row_values_, row_dots_;
     lv_obj_t* metrics_ = nullptr;
@@ -103,6 +110,7 @@ private:
     int64_t next_refresh_us_ = 0;
     bool reload_pending_ = false;
     int restore_page_ = 0;
+    int64_t loading_since_us_ = 0;
 };
 
 }  // namespace r2d2

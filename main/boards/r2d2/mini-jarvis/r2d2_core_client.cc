@@ -1,6 +1,8 @@
 #include "r2d2_core_client.h"
 
 #include "application.h"
+#include "audio/audio_codec.h"
+#include "backlight.h"
 #include "board.h"
 #include "device_state.h"
 #include "display/lvgl_display/jpg/jpeg_to_image.h"
@@ -10,7 +12,10 @@
 
 #include <cJSON.h>
 #include <esp_log.h>
+#include <esp_app_desc.h>
+#include <esp_heap_caps.h>
 #include <esp_timer.h>
+#include <wifi_manager.h>
 #include <sys/time.h>
 
 #define TAG "R2d2Core"
@@ -19,7 +24,7 @@ namespace r2d2 {
 
 namespace {
 
-constexpr int64_t kStatusPeriodUs = 300LL * 1000 * 1000;
+constexpr int64_t kStatusPeriodUs = 60LL * 1000 * 1000;  // also the telemetry period
 constexpr int64_t kRetryPeriodUs = 30LL * 1000 * 1000;
 constexpr int kQueueDepth = 8;
 
@@ -153,10 +158,36 @@ void CoreClient::Handle(const Job& job) {
     }
 }
 
+// The device's own numbers, as query parameters of the status poll: the Core
+// turns them into r2d2_satellite_* Prometheus gauges (r2d2 repo,
+// agent_core/channels/satellite/metrics.py).
+std::string CoreClient::Telemetry() {
+    auto& board = Board::GetInstance();
+    auto& wifi = WifiManager::GetInstance();
+    int level = 0;
+    bool charging = false, discharging = false;
+    bool has_battery = board.GetBatteryLevel(level, charging, discharging);
+    auto codec = board.GetAudioCodec();
+    auto backlight = board.GetBacklight();
+    char query[320];
+    int n = snprintf(query, sizeof(query), "?rssi=%d&uptime=%lld&heap=%u&psram=%u&volume=%d&mic_gain=%.0f&fw=%s",
+                     wifi.IsConnected() ? wifi.GetRssi() : 0, esp_timer_get_time() / 1000000,
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM), codec->output_volume(),
+                     codec->input_gain(), esp_app_get_description()->version);
+    if (has_battery && n > 0 && n < (int)sizeof(query)) {
+        n += snprintf(query + n, sizeof(query) - n, "&battery=%d&charging=%d", level, charging ? 1 : 0);
+    }
+    if (backlight && n > 0 && n < (int)sizeof(query)) {
+        snprintf(query + n, sizeof(query) - n, "&brightness=%d", backlight->brightness());
+    }
+    return query;
+}
+
 bool CoreClient::PollStatus() {
     std::string body;
     int code;
-    if (!Request("GET", "/satellite/status", "", &body, &code)) return false;
+    if (!Request("GET", "/satellite/status" + Telemetry(), "", &body, &code)) return false;
     cJSON* root = cJSON_Parse(body.c_str());
     if (root == nullptr) return false;
     // Local time kept as UTC, the way the firmware applies the OTA server_time.

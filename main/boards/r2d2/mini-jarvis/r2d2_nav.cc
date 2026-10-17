@@ -5,6 +5,7 @@
 #include "board.h"
 #include "r2d2_core_client.h"
 #include "r2d2_face.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -33,6 +34,7 @@ constexpr uint32_t kRowBg = 0x171C27;
 constexpr int64_t kReloadAfterActionUs = 900 * 1000;  // let a switch report its new state
 constexpr int64_t kDeviceRefreshUs = 2 * 1000 * 1000;
 constexpr int64_t kLiveRefreshUs = 5 * 1000 * 1000;
+constexpr int64_t kLoadTimeoutUs = 8 * 1000 * 1000;
 
 lv_obj_t* Plain(lv_obj_t* parent) {
     lv_obj_t* obj = lv_obj_create(parent);
@@ -88,6 +90,27 @@ NavView::NavView(lv_obj_t* parent, CoreClient* client) : client_(client) {
 
     title_ = Label(root_, &font_noto_sans_basic_16_4, kTextDim);
     lv_obj_align(title_, LV_ALIGN_TOP_MID, 0, 30);
+
+    // Loading: a turning arc in the listening cyan, the destination already in the title.
+    spinner_ = lv_arc_create(root_);
+    lv_obj_set_size(spinner_, 40, 40);
+    lv_obj_align(spinner_, LV_ALIGN_CENTER, 0, 4);
+    lv_obj_remove_style(spinner_, nullptr, LV_PART_KNOB);
+    lv_obj_remove_flag(spinner_, LV_OBJ_FLAG_CLICKABLE);
+    lv_arc_set_bg_angles(spinner_, 0, 360);
+    lv_arc_set_angles(spinner_, 0, 80);
+    lv_obj_set_style_arc_width(spinner_, 4, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(spinner_, 4, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(spinner_, Rgb(kHairline), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(spinner_, Rgb(kVoiceListen), LV_PART_INDICATOR);
+    lv_anim_t spin;
+    lv_anim_init(&spin);
+    lv_anim_set_var(&spin, spinner_);
+    lv_anim_set_exec_cb(&spin, [](void* obj, int32_t v) { lv_arc_set_rotation((lv_obj_t*)obj, v); });
+    lv_anim_set_values(&spin, 0, 360);
+    lv_anim_set_duration(&spin, 900);
+    lv_anim_set_repeat_count(&spin, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&spin);
 
     note_ = Label(root_, &font_noto_sans_basic_16_4, kTextDim);
     lv_obj_set_width(note_, 170);
@@ -195,7 +218,9 @@ void NavView::OnScreen(uint32_t seq, const std::string& id, cJSON* json) {
     s.loading = false;
     if (json == nullptr) {
         s.kind = "note";
-        s.text = "Sem conexão com o r2d2";
+        s.title = screen_.title;
+        s.text = "O r2d2 não respondeu. Toque para tentar de novo.";
+        s.failed = true;
     } else {
         s.kind = Str(json, "kind");
         s.title = Str(json, "title");
@@ -275,26 +300,26 @@ void NavView::OnAction(uint32_t seq, bool ok) {
 
 bool NavView::AtHome() const { return areas_.empty() || (area_ == home_ && stack_.size() <= 1); }
 
-void NavView::GoArea(int area, const std::string& open) {
+void NavView::GoArea(int area, const std::string& open, const std::string& open_title) {
     if (area < 0 || area >= (int)areas_.size()) return;
     area_ = area;
     stack_ = {areas_[area].screen};
     if (!open.empty()) stack_.push_back(open);
-    Load(stack_.back());
+    Load(stack_.back(), false, open.empty() ? areas_[area].name : open_title);
 }
 
-void NavView::Push(const std::string& id) {
+void NavView::Push(const std::string& id, const std::string& title) {
     stack_.push_back(id);
-    Load(id);
+    Load(id, false, title);
 }
 
 void NavView::Pop() {
     if (stack_.size() <= 1) return;
     stack_.pop_back();
-    Load(stack_.back());
+    Load(stack_.back(), false, stack_.size() == 1 ? areas_[area_].name : "");
 }
 
-void NavView::Load(const std::string& id, bool quiet) {
+void NavView::Load(const std::string& id, bool quiet, const std::string& title) {
     seq_++;
     reload_pending_ = false;
     client_->FetchScreen(id, seq_);
@@ -306,6 +331,8 @@ void NavView::Load(const std::string& id, bool quiet) {
     restore_page_ = 0;
     screen_ = Screen{};
     screen_.id = id;
+    screen_.title = title;
+    loading_since_us_ = esp_timer_get_time();
     image_data_.reset();
     lv_image_set_src(image_, nullptr);
     Render();
@@ -334,7 +361,7 @@ void NavView::OnGesture(Gesture gesture, int x, int y) {
                 page_++;
                 Render();
             } else if (!screen_.next.empty()) {
-                Push(screen_.next);
+                Push(screen_.next, screen_.next_name);
             }
             break;
         case Gesture::kDown:
@@ -352,6 +379,10 @@ void NavView::OnGesture(Gesture gesture, int x, int y) {
 }
 
 void NavView::Tap(int x, int y) {
+    if (screen_.failed) {
+        Load(screen_.id, false, screen_.title);
+        return;
+    }
     if (screen_.id == "camera_live") {  // tap: a fresh frame now
         next_refresh_us_ = 0;
         return;
@@ -366,12 +397,12 @@ void NavView::Tap(int x, int y) {
         if (!item.area.empty()) {
             for (size_t a = 0; a < areas_.size(); a++) {
                 if (areas_[a].screen == item.area) {
-                    GoArea(a, item.open);
+                    GoArea(a, item.open, item.label);
                     return;
                 }
             }
         } else if (!item.open.empty()) {
-            Push(item.open);
+            Push(item.open, item.label);
         } else if (!item.act.empty()) {
             if (item.state == "on" || item.state == "off") item.state = item.state == "on" ? "off" : "on";
             client_->Action(item.act, seq_);
@@ -389,6 +420,12 @@ void NavView::RunLocal(Item& item) {
         auto codec = board.GetAudioCodec();
         int v = std::clamp(codec->output_volume() + (item.local == "volume+" ? 10 : -10), 10, 100);
         codec->SetOutputVolume(v);
+    } else if (item.local == "mic+" || item.local == "mic-") {
+        auto codec = board.GetAudioCodec();
+        int step = item.local == "mic+" ? kMicGainStepDb : -kMicGainStepDb;
+        int gain = std::clamp((int)std::lround(codec->input_gain()) + step, kMinMicGainDb, kMaxMicGainDb);
+        codec->SetInputGain(gain);
+        Settings("r2d2", true).SetInt("mic_gain", gain);
     } else if (item.local == "bright+" || item.local == "bright-") {
         auto backlight = board.GetBacklight();
         if (backlight) {
@@ -403,6 +440,15 @@ void NavView::Tick(int64_t now_us) {
     if (areas_.empty()) return;
     if (!AtHome() && last_touch_us_ && now_us - last_touch_us_ > home_timeout_us_) {
         GoArea(home_);
+        return;
+    }
+    if (screen_.loading && now_us - loading_since_us_ > kLoadTimeoutUs) {
+        seq_++;  // a late answer no longer counts
+        screen_.loading = false;
+        screen_.kind = "note";
+        screen_.text = "O r2d2 não respondeu. Toque para tentar de novo.";
+        screen_.failed = true;
+        Render();
         return;
     }
     if (now_us < next_refresh_us_ || screen_.loading) return;
@@ -446,7 +492,8 @@ void NavView::RenderDots() {
 void NavView::Render() {
     RenderDots();
     const std::string& kind = screen_.kind;
-    Show(note_, screen_.loading || kind == "note");
+    Show(note_, !screen_.loading && kind == "note");
+    Show(spinner_, screen_.loading);
     Show(metrics_, kind == "metrics" || kind == "device");
     Show(chart_box_, kind == "chart");
     Show(image_, kind == "photo");
@@ -462,7 +509,6 @@ void NavView::Render() {
     lv_label_set_text(title_, title.c_str());
 
     if (screen_.loading) {
-        lv_label_set_text(note_, "…");
         lv_label_set_text(footer_, "");
         Show(footer_arrow_, false);
         return;
@@ -490,6 +536,8 @@ void NavView::RenderList() {
         std::string value = item.value;
         if (item.local == "volume+" || item.local == "volume-") {
             value = std::to_string(board.GetAudioCodec()->output_volume());
+        } else if (item.local == "mic+" || item.local == "mic-") {
+            value = std::to_string((int)std::lround(board.GetAudioCodec()->input_gain())) + " dB";
         } else if ((item.local == "bright+" || item.local == "bright-") && board.GetBacklight()) {
             value = std::to_string(board.GetBacklight()->brightness());
         } else if (!item.open.empty() || !item.area.empty()) {

@@ -170,6 +170,15 @@ void Es8311AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     ESP_LOGI(TAG, "Duplex channels created");
 }
 
+void Es8311AudioCodec::SetInputGain(float gain) {
+    // Apply right away when the codec is open; otherwise the next open picks it up.
+    std::lock_guard<std::mutex> lock(data_if_mutex_);
+    if (dev_ != nullptr) {
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(dev_, gain));
+    }
+    AudioCodec::SetInputGain(gain);
+}
+
 void Es8311AudioCodec::SetOutputVolume(int volume) {
     std::lock_guard<std::mutex> lock(data_if_mutex_);
     if (dev_ != nullptr) {

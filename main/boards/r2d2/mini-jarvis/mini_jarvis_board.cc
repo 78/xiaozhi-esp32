@@ -32,6 +32,7 @@
 #include "power_manager.h"
 #include "r2d2_display.h"
 #include "r2d2_core_client.h"
+#include "settings.h"
 
 #define TAG "MiniJarvisBoard"
 
@@ -466,6 +467,14 @@ public:
         static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
             AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+        // Mic gain: the stock 30 dB was quiet across the bedroom. Saved by the
+        // R2D2 settings screen (r2d2_nav.cc), applied before the mic opens.
+        static bool gain_applied = false;
+        if (!gain_applied) {
+            gain_applied = true;
+            Settings settings("r2d2", false);
+            audio_codec.SetInputGain(settings.GetInt("mic_gain", r2d2::kDefaultMicGainDb));
+        }
         return &audio_codec;
     }
 

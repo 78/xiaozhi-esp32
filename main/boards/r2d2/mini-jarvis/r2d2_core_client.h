@@ -2,7 +2,7 @@
 //
 // The conversation WebSocket only exists while someone talks; everything else
 // the screen shows comes from plain HTTP with the same Device-Id and token:
-//   GET  /satellite/status          clock sync and weather (every 5 min, idle)
+//   GET  /satellite/status          clock sync and weather; carries telemetry (every minute, idle)
 //   GET  /satellite/nav             the touch navigation's areas
 //   GET  /satellite/screen/<id>     one screen's content
 //   GET  /satellite/camera.jpg      the door camera, already shrunk
@@ -49,6 +49,7 @@ private:
     void Enqueue(Job::Kind kind, const std::string& arg, uint32_t seq);
     void Handle(const Job& job);
     bool PollStatus();
+    std::string Telemetry();
     // GET/POST against the Core; body on HTTP 200, status in *code.
     bool Request(const char* method, const std::string& path, const std::string& content, std::string* body,
                  int* code);
