@@ -1,0 +1,13 @@
+{
+    "type": "es3c28p-terra",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "es3c28p-terra",
+            "sdkconfig_append": [
+                "CONFIG_OTA_URL=\"https://terra.terranodex.com/xiaozhi/ota/\"",
+                "CONFIG_WIFI_AP_SSID_PREFIX=\"Terra Node X\""
+            ]
+        }
+    ]
+}
