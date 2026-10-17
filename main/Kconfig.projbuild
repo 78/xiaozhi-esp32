@@ -85,6 +85,8 @@ choice
         bool "Indonesian"
     config LANGUAGE_UK_UA
         bool "Ukrainian"
+    config LANGUAGE_BE_BY
+        bool "Belarusian"
     config LANGUAGE_RO_RO
         bool "Romanian"
     config LANGUAGE_BG_BG
