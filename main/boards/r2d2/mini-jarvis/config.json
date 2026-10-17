@@ -7,7 +7,9 @@
             "name": "r2d2-mini-jarvis",
             "sdkconfig_append": [
                 "CONFIG_OTA_URL=\"http://192.168.31.103:8101/satellite/ota/\"",
-                "CONFIG_LV_FONT_MONTSERRAT_48=y"
+                "CONFIG_LV_FONT_MONTSERRAT_48=y",
+                "CONFIG_RECEIVE_CUSTOM_MESSAGE=y",
+                "CONFIG_LV_USE_CHART=y"
             ]
         }
     ]

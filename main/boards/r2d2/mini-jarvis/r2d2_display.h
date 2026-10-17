@@ -2,7 +2,9 @@
 //
 // Idle: dark background, Wi-Fi icon, clock, date and the weather the R2D2
 // Core reports (GET /satellite/status, see r2d2_status.h). In a conversation:
-// the HUD's Jarvis face (r2d2_face.h) with the state label under it.
+// the HUD's Jarvis face (r2d2_face.h) with the state label under it. A chart
+// the Core sends with an answer ({"r2d2": "chart"} custom message) takes the
+// screen for its ttl, or until shortly after the conversation ends.
 //
 // The stock UI (LcdDisplay) is still built underneath and keeps working for
 // everything this layer doesn't cover: while the device is starting,
@@ -11,6 +13,8 @@
 #pragma once
 
 #include "display/lcd_display.h"
+
+#include <cJSON.h>
 #include "r2d2_face.h"
 
 #include <memory>
@@ -46,6 +50,7 @@ private:
     void UpdateClock();   // display lock held
     void ShowWeather();   // display lock held
     static void OnTick(lv_timer_t* timer);
+    void ShowChart(const cJSON* payload);  // display lock held
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* idle_ = nullptr;
@@ -58,6 +63,14 @@ private:
     lv_obj_t* state_label_ = nullptr;
     std::unique_ptr<Face> face_;
     std::unique_ptr<WeatherIcon> weather_icon_;
+    lv_obj_t* chart_view_ = nullptr;
+    lv_obj_t* chart_ = nullptr;
+    lv_chart_series_t* chart_series_ = nullptr;
+    lv_obj_t* chart_title_ = nullptr;
+    lv_obj_t* chart_value_ = nullptr;
+    lv_obj_t* chart_range_ = nullptr;
+    lv_obj_t* chart_state_ = nullptr;
+    int64_t chart_until_us_ = 0;
     lv_timer_t* timer_ = nullptr;
 
     Weather weather_;

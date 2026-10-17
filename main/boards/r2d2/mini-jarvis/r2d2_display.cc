@@ -4,10 +4,12 @@
 #include "board.h"
 #include "device_state.h"
 
+#include <cJSON.h>
 #include <esp_log.h>
 #include <esp_timer.h>
 
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <ctime>
 
@@ -28,6 +30,9 @@ constexpr uint32_t kTickMs = 100;
 constexpr int64_t kTalkPeriodUs = 300 * 1000;   // speaking mouth changes
 constexpr int64_t kIdlePeriodUs = 1200 * 1000;  // listening/thinking glances
 constexpr int64_t kErrorHoldUs = 4 * 1000 * 1000;
+constexpr int kChartW = 190, kChartH = 78;
+constexpr int64_t kChartAfterTalkUs = 3 * 1000 * 1000;  // a chart outlives its conversation by this much
+constexpr uint32_t kHairline = 0x262E3F;
 
 const char* kWeekdays[] = {"dom", "seg", "ter", "qua", "qui", "sex", "sáb"};
 const char* kMonths[] = {"jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"};
@@ -105,6 +110,31 @@ void R2d2Display::SetupUI() {
     lv_obj_align(state_label_, LV_ALIGN_CENTER, 0, 76);
     lv_obj_add_flag(talk_, LV_OBJ_FLAG_HIDDEN);
 
+    // ── chart: title, current value, the series, conversation state ──
+    chart_view_ = Plain(root_);
+    chart_title_ = Label(chart_view_, &font_noto_sans_basic_16_4, kTextDim);
+    lv_obj_align(chart_title_, LV_ALIGN_CENTER, 0, -80);
+    chart_value_ = Label(chart_view_, &font_noto_sans_basic_30_4, kText);
+    lv_obj_align(chart_value_, LV_ALIGN_CENTER, 0, -50);
+    chart_ = lv_chart_create(chart_view_);
+    lv_obj_set_size(chart_, kChartW, kChartH);
+    lv_obj_align(chart_, LV_ALIGN_CENTER, 0, 10);
+    lv_chart_set_type(chart_, LV_CHART_TYPE_LINE);
+    lv_chart_set_div_line_count(chart_, 3, 0);
+    lv_obj_set_style_bg_opa(chart_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(chart_, 0, 0);
+    lv_obj_set_style_pad_all(chart_, 0, 0);
+    lv_obj_set_style_line_color(chart_, Rgb(kHairline), LV_PART_MAIN);
+    lv_obj_set_style_line_width(chart_, 3, LV_PART_ITEMS);
+    lv_obj_set_style_width(chart_, 0, LV_PART_INDICATOR);   // no point markers
+    lv_obj_set_style_height(chart_, 0, LV_PART_INDICATOR);
+    chart_series_ = lv_chart_add_series(chart_, Rgb(kRainTint), LV_CHART_AXIS_PRIMARY_Y);
+    chart_range_ = Label(chart_view_, &font_noto_sans_basic_16_4, kTextFaint);
+    lv_obj_align(chart_range_, LV_ALIGN_CENTER, 0, 60);
+    chart_state_ = Label(chart_view_, &font_noto_sans_basic_16_4, kTextDim);
+    lv_obj_align(chart_state_, LV_ALIGN_CENTER, 0, 84);
+    lv_obj_add_flag(chart_view_, LV_OBJ_FLAG_HIDDEN);
+
     ShowWeather();
     timer_ = lv_timer_create(OnTick, kTickMs, this);
 }
@@ -136,7 +166,16 @@ void R2d2Display::SetChatMessage(const char* role, const char* content) {
     // No subtitles: like the HUD, the face carries the conversation. Custom
     // Core messages (charts, menus) arrive here as role "system" JSON.
     if (role && strcmp(role, "system") == 0 && content && content[0] == '{') {
-        ESP_LOGI(TAG, "Core message: %.120s", content);
+        cJSON* payload = cJSON_Parse(content);
+        cJSON* kind = payload ? cJSON_GetObjectItem(payload, "r2d2") : nullptr;
+        if (cJSON_IsString(kind) && strcmp(kind->valuestring, "chart") == 0) {
+            DisplayLockGuard lock(this);
+            ShowChart(payload);
+            Refresh();
+        } else {
+            ESP_LOGW(TAG, "unknown Core message: %.120s", content);
+        }
+        cJSON_Delete(payload);
         return;
     }
     SpiLcdDisplay::SetChatMessage(role, content);  // stock screen, for setup states
@@ -205,6 +244,54 @@ void R2d2Display::ShowWeather() {
     weather_icon_->Draw(weather_.icon, night);
 }
 
+void R2d2Display::ShowChart(const cJSON* payload) {
+    cJSON* points = cJSON_GetObjectItem(payload, "points");
+    if (!cJSON_IsArray(points) || cJSON_GetArraySize(points) < 2) return;
+    cJSON* title = cJSON_GetObjectItem(payload, "title");
+    cJSON* unit = cJSON_GetObjectItem(payload, "unit");
+    cJSON* decimals = cJSON_GetObjectItem(payload, "decimals");
+    cJSON* last = cJSON_GetObjectItem(payload, "last");
+    cJSON* ttl = cJSON_GetObjectItem(payload, "ttl_s");
+    int dec = cJSON_IsNumber(decimals) ? std::max(0, std::min(3, decimals->valueint)) : 1;
+    const char* unit_text = cJSON_IsString(unit) ? unit->valuestring : "";
+
+    // Values scaled to integers for lv_chart, keeping the payload's decimals.
+    float factor = std::pow(10.0f, dec);
+    int n = cJSON_GetArraySize(points);
+    float lo = INFINITY, hi = -INFINITY;
+    for (int i = 0; i < n; i++) {
+        cJSON* p = cJSON_GetArrayItem(points, i);
+        if (!cJSON_IsNumber(p)) continue;
+        lo = std::min(lo, (float)p->valuedouble);
+        hi = std::max(hi, (float)p->valuedouble);
+    }
+    if (!std::isfinite(lo)) return;
+    float pad = std::max((hi - lo) * 0.1f, 1.0f / factor);
+    lv_chart_set_point_count(chart_, n);
+    lv_chart_set_axis_range(chart_, LV_CHART_AXIS_PRIMARY_Y, (int32_t)std::floor((lo - pad) * factor),
+                            (int32_t)std::ceil((hi + pad) * factor));
+    for (int i = 0; i < n; i++) {
+        cJSON* p = cJSON_GetArrayItem(points, i);
+        int32_t v = cJSON_IsNumber(p) ? (int32_t)std::lround(p->valuedouble * factor) : LV_CHART_POINT_NONE;
+        lv_chart_set_series_value_by_id(chart_, chart_series_, i, v);
+    }
+    lv_chart_refresh(chart_);
+
+    char text[64];
+    lv_label_set_text(chart_title_, cJSON_IsString(title) ? title->valuestring : "");
+    if (cJSON_IsNumber(last)) {
+        snprintf(text, sizeof(text), "%.*f %s", dec, last->valuedouble, unit_text);
+        lv_label_set_text(chart_value_, text);
+    } else {
+        lv_label_set_text(chart_value_, "");
+    }
+    snprintf(text, sizeof(text), "mín %.*f · máx %.*f", dec, lo, dec, hi);
+    lv_label_set_text(chart_range_, text);
+    int ttl_s = cJSON_IsNumber(ttl) ? std::max(5, std::min(600, ttl->valueint)) : 30;
+    chart_until_us_ = esp_timer_get_time() + (int64_t)ttl_s * 1000 * 1000;
+    ESP_LOGI(TAG, "chart %s: %d points, %.*f..%.*f", lv_label_get_text(chart_title_), n, dec, lo, dec, hi);
+}
+
 void R2d2Display::Refresh() {
     if (!root_) return;
     auto state = Application::GetInstance().GetDeviceState();
@@ -239,6 +326,23 @@ void R2d2Display::Refresh() {
         face_state = "speaking";
         hint = IsEmotion(emotion_) ? emotion_ : "";
     }
+
+    if (state == kDeviceStateIdle && chart_until_us_ > now + kChartAfterTalkUs) {
+        chart_until_us_ = now + kChartAfterTalkUs;  // the conversation is over: the chart goes too
+    }
+    if (now < chart_until_us_) {
+        lv_obj_add_flag(idle_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(talk_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(chart_view_, LV_OBJ_FLAG_HIDDEN);
+        std::string label = face_state.empty() ? "" : FaceLabel(face_state, hint);
+        if (label != lv_label_get_text(chart_state_)) {
+            lv_label_set_text(chart_state_, label.c_str());
+            lv_obj_set_style_text_color(chart_state_, FaceColor(face_state), 0);
+        }
+        face_state_.clear();  // redraw the face when the chart goes away
+        return;
+    }
+    lv_obj_add_flag(chart_view_, LV_OBJ_FLAG_HIDDEN);
 
     if (face_state.empty()) {
         lv_obj_add_flag(talk_, LV_OBJ_FLAG_HIDDEN);
