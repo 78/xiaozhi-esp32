@@ -1,7 +1,8 @@
 // R2D2 mini-jarvis screen: the R2D2 HUD's look on the 240×240 round panel.
 //
 // Idle: dark background, Wi-Fi icon, clock, date and the weather the R2D2
-// Core reports (GET /satellite/status, see r2d2_status.h). In a conversation:
+// Core reports (GET /satellite/status, see r2d2_core_client.h); swiping away
+// from it opens the touch navigation (r2d2_nav.h). In a conversation:
 // the HUD's Jarvis face (r2d2_face.h) with the state label under it. A chart
 // the Core sends with an answer ({"r2d2": "chart"} custom message) takes the
 // screen for its ttl, or until shortly after the conversation ends.
@@ -16,6 +17,7 @@
 
 #include <cJSON.h>
 #include "r2d2_face.h"
+#include "r2d2_nav.h"
 
 #include <memory>
 #include <string>
@@ -42,8 +44,15 @@ public:
     void SetChatMessage(const char* role, const char* content) override;
     void UpdateStatusBar(bool update_all = false) override;
 
-    // From the status poller (any task).
+    // From the Core client's task (any task): each takes the display lock.
+    void AttachCore(CoreClient* client) { client_ = client; }
     void SetWeather(const Weather& weather);
+    bool OnNav(cJSON* nav);  // takes ownership; false: the UI isn't up yet
+    void OnScreen(uint32_t seq, const std::string& id, cJSON* screen);
+    void OnImage(uint32_t seq, uint8_t* rgb565, size_t size, size_t w, size_t h, size_t stride);
+    void OnAction(uint32_t seq, bool ok);
+    // From the touch panel, via the main task.
+    void OnGesture(Gesture gesture, int x, int y);
 
 private:
     void Refresh();       // display lock held
@@ -72,6 +81,8 @@ private:
     lv_obj_t* chart_state_ = nullptr;
     int64_t chart_until_us_ = 0;
     lv_timer_t* timer_ = nullptr;
+    CoreClient* client_ = nullptr;
+    std::unique_ptr<NavView> nav_;
 
     Weather weather_;
     bool weather_dirty_ = false;

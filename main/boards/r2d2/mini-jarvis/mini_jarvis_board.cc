@@ -19,6 +19,8 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include <esp_timer.h>
+#include <algorithm>
+#include <cstdlib>
 #include "i2c_device.h"
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
@@ -29,7 +31,7 @@
 #include "freertos/task.h"
 #include "power_manager.h"
 #include "r2d2_display.h"
-#include "r2d2_status.h"
+#include "r2d2_core_client.h"
 
 #define TAG "MiniJarvisBoard"
 
@@ -115,7 +117,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     Button boot_button_;
     r2d2::R2d2Display* display_ = nullptr;
-    r2d2::StatusPoller* status_poller_ = nullptr;
+    r2d2::CoreClient* core_ = nullptr;
     esp_timer_handle_t touchpad_timer_ = nullptr;
     Cst816d* cst816d_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
@@ -203,37 +205,65 @@ private:
     }
 
 
+    // Gestures from raw CST816D points (polled every 10 ms): a long press
+    // talks to Jarvis (or ends the conversation); taps and swipes drive the
+    // R2D2 navigation (r2d2_nav.h). Thresholds in panel pixels / ms.
+    static constexpr int kSwipeMinPx = 28;
+    static constexpr int kTapMaxPx = 14;
+    static constexpr int64_t kLongPressMs = 650;
+    struct Touch {
+        bool down = false, long_fired = false;
+        int x0 = 0, y0 = 0, x = 0, y = 0;
+        int64_t t0_ms = 0;
+    } touch_;
+
+    void Dispatch(r2d2::Gesture gesture, int x, int y) {
+        Application::GetInstance().Schedule([this, gesture, x, y]() { display_->OnGesture(gesture, x, y); });
+    }
+
     static void touchpad_timer_callback(void* arg) {
         auto* board = static_cast<MiniJarvisBoard*>(arg);
         if (!board || !board->cst816d_) return;
-        static bool was_touched = false;
-        static int64_t touch_start_time = 0;
-        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
-
         board->cst816d_->UpdateTouchPoint();
-        auto touch_point = board->cst816d_->GetTouchPoint();
+        auto point = board->cst816d_->GetTouchPoint();
+        auto& t = board->touch_;
+        int64_t now_ms = esp_timer_get_time() / 1000;
+        auto& app = Application::GetInstance();
 
-        // 检测触摸开始
-        if (touch_point.num > 0 && !was_touched) {
-            was_touched = true;
-            touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
-        }
-        // 检测触摸释放
-        else if (touch_point.num == 0 && was_touched) {
-            was_touched = false;
-            int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
-
-            // 只有短触才触发
-            if (touch_duration < TOUCH_THRESHOLD_MS) {
-                auto& app = Application::GetInstance();
-                // During startup (before connected), pressing touch enters Wi-Fi config mode without reboot
-                if (app.GetDeviceState() == kDeviceStateStarting) {
-                    board->EnterWifiConfigMode();
-                    return;
-                }
-                app.ToggleChatState();
+        if (point.num > 0) {
+            if (!t.down) {
+                t = Touch{true, false, point.x, point.y, point.x, point.y, now_ms};
+                return;
             }
+            t.x = point.x;
+            t.y = point.y;
+            int moved = std::max(std::abs(t.x - t.x0), std::abs(t.y - t.y0));
+            if (!t.long_fired && moved < kTapMaxPx && now_ms - t.t0_ms >= kLongPressMs) {
+                t.long_fired = true;
+                ESP_LOGI(TAG, "long press: talk");
+                app.Schedule([&app]() { app.ToggleChatState(); });
+            }
+            return;
         }
+        if (!t.down) return;
+        t.down = false;
+        if (t.long_fired) return;
+
+        int dx = t.x - t.x0, dy = t.y - t.y0;
+        if (std::max(std::abs(dx), std::abs(dy)) <= kTapMaxPx) {
+            // During startup (before connected), a tap enters Wi-Fi config mode without reboot.
+            if (app.GetDeviceState() == kDeviceStateStarting) {
+                board->EnterWifiConfigMode();
+                return;
+            }
+            board->Dispatch(r2d2::Gesture::kTap, t.x0, t.y0);
+            return;
+        }
+        if (std::max(std::abs(dx), std::abs(dy)) < kSwipeMinPx) return;
+        r2d2::Gesture g = std::abs(dx) > std::abs(dy) ? (dx > 0 ? r2d2::Gesture::kRight : r2d2::Gesture::kLeft)
+                                                       : (dy > 0 ? r2d2::Gesture::kDown : r2d2::Gesture::kUp);
+        ESP_LOGI(TAG, "swipe %d (%d,%d)->(%d,%d)", (int)g, t.x0, t.y0, t.x, t.y);
+        board->Dispatch(g, t.x0, t.y0);
     }
 
     void InitializeCst816DTouchPad() {
@@ -372,8 +402,9 @@ public:
         // 显示相关先建立起来
         InitializeSpi();
         InitializeGc9a01Display();
-        status_poller_ = new r2d2::StatusPoller(display_);
-        status_poller_->Start();
+        core_ = new r2d2::CoreClient(display_);
+        display_->AttachCore(core_);  // before SetupUI: the navigation is built with it
+        core_->Start();
         InitializeButtons();
         if (GetBacklight()) {
             GetBacklight()->RestoreBrightness();

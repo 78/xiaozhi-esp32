@@ -3,6 +3,7 @@
 #include "application.h"
 #include "board.h"
 #include "device_state.h"
+#include "r2d2_core_client.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
@@ -51,6 +52,11 @@ lv_obj_t* Label(lv_obj_t* parent, const lv_font_t* font, uint32_t color) {
     lv_obj_set_style_text_color(label, Rgb(color), 0);
     lv_label_set_text(label, "");
     return label;
+}
+
+void Show(lv_obj_t* obj, bool visible) {
+    if (visible) lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
 }
 
 bool ShowsOwnScreen(DeviceState state) {
@@ -135,13 +141,55 @@ void R2d2Display::SetupUI() {
     lv_obj_align(chart_state_, LV_ALIGN_CENTER, 0, 84);
     lv_obj_add_flag(chart_view_, LV_OBJ_FLAG_HIDDEN);
 
+    if (client_) {
+        nav_ = std::make_unique<NavView>(root_, client_);
+        lv_obj_add_flag(nav_->obj(), LV_OBJ_FLAG_HIDDEN);
+    }
+
     ShowWeather();
     timer_ = lv_timer_create(OnTick, kTickMs, this);
 }
 
 void R2d2Display::OnTick(lv_timer_t* timer) {
     auto* self = static_cast<R2d2Display*>(lv_timer_get_user_data(timer));
+    if (self->nav_) self->nav_->Tick(esp_timer_get_time());
     self->Refresh();
+}
+
+bool R2d2Display::OnNav(cJSON* nav) {
+    DisplayLockGuard lock(this);
+    bool ok = nav_ != nullptr;
+    if (ok) nav_->SetNav(nav);
+    cJSON_Delete(nav);
+    return ok;
+}
+
+void R2d2Display::OnScreen(uint32_t seq, const std::string& id, cJSON* screen) {
+    DisplayLockGuard lock(this);
+    if (nav_) nav_->OnScreen(seq, id, screen);
+    else cJSON_Delete(screen);
+}
+
+void R2d2Display::OnImage(uint32_t seq, uint8_t* rgb565, size_t size, size_t w, size_t h, size_t stride) {
+    std::unique_ptr<LvglAllocatedImage> image;
+    if (rgb565) image = std::make_unique<LvglAllocatedImage>(rgb565, size, w, h, stride, LV_COLOR_FORMAT_RGB565);
+    DisplayLockGuard lock(this);
+    if (nav_) nav_->OnImage(seq, std::move(image));
+}
+
+void R2d2Display::OnAction(uint32_t seq, bool ok) {
+    DisplayLockGuard lock(this);
+    if (nav_) nav_->OnAction(seq, ok);
+}
+
+void R2d2Display::OnGesture(Gesture gesture, int x, int y) {
+    DisplayLockGuard lock(this);
+    // Only when nothing else owns the screen: the conversation's face and its
+    // chart ignore sideways/up/down (a long press, handled by the board, ends it).
+    if (!nav_ || Application::GetInstance().GetDeviceState() != kDeviceStateIdle) return;
+    chart_until_us_ = 0;
+    nav_->OnGesture(gesture, x, y);
+    Refresh();
 }
 
 void R2d2Display::SetStatus(const char* status) {
@@ -333,6 +381,7 @@ void R2d2Display::Refresh() {
     if (now < chart_until_us_) {
         lv_obj_add_flag(idle_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(talk_, LV_OBJ_FLAG_HIDDEN);
+        if (nav_) lv_obj_add_flag(nav_->obj(), LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(chart_view_, LV_OBJ_FLAG_HIDDEN);
         std::string label = face_state.empty() ? "" : FaceLabel(face_state, hint);
         if (label != lv_label_get_text(chart_state_)) {
@@ -346,11 +395,14 @@ void R2d2Display::Refresh() {
 
     if (face_state.empty()) {
         lv_obj_add_flag(talk_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(idle_, LV_OBJ_FLAG_HIDDEN);
+        bool browsing = nav_ && !nav_->AtHome();
+        if (nav_) Show(nav_->obj(), browsing);
+        Show(idle_, !browsing);
         face_state_.clear();
         UpdateClock();
         return;
     }
+    if (nav_) lv_obj_add_flag(nav_->obj(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(idle_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(talk_, LV_OBJ_FLAG_HIDDEN);
 
