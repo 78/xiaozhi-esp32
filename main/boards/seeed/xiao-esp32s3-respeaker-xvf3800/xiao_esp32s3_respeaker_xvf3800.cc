@@ -4,9 +4,9 @@
 #include "led/gpio_led.h"
 #include "wifi_board.h"
 
+#include <driver/gpio.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_std.h>
-#include <driver/gpio.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -70,10 +70,10 @@ constexpr char kI2sRoleName[] = "master";
             elapsed = esp_timer_get_time() - start;
         } while (elapsed < 20000);
 
-        ESP_LOGI(kTag, "CLOCK PROBE: window_us=%lld ws_rises=%lu approx_ws_hz=%lu "
-                      "sampled_bclk_edges=%lu WS=%d BCLK=%d",
-                 static_cast<long long>(elapsed),
-                 static_cast<unsigned long>(ws_rising_edges),
+        ESP_LOGI(kTag,
+                 "CLOCK PROBE: window_us=%lld ws_rises=%lu approx_ws_hz=%lu "
+                 "sampled_bclk_edges=%lu WS=%d BCLK=%d",
+                 static_cast<long long>(elapsed), static_cast<unsigned long>(ws_rising_edges),
                  static_cast<unsigned long>(ws_rising_edges * 1000000ULL / elapsed),
                  static_cast<unsigned long>(bclk_edges), previous_ws, previous_bclk);
     }
@@ -91,9 +91,10 @@ void ProbeXvf3800() {
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = true,
-            },
+            .flags =
+                {
+                    .enable_internal_pullup = true,
+                },
         };
 
         const esp_err_t err = i2c_new_master_bus(&config, &bus);
@@ -107,8 +108,8 @@ void ProbeXvf3800() {
     if (err == ESP_OK) {
         ESP_LOGI(kTag, "XVF3800 detected at I2C address 0x%02X", kXvf3800I2cAddress);
     } else {
-        ESP_LOGW(kTag, "XVF3800 not detected at I2C address 0x%02X: %s",
-                 kXvf3800I2cAddress, esp_err_to_name(err));
+        ESP_LOGW(kTag, "XVF3800 not detected at I2C address 0x%02X: %s", kXvf3800I2cAddress,
+                 esp_err_to_name(err));
     }
 }
 
@@ -118,6 +119,10 @@ private:
 
     class AudioCodec final : public NoAudioCodec {
     private:
+        std::vector<int32_t> rx_buffer_;
+        std::vector<int32_t> tx_buffer_;
+        int64_t last_rx_error_us_ = -5000000;
+#if CONFIG_RESPEAKER_AUDIO_DIAGNOSTICS
         int64_t last_rx_report_us_ = 0;
         uint32_t rx_frames_ = 0;
         uint32_t rx_nonzero_ = 0;
@@ -132,18 +137,16 @@ private:
             if (last_rx_report_us_ != 0 && now - last_rx_report_us_ < 5000000) {
                 return;
             }
-            const double rms = rx_frames_ == 0 ? 0.0 :
-                std::sqrt(static_cast<double>(rx_square_sum_) / rx_frames_);
+            const double rms =
+                rx_frames_ == 0 ? 0.0 : std::sqrt(static_cast<double>(rx_square_sum_) / rx_frames_);
             ESP_LOGI(kTag,
                      "RX: frames=%lu left_peak32=%lu right_peak32=%lu "
                      "left_nonzero=%lu rails16=%lu rms16=%.1f timeouts=%lu (left slot, shift=16)",
                      static_cast<unsigned long>(rx_frames_),
                      static_cast<unsigned long>(rx_left_peak_),
                      static_cast<unsigned long>(rx_right_peak_),
-                     static_cast<unsigned long>(rx_nonzero_),
-                     static_cast<unsigned long>(rx_rails_),
-                     rms,
-                     static_cast<unsigned long>(rx_timeouts_));
+                     static_cast<unsigned long>(rx_nonzero_), static_cast<unsigned long>(rx_rails_),
+                     rms, static_cast<unsigned long>(rx_timeouts_));
             if (frames >= 4) {
                 ESP_LOGI(kTag, "RX raw L/R: %08lx/%08lx %08lx/%08lx %08lx/%08lx %08lx/%08lx",
                          static_cast<unsigned long>(static_cast<uint32_t>(raw[0])),
@@ -160,6 +163,7 @@ private:
             rx_left_peak_ = rx_right_peak_ = 0;
             rx_square_sum_ = 0;
         }
+#endif
 
     public:
         AudioCodec() {
@@ -181,45 +185,49 @@ private:
             ESP_ERROR_CHECK(i2s_new_channel(&channel_config, &tx_handle_, &rx_handle_));
 
             i2s_std_config_t standard_config = {
-                .clk_cfg = {
-                    .sample_rate_hz = kAudioSampleRate,
-                    .clk_src = I2S_CLK_SRC_DEFAULT,
+                .clk_cfg =
+                    {
+                        .sample_rate_hz = kAudioSampleRate,
+                        .clk_src = I2S_CLK_SRC_DEFAULT,
 #if SOC_I2S_HW_VERSION_2
-                    .ext_clk_freq_hz = 0,
+                        .ext_clk_freq_hz = 0,
 #endif
-                    .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-                },
-                .slot_cfg = {
-                    .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
-                    .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-                    .slot_mode = I2S_SLOT_MODE_STEREO,
-                    .slot_mask = I2S_STD_SLOT_BOTH,
-                    .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
-                    .ws_pol = false,
-                    .bit_shift = true,
-#if SOC_I2S_HW_VERSION_2
-                    .left_align = true,
-                    .big_endian = false,
-                    .bit_order_lsb = false,
-#endif
-                },
-                .gpio_cfg = {
-                    .mclk = I2S_GPIO_UNUSED,
-                    .bclk = kI2sBclkPin,
-                    .ws = kI2sWsPin,
-                    .dout = kI2sDoutPin,
-                    .din = kI2sDinPin,
-                    .invert_flags = {
-                        .mclk_inv = false,
-                        .bclk_inv = false,
-                        .ws_inv = false,
+                        .mclk_multiple = I2S_MCLK_MULTIPLE_256,
                     },
-                },
+                .slot_cfg =
+                    {
+                        .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
+                        .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                        .slot_mode = I2S_SLOT_MODE_STEREO,
+                        .slot_mask = I2S_STD_SLOT_BOTH,
+                        .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
+                        .ws_pol = false,
+                        .bit_shift = true,
+#if SOC_I2S_HW_VERSION_2
+                        .left_align = true,
+                        .big_endian = false,
+                        .bit_order_lsb = false,
+#endif
+                    },
+                .gpio_cfg =
+                    {
+                        .mclk = I2S_GPIO_UNUSED,
+                        .bclk = kI2sBclkPin,
+                        .ws = kI2sWsPin,
+                        .dout = kI2sDoutPin,
+                        .din = kI2sDinPin,
+                        .invert_flags =
+                            {
+                                .mclk_inv = false,
+                                .bclk_inv = false,
+                                .ws_inv = false,
+                            },
+                    },
             };
             ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &standard_config));
             ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &standard_config));
-            ESP_LOGI(kTag, "I2S: %s, %d Hz, 32-bit stereo bus; mono left-slot input",
-                     kI2sRoleName, kAudioSampleRate);
+            ESP_LOGI(kTag, "I2S: %s, %d Hz, 32-bit stereo bus; mono left-slot input", kI2sRoleName,
+                     kAudioSampleRate);
         }
 
         bool InputData(std::vector<int16_t>& data) override {
@@ -230,13 +238,20 @@ private:
 
     protected:
         int Read(int16_t* dest, int samples) override {
-            std::vector<int32_t> stereo_samples(static_cast<size_t>(samples) * 2);
+            rx_buffer_.resize(static_cast<size_t>(samples) * 2);
             size_t bytes_read = 0;
-            const esp_err_t err = i2s_channel_read(rx_handle_, stereo_samples.data(),
-                                                  stereo_samples.size() * sizeof(int32_t),
-                                                  &bytes_read, 200);
+            const esp_err_t err =
+                i2s_channel_read(rx_handle_, rx_buffer_.data(), rx_buffer_.size() * sizeof(int32_t),
+                                 &bytes_read, 200);
             if (err == ESP_ERR_TIMEOUT) {
+#if CONFIG_RESPEAKER_AUDIO_DIAGNOSTICS
                 ++rx_timeouts_;
+#endif
+                const int64_t now = esp_timer_get_time();
+                if (now - last_rx_error_us_ >= 5000000) {
+                    ESP_LOGW(kTag, "I2S read timed out; check XMOS power and clock configuration");
+                    last_rx_error_us_ = now;
+                }
             } else if (err != ESP_OK) {
                 ESP_LOGE(kTag, "I2S read failed: %s", esp_err_to_name(err));
                 return 0;
@@ -248,8 +263,11 @@ private:
 
             const size_t frames = bytes_read / (2 * sizeof(int32_t));
             for (size_t i = 0; i < frames; ++i) {
-                const int32_t left = stereo_samples[i * 2];
-                const int32_t right = stereo_samples[i * 2 + 1];
+                const int32_t left = rx_buffer_[i * 2];
+                const int32_t value = left >> 16;
+                dest[i] = static_cast<int16_t>(value);
+#if CONFIG_RESPEAKER_AUDIO_DIAGNOSTICS
+                const int32_t right = rx_buffer_[i * 2 + 1];
                 const uint32_t left_peak =
                     static_cast<uint32_t>(left < 0 ? -static_cast<int64_t>(left) : left);
                 const uint32_t right_peak =
@@ -258,35 +276,60 @@ private:
                 rx_right_peak_ = std::max(rx_right_peak_, right_peak);
                 rx_nonzero_ += left != 0;
 
-                const int32_t value = left >> 16;
                 rx_rails_ += value == INT16_MIN || value == INT16_MAX;
                 rx_square_sum_ += static_cast<uint64_t>(static_cast<int64_t>(value) * value);
-                dest[i] = static_cast<int16_t>(value);
+#endif
             }
+#if CONFIG_RESPEAKER_AUDIO_DIAGNOSTICS
             rx_frames_ += static_cast<uint32_t>(frames);
-            ReportRx(stereo_samples, frames);
+            ReportRx(rx_buffer_, frames);
+#endif
             return static_cast<int>(frames);
         }
 
         int Write(const int16_t* data, int samples) override {
-            std::vector<int32_t> stereo_samples(static_cast<size_t>(samples) * 2);
+            std::lock_guard<std::mutex> lock(data_if_mutex_);
+            tx_buffer_.resize(static_cast<size_t>(samples) * 2);
             const double volume_ratio = static_cast<double>(output_volume_) / 100.0;
-            const int32_t volume_factor =
-                static_cast<int32_t>(volume_ratio * volume_ratio * 65536);
+            const int32_t volume_factor = static_cast<int32_t>(volume_ratio * volume_ratio * 65536);
 
             for (int i = 0; i < samples; ++i) {
                 const int64_t scaled = static_cast<int64_t>(data[i]) * volume_factor;
-                const int32_t sample = static_cast<int32_t>(
-                    std::clamp<int64_t>(scaled, INT32_MIN, INT32_MAX));
-                stereo_samples[static_cast<size_t>(i) * 2] = sample;
-                stereo_samples[static_cast<size_t>(i) * 2 + 1] = sample;
+                const int32_t sample =
+                    static_cast<int32_t>(std::clamp<int64_t>(scaled, INT32_MIN, INT32_MAX));
+                tx_buffer_[static_cast<size_t>(i) * 2] = sample;
+                tx_buffer_[static_cast<size_t>(i) * 2 + 1] = sample;
             }
 
-            size_t bytes_written = 0;
-            ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, stereo_samples.data(),
-                                              stereo_samples.size() * sizeof(int32_t),
-                                              &bytes_written, portMAX_DELAY));
-            return bytes_written / (2 * sizeof(int32_t));
+            constexpr size_t kFrameBytes = 2 * sizeof(int32_t);
+            constexpr size_t kChunkBytes = AUDIO_CODEC_DMA_FRAME_NUM * kFrameBytes;
+            constexpr int64_t kWriteBudgetUs = 500000;
+            const int64_t deadline = esp_timer_get_time() + kWriteBudgetUs;
+            const auto* bytes = reinterpret_cast<const uint8_t*>(tx_buffer_.data());
+            const size_t total_bytes = tx_buffer_.size() * sizeof(int32_t);
+            size_t written = 0;
+            while (written < total_bytes) {
+                const int64_t remaining_us = deadline - esp_timer_get_time();
+                if (remaining_us <= 0) {
+                    ESP_LOGE(kTag, "I2S write budget exceeded: %u/%u bytes; check XMOS clocks",
+                             static_cast<unsigned>(written), static_cast<unsigned>(total_bytes));
+                    break;
+                }
+                const uint32_t timeout_ms =
+                    static_cast<uint32_t>(std::min<int64_t>(100, (remaining_us + 999) / 1000));
+                const size_t chunk_bytes = std::min(kChunkBytes, total_bytes - written);
+                size_t bytes_written = 0;
+                const esp_err_t err = i2s_channel_write(tx_handle_, bytes + written, chunk_bytes,
+                                                        &bytes_written, timeout_ms);
+                written += bytes_written;
+                if (err != ESP_OK || bytes_written == 0) {
+                    ESP_LOGE(kTag, "I2S write stopped: %s, %u/%u bytes; remaining audio dropped",
+                             esp_err_to_name(err), static_cast<unsigned>(written),
+                             static_cast<unsigned>(total_bytes));
+                    break;
+                }
+            }
+            return static_cast<int>(written / kFrameBytes);
         }
     };
 

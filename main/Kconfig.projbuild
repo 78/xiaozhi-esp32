@@ -650,7 +650,7 @@ choice BOARD_TYPE
 endchoice
 
 config RESPEAKER_I2S_EXTERNAL_CLOCK_48K
-    bool "ReSpeaker: XMOS supplies 48 kHz I2S clocks (Flex factory firmware)"
+    bool "ReSpeaker: XMOS supplies 48 kHz I2S clocks"
     depends on BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
     default n
     help
@@ -658,6 +658,14 @@ config RESPEAKER_I2S_EXTERNAL_CLOCK_48K
         BCLK and WS. Xiaozhi resamples the captured audio to 16 kHz.
         Leave disabled for XMOS I2S slave firmware requiring a 16 kHz host master.
         Select according to the XMOS firmware, not just the microphone shape.
+
+config RESPEAKER_AUDIO_DIAGNOSTICS
+    bool "ReSpeaker: log I2S capture statistics and raw samples"
+    depends on BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
+    default n
+    help
+        Report I2S sample counts, amplitude and raw sample pairs every five
+        seconds while capturing. Leave disabled for normal operation.
 
 config RESPEAKER_I2S_CLOCK_PROBE_ONLY
     bool "ReSpeaker: passive I2S clock diagnostic only (no chat)"
