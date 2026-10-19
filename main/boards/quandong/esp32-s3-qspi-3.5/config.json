@@ -1,10 +1,10 @@
 {
-    "manufacturer": "quandong-s3-dev",
-    "type": "quandong-s3-dev-3.5-lcd",
+    "manufacturer": "quandong",
+    "type": "esp32-s3-qspi-3.5",
     "target": "esp32s3",
     "builds": [
         {
-            "name": "quandong-s3-dev-3.5-lcd",
+            "name": "esp32-s3-qspi-3.5",
             "sdkconfig_append": []
         }
     ]
