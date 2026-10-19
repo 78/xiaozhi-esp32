@@ -36,10 +36,10 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
+#if SOC_I2S_HW_VERSION_2
+            .ext_clk_freq_hz = 0,
+#endif
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2
-				.ext_clk_freq_hz = 0,
-			#endif
 
         },
         .slot_cfg = {
@@ -50,11 +50,11 @@ NoAudioCodecDuplex::NoAudioCodecDuplex(int input_sample_rate, int output_sample_
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
+#if SOC_I2S_HW_VERSION_2
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false
+#endif
 
         },
         .gpio_cfg = {
@@ -97,10 +97,10 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
+#if SOC_I2S_HW_VERSION_2
+            .ext_clk_freq_hz = 0,
+#endif
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2
-				.ext_clk_freq_hz = 0,
-			#endif
 
         },
         .slot_cfg = {
@@ -111,11 +111,11 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
+#if SOC_I2S_HW_VERSION_2
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false
+#endif
 
         },
         .gpio_cfg = {
@@ -166,10 +166,10 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
+#if SOC_I2S_HW_VERSION_2
+            .ext_clk_freq_hz = 0,
+#endif
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2
-				.ext_clk_freq_hz = 0,
-			#endif
 
         },
         .slot_cfg = {
@@ -180,11 +180,11 @@ NoAudioCodecSimplex::NoAudioCodecSimplex(int input_sample_rate, int output_sampl
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
+#if SOC_I2S_HW_VERSION_2
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false
+#endif
 
         },
         .gpio_cfg = {
@@ -306,10 +306,10 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
             .clk_src = I2S_CLK_SRC_DEFAULT,
+#if SOC_I2S_HW_VERSION_2
+            .ext_clk_freq_hz = 0,
+#endif
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-			#ifdef   I2S_HW_VERSION_2
-				.ext_clk_freq_hz = 0,
-			#endif
 
         },
         .slot_cfg = {
@@ -320,11 +320,11 @@ NoAudioCodecSimplexPdm::NoAudioCodecSimplexPdm(int input_sample_rate, int output
             .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
-            #ifdef   I2S_HW_VERSION_2
-                .left_align = true,
-                .big_endian = false,
-                .bit_order_lsb = false
-            #endif
+#if SOC_I2S_HW_VERSION_2
+            .left_align = true,
+            .big_endian = false,
+            .bit_order_lsb = false
+#endif
 
         },
         .gpio_cfg = {

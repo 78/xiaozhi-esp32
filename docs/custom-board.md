@@ -140,7 +140,12 @@ overrides.
 Do not select a language or a specific wake word in a board `config.json`.
 Those are user build options and must be configured consistently through
 `menuconfig` or build-script parameters so CLI, agent, and online builds can
-share the same interface.
+share the same interface. `scripts/build.py` also selects the wake-word engine,
+so do not add `CONFIG_USE_*_WAKE_WORD` entries or model selections to board or
+chip presets. A board that must disable wake-word detection for memory, flash,
+or performance reasons may set `CONFIG_WAKE_WORD_DISABLED=y` in
+`sdkconfig_append`. The build script preserves this opt-out and reports the
+variant's `wake_word_supported` as `false`.
 
 ### 3. Implement the Board Class
 
@@ -381,11 +386,28 @@ python scripts/build.py my-custom-board \
   --wake-word wn9_jarvis_tts
 ```
 
-`--language` accepts a locale listed under `main/assets/locales/`.
-`--wake-word` accepts an ESP-SR model name, `nihaoxiaozhi` (which selects the
-compatible model for the target), or `disabled`. ESP32-C3/C5/C6 targets support
-WakeNet9s (`wn9s_*`) models; ESP32-S3/P4/S31 builds automatically use the AFE
-wake-word engine.
+The project's Kconfig default language is English (`en-US`). `scripts/build.py`
+also selects English when `--language` is omitted, including when the previous
+build used another language. Pass `--language zh-CN` for Chinese, or another
+locale listed under `main/assets/locales/`. This selects interface text and
+voice prompts. When `--wake-word` is omitted on a supported board, the script
+selects "你好小智" for `zh-CN` and `zh-TW`, and "Hi ESP" for every other language.
+Unsupported boards and variants with an explicit board opt-out remain disabled.
+
+`--wake-word` overrides the language-based default. It accepts an ESP-SR model
+name, `nihaoxiaozhi`, `hiesp`, or `disabled`. The two aliases select a compatible
+model for the target. ESP32-C3/C5/C6 targets use WakeNet9s (`wn9s_*`) models;
+ESP32-S3/P4/S31 use the AFE engine and require PSRAM. ESP32 also requires PSRAM
+and uses the engine without AFE. Requests to enable wake-word detection on an
+unsupported or explicitly disabled board are rejected before SDK configuration.
+
+Custom and Emote assets retain their UI resources, but their packed speech
+models are replaced with the models selected in the current `sdkconfig` (or
+removed when wake-word detection is disabled). The resulting package must fit
+the assets partition. When building directly with `idf.py`, select the
+wake-word implementation and models explicitly in `menuconfig`; chip defaults
+do not select a model, and a fresh manual configuration leaves wake-word
+detection disabled.
 
 Query the accepted values in text or machine-readable form:
 

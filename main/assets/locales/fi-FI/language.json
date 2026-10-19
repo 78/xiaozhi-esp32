@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Vaihdetaan Wi-Fi:hin...",
         "SWITCH_TO_4G_NETWORK": "Vaihdetaan 4G:hen...",
         "STANDBY": "Valmiustila",
+        "WAKE_WORD_HINT": "Herätä minut sanomalla \"%s\".",
         "CONNECT_TO": "Yhdistä ",
         "CONNECTING": "Yhdistetään...",
         "CONNECTED_TO": "Yhdistetty ",

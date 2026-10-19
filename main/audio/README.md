@@ -19,6 +19,16 @@ that instance, so enabling both no longer creates two AFE pipelines. For custom
 MultiNet wake words, AFE fetch output is passed to `CustomWakeWord`; MultiNet is
 not created on the smaller targets.
 
+`AudioService::GetWakeWords()` returns the phrases supported by the initialized
+engine, independently of the last detected phrase. WakeNet lists only active
+models; MultiNet lists the display text of commands with the `wake` action.
+After successful startup, the first idle state enables wake-word detection and
+shows these phrases in an assistant chat message after idle UI cleanup. The
+message is removed after five seconds on OLED and LCD displays. The timeout only
+removes the matching hint, preserving newer messages and alerts. Disabled or failed
+wake-word detection and startup errors suppress the hint; subsequent idle transitions
+do not repeat it.
+
 The AFE configuration currently uses `FD_LOW_COST` AEC with
 `AEC_NLP_LEVEL_VERYAGGR`. WebRTC/NSNet noise suppression is intentionally
 disabled because the project does not ship an NSNet model.
@@ -30,6 +40,28 @@ avoids the previous per-chunk internal-SRAM allocations and temporary PCM
 concatenation buffer.
 
 ## Input data flow
+
+### Board input layouts
+
+Built-in boards default to one microphone: `M` without a playback reference, or
+`MR` when the codec supplies a playback reference. `R` must contain playback
+reference samples, not a second microphone. The channel declaration must match
+the interleaved PCM returned by the codec.
+
+Multiple-microphone input remains available for developer experiments; the AFE
+still derives its format from the codec's microphone and reference counts.
+For Box Lite, the final `BoxAudioCodecLite` constructor parameter is
+`microphone_channels`, defaulting to `1`. Pass `2` explicitly to test `MMR`
+with reference enabled, or `MM` without it. `EnableInput()` and `Read()` use this
+count for capture and interleaving. On ESP32-S31-Korvo-1, developers can change
+the board's `AUDIO_INPUT_CHANNELS` from `1` to `2` to test `MM`; its codec has no
+playback reference. Neither experimental layout is enabled in default builds.
+
+Single-microphone defaults do not imply that ESP-SR FD lacks dual-microphone
+support, or guarantee hardware operation. Validate capture, playback, wake/VAD,
+interruption, reconnect, and applicable AEC modes on the affected board before
+releasing a change. Box Lite's software playback reference also needs timing
+and concurrency validation.
 
 ```mermaid
 flowchart LR

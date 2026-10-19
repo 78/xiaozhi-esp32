@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "עובר ל-Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "עובר ל-4G...",
         "STANDBY": "המתנה",
+        "WAKE_WORD_HINT": "כדי להעיר אותי, אפשר לומר \"%s\".",
         "CONNECT_TO": "התחבר ל-",
         "CONNECTING": "מתחבר...",
         "CONNECTION_SUCCESSFUL": "התחברות הצליחה",

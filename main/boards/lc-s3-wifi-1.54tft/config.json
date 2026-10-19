@@ -1,0 +1,10 @@
+{
+    "type": "lc-s3-wifi-1.54tft",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "lc-s3-wifi-1.54tft",
+            "sdkconfig_append": []
+        }
+    ]
+}

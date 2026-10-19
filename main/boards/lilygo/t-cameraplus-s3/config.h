@@ -8,7 +8,8 @@
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
 #ifdef CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1
-#define AUDIO_INPUT_REFERENCE true
+// RX is mono microphone PCM; no playback reference is captured.
+#define AUDIO_INPUT_REFERENCE false
 #define AUDIO_MIC_I2S_GPIO_BCLK MSM261_BCLK
 #define AUDIO_MIC_I2S_GPIO_WS MSM261_WS
 #define AUDIO_MIC_I2S_GPIO_DATA MSM261_DATA
@@ -54,4 +55,4 @@
 
 #define AP1511B_GPIO AP1511B_FBC
 
-#endif // _BOARD_CONFIG_H_
+#endif  // _BOARD_CONFIG_H_

@@ -21,6 +21,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Wi-Fi वर स्विच करत आहे...",
         "SWITCH_TO_4G_NETWORK": "4G वर स्विच करत आहे...",
         "STANDBY": "स्टँडबाय",
+        "WAKE_WORD_HINT": "मला जागे करण्यासाठी \"%s\" म्हणा.",
         "CONNECT_TO": "कनेक्ट करा ",
         "CONNECTING": "कनेक्ट होत आहे...",
         "CONNECTION_SUCCESSFUL": "कनेक्शन यशस्वी",

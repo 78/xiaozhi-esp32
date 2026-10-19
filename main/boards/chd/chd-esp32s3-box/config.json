@@ -1,0 +1,20 @@
+{
+    "manufacturer": "chd",
+    "type": "chd-esp32s3-box",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "chd-esp32s3-box",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y"
+            ]
+        },
+        {
+            "name": "chd-esp32s3-box-lcd35",
+            "sdkconfig_append": [
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_CHD_ESP32S3_BOX_LCD_35=y"
+            ]
+        }
+    ]
+}

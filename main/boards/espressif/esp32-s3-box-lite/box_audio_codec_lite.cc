@@ -1,21 +1,24 @@
 #include "box_audio_codec_lite.h"
 
-#include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+#include <esp_log.h>
 #include <cstring>
 
 static const char TAG[] = "BoxAudioCodecLite";
 
-BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, bool input_reference) {
-    duplex_ = true; // 是否双工
-    input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
+BoxAudioCodecLite::BoxAudioCodecLite(void* i2c_master_handle, int input_sample_rate,
+                                     int output_sample_rate, gpio_num_t mclk, gpio_num_t bclk,
+                                     gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
+                                     gpio_num_t pa_pin, bool input_reference,
+                                     int microphone_channels) {
+    assert(microphone_channels == 1 || microphone_channels == 2);
+    duplex_ = true;                      // 是否双工
+    input_reference_ = input_reference;  // 是否使用参考输入，实现回声消除
     if (input_reference) {
         ref_buffer_.resize(960 * 2);
     }
-    input_channels_ = 2 + input_reference_; // 输入通道数
+    input_channels_ = microphone_channels + input_reference_;  // 麦克风加可选播放参考
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
 
@@ -91,7 +94,8 @@ BoxAudioCodecLite::~BoxAudioCodecLite() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws,
+                                             gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -106,62 +110,47 @@ void BoxAudioCodecLite::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, g
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
 
     i2s_std_config_t std_cfg = {
-        .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .ext_clk_freq_hz = 0,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256
-        },
-        .slot_cfg = I2S_STD_PHILIP_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws = ws,
-            .dout = dout,
-            .din = I2S_GPIO_UNUSED,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
-    };
+        .clk_cfg = {.sample_rate_hz = (uint32_t)output_sample_rate_,
+                    .clk_src = I2S_CLK_SRC_DEFAULT,
+                    .ext_clk_freq_hz = 0,
+                    .mclk_multiple = I2S_MCLK_MULTIPLE_256},
+        .slot_cfg =
+            I2S_STD_PHILIP_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {.mclk = mclk,
+                     .bclk = bclk,
+                     .ws = ws,
+                     .dout = dout,
+                     .din = I2S_GPIO_UNUSED,
+                     .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false}}};
 
     i2s_tdm_config_t tdm_cfg = {
-        .clk_cfg = {
-            .sample_rate_hz = (uint32_t)input_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .ext_clk_freq_hz = 0,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-            .bclk_div = 8,
-        },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = i2s_tdm_slot_mask_t(I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2 | I2S_TDM_SLOT3),
-            .ws_width = I2S_TDM_AUTO_WS_WIDTH,
-            .ws_pol = false,
-            .bit_shift = true,
-            .left_align = false,
-            .big_endian = false,
-            .bit_order_lsb = false,
-            .skip_mask = false,
-            .total_slot = I2S_TDM_AUTO_SLOT_NUM
-        },
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws = ws,
-            .dout = I2S_GPIO_UNUSED,
-            .din = din,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
-    };
+        .clk_cfg =
+            {
+                .sample_rate_hz = (uint32_t)input_sample_rate_,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .ext_clk_freq_hz = 0,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+                .bclk_div = 8,
+            },
+        .slot_cfg = {.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                     .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                     .slot_mode = I2S_SLOT_MODE_STEREO,
+                     .slot_mask = i2s_tdm_slot_mask_t(I2S_TDM_SLOT0 | I2S_TDM_SLOT1 |
+                                                      I2S_TDM_SLOT2 | I2S_TDM_SLOT3),
+                     .ws_width = I2S_TDM_AUTO_WS_WIDTH,
+                     .ws_pol = false,
+                     .bit_shift = true,
+                     .left_align = false,
+                     .big_endian = false,
+                     .bit_order_lsb = false,
+                     .skip_mask = false,
+                     .total_slot = I2S_TDM_AUTO_SLOT_NUM},
+        .gpio_cfg = {.mclk = mclk,
+                     .bclk = bclk,
+                     .ws = ws,
+                     .dout = I2S_GPIO_UNUSED,
+                     .din = din,
+                     .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false}}};
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(rx_handle_, &tdm_cfg));
@@ -187,12 +176,12 @@ void BoxAudioCodecLite::EnableInput(bool enable) {
             .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
         };
-        for (int i = 0;i < fs.channel; i++) {
+        for (int i = 0; i < fs.channel; i++) {
             fs.channel_mask |= ESP_CODEC_DEV_MAKE_CHANNEL_MASK(i);
         }
         ESP_ERROR_CHECK(esp_codec_dev_open(input_dev_, &fs));
         // 麦克风增益解决收音太小的问题
-        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 37.5)); 
+        ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, 37.5));
     } else {
         ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     }
@@ -223,28 +212,29 @@ void BoxAudioCodecLite::EnableOutput(bool enable) {
 int BoxAudioCodecLite::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
         if (!input_reference_) {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
-        }
-        else {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        } else {
             int size = samples / input_channels_;
             int channels = input_channels_ - input_reference_;
             std::vector<int16_t> data(size * channels);
             // read mic data
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)data.data(), data.size() * sizeof(int16_t)));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                esp_codec_dev_read(input_dev_, (void*)data.data(), data.size() * sizeof(int16_t)));
             int j = 0;
             int i = 0;
-            while (i< samples) {
+            while (i < samples) {
                 // mic data
                 for (int p = 0; p < channels; p++) {
                     dest[i++] = data[j++];
                 }
                 // ref data
-                dest[i++] = read_pos_ < write_pos_? ref_buffer_[read_pos_++] : 0;
+                dest[i++] = read_pos_ < write_pos_ ? ref_buffer_[read_pos_++] : 0;
             }
-    
+
             if (read_pos_ == write_pos_) {
                 read_pos_ = write_pos_ = 0;
-            }    
+            }
         }
     }
     return samples;
@@ -252,16 +242,18 @@ int BoxAudioCodecLite::Read(int16_t* dest, int samples) {
 
 int BoxAudioCodecLite::Write(const int16_t* data, int samples) {
     if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
-        if (input_reference_) { // 板子不支持硬件回采，采用缓存播放缓冲来实现回声消除
-            if (write_pos_ - read_pos_ + samples > ref_buffer_.size()) { 
+        ESP_ERROR_CHECK_WITHOUT_ABORT(
+            esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+        if (input_reference_) {  // 板子不支持硬件回采，采用缓存播放缓冲来实现回声消除
+            if (write_pos_ - read_pos_ + samples > ref_buffer_.size()) {
                 assert(ref_buffer_.size() >= samples);
                 // 写溢出，只保留最近的数据
                 read_pos_ = write_pos_ + samples - ref_buffer_.size();
             }
             if (read_pos_) {
                 if (write_pos_ != read_pos_) {
-                    memmove(ref_buffer_.data(), ref_buffer_.data() + read_pos_, (write_pos_ - read_pos_) * sizeof(int16_t));
+                    memmove(ref_buffer_.data(), ref_buffer_.data() + read_pos_,
+                            (write_pos_ - read_pos_) * sizeof(int16_t));
                 }
                 write_pos_ -= read_pos_;
                 read_pos_ = 0;

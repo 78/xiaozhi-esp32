@@ -22,15 +22,18 @@ private:
     int read_pos_ = 0;
     int write_pos_ = 0;
 
-    void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din);
+    void CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout,
+                              gpio_num_t din);
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;
 
 public:
+    // Set microphone_channels to 2 only for experimental MM/MMR capture.
     BoxAudioCodecLite(void* i2c_master_handle, int input_sample_rate, int output_sample_rate,
-        gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-        gpio_num_t pa_pin, bool input_reference);
+                      gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout,
+                      gpio_num_t din, gpio_num_t pa_pin, bool input_reference,
+                      int microphone_channels = 1);
     virtual ~BoxAudioCodecLite();
 
     virtual void SetOutputVolume(int volume) override;
@@ -38,4 +41,4 @@ public:
     virtual void EnableOutput(bool enable) override;
 };
 
-#endif // _BOX_AUDIO_CODEC_LITE_H
+#endif  // _BOX_AUDIO_CODEC_LITE_H

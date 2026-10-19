@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "selection_date": "2026-09-30",
+  "selection_basis": "Representative chip, network, display and audio build paths across widely used boards.",
+  "variants": [
+    {
+      "board": "xmini/c3",
+      "name": "xmini-c3",
+      "reason": "Most active C3 board; OLED, lightweight wake word detection and power saving"
+    },
+    {
+      "board": "jiuchuan-s3",
+      "name": "jiuchuan-s3",
+      "reason": "Most active S3 board; SPI LCD and Wi-Fi"
+    },
+    {
+      "board": "bread-compact-wifi",
+      "name": "bread-compact-wifi",
+      "reason": "S3 with a 128x32 OLED and basic I2S audio"
+    },
+    {
+      "board": "espressif/esp-hi",
+      "name": "esp-hi",
+      "reason": "C3 with 4MB flash, small partitions, ADC audio and lightweight wake word detection"
+    },
+    {
+      "board": "bread-compact-wifi-lcd",
+      "name": "bread-compact-wifi-lcd",
+      "reason": "Widely used basic S3 LCD configuration"
+    },
+    {
+      "board": "nologo/xingzhi-cube-1.54tft-wifi",
+      "name": "xingzhi-cube-1.54tft-wifi",
+      "reason": "Widely used Xingzhi S3 board with Wi-Fi and LCD"
+    },
+    {
+      "board": "lckfb/szpi-esp32s3",
+      "name": "lichuang-dev",
+      "reason": "S3 camera, BoxAudioCodec and device-side AEC"
+    },
+    {
+      "board": "bread-compact-esp32",
+      "name": "bread-compact-esp32",
+      "reason": "Original ESP32 target and its source exclusion rules"
+    },
+    {
+      "board": "nologo/xingzhi-cube-1.54tft-ml307",
+      "name": "xingzhi-cube-1.54tft-ml307",
+      "reason": "ML307 and Wi-Fi transport switching through DualNetworkBoard"
+    },
+    {
+      "board": "movecall/moji2-esp32c5",
+      "name": "movecall-moji2-esp32c5",
+      "reason": "C5 with PSRAM and lightweight wake word detection"
+    },
+    {
+      "board": "waveshare/esp32-c6-touch-amoled-2.16",
+      "name": "esp32-c6-touch-amoled-2.16",
+      "reason": "C6 with an AMOLED display"
+    },
+    {
+      "board": "m5stack/tab5",
+      "name": "m5stack-tab5",
+      "reason": "P4 revisions before v3, MIPI display, EspVideo and companion Wi-Fi"
+    },
+    {
+      "board": "waveshare/esp32-p4-wifi6-touch-lcd",
+      "name": "esp32-p4x-wifi6-touch-lcd-7b",
+      "reason": "P4 revision v3 and later, MIPI display and device-side AEC"
+    },
+    {
+      "board": "espressif/esp32-s31-korvo-1",
+      "name": "esp32-s31-korvo-1",
+      "reason": "S31, EspVideo and ES8389; requires ESP-IDF 6.1 preview target support"
+    },
+    {
+      "board": "m5stack/atom-echos3r",
+      "name": "atom-echos3r",
+      "reason": "ES8311 audio without a screen; inherits Board's default NoDisplay"
+    },
+    {
+      "board": "bread-compact-nt26",
+      "name": "bread-compact-nt26",
+      "reason": "NT26 cellular networking"
+    },
+    {
+      "board": "espressif/esp32-s3-korvo-2-v3.0-rndis",
+      "name": "esp32s3-korvo2-v3-rndis",
+      "reason": "USB RNDIS networking"
+    },
+    {
+      "board": "waveshare/esp32-p4-nano",
+      "name": "esp32-p4-nano-10.1-a",
+      "reason": "P4-NANO Ethernet conditional compilation path",
+      "build_options": {
+        "network_type": "ethernet"
+      }
+    }
+  ]
+}

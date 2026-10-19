@@ -26,17 +26,25 @@
 
 #define TAG "Ota"
 
-
 Ota::Ota() {
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
-    // Read Serial Number from efuse user_data
-    uint8_t serial_number[33] = {0};
+    // USER_DATA may contain board metadata instead of a textual serial number.
+    uint8_t serial_number[32] = {0};
     if (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA, serial_number, 32 * 8) == ESP_OK) {
-        if (serial_number[0] == 0) {
-            has_serial_number_ = false;
-        } else {
-            serial_number_ = std::string(reinterpret_cast<char*>(serial_number), 32);
+        const auto data_end = serial_number + sizeof(serial_number);
+        const auto text_end = std::find(serial_number, data_end, uint8_t{0});
+        const bool printable = std::all_of(
+            serial_number, text_end, [](uint8_t byte) { return byte >= 0x20 && byte <= 0x7E; });
+        const bool non_blank =
+            std::any_of(serial_number, text_end, [](uint8_t byte) { return byte != ' '; });
+        const bool zero_padding =
+            std::all_of(text_end, data_end, [](uint8_t byte) { return byte == 0; });
+        if (printable && non_blank && zero_padding) {
+            serial_number_.assign(reinterpret_cast<const char*>(serial_number),
+                                  text_end - serial_number);
             has_serial_number_ = true;
+        } else if (std::any_of(serial_number, data_end, [](uint8_t byte) { return byte != 0; })) {
+            ESP_LOGW(TAG, "Ignoring non-textual or blank eFuse serial number; using activation v1");
         }
     }
 #endif

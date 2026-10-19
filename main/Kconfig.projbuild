@@ -35,7 +35,7 @@ config CUSTOM_ASSETS_FILE
 
 choice
     prompt "Default Language"
-    default LANGUAGE_ZH_CN
+    default LANGUAGE_EN_US
     help
         Select device display language
 
@@ -179,6 +179,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "Bread Compact Wi-Fi + LCD + Camera (面包板)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CHD_ESP32S3_BOX
+        bool "CHD ESP32-S3-BOX (虫洞)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CHD_ESP32S3_EYE
+        bool "CHD ESP32-S3-EYE (虫洞)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI Camera Module"
         depends on IDF_TARGET_ESP32S3
@@ -251,6 +257,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_GENJUTECH_S3_1_54TFT
         bool "GenjuTech ESP32-S3 1.54-inch TFT (亘具科技)"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_GUITION_JC4827W543
+        bool "Guition JC4827W543 4.3-inch ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_HU_087
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
@@ -278,6 +287,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_LABPLUS_MPYTHON_V3
         bool "Labplus mPython V3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LC_S3_WIFI_1_54TFT
+        bool "LC-S3-WIFI 1.54-inch TFT"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LCDWIKI_ES3C35P
         bool "LCDWiki ES3C35P 3.5-inch ESP32-S3"
         depends on IDF_TARGET_ESP32S3
@@ -304,6 +316,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LILYGO_T_CIRCLE_S3
         bool "LILYGO T-Circle-S3"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_LILYGO_T_CIRCLE_S3_V11
+        bool "LILYGO T-Circle-S3 V1.1 (PDM mic)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA
         bool "LILYGO T-Display-S3-Pro MVSR LoRa"
@@ -791,9 +806,20 @@ choice WK_BOARD_TYPE
     config BOARD_HAVE_MOTOR_CONTROL
         bool "带电机驱动"
     config BOARD_NO_MOTOR_CONTROL
-        bool "不带电机驱动"    
+        bool "不带电机驱动"
 endchoice
 
+choice DISPLAY_CHD_ESP32S3_BOX
+    depends on BOARD_TYPE_CHD_ESP32S3_BOX
+    prompt "CHD ESP32S3 BOX LCD Type"
+    default CHD_ESP32S3_BOX_LCD_28
+    help
+        LCD Display Type
+    config CHD_ESP32S3_BOX_LCD_28
+        bool "LCD 28 ST7789 240*320"
+    config CHD_ESP32S3_BOX_LCD_35
+        bool "LCD 35 ST7796 320*480"
+endchoice
 
 choice DISPLAY_ESP32S3_KORVO2_V3
     depends on BOARD_TYPE_ESP32_S3_KORVO_2_V3 || BOARD_TYPE_ESP32_S3_KORVO_2_V3_RNDIS
@@ -870,6 +896,15 @@ choice DISPLAY_STYLE
             || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
 
+config JC4827W543_EXTERNAL_AMP
+    bool "JC4827W543: external I2S amplifier instead of the on-board NS4168"
+    depends on BOARD_TYPE_GUITION_JC4827W543
+    default n
+    help
+        The board carries an NS4168 wired to the P7 speaker connector, which is
+        what a stock unit uses. Enable this only if you drive an external I2S
+        amplifier from the expansion headers instead.
+
 config USE_MULTILINE_CHAT_MESSAGE
     bool "Use multiline chat message display (default mode only)"
     depends on USE_DEFAULT_MESSAGE_STYLE
@@ -883,10 +918,11 @@ config USE_MULTILINE_CHAT_MESSAGE
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
-    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31) && SPIRAM
     default WAKE_WORD_DISABLED
     help
-        Choose the type of wake word implementation to use
+        Choose the type of wake word implementation to use.
+        scripts/build.py selects a compatible implementation and model automatically.
+        When configuring manually, select the corresponding ESP-SR models as well.
 
     config WAKE_WORD_DISABLED
         bool "Disabled"
@@ -967,7 +1003,7 @@ config USE_DEVICE_AEC
         depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP32_S3_BOX_3 || BOARD_TYPE_ESP32_S3_BOX || BOARD_TYPE_ESP32_S3_BOX_LITE \
         || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART || BOARD_TYPE_ESP32_S3_KORVO_2_V3 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75|| BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75C || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_83\
         || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_06 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4B || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5 \
-        || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B \
+        || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B || BOARD_TYPE_CHD_ESP32S3_BOX \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C || BOARD_TYPE_ESP32_S3_LCD_EV_BOARD_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_8 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_10_1 \
         || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49_V2 || BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \

@@ -8,8 +8,7 @@
             "sdkconfig_append": [
                 "CONFIG_SPIRAM=y",
                 "CONFIG_SPIRAM_MODE_OCT=y",
-                "CONFIG_SPIRAM_SPEED_80M=y",
-                "CONFIG_USE_AFE_WAKE_WORD=y"
+                "CONFIG_SPIRAM_SPEED_80M=y"
             ]
         }
     ]

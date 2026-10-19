@@ -109,6 +109,17 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32_LCD)
     set(BOARD_DIR "bread-compact-esp32-lcd")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
     set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_CHD_ESP32S3_BOX)
+    set(BOARD_DIR "chd/chd-esp32s3-box")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+    set(EMOTE_RESOLUTION "320_240")
+elseif(CONFIG_BOARD_TYPE_CHD_ESP32S3_EYE)
+    set(BOARD_DIR "chd/chd-esp32s3-eye")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_DF_K10)
     set(BOARD_DIR "dfrobot/df-k10")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -591,6 +602,11 @@ elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V11)
+    set(BOARD_DIR "lilygo/t-circle-s3-v11")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1)
     set(BOARD_DIR "lilygo/t-cameraplus-s3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -731,6 +747,13 @@ elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_GUITION_JC4827W543)
+    set(BOARD_DIR "guition/jc4827w543")
+    # 16px, not the 20px most 480-wide boards use: the assets partition is 1MB
+    # and the 20px common font alone is 1228KB. See the board README.
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WDMOMO_CGC)
     set(BOARD_DIR "wdmomo/esp32-cgc")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
@@ -862,6 +885,11 @@ elseif(CONFIG_BOARD_TYPE_LCDWIKI_ES3C35P)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_LC_S3_WIFI_1_54TFT)
+    set(BOARD_DIR "lc-s3-wifi-1.54tft")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 endif()
 
 if(NOT BOARD_DIR AND NOT CMAKE_BUILD_EARLY_EXPANSION)
@@ -1063,6 +1091,9 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_XIAOZHI_NETWORK_ETHERNET AND CONFIG_XIAOZHI_ETH_PHY_IP101)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__ip101)
+endif()
 if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         m5stack__m5pm1
@@ -1171,6 +1202,7 @@ add_custom_command(
             --output "${LANG_HEADER}"
     DEPENDS
         ${LANG_JSON}
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json
         ${PROJECT_DIR}/scripts/gen_lang.py
     COMMENT "Generating ${LANG_DIR} language config"
 )
@@ -1400,6 +1432,35 @@ function(get_assets_local_file assets_source assets_local_file_var)
     set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
 endfunction()
 
+# Custom and Emote packs contain UI resources plus prebuilt speech models.
+# Keep their UI data, but always replace the models using the current sdkconfig.
+function(configure_assets_models assets_source assets_output)
+    set(ASSETS_NAME_LENGTH 32)
+    if(CONFIG_USE_EMOTE_MESSAGE_STYLE AND CONFIG_MMAP_FILE_NAME_LENGTH)
+        set(ASSETS_NAME_LENGTH ${CONFIG_MMAP_FILE_NAME_LENGTH})
+    endif()
+    set(MODEL_ARGS
+        "--sdkconfig" "${SDKCONFIG}"
+        "--base_assets" "${assets_source}"
+        "--output" "${assets_output}"
+        "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}"
+        "--name_length" "${ASSETS_NAME_LENGTH}"
+    )
+    partition_table_get_partition_info(assets_limit "--partition-name assets" "size")
+    if(assets_limit)
+        list(APPEND MODEL_ARGS "--max_size" "${assets_limit}")
+    endif()
+    add_custom_command(
+        OUTPUT "${assets_output}"
+        COMMAND python ${PROJECT_DIR}/scripts/build_default_assets.py ${MODEL_ARGS}
+        DEPENDS "${assets_source}" "${SDKCONFIG}" "${PROJECT_DIR}/scripts/build_default_assets.py"
+        COMMENT "Configuring speech models in custom assets"
+        VERBATIM
+    )
+    add_custom_target(configured_assets ALL DEPENDS "${assets_output}")
+    add_dependencies(flash configured_assets)
+endfunction()
+
 
 partition_table_get_partition_info(size "--partition-name assets" "size")
 partition_table_get_partition_info(offset "--partition-name assets" "offset")
@@ -1413,8 +1474,10 @@ if ("${size}" AND "${offset}")
     elseif(CONFIG_FLASH_CUSTOM_ASSETS)
         # Flash custom assets
         get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
-        esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
-        message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_LOCAL_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "assets" "${CONFIGURED_ASSETS_FILE}")
+        message(STATUS "Custom assets flash configured: ${CONFIGURED_ASSETS_FILE} -> assets partition")
     elseif(CONFIG_FLASH_EXPRESSION_ASSETS)
         set(ASSETS_NAME "expression_assets")
         set(ASSETS_PARTITION "assets")
@@ -1426,7 +1489,9 @@ if ("${size}" AND "${offset}")
             build_speaker_assets_bin("${ASSETS_PARTITION}" ${EMOTE_RESOLUTION} ${ASSETS_FILE} ${CONFIG_MMAP_FILE_NAME_LENGTH})
         endif()
         message(STATUS "Generated emote assets: ${ASSETS_FILE} -> ${ASSETS_PARTITION} partition")
-        esptool_py_flash_to_partition(flash "${ASSETS_PARTITION}" "${ASSETS_FILE}")
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "${ASSETS_PARTITION}" "${CONFIGURED_ASSETS_FILE}")
     elseif(CONFIG_FLASH_NONE_ASSETS)
         message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
     endif()
