@@ -65,7 +65,8 @@ XMOS 与 ESP32-S3 分别运行独立固件。向 XIAO 烧录小智不会安装�
 - **XIAO RST**：复位 ESP32-S3。
 - **Flex 核心板 RST、SafeMode/Boot**：作用于 XMOS，不是 XIAO 对话按键，
   本驱动没有将它们接入为用户按键。
-- **状态灯**：使用 XIAO 的 GPIO21 LED，不控制 XMOS 阵列上的灯。
+- **状态灯**：使用低电平点亮的 XIAO GPIO21 LED，已配置输出反相，
+  不控制 XMOS 阵列上的灯。
 
 GPIO43/44 已用于音频，因此控制台使用 USB Serial/JTAG。
 无显示屏时使用默认的 `NoDisplay`。

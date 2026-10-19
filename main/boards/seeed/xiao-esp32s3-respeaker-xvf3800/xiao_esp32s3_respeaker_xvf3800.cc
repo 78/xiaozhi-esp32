@@ -357,7 +357,7 @@ public:
     }
 
     Led* GetLed() override {
-        static GpioLed led(kLedPin);
+        static GpioLed led(kLedPin, 1);
         return &led;
     }
 };

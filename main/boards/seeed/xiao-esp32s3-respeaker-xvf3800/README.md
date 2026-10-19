@@ -76,7 +76,8 @@ slots for the board's audio codec/amplifier.
 - **XIAO RST:** resets the ESP32-S3.
 - **Flex core-board RST and SafeMode/Boot:** act on the XMOS, not the XIAO
   conversation button. They are not connected by this driver as user keys.
-- **Status LED:** uses the XIAO GPIO21 LED, not the XMOS array's LEDs.
+- **Status LED:** uses the active-low XIAO GPIO21 LED with inverted output,
+  not the XMOS array's LEDs.
 
 USB Serial/JTAG is selected because GPIO43/44 are occupied by audio.
 The board uses the default `NoDisplay` implementation.
