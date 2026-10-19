@@ -1,0 +1,26 @@
+{
+    "type": "xiao-esp32s3-respeaker-xvf3800",
+    "manufacturer": "seeed",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xiao-esp32s3-respeaker-xvf3800",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
+            ]
+        },
+        {
+            "name": "xiao-esp32s3-respeaker-flex-circular-48k",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800=y",
+                "CONFIG_RESPEAKER_I2S_EXTERNAL_CLOCK_48K=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/8m.csv\""
+            ]
+        }
+    ]
+}

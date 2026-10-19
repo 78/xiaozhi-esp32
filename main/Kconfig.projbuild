@@ -437,6 +437,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
         bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
+        bool "Seeed XIAO ESP32-S3 + ReSpeaker XVF3800 USB 4-Mic Array"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX
         bool "Spotpear ESP32-S3 1.28 Box"
         depends on IDF_TARGET_ESP32S3
@@ -645,6 +648,33 @@ choice BOARD_TYPE
         bool "Zhengchen AI Camera Wi-Fi (征辰科技)"
         depends on IDF_TARGET_ESP32S3
 endchoice
+
+config RESPEAKER_I2S_EXTERNAL_CLOCK_48K
+    bool "ReSpeaker: XMOS supplies 48 kHz I2S clocks"
+    depends on BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
+    default n
+    help
+        Configure the ESP32-S3 as an I2S slave at 48 kHz when the XMOS supplies
+        BCLK and WS. Xiaozhi resamples the captured audio to 16 kHz.
+        Leave disabled for XMOS I2S slave firmware requiring a 16 kHz host master.
+        Select according to the XMOS firmware, not just the microphone shape.
+
+config RESPEAKER_AUDIO_DIAGNOSTICS
+    bool "ReSpeaker: log I2S capture statistics and raw samples"
+    depends on BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
+    default n
+    help
+        Report I2S sample counts, amplitude and raw sample pairs every five
+        seconds while capturing. Leave disabled for normal operation.
+
+config RESPEAKER_I2S_CLOCK_PROBE_ONLY
+    bool "ReSpeaker: passive I2S clock diagnostic only (no chat)"
+    depends on BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800
+    default n
+    help
+        Leave BCLK and WS as inputs and report observed external clock activity.
+        This diagnostic does not initialize I2S or start the Xiaozhi application.
+        Disable it and rebuild to restore normal operation.
 
 choice XIAOZHI_NETWORK_TYPE
     prompt "Network Type"
