@@ -36,6 +36,9 @@
 
 #define DISPLAY_WIDTH 480
 #define DISPLAY_HEIGHT 480
+
+#define DISPLAY_CORNER_INSET 48
+
 #define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY false
