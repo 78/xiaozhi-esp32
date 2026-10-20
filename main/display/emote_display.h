@@ -9,6 +9,12 @@
 
 namespace emote {
 
+// Flush progress, for a board that wants to notice a display which has stopped flushing.
+// GetMicrosecondsSinceLastFlush returns -1 before the first flush, which is not the same
+// answer as a large number.
+uint32_t GetFlushCount();
+int64_t GetMicrosecondsSinceLastFlush();
+
 class EmoteDisplay : public Display {
 public:
     using Display::SetPreviewImage;
