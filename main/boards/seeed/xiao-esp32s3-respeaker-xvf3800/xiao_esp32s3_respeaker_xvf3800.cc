@@ -71,9 +71,12 @@ constexpr char kI2sRoleName[] = "master";
         } while (elapsed < 20000);
 
         ESP_LOGI(kTag,
-                 "CLOCK PROBE: window_us=%lld ws_rises=%lu approx_ws_hz=%lu "
+                 // %lld is a 64-bit conversion, which newlib-nano's printf does not have,
+                 // and CONFIG_NEWLIB_NANO_FORMAT=y is in this project's sdkconfig.defaults.
+                 // The do-while above bounds this window at 20000 us, so int is ample.
+                 "CLOCK PROBE: window_us=%d ws_rises=%lu approx_ws_hz=%lu "
                  "sampled_bclk_edges=%lu WS=%d BCLK=%d",
-                 static_cast<long long>(elapsed), static_cast<unsigned long>(ws_rising_edges),
+                 static_cast<int>(elapsed), static_cast<unsigned long>(ws_rising_edges),
                  static_cast<unsigned long>(ws_rising_edges * 1000000ULL / elapsed),
                  static_cast<unsigned long>(bclk_edges), previous_ws, previous_bclk);
     }
