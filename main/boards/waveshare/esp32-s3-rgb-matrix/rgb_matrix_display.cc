@@ -329,13 +329,13 @@ void CustomMatrixDisplay::SetEmojiCollection(std::shared_ptr<EmojiCollection> co
     emoji_collection_ = std::move(collection);
 }
 
-void CustomMatrixDisplay::SetEmotion(const char* emotion) {
+bool CustomMatrixDisplay::SetEmotion(const char* emotion) {
     DisplayLockGuard lock(this);
 
     if (emotion == nullptr) {
         SetObjectVisible(emoji_image_, false);
         SetObjectVisible(emotion_icon_label_, false);
-        return;
+        return false;
     }
 
     // 尝试获取表情图片
@@ -346,20 +346,23 @@ void CustomMatrixDisplay::SetEmotion(const char* emotion) {
 
     if (emoji_lvgl_image != nullptr) {
         if (emoji_image_ == nullptr) {
-            return;
+            return false;
         }
         lv_image_set_src(emoji_image_, emoji_lvgl_image->image_dsc());
         SetObjectVisible(emoji_image_, true);
         SetObjectVisible(emotion_icon_label_, false);
-        return;
+        return true;
     }
 
     SetObjectVisible(emoji_image_, false);
     if (emotion_icon_label_ == nullptr) {
-        return;
+        return false;
     }
     lv_label_set_text(emotion_icon_label_, MATERIAL_SYMBOLS_ROBOT_2);
     SetObjectVisible(emotion_icon_label_, true);
+    // A generic robot icon stands in for every emotion this collection has no image for, so
+    // the request itself was not honoured.
+    return false;
 }
 
 void CustomMatrixDisplay::SetChatMessage(const char* role, const char* content) {

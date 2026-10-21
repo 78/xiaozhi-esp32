@@ -182,11 +182,21 @@ EmoteDisplay::~EmoteDisplay() {
     }
 }
 
-void EmoteDisplay::SetEmotion(const char* const emotion) {
+bool EmoteDisplay::SetEmotion(const char* const emotion) {
     ESP_LOGI(TAG, "SetEmotion: %s", emotion);
-    if (emote_handle_ && emotion && strlen(emotion) > 0) {
-        emote_set_anim_emoji(emote_handle_, emotion);
+    if (emote_handle_ == nullptr || emotion == nullptr || strlen(emotion) == 0) {
+        return false;
     }
+    // The result was already being produced and discarded. An emotion the mounted asset pack
+    // does not carry fails inside emote_set_emoji_animation, and callers had no way to find
+    // out: an MCP tool, a server-driven emotion or a board's own avatar mapping all saw the
+    // same silence as a success.
+    esp_err_t err = emote_set_anim_emoji(emote_handle_, emotion);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "emotion \"%s\" not set: %s", emotion, esp_err_to_name(err));
+        return false;
+    }
+    return true;
 }
 
 void EmoteDisplay::SetChatMessage(const char* const role, const char* const content) {
