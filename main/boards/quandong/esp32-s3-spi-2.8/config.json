@@ -1,0 +1,11 @@
+{
+    "manufacturer": "quandong",
+    "type": "esp32-s3-spi-2.8",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-spi-2.8",
+            "sdkconfig_append": []
+        }
+    ]
+}
