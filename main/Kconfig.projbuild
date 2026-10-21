@@ -434,6 +434,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_RYMCU_BIGSMART
         bool "RYMCU BigSmart"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_RETERMINAL_D1001
+        bool "Seeed Studio reTerminal D1001"
+        depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
         bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3

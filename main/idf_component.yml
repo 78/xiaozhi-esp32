@@ -118,6 +118,10 @@ dependencies:
     version: ^1.6.4
     rules:
     - if: target in [esp32p4]
+  espressif/human_face_detect:
+    version: ~0.5.0
+    rules:
+    - if: target in [esp32p4]
   espfriends/servo_dog_ctrl:
     version: ^0.2.0
     rules:

@@ -733,6 +733,11 @@ elseif(CONFIG_BOARD_TYPE_XINGZHI_ABS_2_0)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_RETERMINAL_D1001)
+    set(BOARD_DIR "seeed-studio/reterminal-d1001")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER)
     set(BOARD_DIR "sensecap-watcher")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
@@ -1121,6 +1126,11 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         esp_driver_sdmmc
         sdmmc
+    )
+endif()
+if(CONFIG_BOARD_TYPE_RETERMINAL_D1001)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        esp_http_server
     )
 endif()
 idf_component_register(SRCS ${SOURCES}

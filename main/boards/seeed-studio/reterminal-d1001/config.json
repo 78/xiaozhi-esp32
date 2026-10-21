@@ -1,0 +1,59 @@
+{
+    "manufacturer": "seeed-studio",
+    "type": "reterminal-d1001",
+    "target": "esp32p4",
+    "builds": [
+        {
+            "name": "reterminal-d1001",
+            "idf_version": ">=6.0",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_RETERMINAL_D1001=y",
+                "CONFIG_SLAVE_IDF_TARGET_ESP32C6=y",
+                "CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y",
+                "CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS=y",
+                "CONFIG_ESP_HOSTED_SDIO_RESET_ACTIVE_HIGH=y",
+                "CONFIG_ESP_HOSTED_SDIO_SLOT_1=y",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_1=6",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_1=11",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_1=7",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_1=8",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_1=9",
+                "CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_1=10",
+                "CONFIG_ESP_HOSTED_SDIO_GPIO_RESET_SLAVE=13",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y",
+                "CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/32m_d1001.csv\"",
+                "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y",
+                "CONFIG_ESP32P4_REV_MIN_100=y",
+                "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y",
+                "CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=n",
+                "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0",
+                "CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y",
+                "CONFIG_LV_USE_KEYBOARD=y",
+                "CONFIG_LV_USE_LIST=y",
+                "CONFIG_LV_USE_TEXTAREA=y",
+                "CONFIG_LV_USE_SPINNER=y",
+                "CONFIG_LV_USE_SLIDER=y",
+                "CONFIG_LVGL_PORT_ENABLE_PPA=y",
+                "CONFIG_CAMERA_SC202CS=y",
+                "CONFIG_CAMERA_SC202CS_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_SC202CS_MIPI_RAW8_1280X720_30FPS=y",
+                "CONFIG_CAMERA_SC202CS_MIPI_DEFAULT_FMT_RAW8_1280X720_30FPS=y",
+                "CONFIG_CAMERA_SC202CS_DEFAULT_IPA_JSON_CONFIGURATION_FILE=y",
+                "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y",
+                "CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n",
+                "CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=n",
+                "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE=y",
+                "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH=\"main/boards/seeed-studio/reterminal-d1001/sc202cs_reterminal.json\"",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_WIFI_CONFIG_PROMPT_ONLY=y",
+                "CONFIG_WAKE_WORD_DETECTION_IN_LISTENING=y",
+                "CONFIG_HUMAN_FACE_DETECT_MODEL_IN_FLASH_PARTITION=y",
+                "CONFIG_FLASH_HUMAN_FACE_DETECT_MSRMNP_S8_V1=y"
+            ],
+            "build_options": {
+                "multiline_chat": true
+            }
+        }
+    ]
+}

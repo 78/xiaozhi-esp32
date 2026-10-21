@@ -1,0 +1,10 @@
+# ESP-IDF Partition Table - reTerminal D1001 (esp-dl needs >4M app slots)
+# Name,   Type, SubType, Offset,  Size, Flags
+nvsfactory, data,   nvs,        ,     200K,
+nvs,        data,   nvs,        ,     840K,
+otadata,    data,   ota,        ,     0x2000,
+phy_init,   data,   phy,        ,     0x1000,
+ota_0,      app,    ota_0,      0x200000,     7M,
+ota_1,      app,    ota_1,      0x900000,     7M,
+assets,     data,   spiffs,     0x1000000,    14M,
+human_face_det, data, spiffs, 0x1E00000, 256K,
