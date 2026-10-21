@@ -20,7 +20,7 @@ public:
     EmojiPlayer(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t panel_io);
     ~EmojiPlayer();
 
-    void StartPlayer(const std::string& asset_name, bool repeat, int fps);
+    bool StartPlayer(const std::string& asset_name, bool repeat, int fps);
     void StopPlayer();
 
 private:
