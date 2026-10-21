@@ -1,0 +1,1500 @@
+# Define source files
+set(SOURCES "audio/audio_codec.cc"
+            "audio/audio_debugger.cc"
+            "audio/audio_service.cc"
+            "audio/demuxer/ogg_demuxer.cc"
+            "notify/notify_player.cc"
+            "audio/codecs/no_audio_codec.cc"
+            "audio/codecs/box_audio_codec.cc"
+            "audio/codecs/es8311_audio_codec.cc"
+            "audio/codecs/es8374_audio_codec.cc"
+            "audio/codecs/es8388_audio_codec.cc"
+            "audio/codecs/es8389_audio_codec.cc"
+            "audio/codecs/dummy_audio_codec.cc"
+            "led/single_led.cc"
+            "led/circular_strip.cc"
+            "led/gpio_led.cc"
+            "display/display.cc"
+            "display/text_glyph.cc"
+            "display/lcd_display.cc"
+            "display/oled_display.cc"
+            "display/lvgl_display/lvgl_display.cc"
+            "display/emote_display.cc"
+            "display/lvgl_display/emoji_collection.cc"
+            "display/lvgl_display/lvgl_theme.cc"
+            "display/lvgl_display/lvgl_font.cc"
+            "display/lvgl_display/dynamic_glyph_cache.cc"
+            "display/lvgl_display/lvgl_image.cc"
+            "display/lvgl_display/gif/lvgl_gif.cc"
+            "display/lvgl_display/gif/gifdec.c"
+            "display/lvgl_display/jpg/image_to_jpeg.cpp"
+            "display/lvgl_display/jpg/jpeg_to_image.c"
+            "protocols/protocol.cc"
+            "protocols/text_glyph_payload.cc"
+            "protocols/mqtt_protocol.cc"
+            "protocols/websocket_protocol.cc"
+            "mcp_server.cc"
+            "system_info.cc"
+            "application.cc"
+            "ota.cc"
+            "settings.cc"
+            "device_state_machine.cc"
+            "assets.cc"
+            "main.cc"
+            )
+
+set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
+
+# Add board common files
+list(APPEND SOURCES
+    "boards/common/board.cc"
+    "boards/common/wifi_board.cc"
+    "boards/common/ml307_board.cc"
+    "boards/common/nt26_board.cc"
+    "boards/common/dual_network_board.cc"
+    "boards/common/adc_battery_monitor.cc"
+    "boards/common/axp2101.cc"
+    "boards/common/backlight.cc"
+    "boards/common/button.cc"
+    "boards/common/i2c_device.cc"
+    "boards/common/knob.cc"
+    "boards/common/power_save_timer.cc"
+    "boards/common/press_to_talk_mcp_tool.cc"
+    "boards/common/sleep_timer.cc"
+    "boards/common/sy6970.cc"
+    "boards/common/system_reset.cc"
+)
+if(CONFIG_XIAOZHI_NETWORK_ETHERNET)
+    list(APPEND SOURCES "boards/common/ethernet_board.cc")
+endif()
+list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+
+
+idf_build_get_property(build_components BUILD_COMPONENTS)
+# Function to find component dynamically by pattern
+function(find_component_by_pattern PATTERN COMPONENT_VAR PATH_VAR)
+    foreach(COMPONENT ${build_components})
+        if(COMPONENT MATCHES "${PATTERN}")
+            set(${COMPONENT_VAR} ${COMPONENT} PARENT_SCOPE)
+            idf_component_get_property(COMPONENT_PATH ${COMPONENT} COMPONENT_DIR)
+            set(${PATH_VAR} "${COMPONENT_PATH}" PARENT_SCOPE)
+            break()
+        endif()
+    endforeach()
+endfunction()
+
+# Set default BUILTIN_TEXT_FONT and BUILTIN_ICON_FONT
+set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+
+set(EMOTE_RESOLUTION "320_240")
+
+# Select the board source directory from Kconfig
+# Set default assets if the board uses partition table V2
+if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+    set(BOARD_DIR "bread-compact-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
+    set(BOARD_DIR "bread-compact-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_NT26)
+    set(BOARD_DIR "bread-compact-nt26")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
+    set(BOARD_DIR "bread-compact-esp32")
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32_LCD)
+    set(BOARD_DIR "bread-compact-esp32-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_CHD_ESP32S3_BOX)
+    set(BOARD_DIR "chd/chd-esp32s3-box")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+    set(EMOTE_RESOLUTION "320_240")
+elseif(CONFIG_BOARD_TYPE_CHD_ESP32S3_EYE)
+    set(BOARD_DIR "chd/chd-esp32s3-eye")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_DF_K10)
+    set(BOARD_DIR "dfrobot/df-k10")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_DF_S3_AI_CAM)
+    set(BOARD_DIR "dfrobot/df-s3-ai-cam")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_BOX_3)
+    set(BOARD_DIR "espressif/esp32-s3-box-3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+    set(EMOTE_RESOLUTION "320_240")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_BOX)
+    set(BOARD_DIR "espressif/esp32-s3-box")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+    set(EMOTE_RESOLUTION "320_240")
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_BOX_LITE)
+    set(BOARD_DIR "espressif/esp32-s3-box-lite")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_KEVIN_BOX_2)
+    set(BOARD_DIR "kevin/box-2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_KEVIN_C3)
+    set(BOARD_DIR "kevin/c3")
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V3_DEV)
+    set(BOARD_DIR "kevin/sp-v3-dev")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_KEVIN_SP_V4_DEV)
+    set(BOARD_DIR "kevin/sp-v4-dev")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_KEVIN_YUYING_313LCD)
+    set(BOARD_DIR "kevin/yuying-313lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_S3)
+    set(BOARD_DIR "lckfb/szpi-esp32s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-spi-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_3_5_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-qspi-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_4_0_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-spi-4.0")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_C3)
+    set(BOARD_DIR "lckfb/szpi-esp32c3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_RYMCU_BIGSMART)
+    set(BOARD_DIR "rymcu/bigsmart")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_EDA_TV_PRO)
+    set(BOARD_DIR "lceda-course-examples/eda-tv-pro")
+elseif(CONFIG_BOARD_TYPE_EDA_ROBOT_PRO)
+    set(BOARD_DIR "lceda-course-examples/eda-robot-pro")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+elseif(CONFIG_BOARD_TYPE_EDA_SUPER_BEAR)
+    set(BOARD_DIR "lceda-course-examples/eda-super-bear")
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_S3_2P4)
+    set(BOARD_DIR "magiclick/2p4")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_S3_2P5)
+    set(BOARD_DIR "magiclick/2p5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3)
+    set(BOARD_DIR "magiclick/c3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_MAGICLICK_C3_V2)
+    set(BOARD_DIR "magiclick/c3-v2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S3)
+    set(BOARD_DIR "maza-ai/esp32-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_MAZA_AI_ESP32_S31)
+    set(BOARD_DIR "maza-ai/esp32-s31")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
+    set(BOARD_DIR "m5stack/stopwatch")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4)
+    set(BOARD_DIR "m5stack/corep4")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
+    set(BOARD_DIR "m5stack/core-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_STICK_S3)
+    set(BOARD_DIR "m5stack/stick-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_TAB5)
+    set(BOARD_DIR "m5stack/tab5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3_ECHO_BASE)
+    set(BOARD_DIR "m5stack/atoms3-echo-base")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_ECHO_BASE)
+    set(BOARD_DIR "m5stack/atoms3r-echo-base")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_ECHO_PYRAMID)
+    set(BOARD_DIR "m5stack/atoms3r-echo-pyramid")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE)
+    set(BOARD_DIR "m5stack/atoms3r-cam-m12-echo-base")
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_ECHOS3R)
+    set(BOARD_DIR "m5stack/atom-echos3r")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CARDPUTER_ADV)
+    set(BOARD_DIR "m5stack/cardputer-adv")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_MATRIX_ECHO_BASE)
+    set(BOARD_DIR "m5stack/atommatrix-echo-base")
+elseif(CONFIG_BOARD_TYPE_XMINI_C3_V3)
+    set(BOARD_DIR "xmini/c3-v3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_XMINI_C3_4G)
+    set(BOARD_DIR "xmini/c3-4g")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_XMINI_C3)
+    set(BOARD_DIR "xmini/c3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_KORVO_2_V3)
+    set(BOARD_DIR "espressif/esp32-s3-korvo-2-v3.0")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_KORVO_2_V3_RNDIS)
+    set(BOARD_DIR "espressif/esp32-s3-korvo-2-v3.0-rndis")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP_SPARKBOT)
+    set(BOARD_DIR "espressif/esp-sparkbot")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP_SPOT_S3)
+    set(BOARD_DIR "espressif/esp-spot")
+elseif(CONFIG_BOARD_TYPE_ESP_SPOT_C5)
+    set(BOARD_DIR "espressif/esp-spot")
+elseif(CONFIG_BOARD_TYPE_ESP_HI)
+    set(BOARD_DIR "espressif/esp-hi")
+    # Set ESP_HI emoji directory for DEFAULT_ASSETS_EXTRA_FILES
+    set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_BINARY_DIR}/emoji")
+elseif(CONFIG_BOARD_TYPE_ESP_VOCAT)
+    set(BOARD_DIR "espressif/esp-vocat")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    set(EMOTE_RESOLUTION "360_360")
+    set(ESP_VOCAT_ASSETS_STAGING "${CMAKE_BINARY_DIR}/esp-vocat-assets")
+    set(EMOTE_EXTERNAL_PATH "${ESP_VOCAT_ASSETS_STAGING}")
+elseif(CONFIG_BOARD_TYPE_ESP_SENSAIRSHUTTLE)
+    set(BOARD_DIR "espressif/esp-sensairshuttle")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_TOUCH_LCD_3_5)
+    set(BOARD_DIR "waveshare/esp32-touch-lcd-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_CAM_XXXX)
+    set(BOARD_DIR "waveshare/esp32-s3-cam")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_AUDIO_BOARD)
+    set(BOARD_DIR "waveshare/esp32-s3-audio-board")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.8-v2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_06)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-2.06")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-2.06")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_16)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-2.16")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-2.16")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.43c")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4B)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-4b")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3C)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-4.3c")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_7C)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-7c")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.75")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_75C)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.75")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_83)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.83")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_RGB_MATRIX)
+    set(BOARD_DIR "waveshare/esp32-s3-rgb-matrix")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85C)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.85c")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.85b")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.85")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_46)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.46")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_5)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_5B)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-3.5b")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v1)
+    set(BOARD_DIR "waveshare/esp32-s3-epaper-1.54")
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_1_54_v2)
+    set(BOARD_DIR "waveshare/esp32-s3-epaper-1.54")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_ePaper_3_97)
+    set(BOARD_DIR "waveshare/esp32-s3-epaper-3.97")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2)
+    set(BOARD_DIR "waveshare/esp32-s3-rlcd-4.2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-3.49")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49_V2)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-3.49-v2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_54)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-lcd-1.54")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_LCD_0_85)
+    set(BOARD_DIR "waveshare/esp32-s3-lcd-0.85")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69)
+    set(BOARD_DIR "waveshare/esp32-c5-touch-lcd-1.69")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54)
+    set(BOARD_DIR "waveshare/esp32-c6-epaper-1.54")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_LCD_1_69)
+    set(BOARD_DIR "waveshare/esp32-c6-lcd-1.69")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_83)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-1.83")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_43)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.43")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_32)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.32")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_54)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-1.54")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_LCD_0_85)
+    set(BOARD_DIR "waveshare/esp32-c6-lcd-0.85")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_32)
+    set(BOARD_DIR "waveshare/esp32-s3-touch-amoled-1.32")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_NANO)
+    set(BOARD_DIR "waveshare/esp32-p4-nano")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4B)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4_3)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_5)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_5)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_8)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_10_1)
+    set(BOARD_DIR "waveshare/esp32-p4-wifi6-touch-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
+    set(BOARD_DIR "espressif/esp32-p4-function-ev-board")
+elseif(CONFIG_BOARD_TYPE_ESP32_S31_FUNCTION_COREBOARD_1)
+    set(BOARD_DIR "espressif/esp32-s31-function-coreboard-1")
+elseif(CONFIG_BOARD_TYPE_ESP32_S31_KORVO_1)
+    set(BOARD_DIR "espressif/esp32-s31-korvo-1")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
+    set(BOARD_DIR "bread-compact-wifi-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3)
+    set(BOARD_DIR "lilygo/t-circle-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CIRCLE_S3_V11)
+    set(BOARD_DIR "lilygo/t-circle-s3-v11")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_0_V1_1)
+    set(BOARD_DIR "lilygo/t-cameraplus-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_CAMERAPLUS_S3_V1_2)
+    set(BOARD_DIR "lilygo/t-cameraplus-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA)
+    set(BOARD_DIR "lilygo/t-display-s3-pro-mvsrlora")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LILYGO_T_DISPLAY_S3_PRO_MVSRLORA_NO_BATTERY)
+    set(BOARD_DIR "lilygo/t-display-s3-pro-mvsrlora")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI_ESP32S3)
+    set(BOARD_DIR "movecall/moji-esp32s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MOVECALL_MOJI2_ESP32C5)
+    set(BOARD_DIR "movecall/moji2-esp32c5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MOVECALL_CUICAN_ESP32S3)
+    set(BOARD_DIR "movecall/cuican-esp32s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3)
+    set(BOARD_DIR "alientek/atk-dnesp32s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX)
+    set(BOARD_DIR "alientek/atk-dnesp32s3-box")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX0)
+    set(BOARD_DIR "alientek/atk-dnesp32s3-box0")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_WIFI)
+    set(BOARD_DIR "alientek/atk-dnesp32s3-box2-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX2_4G)
+    set(BOARD_DIR "alientek/atk-dnesp32s3-box2-4g")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_WIFI)
+    set(BOARD_DIR "alientek/atk-dnesp32s3m-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3M_4G)
+    set(BOARD_DIR "alientek/atk-dnesp32s3m-4g")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_ATK_DNESP32S3_BOX3)
+    set(BOARD_DIR "alientek/atk-dnesp32s3-box3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_DU_CHATX)
+    set(BOARD_DIR "du-chatx")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_TAIJI_PI_S3)
+    set(BOARD_DIR "taiji-pi-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_0_85TFT_WIFI)
+    set(BOARD_DIR "nologo/xingzhi-cube-0.85tft-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_0_85TFT_ML307)
+    set(BOARD_DIR "nologo/xingzhi-cube-0.85tft-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_0_96OLED_WIFI)
+    set(BOARD_DIR "nologo/xingzhi-cube-0.96oled-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_0_96OLED_ML307)
+    set(BOARD_DIR "nologo/xingzhi-cube-0.96oled-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_1_54TFT_WIFI)
+    set(BOARD_DIR "nologo/xingzhi-cube-1.54tft-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_CUBE_1_54TFT_ML307)
+    set(BOARD_DIR "nologo/xingzhi-cube-1.54tft-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_METAL_1_54_WIFI)
+    set(BOARD_DIR "nologo/xingzhi-metal-1.54-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_XINGZHI_ABS_2_0)
+    set(BOARD_DIR "nologo/xingzhi-abs-2.0")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER)
+    set(BOARD_DIR "sensecap-watcher")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
+    set(BOARD_DIR "doit-s3-aibox")
+elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
+    set(BOARD_DIR "mixgo-nova")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_GENJUTECH_S3_1_54TFT)
+    set(BOARD_DIR "genjutech-s3-1.54tft")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_GUITION_JC4827W543)
+    set(BOARD_DIR "guition/jc4827w543")
+    # 16px, not the 20px most 480-wide boards use: the assets partition is 1MB
+    # and the 20px common font alone is 1228KB. See the board README.
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WDMOMO_CGC)
+    set(BOARD_DIR "wdmomo/esp32-cgc")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_WDMOMO_CGC_144)
+    set(BOARD_DIR "wdmomo/esp32-cgc-144")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_LCD_EV_BOARD)
+    set(BOARD_DIR "espressif/esp32-s3-lcd-ev-board")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ESP32_S3_LCD_EV_BOARD_2)
+    set(BOARD_DIR "espressif/esp32-s3-lcd-ev-board-2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_WIFI)
+    set(BOARD_DIR "zhengchen/1.54tft-wifi")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_MINSI_K08_DUAL)
+    set(BOARD_DIR "minsi-k08-dual")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
+    set(BOARD_DIR "zhengchen/1.54tft-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_CAM)
+    set(BOARD_DIR "zhengchen/cam")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_CAM_ML307)
+    set(BOARD_DIR "zhengchen/cam-ml307")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_SPOTPEAR_ESP32_S3_1_54_MUMA)
+    set(BOARD_DIR "spotpear/sp-esp32-s3-1.54-muma")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_SPOTPEAR_ESP32_S3_1_28_BOX)
+    set(BOARD_DIR "spotpear/sp-esp32-s3-1.28-box")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_OTTO_ROBOT)
+    set(BOARD_DIR "otto-robot")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION otto-gif)
+elseif(CONFIG_BOARD_TYPE_ELECTRON_BOT)
+    set(BOARD_DIR "electron-bot")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION otto-gif)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_CAM)
+    set(BOARD_DIR "bread-compact-wifi-s3cam")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_JIUCHUAN)
+    set(BOARD_DIR "jiuchuan-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LABPLUS_MPYTHON_V3)
+    set(BOARD_DIR "labplus/mpython-v3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LABPLUS_LEDONG_V2)
+    set(BOARD_DIR "labplus/ledong-v2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_SURFER_C3_1_14TFT)
+    set(BOARD_DIR "surfer-c3-1.14tft")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_FOLOTOY_AI_PASSPORT)
+    set(BOARD_DIR "folotoy/ai-passport")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
+    set(BOARD_DIR "yunliao-s3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_XORIGIN_AIPI_LITE)
+    set(BOARD_DIR "xorigin/aipi-lite")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+elseif(CONFIG_BOARD_TYPE_ZECTRIX_S3_EPAPER_4_2)
+    set(BOARD_DIR "zectrix/zectrix-s3-epaper-4.2")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+elseif(CONFIG_BOARD_TYPE_HU_087)
+    set(BOARD_DIR "hu-087")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
+elseif(CONFIG_BOARD_TYPE_Freenove_ESP32S3_DISPLAY_2_8_LCD)
+    set(BOARD_DIR "freenove-esp32s3-display-2.8-lcd")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_AI_VOX3)
+    set(BOARD_DIR "nulllab-ai-vox-v3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WK_ESP32S3_DEV)
+    set(BOARD_DIR "wk-esp32s3-dev")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_LCDWIKI_ES3C35P)
+    set(BOARD_DIR "lcdwiki-es3c35p")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_LC_S3_WIFI_1_54TFT)
+    set(BOARD_DIR "lc-s3-wifi-1.54tft")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+endif()
+
+if(NOT BOARD_DIR AND NOT CMAKE_BUILD_EARLY_EXPANSION)
+    message(FATAL_ERROR "The selected board does not define BOARD_DIR")
+endif()
+
+set(BOARD_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_DIR}/config.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${BOARD_CONFIG_FILE}")
+
+# BOARD_TYPE and BOARD_MANUFACTURER are reported by the firmware.
+# Prefer config.json and fall back to values derived from the full board directory.
+set(BOARD_TYPE "")
+set(BOARD_MANUFACTURER "")
+if(EXISTS "${BOARD_CONFIG_FILE}")
+    file(READ "${BOARD_CONFIG_FILE}" BOARD_CONFIG_JSON)
+    string(REGEX MATCH "\"type\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\"" BOARD_TYPE_MATCH "${BOARD_CONFIG_JSON}")
+    if(BOARD_TYPE_MATCH)
+        set(BOARD_TYPE "${CMAKE_MATCH_1}")
+    endif()
+    string(REGEX MATCH "\"manufacturer\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\"" BOARD_MANUFACTURER_MATCH "${BOARD_CONFIG_JSON}")
+    if(BOARD_MANUFACTURER_MATCH)
+        set(BOARD_MANUFACTURER "${CMAKE_MATCH_1}")
+    endif()
+endif()
+if(NOT BOARD_TYPE)
+    string(REPLACE "/" "-" BOARD_TYPE "${BOARD_DIR}")
+endif()
+if(NOT BOARD_MANUFACTURER AND BOARD_DIR MATCHES "^([^/]+)/")
+    set(BOARD_MANUFACTURER "${CMAKE_MATCH_1}")
+endif()
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND NOT BOARD_TYPE MATCHES "^[a-z0-9.-]+$")
+    message(FATAL_ERROR
+        "Invalid BOARD_TYPE '${BOARD_TYPE}': only lowercase letters, digits, '.' and '-' are allowed"
+    )
+endif()
+
+file(GLOB BOARD_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_DIR}/*.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_DIR}/*.c
+)
+list(APPEND SOURCES ${BOARD_SOURCES})
+
+# Select one audio engine for each chip family
+if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4 OR CONFIG_IDF_TARGET_ESP32S31)
+    list(APPEND SOURCES "audio/engines/afe_audio_engine.cc")
+    list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/wake_word_audio_cache.cc")
+else()
+    list(APPEND SOURCES "audio/engines/lite_audio_engine.cc")
+    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+endif()
+
+# Auto Select Additional Sources
+if (CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING)
+    list(APPEND SOURCES "boards/common/blufi.cpp")
+endif ()
+# Select language directory according to Kconfig
+if(CONFIG_LANGUAGE_ZH_CN)
+    set(LANG_DIR "zh-CN")
+elseif(CONFIG_LANGUAGE_ZH_TW)
+    set(LANG_DIR "zh-TW")
+elseif(CONFIG_LANGUAGE_EN_US)
+    set(LANG_DIR "en-US")
+elseif(CONFIG_LANGUAGE_JA_JP)
+    set(LANG_DIR "ja-JP")
+elseif(CONFIG_LANGUAGE_KO_KR)
+    set(LANG_DIR "ko-KR")
+elseif(CONFIG_LANGUAGE_VI_VN)
+    set(LANG_DIR "vi-VN")
+elseif(CONFIG_LANGUAGE_TH_TH)
+    set(LANG_DIR "th-TH")
+elseif(CONFIG_LANGUAGE_DE_DE)
+    set(LANG_DIR "de-DE")
+elseif(CONFIG_LANGUAGE_FR_FR)
+    set(LANG_DIR "fr-FR")
+elseif(CONFIG_LANGUAGE_ES_ES)
+    set(LANG_DIR "es-ES")
+elseif(CONFIG_LANGUAGE_IT_IT)
+    set(LANG_DIR "it-IT")
+elseif(CONFIG_LANGUAGE_RU_RU)
+    set(LANG_DIR "ru-RU")
+elseif(CONFIG_LANGUAGE_AR_SA)
+    set(LANG_DIR "ar-SA")
+elseif(CONFIG_LANGUAGE_HI_IN)
+    set(LANG_DIR "hi-IN")
+elseif(CONFIG_LANGUAGE_MR_IN)
+    set(LANG_DIR "mr-IN")
+elseif(CONFIG_LANGUAGE_PT_PT)
+    set(LANG_DIR "pt-PT")
+elseif(CONFIG_LANGUAGE_PT_BR)
+    set(LANG_DIR "pt-BR")
+elseif(CONFIG_LANGUAGE_PL_PL)
+    set(LANG_DIR "pl-PL")
+elseif(CONFIG_LANGUAGE_CS_CZ)
+    set(LANG_DIR "cs-CZ")
+elseif(CONFIG_LANGUAGE_FI_FI)
+    set(LANG_DIR "fi-FI")
+elseif(CONFIG_LANGUAGE_TR_TR)
+    set(LANG_DIR "tr-TR")
+elseif(CONFIG_LANGUAGE_ID_ID)
+    set(LANG_DIR "id-ID")
+elseif(CONFIG_LANGUAGE_UK_UA)
+    set(LANG_DIR "uk-UA")
+elseif(CONFIG_LANGUAGE_RO_RO)
+    set(LANG_DIR "ro-RO")
+elseif(CONFIG_LANGUAGE_BG_BG)
+    set(LANG_DIR "bg-BG")
+elseif(CONFIG_LANGUAGE_CA_ES)
+    set(LANG_DIR "ca-ES")
+elseif(CONFIG_LANGUAGE_DA_DK)
+    set(LANG_DIR "da-DK")
+elseif(CONFIG_LANGUAGE_EL_GR)
+    set(LANG_DIR "el-GR")
+elseif(CONFIG_LANGUAGE_FA_IR)
+    set(LANG_DIR "fa-IR")
+elseif(CONFIG_LANGUAGE_FIL_PH)
+    set(LANG_DIR "fil-PH")
+elseif(CONFIG_LANGUAGE_HE_IL)
+    set(LANG_DIR "he-IL")
+elseif(CONFIG_LANGUAGE_HR_HR)
+    set(LANG_DIR "hr-HR")
+elseif(CONFIG_LANGUAGE_HU_HU)
+    set(LANG_DIR "hu-HU")
+elseif(CONFIG_LANGUAGE_MS_MY)
+    set(LANG_DIR "ms-MY")
+elseif(CONFIG_LANGUAGE_NB_NO)
+    set(LANG_DIR "nb-NO")
+elseif(CONFIG_LANGUAGE_NL_NL)
+    set(LANG_DIR "nl-NL")
+elseif(CONFIG_LANGUAGE_SK_SK)
+    set(LANG_DIR "sk-SK")
+elseif(CONFIG_LANGUAGE_SL_SI)
+    set(LANG_DIR "sl-SI")
+elseif(CONFIG_LANGUAGE_SV_SE)
+    set(LANG_DIR "sv-SE")
+elseif(CONFIG_LANGUAGE_SR_RS)
+    set(LANG_DIR "sr-RS")
+endif()
+
+# Define generation path
+set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/language.json")
+set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
+
+# Collect current language audio files
+file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/${LANG_DIR}/*.ogg)
+
+# If not en-US, collect en-US audio files as fallback for missing files
+if(NOT LANG_DIR STREQUAL "en-US")
+    file(GLOB EN_US_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/*.ogg)
+
+    # Extract filenames (without path) from current language
+    set(EXISTING_NAMES "")
+    foreach(SOUND_FILE ${LANG_SOUNDS})
+        get_filename_component(FILENAME ${SOUND_FILE} NAME)
+        list(APPEND EXISTING_NAMES ${FILENAME})
+    endforeach()
+
+    # Only add en-US audio files that are missing in current language
+    foreach(EN_SOUND ${EN_US_SOUNDS})
+        get_filename_component(FILENAME ${EN_SOUND} NAME)
+        if(NOT ${FILENAME} IN_LIST EXISTING_NAMES)
+            list(APPEND LANG_SOUNDS ${EN_SOUND})
+            message(STATUS "Using en-US fallback for missing audio: ${FILENAME}")
+        endif()
+    endforeach()
+endif()
+
+file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
+
+# If target chip is ESP32, exclude specific files to avoid build errors
+if(CONFIG_IDF_TARGET_ESP32)
+    list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
+                             "audio/codecs/es8388_audio_codec.cc"
+                             "audio/codecs/es8389_audio_codec.cc"
+                             "led/gpio_led.cc"
+                             "display/lvgl_display/jpg/image_to_jpeg.cpp"
+                             "display/lvgl_display/jpg/jpeg_to_image.c"
+                             "boards/common/nt26_board.cc"
+                             "boards/common/ml307_board.cc"
+                             "boards/common/dual_network_board.cc"
+                             )
+endif()
+
+# Include EspVideo if target is ESP32S3 or ESP32P4
+if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
+    list(APPEND SOURCES "boards/common/esp_video.cc"
+                        "boards/common/rndis_board.cc"
+                        )
+endif()
+
+# Include EspVideo if target is ESP32S31
+if(CONFIG_IDF_TARGET_ESP32S31)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
+endif()
+
+# Include Esp32Camera if target is ESP32S3
+if(CONFIG_IDF_TARGET_ESP32S3)
+    list(APPEND SOURCES "boards/common/esp32_camera.cc")
+endif()
+
+set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_XIAOZHI_NETWORK_ETHERNET AND CONFIG_XIAOZHI_ETH_PHY_IP101)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA espressif__ip101)
+endif()
+if(BOARD_TYPE STREQUAL "m5stack-stick-s3")
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        m5stack__m5pm1
+    )
+endif()
+if(CONFIG_BOARD_TYPE_ESP_SPOT_S3 OR CONFIG_BOARD_TYPE_ESP_SPOT_C5 OR CONFIG_BOARD_TYPE_ESP_VOCAT)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        espressif__bmi270_sensor
+    )
+endif()
+if(CONFIG_BOARD_TYPE_ESP_VOCAT AND IDF_VERSION_MAJOR LESS 6)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        espressif__touch_slider_sensor
+        espressif__touch_button_sensor
+    )
+endif()
+if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA
+        esp_driver_sdmmc
+        sdmmc
+    )
+endif()
+idf_component_register(SRCS ${SOURCES}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    INCLUDE_DIRS ${INCLUDE_DIRS}
+                    WHOLE_ARCHIVE
+                    PRIV_REQUIRES
+                        esp_pm
+                        esp_psram
+                        esp_netif
+                        esp_eth
+                        esp_driver_gpio
+                        esp_driver_uart
+                        esp_driver_spi
+                        esp_driver_i2c
+                        esp_driver_i2s
+                        esp_driver_ledc
+                        esp_driver_jpeg
+                        esp_driver_ppa
+                        esp_driver_tsens
+                        esp_app_format
+                        app_update
+                        spi_flash
+                        mbedtls
+                        console
+                        efuse
+                        bt
+                        fatfs
+                        xiaozhi-fonts
+                        ${MAIN_PRIV_REQUIRES_EXTRA}
+                    )
+
+# Keep project-owned C++ on GNU C++23. ESP-IDF 6 may default to a newer
+# dialect; pin the baseline so main/ does not depend on it.
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+endif()
+
+# Use target_compile_definitions to define the reported board identity
+# If BOARD_NAME is empty, use BOARD_TYPE
+if(NOT BOARD_NAME)
+    set(BOARD_NAME ${BOARD_TYPE})
+endif()
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND NOT BOARD_NAME MATCHES "^[a-z0-9.-]+$")
+    message(FATAL_ERROR
+        "Invalid BOARD_NAME '${BOARD_NAME}': only lowercase letters, digits, '.' and '-' are allowed"
+    )
+endif()
+string(REGEX MATCH "^font_noto_sans_basic_([0-9]+)_([0-9]+)$" _font_match "${BUILTIN_TEXT_FONT}")
+if(NOT _font_match)
+    message(FATAL_ERROR "Unsupported built-in text font name: ${BUILTIN_TEXT_FONT}")
+endif()
+set(TEXT_FONT_SIZE "${CMAKE_MATCH_1}")
+set(TEXT_FONT_BPP "${CMAKE_MATCH_2}")
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    target_compile_definitions(${COMPONENT_LIB}
+                        PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
+                        PRIVATE BOARD_MANUFACTURER=\"${BOARD_MANUFACTURER}\"
+                        PRIVATE BUILTIN_TEXT_FONT=${BUILTIN_TEXT_FONT} BUILTIN_ICON_FONT=${BUILTIN_ICON_FONT}
+                        PRIVATE TEXT_FONT_SIZE=${TEXT_FONT_SIZE} TEXT_FONT_BPP=${TEXT_FONT_BPP}
+                        )
+    # ESP32-S3 LVGL builtin pool: PSRAM boards allocate it from PSRAM.
+    # Boards that set CONFIG_SPIRAM=n must not keep the 1MB chip-default
+    # pool as a .dram0.bss array (build.py also switches those variants
+    # back to CLIB malloc).
+    if(CONFIG_IDF_TARGET_ESP32S3)
+        idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)
+        if(lvgl_lib)
+            target_include_directories(${lvgl_lib} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/display")
+            if(CONFIG_SPIRAM)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_psram_pool.h\"")
+            elseif(CONFIG_LV_USE_BUILTIN_MALLOC)
+                target_compile_definitions(${lvgl_lib} PRIVATE
+                    "LV_MEM_POOL_INCLUDE=\"lvgl_no_psram_pool.h\"")
+            endif()
+        endif()
+    endif()
+endif()
+
+# Add generation rules
+add_custom_command(
+    OUTPUT ${LANG_HEADER}
+    COMMAND python ${PROJECT_DIR}/scripts/gen_lang.py
+            --language "${LANG_DIR}"
+            --output "${LANG_HEADER}"
+    DEPENDS
+        ${LANG_JSON}
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json
+        ${PROJECT_DIR}/scripts/gen_lang.py
+    COMMENT "Generating ${LANG_DIR} language config"
+)
+
+# Force build generation dependencies
+add_custom_target(lang_header ALL
+    DEPENDS ${LANG_HEADER}
+)
+
+# Find ESP-SR component dynamically
+find_component_by_pattern("espressif__esp-sr" ESP_SR_COMPONENT ESP_SR_COMPONENT_PATH)
+if(ESP_SR_COMPONENT_PATH)
+    set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
+endif()
+
+# Find xiaozhi-fonts component dynamically
+find_component_by_pattern("xiaozhi-fonts" NOTO_FONTS_COMPONENT NOTO_FONTS_COMPONENT_PATH)
+if(NOTO_FONTS_COMPONENT_PATH)
+    set(NOTO_FONTS_PATH "${NOTO_FONTS_COMPONENT_PATH}")
+endif()
+
+if(CONFIG_BOARD_TYPE_ESP_VOCAT)
+    find_component_by_pattern("esp_emote_assets" EMOTE_ASSETS_COMPONENT EMOTE_ASSETS_PATH)
+    if(EMOTE_ASSETS_PATH)
+        file(REMOVE_RECURSE "${ESP_VOCAT_ASSETS_STAGING}")
+        file(REMOVE
+            "${CMAKE_BINARY_DIR}/expression_assets.bin"
+            "${CMAKE_BINARY_DIR}/expression_assets.bin.validated"
+        )
+        file(MAKE_DIRECTORY "${ESP_VOCAT_ASSETS_STAGING}/360_360")
+        file(MAKE_DIRECTORY "${ESP_VOCAT_ASSETS_STAGING}/emoji_large")
+        file(COPY "${EMOTE_ASSETS_PATH}/emoji_large/" DESTINATION "${ESP_VOCAT_ASSETS_STAGING}/emoji_large")
+        file(COPY "${EMOTE_ASSETS_PATH}/360_360/layout.json" DESTINATION "${ESP_VOCAT_ASSETS_STAGING}/360_360")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/assets/360_360/emote.json"
+             DESTINATION "${ESP_VOCAT_ASSETS_STAGING}/360_360")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/emoji/low_battery.eaf"
+             DESTINATION "${ESP_VOCAT_ASSETS_STAGING}/emoji_large")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/emoji/battery_connected.eaf"
+             DESTINATION "${ESP_VOCAT_ASSETS_STAGING}/emoji_large")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/assets/360_360/emote.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/emoji/low_battery.eaf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/boards/espressif/esp-vocat/emoji/battery_connected.eaf"
+        )
+    else()
+        message(WARNING "esp_emote_assets component not found; ESP-VoCat custom emotes will be skipped")
+    endif()
+endif()
+
+if(CONFIG_BOARD_TYPE_ESP_HI)
+# Pin AAF assets to a fixed image_player commit so builds stay reproducible.
+# Only pack AAF files referenced by emoji_display.cc — the full test_8bit set
+# plus wakenet models overflows the 1MB assets partition on the 4MB ESP-HI
+# flash map (see #2228).
+set(URL "https://github.com/espressif2022/image_player/raw/d61e0ccb1d7b0a2a214d0c90f5451fd683f41682/test_apps/test_8bit")
+set(EMOJI_DIR "${CMAKE_BINARY_DIR}/emoji")
+file(MAKE_DIRECTORY ${EMOJI_DIR})
+
+set(FILES_TO_DOWNLOAD
+    "Anger_loop.aaf"
+    "asking.aaf"
+    "blink_quick.aaf"
+    "connecting.aaf"
+    "happy_loop.aaf"
+    "panic_loop.aaf"
+    "sad_loop.aaf"
+    "scorn_loop.aaf"
+    "wake.aaf"
+)
+
+# Drop leftover AAF files from previous full-set downloads so they are not packed.
+file(GLOB EXISTING_AAF "${EMOJI_DIR}/*.aaf")
+foreach(EXISTING IN LISTS EXISTING_AAF)
+    get_filename_component(EXISTING_NAME "${EXISTING}" NAME)
+    list(FIND FILES_TO_DOWNLOAD "${EXISTING_NAME}" _aaf_idx)
+    if(_aaf_idx EQUAL -1)
+        file(REMOVE "${EXISTING}")
+        message(STATUS "Removed unused ESP-HI emoji asset ${EXISTING_NAME}")
+    endif()
+endforeach()
+
+foreach(FILENAME IN LISTS FILES_TO_DOWNLOAD)
+    set(REMOTE_FILE "${URL}/${FILENAME}")
+    set(LOCAL_FILE "${EMOJI_DIR}/${FILENAME}")
+
+    # Check if local file exists
+    if(EXISTS ${LOCAL_FILE})
+        message(STATUS "File ${FILENAME} already exists, skipping download")
+    else()
+        message(STATUS "Downloading ${FILENAME}")
+        file(DOWNLOAD ${REMOTE_FILE} ${LOCAL_FILE}
+             STATUS DOWNLOAD_STATUS)
+        list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+        if(NOT STATUS_CODE EQUAL 0)
+            message(FATAL_ERROR "Failed to download ${FILENAME} from ${URL}")
+        endif()
+    endif()
+endforeach()
+
+endif()
+
+
+# Function to build default assets based on configuration
+function(build_default_assets_bin)
+    # Set output path for generated assets.bin
+    set(GENERATED_ASSETS_BIN "${CMAKE_BINARY_DIR}/generated_assets.bin")
+    set(DEFAULT_ASSETS_DEPENDENCIES
+        "${SDKCONFIG}"
+        "${PROJECT_DIR}/scripts/build_default_assets.py"
+    )
+
+    # Prepare arguments for build script
+    set(BUILD_ARGS
+        "--sdkconfig" "${SDKCONFIG}"
+        "--output" "${GENERATED_ASSETS_BIN}"
+    )
+
+    # Add builtin text font if defined
+    if(BUILTIN_TEXT_FONT)
+        list(APPEND BUILD_ARGS "--builtin_text_font" "${BUILTIN_TEXT_FONT}")
+        string(REPLACE "_basic_" "_common_" COMMON_TEXT_FONT "${BUILTIN_TEXT_FONT}")
+        set(COMMON_TEXT_FONT_FILE "${NOTO_FONTS_PATH}/cbin/${COMMON_TEXT_FONT}.bin")
+        if(EXISTS "${COMMON_TEXT_FONT_FILE}")
+            list(APPEND DEFAULT_ASSETS_DEPENDENCIES "${COMMON_TEXT_FONT_FILE}")
+        endif()
+        if(EXISTS "${NOTO_FONTS_PATH}/manifest.json")
+            list(APPEND DEFAULT_ASSETS_DEPENDENCIES "${NOTO_FONTS_PATH}/manifest.json")
+        endif()
+    endif()
+
+    # Add default emoji collection if defined
+    if(DEFAULT_EMOJI_COLLECTION)
+        list(APPEND BUILD_ARGS "--emoji_collection" "${DEFAULT_EMOJI_COLLECTION}")
+        file(GLOB DEFAULT_EMOJI_FILES CONFIGURE_DEPENDS
+            "${NOTO_FONTS_PATH}/png/${DEFAULT_EMOJI_COLLECTION}/*"
+        )
+        list(APPEND DEFAULT_ASSETS_DEPENDENCIES ${DEFAULT_EMOJI_FILES})
+    endif()
+
+    # Add default assets extra files if defined
+    if(DEFAULT_ASSETS_EXTRA_FILES)
+        list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES}")
+    endif()
+
+    list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
+    list(APPEND BUILD_ARGS "--noto_fonts_path" "${NOTO_FONTS_PATH}")
+
+    # Enforce assets.bin fits the flash partition (e.g. ESP-HI 4MB map uses 1MB assets).
+    partition_table_get_partition_info(assets_partition_size "--partition-name assets" "size")
+    if(assets_partition_size)
+        list(APPEND BUILD_ARGS "--max_size" "${assets_partition_size}")
+    endif()
+
+    # Create custom command to build assets
+    add_custom_command(
+        OUTPUT ${GENERATED_ASSETS_BIN}
+        COMMAND python ${PROJECT_DIR}/scripts/build_default_assets.py ${BUILD_ARGS}
+        DEPENDS ${DEFAULT_ASSETS_DEPENDENCIES}
+        COMMENT "Building default assets.bin based on configuration"
+        VERBATIM
+    )
+
+    # Create target for generated assets
+    add_custom_target(generated_default_assets ALL
+        DEPENDS ${GENERATED_ASSETS_BIN}
+    )
+
+    # Set the generated file path in parent scope
+    set(GENERATED_ASSETS_LOCAL_FILE ${GENERATED_ASSETS_BIN} PARENT_SCOPE)
+
+    message(STATUS "Default assets build configured: ${GENERATED_ASSETS_BIN}")
+endfunction()
+
+
+# Function to get local assets file path (handles both URL and local file)
+function(get_assets_local_file assets_source assets_local_file_var)
+    # Check if it's a URL (starts with http:// or https://)
+    if(assets_source MATCHES "^https?://")
+        # It's a URL, download it
+        get_filename_component(ASSETS_FILENAME "${assets_source}" NAME)
+        set(ASSETS_LOCAL_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}")
+        set(ASSETS_TEMP_FILE "${CMAKE_BINARY_DIR}/${ASSETS_FILENAME}.tmp")
+
+        # Check if local file exists
+        if(EXISTS ${ASSETS_LOCAL_FILE})
+            message(STATUS "Assets file ${ASSETS_FILENAME} already exists, skipping download")
+        else()
+            message(STATUS "Downloading ${ASSETS_FILENAME}")
+
+            # Clean up any existing temp file
+            if(EXISTS ${ASSETS_TEMP_FILE})
+                file(REMOVE ${ASSETS_TEMP_FILE})
+            endif()
+
+            # Download to temporary file first
+            file(DOWNLOAD ${assets_source} ${ASSETS_TEMP_FILE}
+                 STATUS DOWNLOAD_STATUS)
+            list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+            if(NOT STATUS_CODE EQUAL 0)
+                # Clean up temp file on failure
+                if(EXISTS ${ASSETS_TEMP_FILE})
+                    file(REMOVE ${ASSETS_TEMP_FILE})
+                endif()
+                message(FATAL_ERROR "Failed to download ${ASSETS_FILENAME} from ${assets_source}")
+            endif()
+
+            # Move temp file to final location (atomic operation)
+            file(RENAME ${ASSETS_TEMP_FILE} ${ASSETS_LOCAL_FILE})
+            message(STATUS "Successfully downloaded ${ASSETS_FILENAME}")
+        endif()
+    else()
+        # It's a local file path
+        if(IS_ABSOLUTE "${assets_source}")
+            set(ASSETS_LOCAL_FILE "${assets_source}")
+        else()
+            set(ASSETS_LOCAL_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${assets_source}")
+        endif()
+
+        # Check if local file exists
+        if(NOT EXISTS ${ASSETS_LOCAL_FILE})
+            message(FATAL_ERROR "Assets file not found: ${ASSETS_LOCAL_FILE}")
+        endif()
+
+        message(STATUS "Using assets file: ${ASSETS_LOCAL_FILE}")
+    endif()
+
+    set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
+endfunction()
+
+# Custom and Emote packs contain UI resources plus prebuilt speech models.
+# Keep their UI data, but always replace the models using the current sdkconfig.
+function(configure_assets_models assets_source assets_output)
+    set(ASSETS_NAME_LENGTH 32)
+    if(CONFIG_USE_EMOTE_MESSAGE_STYLE AND CONFIG_MMAP_FILE_NAME_LENGTH)
+        set(ASSETS_NAME_LENGTH ${CONFIG_MMAP_FILE_NAME_LENGTH})
+    endif()
+    set(MODEL_ARGS
+        "--sdkconfig" "${SDKCONFIG}"
+        "--base_assets" "${assets_source}"
+        "--output" "${assets_output}"
+        "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}"
+        "--name_length" "${ASSETS_NAME_LENGTH}"
+    )
+    partition_table_get_partition_info(assets_limit "--partition-name assets" "size")
+    if(assets_limit)
+        list(APPEND MODEL_ARGS "--max_size" "${assets_limit}")
+    endif()
+    add_custom_command(
+        OUTPUT "${assets_output}"
+        COMMAND python ${PROJECT_DIR}/scripts/build_default_assets.py ${MODEL_ARGS}
+        DEPENDS "${assets_source}" "${SDKCONFIG}" "${PROJECT_DIR}/scripts/build_default_assets.py"
+        COMMENT "Configuring speech models in custom assets"
+        VERBATIM
+    )
+    add_custom_target(configured_assets ALL DEPENDS "${assets_output}")
+    add_dependencies(flash configured_assets)
+endfunction()
+
+
+partition_table_get_partition_info(size "--partition-name assets" "size")
+partition_table_get_partition_info(offset "--partition-name assets" "offset")
+if ("${size}" AND "${offset}")
+    # Flash assets based on configuration
+    if(CONFIG_FLASH_DEFAULT_ASSETS)
+        # Build default assets based on configuration
+        build_default_assets_bin()
+        esptool_py_flash_to_partition(flash "assets" "${GENERATED_ASSETS_LOCAL_FILE}")
+        message(STATUS "Generated default assets flash configured: ${GENERATED_ASSETS_LOCAL_FILE} -> assets partition")
+    elseif(CONFIG_FLASH_CUSTOM_ASSETS)
+        # Flash custom assets
+        get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_LOCAL_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "assets" "${CONFIGURED_ASSETS_FILE}")
+        message(STATUS "Custom assets flash configured: ${CONFIGURED_ASSETS_FILE} -> assets partition")
+    elseif(CONFIG_FLASH_EXPRESSION_ASSETS)
+        set(ASSETS_NAME "expression_assets")
+        set(ASSETS_PARTITION "assets")
+        set(ASSETS_FILE "${CMAKE_BINARY_DIR}/${ASSETS_NAME}.bin")
+
+        if(EMOTE_EXTERNAL_PATH)
+            build_speaker_assets_bin("${ASSETS_PARTITION}" ${EMOTE_RESOLUTION} ${ASSETS_FILE} ${CONFIG_MMAP_FILE_NAME_LENGTH} "${EMOTE_EXTERNAL_PATH}")
+        else()
+            build_speaker_assets_bin("${ASSETS_PARTITION}" ${EMOTE_RESOLUTION} ${ASSETS_FILE} ${CONFIG_MMAP_FILE_NAME_LENGTH})
+        endif()
+        message(STATUS "Generated emote assets: ${ASSETS_FILE} -> ${ASSETS_PARTITION} partition")
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "${ASSETS_PARTITION}" "${CONFIGURED_ASSETS_FILE}")
+    elseif(CONFIG_FLASH_NONE_ASSETS)
+        message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
+    endif()
+else()
+    message(STATUS "Assets partition not found, using v1 partition table")
+endif()
