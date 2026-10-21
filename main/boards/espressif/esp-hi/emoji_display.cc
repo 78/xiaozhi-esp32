@@ -105,9 +105,9 @@ EmojiWidget::EmojiWidget(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
 
 EmojiWidget::~EmojiWidget() {}
 
-void EmojiWidget::SetEmotion(const char* emotion) {
-    if (!player_) {
-        return;
+bool EmojiWidget::SetEmotion(const char* emotion) {
+    if (!player_ || emotion == nullptr) {
+        return false;
     }
 
     using Param = std::tuple<std::string, bool, int>;
@@ -127,8 +127,11 @@ void EmojiWidget::SetEmotion(const char* emotion) {
     if (it != emotion_map.end()) {
         const auto& [aaf, repeat, fps] = it->second;
         player_->StartPlayer(aaf, repeat, fps);
-    } else if (strcmp(emotion, "neutral") == 0) {
+        return true;
     }
+    // "neutral" is a request this widget deliberately has nothing to play for, which is still
+    // an accepted request rather than a missing resource.
+    return strcmp(emotion, "neutral") == 0;
 }
 
 void EmojiWidget::SetStatus(const char* status) {

@@ -43,7 +43,11 @@ public:
     virtual void SetStatus(const char* status);
     virtual void ShowNotification(const char* notification, int duration_ms = 3000);
     virtual void ShowNotification(const std::string& notification, int duration_ms = 3000);
-    virtual void SetEmotion(const char* emotion);
+    // Returns true when the requested emotion was accepted and set in the rendering
+    // system. False means invalid input, a missing resource, an uninitialised display, or
+    // an unsupported operation. For asynchronous displays, true does not promise that the
+    // physical refresh has already completed. Callers are free to ignore the result.
+    virtual bool SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     // Remove a matching message without clearing newer content, when supported.
     virtual void RemoveChatMessage(const char* role, const char* content) {}

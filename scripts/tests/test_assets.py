@@ -249,7 +249,7 @@ class AssetsTest(unittest.TestCase):
             void Display::SetStatus(const char*) {}
             void Display::ShowNotification(const char*, int) {}
             void Display::ShowNotification(const std::string&, int) {}
-            void Display::SetEmotion(const char*) {}
+            bool Display::SetEmotion(const char*) { return false; }
             void Display::SetChatMessage(const char*, const char*) {}
             void Display::ClearChatMessages() {}
             void Display::SetTheme(Theme*) {}

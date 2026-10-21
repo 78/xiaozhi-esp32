@@ -1175,7 +1175,7 @@ void LcdDisplay::ClearChatMessages() {
 }
 #endif
 
-void LcdDisplay::SetEmotion(const char* emotion) {
+bool LcdDisplay::SetEmotion(const char* emotion) {
     if (!setup_ui_called_) {
         ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!",
                  emotion);
@@ -1187,7 +1187,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
                      "emoji image not created)",
                      emotion);
         }
-        return;
+        return false;
     }
 
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
@@ -1200,18 +1200,22 @@ void LcdDisplay::SetEmotion(const char* emotion) {
             utf8 = material_symbols_get_utf8(emotion);
             emotion_font = lvgl_theme->large_icon_font()->font();
         }
-        if (utf8 != nullptr && emoji_label_ != nullptr) {
-            DisplayLockGuard lock(this);
-            if (gif_controller_) {
-                gif_controller_->Stop();
-                gif_controller_.reset();
-            }
-            lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
-            lv_label_set_text(emoji_label_, utf8);
-            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        if (utf8 == nullptr || emoji_label_ == nullptr) {
+            // No image and no glyph for this name: nothing was shown for the request.
+            return false;
         }
-        return;
+        DisplayLockGuard lock(this);
+        if (gif_controller_) {
+            gif_controller_->Stop();
+            gif_controller_.reset();
+        }
+        lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
+        lv_label_set_text(emoji_label_, utf8);
+        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        // The glyph is this emotion's own, from noto_emoji or material_symbols, not a
+        // stand-in - so the request was honoured.
+        return true;
     }
 
     DisplayLockGuard lock(this);
@@ -1221,6 +1225,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_->Stop();
         gif_controller_.reset();
     }
+    bool shown = false;
     if (image->IsGif()) {
         // Create new GIF controller
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
@@ -1237,7 +1242,10 @@ void LcdDisplay::SetEmotion(const char* emotion) {
             // Show GIF, hide others
             lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+            shown = true;
         } else {
+            // The collection had an image for this emotion but it would not decode, so
+            // nothing is on screen for the request.
             ESP_LOGE(TAG, "Failed to load GIF for emotion: %s", emotion);
             gif_controller_.reset();
         }
@@ -1245,6 +1253,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         lv_image_set_src(emoji_image_, image->image_dsc());
         lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        shown = true;
     }
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
@@ -1261,6 +1270,9 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
     }
 #endif
+    // The WeChat style deliberately hides a neutral emotion. That is a choice about
+    // presentation, not a failure to honour the request, so `shown` stands as it was.
+    return shown;
 }
 
 void LcdDisplay::SetTheme(Theme* theme) {
