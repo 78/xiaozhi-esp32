@@ -8,6 +8,8 @@
 #include "cw2017_battery_monitor.h"
 #include "power_save_timer.h"
 
+#include <atomic>
+
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <esp_lcd_panel_ops.h>
@@ -41,10 +43,14 @@ enum {
 //    360 s    screen and codec off, CPU down-clocked - the "soft sleep" stage
 //   2160 s    deep sleep, entered from the soft-sleep stage as a fallback
 //
-// All three are gated by Application::CanEnterSleepMode(), which PowerSaveTimer
-// polls once per second, so an ongoing conversation or playback pushes the
-// deadline back instead of interrupting it. The NVS "sleep_mode" flag the
-// provisioning page writes disables all three at once.
+// The dim stage is the only one PowerSaveTimer still drives. The two stages
+// behind it run on a board-owned 1 Hz esp_timer: their countdown has to keep
+// running - and retry - while a request is declined, which a shared shutdown
+// request that fires once per idle cycle cannot express. All three are gated by
+// Application::CanEnterSleepMode(), checked on the main task before the stage is
+// entered, so an ongoing conversation or playback pushes the deadline back
+// instead of interrupting it. The NVS "sleep_mode" flag the provisioning page
+// writes disables all three at once.
 //
 // The soft-sleep stage is deliberately shallow: the CPU keeps running and DFS
 // only drops it to kStandbyCpuMinFreq. That is affordable because the
@@ -75,9 +81,12 @@ static constexpr int kDimSeconds = 60;
 static constexpr int kSoftSleepSeconds = 360;
 // Deep sleep this long after the last input.
 static constexpr int kDeepSleepSeconds = 2160;
-// PowerSaveTimer counts the fallback from the soft-sleep deadline rather than
-// from the last input.
-static constexpr int kDeepSleepAfterSoftSleepTicks = kDeepSleepSeconds - kSoftSleepSeconds;
+// The fallback counts from the soft-sleep stage rather than from the last input,
+// so a soft-sleep request the application declined delays it instead of
+// consuming it.
+static constexpr int kDeepSleepAfterSoftSleepSeconds = kDeepSleepSeconds - kSoftSleepSeconds;
+// Tick of the board-owned stage timer, in microseconds.
+static constexpr int64_t kIdleTimerPeriodUs = 1000000;
 // Dim level in percent. A display already at or below it is left alone.
 static constexpr int kDimBrightness = 10;
 // Safety net for the wake-key guard. The guard itself ends when the press that
@@ -229,11 +238,22 @@ private:
     // path is closed and the chip is about to be powered down.
     i2c_master_dev_handle_t es8311_handle_ = nullptr;
     PowerSaveTimer* power_save_timer_ = nullptr;
-    // Set and cleared on the main task, read from the button task. It is one
-    // byte, so the worst case is a wake press whose actions are not dropped.
-    bool soft_sleep_active_ = false;
-    bool deep_sleep_started_ = false;
-    int soft_sleep_ticks_ = 0;
+    // Owns the two stages behind the dim stage. The callback only counts and
+    // requests the transitions; the activity checks and every panel, codec or PM
+    // action stay on the main task.
+    esp_timer_handle_t idle_timer_ = nullptr;
+    // Bumped by every re-arm. A transition queued for the main task carries the
+    // generation it was requested in, so a key press that lands in between drops
+    // it instead of letting the device sleep on a stale request.
+    std::atomic<uint32_t> idle_generation_{0};
+    // Written by the timer callback, in seconds: whole seconds since the last key
+    // press for idle_seconds_, whole seconds since soft sleep became active for
+    // soft_sleep_seconds_.
+    std::atomic<int> idle_seconds_{0};
+    std::atomic<int> soft_sleep_seconds_{0};
+    // Set on the main task, read from the timer and button tasks.
+    std::atomic<bool> soft_sleep_active_{false};
+    std::atomic<bool> deep_sleep_started_{false};
     // Set while the press that woke the device is still in flight, so that press
     // cannot also change the volume or open the audio channel. The guard ends with
     // that press sequence rather than with a fixed window: the component grades a
@@ -242,15 +262,14 @@ private:
     bool wake_key_guard_ = false;
     // esp_timer_get_time() deadline the guard cannot outlive (kWakeKeyGuardMs).
     int64_t wake_key_guard_until_us_ = 0;
-    // Set from the button task on every key press. PowerSaveTimer resets its own
-    // counter on the same press, but both stage transitions are scheduled onto the
-    // main task and can still run just before the wake handler does. Without this
-    // the device would flicker into soft sleep - or fall asleep - on a key press
-    // that lands in that window.
+    // Set from the button task on every key press. Both stage transitions are
+    // scheduled onto the main task and can still run just before the wake handler
+    // does; the generation check in each transition is what drops them, and this
+    // deadline is the second line of defence for the same window.
     int64_t last_key_us_ = 0;
 
     // Guards the stage transitions against a key press that arrived while they
-    // were queued: PowerSaveTimer has already forgiven that press, but the wake
+    // were queued: the re-arm has already forgiven that press, but the wake
     // handler scheduled behind them has not run yet.
     bool IdleForAtLeast(int seconds) const {
         return esp_timer_get_time() - last_key_us_ >= (int64_t)seconds * 1000000;
@@ -466,6 +485,9 @@ private:
                 if (soft_sleep_active_) {
                     ArmWakeKeyGuard();
                 }
+                // Before WakeUpPowerSaveTimer(), so the bumped generation is
+                // already visible to the wake handler it schedules.
+                RearmIdleStages();
                 WakeUpPowerSaveTimer();
             });
             // Not released on press-up: the click that belongs to the wake press is
@@ -559,6 +581,86 @@ private:
         }
     }
 
+    // Ends the idle cycle: the countdown stops, the dim stage starts a fresh one,
+    // and a stage transition that is already queued for the main task is
+    // invalidated by the generation bump. Called from the button task.
+    void RearmIdleStages() {
+        idle_generation_.fetch_add(1, std::memory_order_relaxed);
+        StopIdleTimer();
+        idle_seconds_.store(0, std::memory_order_relaxed);
+        soft_sleep_seconds_.store(0, std::memory_order_relaxed);
+    }
+
+    void StopIdleTimer() {
+        if (idle_timer_ == nullptr || !esp_timer_is_active(idle_timer_)) {
+            return;
+        }
+        esp_err_t err = esp_timer_stop(idle_timer_);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Idle stage timer stop failed: %s", esp_err_to_name(err));
+        }
+    }
+
+    // Idempotent by construction: the dim stage is the only caller, and it fires
+    // again on every idle cycle, so a second start against a running timer is a
+    // no-op rather than a second timer or a restarted countdown.
+    void StartIdleTimer() {
+        if (idle_timer_ == nullptr || esp_timer_is_active(idle_timer_)) {
+            return;
+        }
+        // Count from the last key press instead of assuming the dim deadline was
+        // just reached: a press that lands in the same tick as the dim stage
+        // leaves the dim stage one press old, and that press has to count.
+        const int64_t idle_us = esp_timer_get_time() - last_key_us_;
+        idle_seconds_.store(static_cast<int>(idle_us / kIdleTimerPeriodUs),
+                            std::memory_order_relaxed);
+        soft_sleep_seconds_.store(0, std::memory_order_relaxed);
+        esp_err_t err = esp_timer_start_periodic(idle_timer_, kIdleTimerPeriodUs);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Idle stage timer start failed: %s", esp_err_to_name(err));
+            return;
+        }
+        ESP_LOGI(TAG, "Idle stages armed: %ds soft sleep, %ds deep sleep",
+                 kSoftSleepSeconds, kDeepSleepSeconds);
+    }
+
+    bool StageRequestStillCurrent(uint32_t generation) const {
+        return generation == idle_generation_.load(std::memory_order_relaxed);
+    }
+
+    // Runs on the esp_timer task once per second while an idle cycle is armed. It
+    // only counts and requests transitions: everything it requests lands on the
+    // main task, which is where the application state is readable and where the
+    // panel, codec and PM may be touched.
+    void OnIdleSecond() {
+        if (deep_sleep_started_) {
+            return;
+        }
+        const uint32_t generation = idle_generation_.load(std::memory_order_relaxed);
+        if (!soft_sleep_active_) {
+            const int elapsed_seconds =
+                idle_seconds_.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (elapsed_seconds < kSoftSleepSeconds) {
+                return;
+            }
+            // Requested again on every tick until it is accepted, so a request
+            // the application declines - a conversation that started after the
+            // dim stage, with no key press to re-arm anything - is retried a
+            // second later instead of being lost. The main task re-checks the
+            // gate, so a request that arrives while the device is busy is a
+            // no-op.
+            Application::GetInstance().Schedule(
+                [this, generation]() { EnterSoftSleep(generation); });
+            return;
+        }
+        const int soft_seconds = soft_sleep_seconds_.fetch_add(1, std::memory_order_relaxed) + 1;
+        if (soft_seconds < kDeepSleepAfterSoftSleepSeconds) {
+            return;
+        }
+        Application::GetInstance().Schedule(
+            [this, generation]() { EnterDeepSleep(generation); });
+    }
+
     // Pin holds are latched in the RTC domain and survive the deep-sleep reset
     // (see gpio_hold_en: the state is retained when the GPIO's power domain
     // goes off, including Deep-sleep events). Every hold taken before sleeping
@@ -605,13 +707,17 @@ private:
         // logic: both belong to the soft-sleep stage below, and PowerSaveTimer
         // would otherwise apply them at the dim stage (and with automatic light
         // sleep enabled, which is deliberately not used here).
-        power_save_timer_ = new PowerSaveTimer(-1, kDimSeconds, kSoftSleepSeconds);
+        power_save_timer_ = new PowerSaveTimer(-1, kDimSeconds);
         power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Idle %ds: backlight to %d%%", kDimSeconds, kDimBrightness);
             auto* backlight = GetBacklight();
             if (backlight != nullptr && backlight->brightness() > kDimBrightness) {
                 backlight->SetBrightness(kDimBrightness);
             }
+            // The dim deadline is where the board's countdown starts: it is the
+            // first point at which this idle cycle is past the stage PowerSaveTimer
+            // owns.
+            StartIdleTimer();
         });
         // PowerSaveTimer::WakeUp() runs on the esp_timer task because the button
         // task calls it, so everything that touches LVGL, the codec or Wi-Fi has
@@ -619,7 +725,20 @@ private:
         power_save_timer_->OnExitSleepMode([this]() {
             Application::GetInstance().Schedule([this]() { WakeFromIdle(); });
         });
-        power_save_timer_->OnShutdownRequest([this]() { OnSoftSleepDeadline(); });
+        // No OnShutdownRequest: the two stages behind the dim stage are driven by
+        // idle_timer_, so the staged policy no longer depends on that request
+        // being repeated once per second. It works the same either way, one-shot
+        // or periodic.
+
+        esp_timer_create_args_t idle_timer_args = {
+            .callback = [](void* arg) { static_cast<AiPassportBoard*>(arg)->OnIdleSecond(); },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "passport_idle",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&idle_timer_args, &idle_timer_));
+
         power_save_timer_->SetEnabled(true);
     }
 
@@ -634,33 +753,10 @@ private:
         GetBacklight()->RestoreBrightness();
     }
 
-    // PowerSaveTimer calls this once per second from the soft-sleep deadline on,
-    // and keeps calling it every second after that - both branches have to be
-    // idempotent.
-    void OnSoftSleepDeadline() {
-        // Past its sleep deadline PowerSaveTimer stops checking
-        // CanEnterSleepMode(), so a conversation started by the wake word - which
-        // presses no key and therefore never resets the tick counter - would
-        // otherwise keep counting and be cut off by the deep-sleep fallback. Hold
-        // the countdown here instead and let the deadline pass.
-        if (!Application::GetInstance().CanEnterSleepMode()) {
+    void EnterSoftSleep(uint32_t generation) {
+        if (!StageRequestStillCurrent(generation)) {
             return;
         }
-        if (deep_sleep_started_) {
-            return;
-        }
-        if (!soft_sleep_active_) {
-            // The stage drives the panel, the codec and Wi-Fi, all of which
-            // belong to the main task (and LVGL to the lock it owns).
-            Application::GetInstance().Schedule([this]() { EnterSoftSleep(); });
-            return;
-        }
-        if (++soft_sleep_ticks_ >= kDeepSleepAfterSoftSleepTicks) {
-            Application::GetInstance().Schedule([this]() { EnterDeepSleep(); });
-        }
-    }
-
-    void EnterSoftSleep() {
         if (soft_sleep_active_ || deep_sleep_started_) {
             return;
         }
@@ -668,6 +764,7 @@ private:
             return;
         }
         soft_sleep_active_ = true;
+        soft_sleep_seconds_.store(0, std::memory_order_relaxed);
         ESP_LOGI(TAG, "Idle %ds: screen off, codec off, CPU down-clocked", kSoftSleepSeconds);
 
         // Order matters. The audio input task re-enables the codec on every read
@@ -688,7 +785,7 @@ private:
             return;
         }
         soft_sleep_active_ = false;
-        soft_sleep_ticks_ = 0;
+        soft_sleep_seconds_.store(0, std::memory_order_relaxed);
         ESP_LOGI(TAG, "Input: waking from soft sleep");
 
         WakePanel();
@@ -768,17 +865,20 @@ private:
     // audio pins, I2C pins, panel). Individual failures are logged but do not
     // stop the remaining steps - the device must never be left awake with a
     // half-shut-down board.
-    void EnterDeepSleep() {
+    void EnterDeepSleep(uint32_t generation) {
+        if (!StageRequestStillCurrent(generation)) {
+            return;
+        }
         if (deep_sleep_started_) {
             return;
         }
-        // Same reason as OnSoftSleepDeadline(): never fire while the device is
-        // back in a conversation, and never fire on a key press that arrived
-        // while this transition was queued.
+        // Never fire while the device is back in a conversation, and never fire on
+        // a key press that arrived while this transition was queued.
         if (!Application::GetInstance().CanEnterSleepMode() || !IdleForAtLeast(kDeepSleepSeconds)) {
             return;
         }
         deep_sleep_started_ = true;
+        StopIdleTimer();
 
         ESP_LOGI(TAG, "Idle %ds: entering deep sleep, wake on any key", kDeepSleepSeconds);
 

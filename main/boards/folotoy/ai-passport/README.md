@@ -53,6 +53,15 @@ all counted from the last key press:
 | 360 s | Soft sleep | Panel Sleep In, backlight off, codec off, CPU down-clocked to 40 MHz |
 | 2160 s | Deep sleep | Entered from the soft-sleep stage; any key wakes the device through GPIO0 and restarts the application |
 
+The dim stage runs on `PowerSaveTimer`. The two stages behind it run on a
+board-owned 1 Hz `esp_timer` in the board file: their countdown has to keep
+running - and retry - while a request is declined, which a shared shutdown
+request cannot express, because it is one event per idle cycle rather than a
+heartbeat. The timer only counts and requests the transitions; the activity
+check and every panel, codec or PM action stay on the main task, and a key press
+both stops the countdown and invalidates a stage transition that is already
+queued there.
+
 `kDimSeconds`, `kSoftSleepSeconds`, `kDeepSleepSeconds`, `kDimBrightness` and
 `kStandbyCpuMinFreq` at the top of `ai_passport_board.cc` tune the policy. Three
 properties of this shape are deliberate:
@@ -90,11 +99,11 @@ That gate has two consequences worth knowing about:
   Sleeping outside the idle state would be a framework change affecting every
   board, so it is not done here - a Passport delivered unconfigured should be
   configured, not left on a shelf.
-- `PowerSaveTimer` stops checking that gate once it is past its sleep deadline,
-  so the board re-checks `CanEnterSleepMode()` itself in both stage transitions.
-  A conversation started by the wake word presses no key and therefore never
-  resets the tick counter; without the re-check the deep-sleep fallback would cut
-  it off mid-conversation.
+- The board re-checks the gate in both stage transitions and retries the
+  soft-sleep stage once per second until it is accepted. A conversation started
+  by the wake word presses no key and therefore never re-arms the countdown;
+  without the re-check and the retry it would either be cut off by the
+  deep-sleep fallback or lose the soft-sleep stage until the next key press.
 
 ### Turning the screen and audio off
 
@@ -231,7 +240,10 @@ the fallback.
 Not verified: the idle, soft-sleep and deep-sleep currents (the 20 mA above is an
 estimate from the parts list, not a measurement); and whether disabling
 `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` saves anything on top of the
-external 10 kOhm pull-up. A successful build is not hardware validation.
+external 10 kOhm pull-up. The countdown behind the stage timings above has since
+moved from `PowerSaveTimer`'s shutdown request to the board's own timer: the same
+60 / 360 / 2160 s deadlines are expected, but they have not been re-measured on
+hardware since that change. A successful build is not hardware validation.
 
 A note on `i2s_common: i2s_channel_disable ... has not been enabled yet` in the log:
 it comes from `esp_codec_dev`'s own pending-disable bookkeeping when the
