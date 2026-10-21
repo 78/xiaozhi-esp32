@@ -307,7 +307,9 @@ void EmoteDisplay::Unlock() {}
 bool EmoteDisplay::StopAnimDialog() {
     ESP_LOGI(TAG, "StopAnimDialog");
     if (emote_handle_) {
-        return emote_stop_anim_dialog(emote_handle_);
+        // esp_err_t, where ESP_OK is 0: returned as bool it reports false on success and true on
+        // failure. GetAssetData and SetEmotion compare against ESP_OK for the same reason.
+        return emote_stop_anim_dialog(emote_handle_) == ESP_OK;
     }
     return false;
 }
@@ -315,7 +317,7 @@ bool EmoteDisplay::StopAnimDialog() {
 bool EmoteDisplay::InsertAnimDialog(const char* emoji_name, uint32_t duration_ms) {
     ESP_LOGI(TAG, "InsertAnimDialog: %s, %" PRIu32, emoji_name, duration_ms);
     if (emote_handle_ && emoji_name) {
-        return emote_insert_anim_dialog(emote_handle_, emoji_name, duration_ms);
+        return emote_insert_anim_dialog(emote_handle_, emoji_name, duration_ms) == ESP_OK;
     }
     return false;
 }
