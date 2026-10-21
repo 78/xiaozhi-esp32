@@ -30,7 +30,7 @@
 
 ### 准备环境
 
-请先安装并激活 ESP-IDF v6.1 环境，然后克隆本项目：
+请先安装并激活 ESP-IDF `release/v6.1` 分支环境，然后克隆本项目：
 
 ```bash
 git clone https://github.com/78/xiaozhi-esp32.git
@@ -45,7 +45,7 @@ cd xiaozhi-esp32
 idf.py --preview set-target esp32s31
 ```
 
-> **注意:** 需要用最新的ESP IDF 6.1才能支持ESP32S31。
+> **注意:** 需要使用 ESP-IDF `release/v6.1` 分支以支持 ESP32-S31。
 
 打开配置菜单：
 
