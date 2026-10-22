@@ -952,6 +952,17 @@ config USE_MULTILINE_CHAT_MESSAGE
         When disabled (default), a single-line horizontally scrolling label
         is shown at the bottom of the screen.
 
+config READING_MESSAGE_STYLE_FOLLOW_WORDS
+    bool "Reading style: light the answer word by word as it is spoken"
+    depends on USE_READING_MESSAGE_STYLE
+    default y
+    help
+        The text of a sentence appears before its voice; the part already spoken is
+        drawn in the text color and the rest is faded. When enabled, the lit part
+        moves through each sentence with the audio (estimated from the playback
+        position and the measured speaking rate). When disabled, a whole sentence
+        lights up when its audio starts.
+
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
     default WAKE_WORD_DISABLED

@@ -219,6 +219,19 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 
+    // Follows the spoken answer; resumed when a spoken sentence arrives.
+    speech_timer_ = lv_timer_create(
+        [](lv_timer_t* timer) {
+            static_cast<LcdDisplay*>(lv_timer_get_user_data(timer))->FollowSpeech();
+        },
+        100, this);
+    lv_timer_pause(speech_timer_);
+#if CONFIG_READING_MESSAGE_STYLE_FOLLOW_WORDS
+    speech_.set_word_level(true);
+#else
+    speech_.set_word_level(false);
+#endif
+
     ApplyReadingColors(lvgl_theme);
 }
 
@@ -249,27 +262,55 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
             StartThinking();  // the question is in; the answer has not started yet
         }
     } else {
-        if (conversation_ended_ && content[0] != '\0') {
-            ClearTranscript();
-        }
-        // An empty assistant message clears the subtitle in the other styles; here the
-        // answer stays readable until the transcript is cleared, so it is ignored.
-        ApplyTranscriptUpdate(transcript_.AddAssistant(content));
-        if (content[0] != '\0' && pending_ == ReadingPending::kThinking) {
-            StopThinking();
-            // The counter wrote over the status text; put back the one for the state.
-            if (status_label_ != nullptr && device_state_ == kDeviceStateSpeaking) {
-                lv_label_set_text(status_label_, Lang::Strings::SPEAKING);
-            } else if (status_label_ != nullptr && device_state_ == kDeviceStateListening) {
-                lv_label_set_text(status_label_, Lang::Strings::LISTENING);
-            }
-        }
+        AppendAssistant(content, 0);
     }
 
     if (follow_latest_) {
         ScrollToLatest(true);
     }
     UpdateMoreBelow();
+}
+
+void LcdDisplay::AddSpokenSentence(uint32_t speech_id, const char* text) {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr || text == nullptr) {
+        return;
+    }
+    AppendAssistant(text, speech_id);
+    if (follow_latest_) {
+        ScrollToLatest(true);
+    }
+    UpdateMoreBelow();
+}
+
+void LcdDisplay::SetSpeechProgress(uint32_t speech_id, uint32_t position_ms) {
+    speech_progress_.store((static_cast<uint64_t>(speech_id) << 32) | position_ms);
+}
+
+void LcdDisplay::OnSpeechInterrupted() { speech_interrupted_.store(true); }
+
+void LcdDisplay::AppendAssistant(const char* text, uint32_t speech_id) {
+    if (conversation_ended_ && text[0] != '\0') {
+        ClearTranscript();
+    }
+    // An empty assistant message clears the subtitle in the other styles; here the
+    // answer stays readable until the transcript is cleared, so it is ignored.
+    auto update = transcript_.AddAssistant(text, speech_id);
+    ApplyTranscriptUpdate(update);
+    if (text[0] != '\0' && pending_ == ReadingPending::kThinking) {
+        StopThinking();
+        // The counter wrote over the status text; put back the one for the state.
+        if (status_label_ != nullptr && device_state_ == kDeviceStateSpeaking) {
+            lv_label_set_text(status_label_, Lang::Strings::SPEAKING);
+        } else if (status_label_ != nullptr && device_state_ == kDeviceStateListening) {
+            lv_label_set_text(status_label_, Lang::Strings::LISTENING);
+        }
+    }
+    if (speech_id != 0 && update.turn_id != 0 && speech_timer_ != nullptr) {
+        // Start following; the grace period covers the audio that is still buffering.
+        last_progress_us_ = esp_timer_get_time();
+        lv_timer_resume(speech_timer_);
+    }
 }
 
 void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
@@ -312,6 +353,7 @@ void LcdDisplay::ClearTranscript() {
     turn_views_.clear();
     follow_latest_ = true;
     conversation_ended_ = false;
+    speech_.Reset();
     if (content_ != nullptr) {
         lv_obj_scroll_to_y(content_, 0, LV_ANIM_OFF);
     }
@@ -372,6 +414,7 @@ void LcdDisplay::EndConversation() {
     }
     conversation_ended_ = true;
     ApplyTurnColors(static_cast<LvglTheme*>(current_theme_));
+    UpdateSpokenSelection();
 }
 
 void LcdDisplay::SetPending(ReadingPending pending) {
@@ -500,6 +543,8 @@ void LcdDisplay::ApplyTranscriptUpdate(const ReadingTranscript::Update& update) 
         CreateTurnView(update.turn_id);
         // A new question always opens on a fresh page, even if the reader had paged back.
         follow_latest_ = true;
+        speech_.Reset();
+        speech_interrupted_.store(false);
     }
     if (auto view = FindTurnView(update.turn_id)) {
         SyncTurnView(*view);
@@ -538,9 +583,13 @@ void LcdDisplay::CreateTurnView(uint32_t id) {
     view.assistant = CreateWrappedLabel(view.box);
     lv_obj_add_flag(view.assistant, LV_OBJ_FLAG_HIDDEN);
 
-    // Only the newest turn is a full page tall; the older ones shrink to their text.
+    // Only the newest turn is a full page tall; the older ones shrink to their text and no
+    // longer show what was left unspoken.
     if (!turn_views_.empty()) {
+        lv_obj_t* previous = turn_views_.back().assistant;
         lv_obj_set_style_min_height(turn_views_.back().box, 0, 0);
+        lv_label_set_text_selection_start(previous, LV_LABEL_TEXT_SELECTION_OFF);
+        lv_label_set_text_selection_end(previous, LV_LABEL_TEXT_SELECTION_OFF);
     }
     turn_views_.push_back(view);
     AttachTrailingLabels();
@@ -607,6 +656,66 @@ void LcdDisplay::SyncTurnView(ReadingTurnView& view) {
     }
     lv_label_set_text(view.assistant, answer.c_str());
     lv_obj_remove_flag(view.assistant, LV_OBJ_FLAG_HIDDEN);
+    if (!turn_views_.empty() && &view == &turn_views_.back()) {
+        UpdateSpokenSelection();
+    }
+}
+
+// The part of the newest answer that has not been spoken yet is drawn faded, through the
+// label's text selection. Nothing is selected once everything has been spoken, when the
+// conversation has ended, or in older turns.
+void LcdDisplay::UpdateSpokenSelection() {
+    if (turn_views_.empty() || transcript_.turns().empty()) {
+        return;
+    }
+    const ReadingTurnView& view = turn_views_.back();
+    const ReadingTranscript::Turn& turn = transcript_.turns().back();
+    if (view.id != turn.id) {
+        return;
+    }
+    const std::vector<size_t> ends = turn.SentenceEnds();
+    const uint32_t prefix = turn.trimmed ? 3 : 0;  // the "..." marker
+    const uint32_t total = prefix + (ends.empty() ? 0 : ends.back());
+    const uint32_t lit = prefix + speech_.LitChars(turn);
+    if (conversation_ended_ || lit >= total) {
+        lv_label_set_text_selection_start(view.assistant, LV_LABEL_TEXT_SELECTION_OFF);
+        lv_label_set_text_selection_end(view.assistant, LV_LABEL_TEXT_SELECTION_OFF);
+        return;
+    }
+    lv_label_set_text_selection_start(view.assistant, lit);
+    lv_label_set_text_selection_end(view.assistant, total);
+}
+
+// Runs every 100 ms while an answer is being spoken, from the LVGL timer (lock held).
+// Frames are reported about every 60 ms; when none has played for a while the speech has
+// paused between sentences or ended.
+void LcdDisplay::FollowSpeech() {
+    if (transcript_.turns().empty()) {
+        lv_timer_pause(speech_timer_);
+        return;
+    }
+    const ReadingTranscript::Turn& turn = transcript_.turns().back();
+    if (speech_interrupted_.exchange(false)) {
+        speech_.OnInterrupted();
+    }
+    bool changed = false;
+    const uint64_t progress = speech_progress_.load();
+    const int64_t now = esp_timer_get_time();
+    if (progress != applied_progress_) {
+        applied_progress_ = progress;
+        last_progress_us_ = now;
+        changed = speech_.OnProgress(static_cast<uint32_t>(progress >> 32),
+                                     static_cast<uint32_t>(progress), turn);
+    } else if (now - last_progress_us_ > 300 * 1000) {
+        const bool speaking = device_state_ == kDeviceStateSpeaking;
+        changed = speech_.OnPlaybackPaused(speaking, turn);
+        if (!speaking) {
+            lv_timer_pause(speech_timer_);  // nothing more is coming for this answer
+        }
+    }
+    if (changed) {
+        UpdateSpokenSelection();
+    }
 }
 
 // The newest turn is exactly one transcript page tall (see the top of this file). The
@@ -646,6 +755,10 @@ void LcdDisplay::ApplyTurnColors(LvglTheme* lvgl_theme) {
         lv_obj_set_style_text_color(view.user, QuestionColor(lvgl_theme), 0);
         lv_obj_set_style_text_color(
             view.assistant, current ? lvgl_theme->text_color() : QuestionColor(lvgl_theme), 0);
+        // The part not spoken yet (see UpdateSpokenSelection()); the selection background
+        // is the screen background so only the text color changes.
+        lv_obj_set_style_text_color(view.assistant, QuestionColor(lvgl_theme), LV_PART_SELECTED);
+        lv_obj_set_style_bg_color(view.assistant, lvgl_theme->background_color(), LV_PART_SELECTED);
     }
 }
 

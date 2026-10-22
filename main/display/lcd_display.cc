@@ -346,6 +346,9 @@ LcdDisplay::~LcdDisplay() {
     if (thinking_timer_ != nullptr) {
         lv_timer_delete(thinking_timer_);
     }
+    if (speech_timer_ != nullptr) {
+        lv_timer_delete(speech_timer_);
+    }
 #endif
 
     if (preview_image_ != nullptr) {

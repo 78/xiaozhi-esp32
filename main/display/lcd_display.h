@@ -71,6 +71,15 @@ protected:
     DeviceState device_state_ = kDeviceStateUnknown;
     bool conversation_ended_ = false;
 
+    // Following the spoken answer. The audio task only writes the two atomics; the
+    // speech timer applies them under the LVGL lock.
+    SpeechFollower speech_;
+    std::atomic<uint64_t> speech_progress_{0};  // (speech id << 32) | position in ms
+    std::atomic<bool> speech_interrupted_{false};
+    lv_timer_t* speech_timer_ = nullptr;
+    uint64_t applied_progress_ = 0;
+    int64_t last_progress_us_ = 0;
+
     void ApplyTranscriptUpdate(const ReadingTranscript::Update& update);
     ReadingTurnView* FindTurnView(uint32_t id);
     void CreateTurnView(uint32_t id);
@@ -91,6 +100,9 @@ protected:
     void ApplyStatusTint(LvglTheme* theme);
     void EndConversation();
     void ClearTranscript();
+    void AppendAssistant(const char* text, uint32_t speech_id);
+    void FollowSpeech();
+    void UpdateSpokenSelection();
 #endif
 
 protected:
@@ -115,6 +127,9 @@ public:
 #if CONFIG_USE_READING_MESSAGE_STYLE
     virtual bool ScrollChat(int direction) override;
     virtual void OnDeviceStateChanged(DeviceState state) override;
+    virtual void AddSpokenSentence(uint32_t speech_id, const char* text) override;
+    virtual void SetSpeechProgress(uint32_t speech_id, uint32_t position_ms) override;
+    virtual void OnSpeechInterrupted() override;
 #endif
 };
 

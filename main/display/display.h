@@ -74,6 +74,23 @@ public:
     // state are set, so a display style can follow the conversation (listening, the
     // end of a conversation, the start of the next one).
     virtual void OnDeviceStateChanged(DeviceState state) { (void)state; }
+    // One sentence of a spoken answer. speech_id is non-zero and grows with every
+    // sentence; the audio of the sentence is reported through SetSpeechProgress() with the
+    // same id. Displays that do not follow the speech show it as an assistant message.
+    virtual void AddSpokenSentence(uint32_t speech_id, const char* text) {
+        (void)speech_id;
+        SetChatMessage("assistant", text);
+    }
+    // A frame of the spoken sentence speech_id started playing at position_ms within the
+    // sentence. Called from the audio output task for every frame, so it must not block:
+    // implementations only record the value.
+    virtual void SetSpeechProgress(uint32_t speech_id, uint32_t position_ms) {
+        (void)speech_id;
+        (void)position_ms;
+    }
+    // The spoken answer was cut off, for example because the user interrupted it.
+    // May be called from any task; must not block.
+    virtual void OnSpeechInterrupted() {}
     virtual bool InsertAnimDialog(const char* name, uint32_t duration_ms) {
         (void)name;
         (void)duration_ms;

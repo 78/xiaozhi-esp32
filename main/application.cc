@@ -22,6 +22,12 @@
 
 #define TAG "Application"
 
+namespace {
+// Playback ids of text-to-speech sentences carry this bit; notification sounds use small
+// ids counted from 1, so the two never collide.
+constexpr uint32_t kSpeechPlaybackIdFlag = 0x80000000;
+}  // namespace
+
 Application::Application() : notify_player_(audio_service_) {
     event_group_ = xEventGroupCreate();
 
@@ -93,8 +99,13 @@ void Application::Initialize() {
     callbacks.on_playback_drained = [this]() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_PLAYBACK_DRAINED);
     };
-    callbacks.on_playback_progress = [this](uint32_t playback_id, uint32_t media_position_ms) {
-        notify_player_.OnPlaybackProgress(playback_id, media_position_ms);
+    callbacks.on_playback_progress = [this, display](uint32_t playback_id,
+                                                     uint32_t media_position_ms) {
+        if (playback_id & kSpeechPlaybackIdFlag) {
+            display->SetSpeechProgress(playback_id, media_position_ms);
+        } else {
+            notify_player_.OnPlaybackProgress(playback_id, media_position_ms);
+        }
     };
     audio_service_.SetCallbacks(callbacks);
 
@@ -566,6 +577,18 @@ void Application::InitializeProtocol() {
 
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (GetDeviceState() == kDeviceStateSpeaking) {
+            // Tag the packet with its sentence and its position in it; the audio service
+            // reports both back as the packet is played, so the display can follow along.
+            const uint32_t speech_id = speech_sentence_id_.load();
+            if (speech_id != 0 && packet->playback_id == 0) {
+                if (speech_id != tagged_speech_id_) {
+                    tagged_speech_id_ = speech_id;
+                    tagged_speech_position_ms_ = 0;
+                }
+                packet->playback_id = speech_id;
+                packet->media_position_ms = tagged_speech_position_ms_;
+                tagged_speech_position_ms_ += packet->frame_duration;
+            }
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -658,10 +681,15 @@ void Application::InitializeProtocol() {
                         glyphs.clear();
                     }
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    Schedule([display, message = std::string(text->valuestring),
+                    // Number the sentence now, before its audio arrives, so the audio that
+                    // follows is tagged with it.
+                    const uint32_t speech_id =
+                        kSpeechPlaybackIdFlag | (++speech_sentence_count_ & ~kSpeechPlaybackIdFlag);
+                    speech_sentence_id_.store(speech_id);
+                    Schedule([display, speech_id, message = std::string(text->valuestring),
                               glyphs = std::move(glyphs), bpp]() {
                         display->AddTextGlyphs(glyphs, bpp);
-                        display->SetChatMessage("assistant", message.c_str());
+                        display->AddSpokenSentence(speech_id, message.c_str());
                     });
                 }
             }
@@ -1258,6 +1286,7 @@ void Application::Schedule(std::function<void()>&& callback) {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    Board::GetInstance().GetDisplay()->OnSpeechInterrupted();
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);
     }

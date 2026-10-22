@@ -6,6 +6,7 @@
 #include <freertos/task.h>
 #include <esp_timer.h>
 
+#include <atomic>
 #include <string>
 #include <mutex>
 #include <deque>
@@ -144,6 +145,13 @@ private:
     AudioService audio_service_;
     NotifyPlayer notify_player_;
     uint32_t notification_playback_id_ = 0;
+    // Text-to-speech sentences are numbered so the display can match their audio to their
+    // text. The incoming-JSON handler sets the current sentence; the tagging state below
+    // is only touched by the incoming-audio callback.
+    std::atomic<uint32_t> speech_sentence_id_{0};
+    uint32_t speech_sentence_count_ = 0;
+    uint32_t tagged_speech_id_ = 0;
+    uint32_t tagged_speech_position_ms_ = 0;
     std::unique_ptr<Ota> ota_;
 
     std::function<void(const std::string&)> mcp_broadcast_callback_;
