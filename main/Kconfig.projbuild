@@ -961,7 +961,8 @@ config READING_MESSAGE_STYLE_FOLLOW_WORDS
         drawn in the text color and the rest is faded. When enabled, the lit part
         moves through each sentence with the audio (estimated from the playback
         position and the measured speaking rate). When disabled, a whole sentence
-        lights up when its audio starts.
+        lights up when its audio starts. This is the default; the device MCP tool
+        self.screen.set_subtitle_mode changes it at runtime and keeps the choice.
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"

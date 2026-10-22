@@ -91,6 +91,12 @@ public:
     // The spoken answer was cut off, for example because the user interrupted it.
     // May be called from any task; must not block.
     virtual void OnSpeechInterrupted() {}
+    // How a spoken answer is lit: word by word (true) or a whole sentence when its audio
+    // starts (false). Returns false when the display does not follow the speech.
+    virtual bool SetSpeechFollowWords(bool words) {
+        (void)words;
+        return false;
+    }
     virtual bool InsertAnimDialog(const char* name, uint32_t duration_ms) {
         (void)name;
         (void)duration_ms;

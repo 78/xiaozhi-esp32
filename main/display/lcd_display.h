@@ -130,6 +130,7 @@ public:
     virtual void AddSpokenSentence(uint32_t speech_id, const char* text) override;
     virtual void SetSpeechProgress(uint32_t speech_id, uint32_t position_ms) override;
     virtual void OnSpeechInterrupted() override;
+    virtual bool SetSpeechFollowWords(bool words) override;
 #endif
 };
 

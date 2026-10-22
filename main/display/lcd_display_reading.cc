@@ -19,6 +19,7 @@
 
 #include "assets/lang_config.h"
 #include "lvgl_theme.h"
+#include "settings.h"
 
 #include <esp_log.h>
 #include <material_symbols.h>
@@ -227,12 +228,27 @@ void LcdDisplay::SetupUI() {
         100, this);
     lv_timer_pause(speech_timer_);
 #if CONFIG_READING_MESSAGE_STYLE_FOLLOW_WORDS
-    speech_.set_word_level(true);
+    constexpr bool kFollowWordsByDefault = true;
 #else
-    speech_.set_word_level(false);
+    constexpr bool kFollowWordsByDefault = false;
 #endif
+    // The MCP tool self.screen.set_subtitle_mode stores the user's choice.
+    Settings settings("display", false);
+    speech_.set_word_level(settings.GetBool("follow_words", kFollowWordsByDefault));
 
     ApplyReadingColors(lvgl_theme);
+}
+
+bool LcdDisplay::SetSpeechFollowWords(bool words) {
+    {
+        DisplayLockGuard lock(this);
+        speech_.set_word_level(words);
+        UpdateSpokenSelection();
+    }
+    Settings settings("display", true);
+    settings.SetBool("follow_words", words);
+    ESP_LOGI(TAG, "Subtitles follow the speech %s", words ? "word by word" : "by sentence");
+    return true;
 }
 
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
