@@ -434,6 +434,23 @@ The script:
 - Builds `build/merged-binary.bin` without creating a ZIP by default. Pass
   `--zip` to recreate `releases/v<version>_<name>.zip`.
 
+#### Windows: command line too long
+
+If a Windows build fails with a Ninja `CreateProcess` error because the compiler
+command exceeds the 32,767-character limit, enable CMake/Ninja response files.
+In the same project directory and ESP-IDF terminal where the build failed, run:
+
+```powershell
+idf.py -D CMAKE_NINJA_FORCE_RESPONSE_FILE=ON reconfigure
+idf.py build
+```
+
+This passes compiler arguments via an `@file` instead of expanding them on the
+command line. Repeat the reconfigure command after `idf.py fullclean` or clearing
+the CMake cache. Moving the project to a shorter path (for example `E:\xz`) may
+also help; enabling Windows long-path support does not raise the command-line
+length limit. See the [workaround in #2340](https://github.com/78/xiaozhi-esp32/issues/2340#issuecomment-6317383781).
+
 ### 6. Write the README
 
 In `README.md`, describe the board, hardware requirements, build instructions, and any special notes.
