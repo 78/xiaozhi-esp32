@@ -8,6 +8,11 @@
 // as it grows. Lines that trail the conversation (the transient system line) are kept
 // inside the newest box so they never push its page up. ScrollChat() lets a board page
 // back through the transcript; following resumes once the view is back at the end.
+//
+// OnDeviceStateChanged() follows the conversation: a "listening" line while the device
+// waits for speech, a waiting line and a seconds counter between the question and the
+// first sentence, a status row tinted by state, and at the end of a conversation the
+// last turn stays on screen, faded, until the next conversation starts.
 #include "lcd_display.h"
 
 #if CONFIG_USE_READING_MESSAGE_STYLE
@@ -20,12 +25,23 @@
 
 #include <algorithm>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <string>
 
 #define TAG "LcdDisplay"
 
 namespace {
+
+// Status row accents. They are mixed with the theme colors so they work on light and
+// dark backgrounds alike.
+constexpr uint32_t kListeningAccent = 0x1F5FD1;
+constexpr uint32_t kThinkingAccent = 0xC98A00;
+constexpr uint32_t kSpeakingAccent = 0x1E8E4E;
+
+lv_color_t AccentText(LvglTheme* theme, uint32_t accent) {
+    return lv_color_mix(lv_color_hex(accent), theme->text_color(), 200);
+}
 
 // Question text and dividers are derived from the theme so both light and dark work.
 lv_color_t QuestionColor(LvglTheme* theme) {
@@ -162,7 +178,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_right(content_, 2, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(content_, LV_OPA_COVER, LV_PART_SCROLLBAR);
 
-    // Transient system line (activation hints, errors); see AttachTrailingLabels().
+    // Listening / waiting line, then the transient system line (activation hints,
+    // errors); both trail the conversation, see AttachTrailingLabels().
+    pending_label_ = CreateWrappedLabel(content_);
+    lv_obj_add_flag(pending_label_, LV_OBJ_FLAG_HIDDEN);
+
     system_label_ = CreateWrappedLabel(content_);
     lv_obj_set_style_radius(system_label_, lvgl_theme->spacing(2), 0);
     lv_obj_set_style_pad_all(system_label_, lvgl_theme->spacing(2), 0);
@@ -221,11 +241,29 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
             lv_obj_remove_flag(system_label_, LV_OBJ_FLAG_HIDDEN);
         }
     } else if (strcmp(role, "user") == 0) {
+        if (conversation_ended_ && content[0] != '\0') {
+            ClearTranscript();  // the faded turn of a finished conversation gives way
+        }
         ApplyTranscriptUpdate(transcript_.AddUser(content));
+        if (content[0] != '\0' && device_state_ == kDeviceStateListening) {
+            StartThinking();  // the question is in; the answer has not started yet
+        }
     } else {
+        if (conversation_ended_ && content[0] != '\0') {
+            ClearTranscript();
+        }
         // An empty assistant message clears the subtitle in the other styles; here the
         // answer stays readable until the transcript is cleared, so it is ignored.
         ApplyTranscriptUpdate(transcript_.AddAssistant(content));
+        if (content[0] != '\0' && pending_ == ReadingPending::kThinking) {
+            StopThinking();
+            // The counter wrote over the status text; put back the one for the state.
+            if (status_label_ != nullptr && device_state_ == kDeviceStateSpeaking) {
+                lv_label_set_text(status_label_, Lang::Strings::SPEAKING);
+            } else if (status_label_ != nullptr && device_state_ == kDeviceStateListening) {
+                lv_label_set_text(status_label_, Lang::Strings::LISTENING);
+            }
+        }
     }
 
     if (follow_latest_) {
@@ -253,8 +291,19 @@ void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
     UpdateMoreBelow();
 }
 
+// The application calls this when the device returns to idle. Unlike the other styles it
+// does not wipe the screen: the last turn stays readable, faded, and is cleared when the
+// next conversation starts (see OnDeviceStateChanged()).
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
+    if (system_label_ != nullptr) {
+        lv_obj_add_flag(system_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+    EndConversation();
+    UpdateMoreBelow();
+}
+
+void LcdDisplay::ClearTranscript() {
     transcript_.Clear();
     ParkTrailingLabels();
     for (auto& view : turn_views_) {
@@ -262,13 +311,158 @@ void LcdDisplay::ClearChatMessages() {
     }
     turn_views_.clear();
     follow_latest_ = true;
-    if (system_label_ != nullptr) {
-        lv_obj_add_flag(system_label_, LV_OBJ_FLAG_HIDDEN);
-    }
+    conversation_ended_ = false;
     if (content_ != nullptr) {
         lv_obj_scroll_to_y(content_, 0, LV_ANIM_OFF);
     }
+}
+
+void LcdDisplay::OnDeviceStateChanged(DeviceState state) {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr) {
+        return;
+    }
+    device_state_ = state;
+    switch (state) {
+        case kDeviceStateConnecting:
+            // A new conversation starts on an empty screen.
+            ClearTranscript();
+            StopThinking();
+            SetPending(ReadingPending::kNone);
+            break;
+        case kDeviceStateListening:
+            // Boards that keep the audio channel open go from idle straight to listening.
+            if (conversation_ended_) {
+                ClearTranscript();
+            }
+            StopThinking();
+            SetPending(ReadingPending::kListening);
+            break;
+        case kDeviceStateIdle:
+            // Keeps a system line that is still showing, such as a network error.
+            EndConversation();
+            break;
+        case kDeviceStateSpeaking:
+            // Servers start speaking (tts start) before the first sentence of the answer
+            // arrives, sometimes seconds before; keep the waiting line and its counter
+            // until there is text to show.
+            if (pending_ == ReadingPending::kThinking) {
+                UpdateThinkingStatus();  // the state change has just written "speaking" there
+            } else {
+                SetPending(ReadingPending::kNone);
+            }
+            break;
+        default:
+            StopThinking();
+            SetPending(ReadingPending::kNone);
+            break;
+    }
+    ApplyStatusTint(static_cast<LvglTheme*>(current_theme_));
+    if (follow_latest_) {
+        ScrollToLatest(true);
+    }
     UpdateMoreBelow();
+}
+
+void LcdDisplay::EndConversation() {
+    StopThinking();
+    SetPending(ReadingPending::kNone);
+    if (turn_views_.empty()) {
+        return;
+    }
+    conversation_ended_ = true;
+    ApplyTurnColors(static_cast<LvglTheme*>(current_theme_));
+}
+
+void LcdDisplay::SetPending(ReadingPending pending) {
+    pending_ = pending;
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+    StylePending(lvgl_theme);
+    ApplyStatusTint(lvgl_theme);
+}
+
+void LcdDisplay::StylePending(LvglTheme* lvgl_theme) {
+    if (pending_label_ == nullptr) {
+        return;
+    }
+    switch (pending_) {
+        case ReadingPending::kListening:
+            lv_label_set_text(pending_label_, Lang::Strings::LISTENING);
+            lv_obj_set_style_text_color(pending_label_, AccentText(lvgl_theme, kListeningAccent),
+                                        0);
+            break;
+        case ReadingPending::kThinking:
+            lv_label_set_text(pending_label_, "...");
+            lv_obj_set_style_text_color(pending_label_, QuestionColor(lvgl_theme), 0);
+            break;
+        case ReadingPending::kNone:
+            lv_obj_add_flag(pending_label_, LV_OBJ_FLAG_HIDDEN);
+            return;
+    }
+    lv_obj_remove_flag(pending_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void LcdDisplay::StartThinking() {
+    thinking_since_us_ = esp_timer_get_time();
+    SetPending(ReadingPending::kThinking);
+    if (thinking_timer_ == nullptr) {
+        thinking_timer_ = lv_timer_create(
+            [](lv_timer_t* timer) {
+                static_cast<LcdDisplay*>(lv_timer_get_user_data(timer))->UpdateThinkingStatus();
+            },
+            1000, this);
+    }
+    UpdateThinkingStatus();
+}
+
+void LcdDisplay::StopThinking() {
+    if (thinking_timer_ != nullptr) {
+        lv_timer_delete(thinking_timer_);
+        thinking_timer_ = nullptr;
+    }
+    if (pending_ == ReadingPending::kThinking) {
+        SetPending(ReadingPending::kNone);
+    }
+}
+
+// Counts the seconds spent waiting for the answer in the status row, so a slow reply
+// does not look like a hang. Runs from an LVGL timer, which already holds the lock.
+void LcdDisplay::UpdateThinkingStatus() {
+    if (status_label_ == nullptr || pending_ != ReadingPending::kThinking) {
+        return;
+    }
+    const int64_t seconds = (esp_timer_get_time() - thinking_since_us_) / 1000000;
+    std::string text = Lang::Strings::PLEASE_WAIT;
+    if (seconds >= 2) {
+        text += " " + std::to_string(seconds) + "s";
+    }
+    lv_label_set_text(status_label_, text.c_str());
+}
+
+void LcdDisplay::ApplyStatusTint(LvglTheme* lvgl_theme) {
+    if (top_bar_ == nullptr) {
+        return;
+    }
+    uint32_t accent = 0;
+    if (pending_ == ReadingPending::kThinking) {
+        accent = kThinkingAccent;
+    } else if (device_state_ == kDeviceStateListening) {
+        accent = kListeningAccent;
+    } else if (device_state_ == kDeviceStateSpeaking || device_state_ == kDeviceStateNotifying) {
+        accent = kSpeakingAccent;
+    }
+    // The border keeps one width in every state so the page height never changes.
+    lv_obj_set_style_border_width(top_bar_, 2, 0);
+    if (accent == 0) {
+        lv_obj_set_style_bg_opa(top_bar_, LV_OPA_50, 0);
+        lv_obj_set_style_bg_color(top_bar_, lvgl_theme->chat_background_color(), 0);
+        lv_obj_set_style_border_color(top_bar_, DividerColor(lvgl_theme), 0);
+        return;
+    }
+    lv_obj_set_style_bg_opa(top_bar_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(
+        top_bar_, lv_color_mix(lv_color_hex(accent), lvgl_theme->background_color(), 56), 0);
+    lv_obj_set_style_border_color(top_bar_, lv_color_hex(accent), 0);
 }
 
 bool LcdDisplay::ScrollChat(int direction) {
@@ -426,11 +620,8 @@ void LcdDisplay::ResizeNewestTurn() {
 }
 
 void LcdDisplay::ApplyReadingColors(LvglTheme* lvgl_theme) {
-    if (top_bar_ != nullptr) {
-        lv_obj_set_style_bg_opa(top_bar_, LV_OPA_50, 0);
-        lv_obj_set_style_bg_color(top_bar_, lvgl_theme->chat_background_color(), 0);
-        lv_obj_set_style_border_color(top_bar_, DividerColor(lvgl_theme), 0);
-    }
+    ApplyStatusTint(lvgl_theme);
+    StylePending(lvgl_theme);
     if (content_ != nullptr) {
         lv_obj_set_style_bg_color(content_, QuestionColor(lvgl_theme), LV_PART_SCROLLBAR);
     }
@@ -445,36 +636,46 @@ void LcdDisplay::ApplyReadingColors(LvglTheme* lvgl_theme) {
     ApplyTurnColors(lvgl_theme);
 }
 
-// The answer being read is drawn in the text color; earlier turns are faded.
+// The answer being read is drawn in the text color; earlier turns are faded, and so is
+// the last one once the conversation has ended.
 void LcdDisplay::ApplyTurnColors(LvglTheme* lvgl_theme) {
     for (size_t i = 0; i < turn_views_.size(); ++i) {
         const auto& view = turn_views_[i];
-        const bool newest = i + 1 == turn_views_.size();
+        const bool current = i + 1 == turn_views_.size() && !conversation_ended_;
         lv_obj_set_style_border_color(view.box, DividerColor(lvgl_theme), 0);
         lv_obj_set_style_text_color(view.user, QuestionColor(lvgl_theme), 0);
         lv_obj_set_style_text_color(
-            view.assistant, newest ? lvgl_theme->text_color() : QuestionColor(lvgl_theme), 0);
+            view.assistant, current ? lvgl_theme->text_color() : QuestionColor(lvgl_theme), 0);
     }
 }
 
 // Trailing lines live at the end of the newest box, inside its one-page minimum height,
 // so showing one never scrolls the start of the newest turn off the screen.
 void LcdDisplay::AttachTrailingLabels() {
-    if (content_ == nullptr || system_label_ == nullptr) {
+    if (content_ == nullptr) {
         return;
     }
     lv_obj_t* parent = turn_views_.empty() ? content_ : turn_views_.back().box;
-    if (lv_obj_get_parent(system_label_) != parent) {
-        lv_obj_set_parent(system_label_, parent);
+    for (lv_obj_t* label : {pending_label_, system_label_}) {
+        if (label == nullptr) {
+            continue;
+        }
+        if (lv_obj_get_parent(label) != parent) {
+            lv_obj_set_parent(label, parent);
+        }
+        lv_obj_move_to_index(label, -1);
     }
-    lv_obj_move_to_index(system_label_, -1);
 }
 
 // Moves the trailing lines back to the transcript before turn boxes are deleted.
 void LcdDisplay::ParkTrailingLabels() {
-    if (content_ != nullptr && system_label_ != nullptr &&
-        lv_obj_get_parent(system_label_) != content_) {
-        lv_obj_set_parent(system_label_, content_);
+    if (content_ == nullptr) {
+        return;
+    }
+    for (lv_obj_t* label : {pending_label_, system_label_}) {
+        if (label != nullptr && lv_obj_get_parent(label) != content_) {
+            lv_obj_set_parent(label, content_);
+        }
     }
 }
 

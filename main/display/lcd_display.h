@@ -62,6 +62,15 @@ protected:
     lv_obj_t* more_below_label_ = nullptr;
     bool follow_latest_ = true;
 
+    // What the line after the newest turn shows while no answer text is on screen.
+    enum class ReadingPending { kNone, kListening, kThinking };
+    ReadingPending pending_ = ReadingPending::kNone;
+    lv_obj_t* pending_label_ = nullptr;
+    lv_timer_t* thinking_timer_ = nullptr;
+    int64_t thinking_since_us_ = 0;
+    DeviceState device_state_ = kDeviceStateUnknown;
+    bool conversation_ended_ = false;
+
     void ApplyTranscriptUpdate(const ReadingTranscript::Update& update);
     ReadingTurnView* FindTurnView(uint32_t id);
     void CreateTurnView(uint32_t id);
@@ -74,6 +83,14 @@ protected:
     void ApplyReadingColors(LvglTheme* theme);
     void ScrollToLatest(bool animate);
     void UpdateMoreBelow();
+    void SetPending(ReadingPending pending);
+    void StylePending(LvglTheme* theme);
+    void StartThinking();
+    void StopThinking();
+    void UpdateThinkingStatus();
+    void ApplyStatusTint(LvglTheme* theme);
+    void EndConversation();
+    void ClearTranscript();
 #endif
 
 protected:
@@ -97,6 +114,7 @@ public:
 
 #if CONFIG_USE_READING_MESSAGE_STYLE
     virtual bool ScrollChat(int direction) override;
+    virtual void OnDeviceStateChanged(DeviceState state) override;
 #endif
 };
 

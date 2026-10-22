@@ -343,6 +343,9 @@ LcdDisplay::~LcdDisplay() {
     if (more_below_label_ != nullptr) {
         lv_obj_del(more_below_label_);
     }
+    if (thinking_timer_ != nullptr) {
+        lv_timer_delete(thinking_timer_);
+    }
 #endif
 
     if (preview_image_ != nullptr) {

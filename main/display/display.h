@@ -1,6 +1,7 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#include "device_state.h"
 #include "emoji_collection.h"
 #include "text_glyph.h"
 
@@ -69,6 +70,10 @@ public:
         (void)direction;
         return false;
     }
+    // Called on every device state change, after the status and emotion for the new
+    // state are set, so a display style can follow the conversation (listening, the
+    // end of a conversation, the start of the next one).
+    virtual void OnDeviceStateChanged(DeviceState state) { (void)state; }
     virtual bool InsertAnimDialog(const char* name, uint32_t duration_ms) {
         (void)name;
         (void)duration_ms;

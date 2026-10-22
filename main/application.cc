@@ -1079,6 +1079,8 @@ void Application::HandleStateChangedEvent() {
             // Do nothing
             break;
     }
+    // After the generic updates above, so a display style can build on them.
+    display->OnDeviceStateChanged(new_state);
 }
 
 void Application::ShowStartupWakeWordHint() {
