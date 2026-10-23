@@ -1,0 +1,23 @@
+{
+    "manufacturer": "xh",
+    "type": "xh-s3e-ai",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "xh-s3e-ai-sh1106",
+            "sdkconfig_append": [
+                "CONFIG_OLED_SH1106_128X64=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        },
+        {
+            "name": "xh-s3e-ai-ssd1306",
+            "sdkconfig_append": [
+                "CONFIG_OLED_SSD1306_128X64=y",
+                "CONFIG_USE_ESP_WAKE_WORD=y",
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        }
+    ]
+}
