@@ -428,8 +428,14 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_QUANDONG_S3_DEV
-        bool "Quandong ESP32-S3 Development Board (全动)"
+    config BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD
+        bool "Quandong ESP32-S3 2.8-inch SPI LCD (全动 2.8寸)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV_3_5_LCD
+        bool "Quandong ESP32-S3 3.5-inch QSPI LCD (全动 3.5寸)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV_4_0_LCD
+        bool "Quandong ESP32-S3 4.0-inch SPI LCD (全动 4.0寸)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_RYMCU_BIGSMART
         bool "RYMCU BigSmart"
