@@ -640,7 +640,9 @@ public:
     }
 
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
+        // Apply the first power snapshot even when booting on USB, so unplugging
+        // later enables a fresh countdown instead of leaving a consumed request.
+        static int last_discharging = -1;
         charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
         discharging = !charging;
         level = (int)BatterygetPercent(false);

@@ -64,6 +64,7 @@ void PowerSaveTimer::PowerSaveCheck() {
     auto& app = Application::GetInstance();
     if (!in_sleep_mode_ && !app.CanEnterSleepMode()) {
         ticks_ = 0;
+        shutdown_requested_ = false;
         return;
     }
 
@@ -99,12 +100,9 @@ void PowerSaveTimer::PowerSaveCheck() {
             }
         }
     }
-    // Once, not once a second. ticks_ is not reset here, so without the flag this fires on
-    // every tick for as long as the device stays idle. Boards that power down inside the callback
-    // never see the repeat; a board whose callback can decline - asking a PMIC and staying up on
-    // external power, say - receives it indefinitely.
+    // Latch before invoking the callback so it can rearm the request with WakeUp().
     if (seconds_to_shutdown_ != -1 && ticks_ >= seconds_to_shutdown_ && on_shutdown_request_ &&
-            !shutdown_requested_) {
+        !shutdown_requested_) {
         shutdown_requested_ = true;
         on_shutdown_request_();
     }
