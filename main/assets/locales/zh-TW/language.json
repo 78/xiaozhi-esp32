@@ -55,6 +55,12 @@
         "CONNECTION_SUCCESSFUL": "連線成功",
         "FLIGHT_MODE_OFF": "飛航模式已關閉",
         "FLIGHT_MODE_ON": "飛航模式已開啟",
-        "MODEM_INIT_ERROR": "模組初始化失敗"
+        "MODEM_INIT_ERROR": "模組初始化失敗",
+        "KEY_HINT_POWER": "電源",
+        "KEY_HINT_HOLD_VOLUME_UP": "長按 音量+",
+        "KEY_HINT_TAP_PAGE_UP": "輕觸 上翻頁",
+        "KEY_HINT_HOLD_VOLUME_DOWN": "長按 音量-",
+        "KEY_HINT_TAP_PAGE_DOWN": "輕觸 下翻頁",
+        "KEY_HINT_TAP_CHAT": "輕觸 開始/結束對話"
     }
 }

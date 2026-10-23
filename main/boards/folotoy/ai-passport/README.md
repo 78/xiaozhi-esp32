@@ -50,6 +50,31 @@ transcript on screen can be paged, so UP and DOWN change roles:
 Because the ladder shares one ADC pin, XiaoZhi reads it as three
 independent ADC buttons (the same pattern as the ESP-BOX-Lite).
 
+### Key hints at start-up
+
+With the reading message style the board labels its keys along the screen
+edges every time the firmware starts: a power-on, a reset, or a wake from the
+deep-sleep fallback (a wake from soft sleep is not a start-up and shows
+nothing).
+
+| Key | Label, next to the key |
+| --- | --- |
+| Power (left side; hardware only, hold 0.5 s to switch on, ~2 s to switch off) | ◀ Power |
+| UP (right side, top) | Hold: volume + / Tap: page up ▶ |
+| DOWN (right side, middle) | Hold: volume - / Tap: page down ▶ |
+| OK (right side, bottom) | Tap: start/end chat ▶ |
+
+The labels stay for 3 s, turn grey for 1 s and are then removed. Text that
+appears in the transcript - the listening line, a question or an answer, or a
+system message such as the Wi-Fi setup instructions, an activation code or an
+error - removes them at once. Status row text does not, and the firmware version
+line printed at start-up is held back while they are up. The two top labels sit
+under the status row so the start-up progress stays readable.
+
+The key positions (`k*KeyCenterY` in `passport_display.cc`) were measured on the
+FoloToy product drawings. The strings are `KEY_HINT_*` in the en-US, zh-CN and
+zh-TW language files; other languages fall back to English.
+
 ## Power management
 
 The Passport is a battery wearable, so the board gives up power in three stages,

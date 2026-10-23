@@ -55,6 +55,12 @@
         "FOUND_NEW_ASSETS": "Found new assets: %s",
         "DOWNLOAD_ASSETS_FAILED": "Failed to download assets",
         "LOADING_ASSETS": "Loading assets...",
-        "HELLO_MY_FRIEND": "Hello, my friend!"
+        "HELLO_MY_FRIEND": "Hello, my friend!",
+        "KEY_HINT_POWER": "Power",
+        "KEY_HINT_HOLD_VOLUME_UP": "Hold: volume +",
+        "KEY_HINT_TAP_PAGE_UP": "Tap: page up",
+        "KEY_HINT_HOLD_VOLUME_DOWN": "Hold: volume -",
+        "KEY_HINT_TAP_PAGE_DOWN": "Tap: page down",
+        "KEY_HINT_TAP_CHAT": "Tap: start/end chat"
     }
 }
