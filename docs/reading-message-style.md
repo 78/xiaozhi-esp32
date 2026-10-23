@@ -78,8 +78,9 @@ The Passport board ([`main/boards/folotoy/ai-passport`](../main/boards/folotoy/a
 labels its keys next to them every time the firmware starts: the power key on
 the left, UP / DOWN / OK on the right. The labels stay for 3 s, turn grey for
 1 s and are removed; text appearing in the transcript removes them at once,
-status row text does not. See
-[08-key-hints](reading-message-style/08-key-hints.gif).
+status row text does not. Until Wi-Fi connects, a tap on OK enters Wi-Fi setup,
+so the OK label reads "Tap: Wi-Fi setup" and changes once the device is online.
+See [08-key-hints](reading-message-style/08-key-hints.gif).
 
 ## Limits
 

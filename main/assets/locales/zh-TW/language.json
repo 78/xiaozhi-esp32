@@ -61,6 +61,7 @@
         "KEY_HINT_TAP_PAGE_UP": "輕觸 上翻頁",
         "KEY_HINT_HOLD_VOLUME_DOWN": "長按 音量-",
         "KEY_HINT_TAP_PAGE_DOWN": "輕觸 下翻頁",
-        "KEY_HINT_TAP_CHAT": "輕觸 開始/結束對話"
+        "KEY_HINT_TAP_CHAT": "輕觸 開始/結束對話",
+        "KEY_HINT_TAP_WIFI_SETUP": "輕觸 進入配網"
     }
 }

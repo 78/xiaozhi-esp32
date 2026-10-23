@@ -61,6 +61,7 @@
         "KEY_HINT_TAP_PAGE_UP": "Tap: page up",
         "KEY_HINT_HOLD_VOLUME_DOWN": "Hold: volume -",
         "KEY_HINT_TAP_PAGE_DOWN": "Tap: page down",
-        "KEY_HINT_TAP_CHAT": "Tap: start/end chat"
+        "KEY_HINT_TAP_CHAT": "Tap: start/end chat",
+        "KEY_HINT_TAP_WIFI_SETUP": "Tap: Wi-Fi setup"
     }
 }

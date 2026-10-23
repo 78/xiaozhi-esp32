@@ -107,7 +107,7 @@
           <div class="hint at-left" style="top:47px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>电源</span></div>
           <div class="hint at-right first-line" style="top:47px"><span>长按 音量+<br>轻触 上翻页</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
           <div class="hint at-right" style="top:128px"><span>长按 音量-<br>轻触 下翻页</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
-          <div class="hint at-right" style="top:258px"><span>轻触 开始/结束对话</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
+          <div class="hint at-right" style="top:258px"><span id="okhint">轻触 开始/结束对话</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
         </div>
         <div class="dim" id="dim"></div>
       </div></div>
@@ -220,8 +220,8 @@
   S.push({ name: "翻页与音量", desc: "回答很长，边听边往回看，再调一下音量。", events: ev, end: end + 3000 });
 
   ev = [];
-  ev.push({ at: 0, type: "boot", text: "正在初始化...", who: "按键", what: "按住电源键 0.5 秒开机", screen: "四块提示贴在对应的按键旁边：左边电源，右边上、下、确定" });
-  ev.push({ at: 1500, type: "status", text: "检查新版本...", who: "设备", what: "连上 Wi-Fi，检查新版本", screen: "状态栏的文字在变，提示不受影响" });
+  ev.push({ at: 0, type: "boot", text: "正在初始化...", who: "按键", what: "按住电源键 0.5 秒开机", screen: "四块提示贴在对应的按键旁边：左边电源，右边上、下、确定；还没连上 Wi-Fi 时轻触确定会进配网，所以确定键写“轻触 进入配网”" });
+  ev.push({ at: 1500, type: "status", text: "检查新版本...", online: true, who: "设备", what: "连上 Wi-Fi，检查新版本", screen: "确定键的提示换成“轻触 开始/结束对话”；状态栏的文字在变，提示不受影响" });
   ev.push({ at: 3000, type: "hintsgrey", who: "设备", what: "3 秒到", screen: "提示变灰" });
   ev.push({ at: 4000, type: "hintsoff", who: "设备", what: "再过 1 秒", screen: "提示消失" });
   ev.push({ at: 4600, type: "status", text: "待命", who: "设备", what: "激活完成，进入待命", screen: "状态栏短暂显示版本号" });
@@ -242,7 +242,7 @@
   // Replays the events up to time t into a model of what is on screen.
   function simulate(scn, now) {
     const st = { status: "22:59", tone: "idle", mood: "neutral", turns: [], listening: false, thinkSince: -1,
-                 notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: null, sys: "" };
+                 notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: null, sys: "", starting: false };
     for (const e of scn.events) {
       if (e.at > now) break;
       const cur = st.turns[st.turns.length - 1];
@@ -250,8 +250,8 @@
       if (["listen", "stt", "say", "error", "system"].includes(e.type)) st.hints = null;
       switch (e.type) {
         case "boot": Object.assign(st, { status: e.text, tone: "idle", mood: "neutral", turns: [], listening: false, thinkSince: -1,
-            notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: "on", sys: "" }); break;
-        case "status": st.status = e.text; break;
+            notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: "on", sys: "", starting: true }); break;
+        case "status": st.status = e.text; if (e.online) st.starting = false; break;
         case "hintsgrey": if (st.hints) st.hints = "grey"; break;
         case "hintsoff": st.hints = null; break;
         case "system": st.sys = e.text; break;
@@ -349,6 +349,7 @@
     } else bar.style.display = "none";
     $("dim").classList.toggle("show", st.dim);
     $("hints").className = "hints" + (st.hints ? " show" : "") + (st.hints === "grey" ? " grey" : "");
+    $("okhint").textContent = st.starting ? "轻触 进入配网" : "轻触 开始/结束对话";
     // event list
     const evs = scn.events.filter(e => e.what);
     let cur = -1; evs.forEach((e, i) => { if (e.at <= t) cur = i; });

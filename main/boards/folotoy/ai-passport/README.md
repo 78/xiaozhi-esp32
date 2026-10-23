@@ -62,9 +62,10 @@ nothing).
 | Power (left side; hardware only, hold 0.5 s to switch on, ~2 s to switch off) | ◀ Power |
 | UP (right side, top) | Hold: volume + / Tap: page up ▶ |
 | DOWN (right side, middle) | Hold: volume - / Tap: page down ▶ |
-| OK (right side, bottom) | Tap: start/end chat ▶ |
+| OK (right side, bottom) | Tap: start/end chat ▶ (Tap: Wi-Fi setup ▶ until the device is online) |
 
-The labels stay for 3 s, turn grey for 1 s and are then removed. Text that
+Until Wi-Fi connects, a tap on OK enters Wi-Fi setup (see Controls), so the OK
+label says so and changes when start-up is over. The labels stay for 3 s, turn grey for 1 s and are then removed. Text that
 appears in the transcript - the listening line, a question or an answer, or a
 system message such as the Wi-Fi setup instructions, an activation code or an
 error - removes them at once. Status row text does not, and the firmware version

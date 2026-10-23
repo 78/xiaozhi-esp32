@@ -68,11 +68,23 @@ void PassportDisplay::ShowKeyHints() {
     CreateKeyHint(false, kDownKeyCenterY,
                   std::string(Lang::Strings::KEY_HINT_HOLD_VOLUME_DOWN) + "\n" +
                       Lang::Strings::KEY_HINT_TAP_PAGE_DOWN);
-    CreateKeyHint(false, kOkKeyCenterY, Lang::Strings::KEY_HINT_TAP_CHAT);
+    // Until the device is online, a tap on OK enters Wi-Fi setup (see ToggleChat() in the
+    // board), so the label says so and changes once start-up is over.
+    key_hint_ok_setup_ = Application::GetInstance().GetDeviceState() == kDeviceStateStarting;
+    lv_obj_t* ok = CreateKeyHint(false, kOkKeyCenterY,
+                                 key_hint_ok_setup_ ? Lang::Strings::KEY_HINT_TAP_WIFI_SETUP
+                                                    : Lang::Strings::KEY_HINT_TAP_CHAT);
+    const uint32_t count = lv_obj_get_child_count(ok);
+    for (uint32_t i = 0; i < count; ++i) {
+        lv_obj_t* child = lv_obj_get_child(ok, i);
+        if (!lv_obj_has_flag(child, kKeyHintArrowFlag)) {
+            key_hint_ok_label_ = child;
+        }
+    }
     PlaceKeyHints();
 
     key_hint_timer_ = lv_timer_create(OnKeyHintTimer, kKeyHintShowMs, this);
-    ESP_LOGI(TAG, "Key hints shown");
+    ESP_LOGI(TAG, "Key hints shown (OK: %s)", key_hint_ok_setup_ ? "Wi-Fi setup" : "conversation");
 }
 
 // One label on a screen edge, text only: an arrow pointing at the key, then one or two
@@ -190,6 +202,7 @@ void PassportDisplay::HideKeyHints(const char* reason) {
     if (key_hints_ != nullptr) {
         lv_obj_delete(key_hints_);
         key_hints_ = nullptr;
+        key_hint_ok_label_ = nullptr;
         ESP_LOGI(TAG, "Key hints hidden (%s)", reason);
     }
 }
@@ -211,6 +224,23 @@ void PassportDisplay::SetTheme(Theme* theme) {
         StyleKeyHint(lv_obj_get_child(key_hints_, i));
     }
     PlaceKeyHints();
+    UpdateOkHint();
+}
+
+// Start-up is over once the device is online: the assets load (SetTheme()) and the
+// version check sets the status right after it.
+void PassportDisplay::UpdateOkHint() {
+    if (key_hint_ok_label_ == nullptr || !key_hint_ok_setup_) {
+        return;
+    }
+    const auto state = Application::GetInstance().GetDeviceState();
+    if (state == kDeviceStateStarting || state == kDeviceStateWifiConfiguring) {
+        return;  // still a tap for Wi-Fi setup; the setup text removes the labels anyway
+    }
+    key_hint_ok_setup_ = false;
+    lv_label_set_text(key_hint_ok_label_, Lang::Strings::KEY_HINT_TAP_CHAT);
+    PlaceKeyHints();
+    ESP_LOGI(TAG, "Key hint for OK: conversation");
 }
 
 void PassportDisplay::SetStatus(const char* status) {
@@ -219,9 +249,11 @@ void PassportDisplay::SetStatus(const char* status) {
     // put text in the transcript (the listening line, the question, the answer), so
     // the labels give way; the status text itself does not count.
     const auto state = Application::GetInstance().GetDeviceState();
+    DisplayLockGuard lock(this);
     if (state == kDeviceStateListening || state == kDeviceStateSpeaking) {
-        DisplayLockGuard lock(this);
         HideKeyHints("conversation");
+    } else {
+        UpdateOkHint();
     }
 }
 

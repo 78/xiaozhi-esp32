@@ -32,6 +32,7 @@ private:
     lv_obj_t* CreateKeyHint(bool left_edge, int key_center_y, const std::string& text);
     void StyleKeyHint(lv_obj_t* hint);
     void PlaceKeyHints();
+    void UpdateOkHint();
     void GreyKeyHints();
     void HideKeyHints(const char* reason);
     static void OnKeyHintTimer(lv_timer_t* timer);
@@ -39,6 +40,8 @@ private:
     lv_obj_t* key_hints_ = nullptr;  // full-screen layer holding the labels
     lv_timer_t* key_hint_timer_ = nullptr;
     bool key_hints_grey_ = false;
+    lv_obj_t* key_hint_ok_label_ = nullptr;  // text of the OK label
+    bool key_hint_ok_setup_ = false;         // it still says "Wi-Fi setup"
 #endif
 };
 

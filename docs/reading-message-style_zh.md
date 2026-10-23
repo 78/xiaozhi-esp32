@@ -56,7 +56,7 @@
 
 ## FoloToy AI Passport：开机按键提示
 
-Passport 板子（[`main/boards/folotoy/ai-passport`](../main/boards/folotoy/ai-passport/README.md)）每次启动时在按键旁边标出它们的作用：左边电源键，右边上、下、确定键。提示显示 3 秒，变灰 1 秒后消失；正文出现文字时立刻消失，状态栏文字不影响。见[开机按键提示](reading-message-style/08-key-hints.gif)。
+Passport 板子（[`main/boards/folotoy/ai-passport`](../main/boards/folotoy/ai-passport/README.md)）每次启动时在按键旁边标出它们的作用：左边电源键，右边上、下、确定键。提示显示 3 秒，变灰 1 秒后消失；正文出现文字时立刻消失，状态栏文字不影响。还没连上 Wi-Fi 时轻触确定键会进入配网，所以确定键先写“轻触 进入配网”，连上后换成“轻触 开始/结束对话”。见[开机按键提示](reading-message-style/08-key-hints.gif)。
 
 ## 限制
 
