@@ -37,6 +37,7 @@ class PowerSaveTimerTests(unittest.TestCase):
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using esp_err_t = int;
@@ -93,15 +94,23 @@ struct Board {
 struct Application {
     bool idle = true;
     AudioService audio;
+    std::vector<std::function<void()>> pending;
     static Application& GetInstance() { static Application app; return app; }
     bool CanEnterSleepMode() { return idle; }
     AudioService& GetAudioService() { return audio; }
+    void Schedule(std::function<void()> callback) { pending.push_back(callback); }
+    void Flush() {
+        auto callbacks = std::move(pending);
+        pending.clear();
+        for (auto& callback : callbacks) callback();
+    }
 };
-void Tick(int seconds) {
+void Tick(int seconds, bool run_main = true) {
     for (int second = 0; second < seconds; ++second) {
         for (auto* timer : timers) {
             if (timer->active) timer->args.callback(timer->args.arg);
         }
+        if (run_main) Application::GetInstance().Flush();
     }
 }
 '''
@@ -151,7 +160,8 @@ public:
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string test = argv[1];
-    if (test == "usb_boot" || test == "battery_boot" || test == "plug_unplug") {
+    if (test == "usb_boot" || test == "battery_boot" || test == "plug_unplug" ||
+        test == "short_usb" || test == "queued_usb") {
         usb_connected = test == "usb_boot";
         Watcher watcher;
         watcher.InitializePowerSaveTimer();
@@ -169,6 +179,14 @@ int main(int argc, char** argv) {
             assert(power_offs == 0);
             usb_connected = false;
             watcher.Snapshot();
+        } else if (test == "short_usb" || test == "queued_usb") {
+            Tick(299);
+            usb_connected = true;
+            Tick(1, test != "queued_usb");  // Battery polling misses this connection.
+            assert(power_offs == 0);
+            usb_connected = false;
+            watcher.Snapshot();
+            Application::GetInstance().Flush();
         }
         Tick(299);
         assert(power_offs == 0);
@@ -257,3 +275,9 @@ int main(int argc, char** argv) {
 
     def test_watcher_plug_and_unplug_restart_countdown(self):
         self.run_case("plug_unplug")
+
+    def test_watcher_retries_after_usb_connection_missed_by_polling(self):
+        self.run_case("short_usb")
+
+    def test_watcher_unplugs_before_queued_charging_request_runs(self):
+        self.run_case("queued_usb")
