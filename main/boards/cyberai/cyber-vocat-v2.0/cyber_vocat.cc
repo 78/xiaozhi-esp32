@@ -1,3 +1,4 @@
+#include "../common/low_battery_shutdown.h"
 #include "application.h"
 #include "backlight.h"
 #include "button.h"
@@ -345,7 +346,7 @@ public:
         return true;
     }
 
-    bool GetSnapshot(int& level, bool& charging, bool& discharging) {
+    bool GetSnapshot(int& level, bool& charging, bool& discharging, int* voltage_mv = nullptr) {
         std::lock_guard<std::mutex> lock(sample_mutex_);
         const int64_t now = esp_timer_get_time() / 1000;
         if (!sample_valid_ || now - sample_at_ms_ > 10000)
@@ -353,18 +354,21 @@ public:
         level = level_;
         charging = charging_;
         discharging = discharging_;
+        if (voltage_mv != nullptr)
+            *voltage_mv = voltage_mv_;
         return true;
     }
 
     bool Update() {
-        uint16_t level, status, average, current;
+        uint16_t level, status, average, current, voltage;
         if (!ReadWord(kRegStateOfCharge, level) || !ReadWord(kRegBatteryStatus, status) ||
             !ReadWord(kRegAverageCurrent, average) || !ReadWord(kRegCurrent, current) ||
-            level > 100)
+            !ReadWord(kRegVoltage, voltage) || level > 100 || voltage < 2000 || voltage > 5000)
             return false;
         ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_value));
         std::lock_guard<std::mutex> lock(sample_mutex_);
         level_ = level;
+        voltage_mv_ = voltage;
         discharging_ = (status & kBatteryStatusDsg) != 0;
         // Current is a fallback: AverageCurrent can lag charger insertion.
         charging_ = !discharging_ || static_cast<int16_t>(average) > kChargingCurrentMa ||
@@ -377,6 +381,7 @@ public:
 private:
     std::mutex sample_mutex_;
     int level_ = 0;
+    int voltage_mv_ = 0;
     bool charging_ = false;
     bool discharging_ = false;
     bool sample_valid_ = false;
@@ -496,6 +501,8 @@ private:
     bool power_key_armed_ = false;
     bool power_key_pressed_ = false;
     std::atomic<bool> power_off_requested_{false};
+    cyberai::LowBatteryShutdown low_battery_shutdown_{
+        LOW_BATTERY_SHUTDOWN_PERCENT, LOW_BATTERY_SHUTDOWN_MV, LOW_BATTERY_SHUTDOWN_CONFIRM_MS};
     TaskHandle_t power_off_task_handle_ = nullptr;
     Display* display_ = nullptr;
 #if CONFIG_USE_EMOTE_MESSAGE_STYLE
@@ -620,13 +627,32 @@ private:
         }
     }
 
+    void CheckLowBatteryShutdown(bool healthy) {
+        if (power_off_requested_.load()) {
+            return;
+        }
+        int level = 0;
+        int voltage_mv = 0;
+        bool charging = false;
+        bool discharging = false;
+        const bool valid = healthy && charge_ != nullptr &&
+                           charge_->GetSnapshot(level, charging, discharging, &voltage_mv);
+        if (low_battery_shutdown_.Update(valid, level, voltage_mv, charging, discharging,
+                                         esp_timer_get_time() / 1000)) {
+            ESP_LOGW(TAG, "Empty battery confirmed: %d%%, %d mV; requesting power off", level,
+                     voltage_mv);
+            RequestPowerOff();
+        }
+    }
+
     static void battery_task(void* arg) {
         auto* self = static_cast<CyberVocat*>(arg);
         while (true) {
             bool healthy = false;
             if (self != nullptr && self->charge_ != nullptr) {
                 healthy = self->charge_->Update();
-                if (healthy)
+                self->CheckLowBatteryShutdown(healthy);
+                if (healthy && !self->power_off_requested_.load())
                     self->HandleBatteryEmotions();
             }
             vTaskDelay(pdMS_TO_TICKS(healthy ? 2000 : 5000));
@@ -824,7 +850,7 @@ private:
         if (xTaskCreate(power_off_task, "power_off", 3072, nullptr, 5, &power_off_task_handle_) !=
             pdPASS) {
             power_off_requested_.store(false);
-            ESP_LOGW(TAG, "Power-off task creation failed; press the power key again to retry");
+            ESP_LOGW(TAG, "Power-off task creation failed; another request can retry");
         }
     }
 

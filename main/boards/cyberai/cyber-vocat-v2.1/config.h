@@ -15,6 +15,11 @@
 #define PG2_HOLD_ACTIVE_LEVEL 1
 #define PG2_RUNNING_LEVEL 0
 #define POWER_KEY_LONG_PRESS_MS 2000
+
+// Empty-battery shutdown: both thresholds must hold continuously while discharging.
+#define LOW_BATTERY_SHUTDOWN_PERCENT 1
+#define LOW_BATTERY_SHUTDOWN_MV 3500
+#define LOW_BATTERY_SHUTDOWN_CONFIRM_MS 10000
 #define PG2_POWER_OFF_PULSE_MS 200
 
 #define AUDIO_I2S_GPIO_MCLK GPIO_NUM_5
