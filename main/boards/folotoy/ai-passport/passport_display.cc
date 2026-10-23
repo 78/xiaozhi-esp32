@@ -75,7 +75,8 @@ void PassportDisplay::ShowKeyHints() {
     ESP_LOGI(TAG, "Key hints shown");
 }
 
-// One label on a screen edge: an arrow pointing at the key, then one or two lines.
+// One label on a screen edge, text only: an arrow pointing at the key, then one or two
+// lines.
 lv_obj_t* PassportDisplay::CreateKeyHint(bool left_edge, int key_center_y,
                                          const std::string& text) {
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
@@ -91,9 +92,6 @@ lv_obj_t* PassportDisplay::CreateKeyHint(bool left_edge, int key_center_y,
         lv_obj_add_flag(hint, kKeyHintTwoLinesFlag);
     }
     lv_obj_set_user_data(hint, reinterpret_cast<void*>(static_cast<intptr_t>(key_center_y)));
-    lv_obj_set_style_bg_opa(hint, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(hint, 1, 0);
-    lv_obj_set_style_radius(hint, 6, 0);
     lv_obj_set_style_pad_hor(hint, lvgl_theme->spacing(2), 0);
     lv_obj_set_style_pad_ver(hint, lvgl_theme->spacing(1), 0);
     lv_obj_set_style_pad_column(hint, lvgl_theme->spacing(1), 0);
@@ -121,8 +119,6 @@ void PassportDisplay::StyleKeyHint(lv_obj_t* hint) {
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     const lv_color_t text = lvgl_theme->text_color();
     const lv_color_t background = lvgl_theme->background_color();
-    lv_obj_set_style_bg_color(hint, background, 0);
-    lv_obj_set_style_border_color(hint, lv_color_mix(text, background, 40), 0);
     // Grey is the colour of the faded earlier turns in the transcript.
     lv_obj_set_style_text_color(hint, key_hints_grey_ ? lv_color_mix(text, background, 150) : text,
                                 0);
