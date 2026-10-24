@@ -4,8 +4,10 @@
 #include "settings.h"
 
 #include <esp_log.h>
+#include <esp_wifi.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <algorithm>
 #include <charconv>
 #include <cstring>
 #include <system_error>
@@ -141,8 +143,16 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
                     }
                 });
             }
-        } else if (on_incoming_json_ != nullptr) {
-            on_incoming_json_(root);
+        } else {
+            if (strcmp(type->valuestring, "tts") == 0) {
+                auto state = cJSON_GetObjectItem(root, "state");
+                if (cJSON_IsString(state)) {
+                    CheckUdpHealth(state->valuestring);
+                }
+            }
+            if (on_incoming_json_ != nullptr) {
+                on_incoming_json_(root);
+            }
         }
         cJSON_Delete(root);
         last_incoming_time_ = std::chrono::steady_clock::now();
@@ -306,6 +316,7 @@ bool MqttProtocol::OpenAudioChannel() {
          * |payload payload_len|
          */
         constexpr size_t kAudioHeaderSize = 16;
+        udp_rx_packets_++;
         if (data.size() < kAudioHeaderSize) {
             ESP_LOGE(TAG, "Invalid audio packet size: %zu", data.size());
             return;
@@ -567,3 +578,98 @@ bool MqttProtocol::IsAudioChannelOpened() const {
     std::lock_guard<std::mutex> lock(channel_mutex_);
     return udp_ != nullptr && !error_occurred_ && !IsTimeout();
 }
+
+#if CONFIG_MQTT_UDP_FALLBACK_TO_WEBSOCKET
+namespace {
+
+constexpr int64_t kMinTtsDurationUs = 1000000;
+constexpr int kFallbackInitialBoots = 10;  // WebSocket boots before retrying MQTT
+constexpr int kFallbackMaxBoots = 200;     // doubled on each repeated failure
+
+// The decision is bound to the network it was made on: UDP being dropped here
+// says nothing about the next network. Boards without Wi-Fi share one key.
+std::string UdpFallbackKey() {
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        char key[16];  // "ws_" + 12 hex digits fits the 15-char NVS key limit
+        snprintf(key, sizeof(key), "ws_%02x%02x%02x%02x%02x%02x", ap.bssid[0], ap.bssid[1],
+                 ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5]);
+        return key;
+    }
+    return "ws_default";
+}
+
+}  // namespace
+
+bool MqttProtocol::IsUdpBlockedOnThisNetwork() {
+    auto key = UdpFallbackKey();
+    Settings settings("udp_fallback", true);
+    // Low 16 bits: boots left on WebSocket. High 16 bits: the penalty that
+    // produced them, doubled when the same network fails again.
+    int packed = settings.GetInt(key.c_str(), 0);
+    int boots_left = packed & 0xFFFF;
+    if (boots_left == 0) {
+        return false;
+    }
+    settings.SetInt(key.c_str(), (packed & ~0xFFFF) | (boots_left - 1));
+    ESP_LOGW(TAG, "UDP audio was blocked on this network, using WebSocket (%d boots left)",
+             boots_left - 1);
+    return true;
+}
+
+void MqttProtocol::CheckUdpHealth(const char* tts_state) {
+    if (strcmp(tts_state, "start") == 0) {
+        tts_start_rx_packets_ = udp_rx_packets_.load();
+        tts_start_time_us_ = esp_timer_get_time();
+        tts_sentences_ = 0;
+        return;
+    }
+    if (strcmp(tts_state, "sentence_start") == 0) {
+        tts_sentences_++;
+        return;
+    }
+    if (strcmp(tts_state, "stop") != 0 || tts_start_time_us_ < 0) {
+        return;
+    }
+    int64_t duration_us = esp_timer_get_time() - tts_start_time_us_;
+    uint32_t received = udp_rx_packets_.load() - tts_start_rx_packets_;
+    tts_start_time_us_ = -1;
+
+    if (received > 0) {
+        // UDP works here again: forget an earlier penalty for this network.
+        Settings settings("udp_fallback", true);
+        auto key = UdpFallbackKey();
+        if (settings.GetInt(key.c_str(), 0) != 0) {
+            settings.SetInt(key.c_str(), 0);
+        }
+        return;
+    }
+    // Only judge segments that announced speech and lasted long enough for
+    // audio to arrive; a healthy UDP path never delivers zero packets then.
+    if (tts_sentences_ == 0 || duration_us < kMinTtsDurationUs) {
+        return;
+    }
+    ESP_LOGW(TAG, "TTS segment (%d sentences, %d ms) delivered no UDP audio", tts_sentences_,
+             static_cast<int>(duration_us / 1000));
+
+    Settings websocket("websocket", false);
+    if (websocket.GetString("url").empty()) {
+        ESP_LOGW(TAG, "UDP audio looks blocked, but no WebSocket endpoint is configured");
+        return;
+    }
+    Settings settings("udp_fallback", true);
+    auto key = UdpFallbackKey();
+    int penalty = (settings.GetInt(key.c_str(), 0) >> 16) & 0xFFFF;
+    penalty = penalty == 0 ? kFallbackInitialBoots : std::min(penalty * 2, kFallbackMaxBoots);
+    settings.SetInt(key.c_str(), (penalty << 16) | penalty);
+    ESP_LOGE(TAG, "UDP audio is blocked on this network; rebooting into WebSocket for %d boots",
+             penalty);
+    // Protocols cannot be swapped in place (the OTA config is gone by now), so
+    // reboot and let InitializeProtocol() pick WebSocket.
+    auto& app = Application::GetInstance();
+    app.Schedule([&app]() { app.Reboot(); });
+}
+#else
+bool MqttProtocol::IsUdpBlockedOnThisNetwork() { return false; }
+void MqttProtocol::CheckUdpHealth(const char*) {}
+#endif
