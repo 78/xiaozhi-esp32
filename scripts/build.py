@@ -401,6 +401,7 @@ _OPTIONAL_CAMERA_ENABLE_SYMBOLS = {
     # is enabled. Do not advertise mirror controls for the camera-less default
     # build, but expose them automatically for an explicitly enabled variant.
     "CONFIG_BOARD_TYPE_ESP_VOCAT": "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE",
+    "CONFIG_BOARD_TYPE_CYBERAI_VOCAT_V2_0": "CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE",
 }
 # Match both `new Esp32Camera` and `new (std::nothrow) Esp32Camera` (and EspVideo).
 _COMMON_CAMERA_CONSTRUCTOR_RE = re.compile(
