@@ -374,6 +374,14 @@ void AfeAudioEngine::UpdateActiveState() {
         output_reset_pending_ = true;
     }
     afe_control_dirty_ = true;
+    // The request side of the chain. It is logged because the other end of it is invisible:
+    // everything downstream happens inside the AFE, and the only way to tell "nobody asked" from
+    // "asked and it did not take" is to see both ends. Only runs on a control change, a handful
+    // of times per conversation, so it costs nothing in a steady state.
+    bits = xEventGroupGetBits(event_group_);
+    ESP_LOGI(TAG, "wanted: wake_word=%d voice=%d afe_active=%d",
+             (bits & kWakeWordEnabled) ? 1 : 0, (bits & kVoiceProcessingEnabled) ? 1 : 0,
+             (bits & kAfeActive) ? 1 : 0);
 }
 
 void AfeAudioEngine::UpdateAecState() {
@@ -385,11 +393,15 @@ void AfeAudioEngine::UpdateAecState() {
 
 void AfeAudioEngine::ApplyAfeControls() {
     EventBits_t bits = xEventGroupGetBits(event_group_);
+    const char* wakenet_applied = "n/a";
+    const char* aec_applied = "n/a";
     if (wake_detector_ == WakeDetector::kWakeNet) {
         if (bits & kWakeWordEnabled) {
             afe_iface_->enable_wakenet(afe_data_);
+            wakenet_applied = "on";
         } else {
             afe_iface_->disable_wakenet(afe_data_);
+            wakenet_applied = "off";
         }
         // Re-applied on every pass rather than once after create: setting it is cheap, and
         // doing it here means it cannot be lost to a disable/re-enable cycle or to an AFE
@@ -408,10 +420,19 @@ void AfeAudioEngine::ApplyAfeControls() {
                                 (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
         if (enable_aec) {
             afe_iface_->enable_aec(afe_data_);
+            aec_applied = "on";
         } else {
             afe_iface_->disable_aec(afe_data_);
+            aec_applied = "off";
         }
     }
+    // The applied side. A "wanted" line with no "applied" line after it means the dirty flag
+    // never reached ProcessingTask, which is a different repair from WakeNet being enabled and
+    // declining to fire. Measured on u22 while the robot was deaf: the detector enabled, a full
+    // thousand frames fed, 313 fetches returned, nothing discarded, and a signal forty times the
+    // noise floor - so the AFE was running its whole pipeline and never reported a detection.
+    // These two lines are what is left to look at.
+    ESP_LOGI(TAG, "applied: wakenet=%s aec=%s", wakenet_applied, aec_applied);
 }
 
 void AfeAudioEngine::ApplyPendingReset() {
