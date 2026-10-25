@@ -973,11 +973,22 @@ AudioService::InputLevel AudioService::LastInputLevel() const {
 
 void AudioService::LogInputWatch() {
     const InputLevel level = TakeInputLevel();
+    // frames counts what was handed to the engine, which is upstream of its processing side: a
+    // full thousand frames says the feed is healthy, not that anything came out the other end.
+    // fetches and drops say that, and the pair is why this line can take the second fork in the
+    // diagnosis - measured on u21, frames=1000 with a signal twenty times the noise floor while
+    // the wake word never fired, which ruled the feed side out and left only this.
+    //
+    // Log-only, not in the status block: they are read-and-cleared and the ten-second line owns
+    // that clock. A second consumer would starve it, which is the mistake u21 fixed.
+    const uint32_t fetches = audio_engine_ ? audio_engine_->TakeFetchCount() : 0;
+    const uint32_t drops = audio_engine_ ? audio_engine_->TakeFetchDropCount() : 0;
     // Raw sample magnitudes, not dB: an integer cannot be misread, and 0 means silence rather
-    // than a floor value someone has to recognise. frames=0 is the line that matters - it says
-    // nothing reached the engine at all, which is a different fault from a quiet room.
-    ESP_LOGI(TAG, "input: wake_word=%d processor=%d frames=%u peak=%d rms=%d win=%ums",
+    // than a floor value someone has to recognise.
+    ESP_LOGI(TAG,
+             "input: wake_word=%d processor=%d frames=%u fetches=%u drops=%u peak=%d rms=%d "
+             "win=%ums",
              IsWakeWordRunning() ? 1 : 0, IsAudioProcessorRunning() ? 1 : 0,
-             (unsigned)level.frames, (int)level.peak, (int)level.loudest_frame_rms,
-             (unsigned)level.window_ms);
+             (unsigned)level.frames, (unsigned)fetches, (unsigned)drops, (int)level.peak,
+             (int)level.loudest_frame_rms, (unsigned)level.window_ms);
 }

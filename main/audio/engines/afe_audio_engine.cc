@@ -443,15 +443,18 @@ void AfeAudioEngine::ProcessingTask() {
             (xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
             // A disable/re-enable may make an old blocked fetch return after the
             // AFE is active again. Reset immediately and never process that frame.
+            fetch_drop_count_.fetch_add(1, std::memory_order_relaxed);
             ApplyPendingReset();
             continue;
         }
         if (result == nullptr || result->ret_value == ESP_FAIL) {
+            fetch_drop_count_.fetch_add(1, std::memory_order_relaxed);
             if (result != nullptr) {
                 ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
             }
             continue;
         }
+        fetch_count_.fetch_add(1, std::memory_order_relaxed);
 
         EventBits_t bits = xEventGroupGetBits(event_group_);
         if (bits & kWakeWordEnabled) {

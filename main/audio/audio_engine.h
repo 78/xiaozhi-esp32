@@ -39,6 +39,14 @@ public:
     virtual bool SetWakeWordThreshold(float threshold) { return false; }
     virtual float GetWakeWordThreshold() const { return 0.0f; }
 
+    // How many times the engine's own processing side came back with a result since the last
+    // read, and how many came back only to be discarded. Both zero while frames are still being
+    // fed is the signature of a processing side that is not coming back at all - which is
+    // invisible from the feed side, where every frame still looks accepted. Not pure: an engine
+    // with no separate processing task reports zero.
+    virtual uint32_t TakeFetchCount() { return 0; }
+    virtual uint32_t TakeFetchDropCount() { return 0; }
+
     virtual void EncodeWakeWordData() = 0;
     virtual bool GetWakeWordOpus(std::vector<uint8_t>& opus) = 0;
     virtual const std::string& GetLastDetectedWakeWord() const = 0;
