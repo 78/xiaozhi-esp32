@@ -940,6 +940,7 @@ AudioService::InputLevel AudioService::TakeInputLevel() {
     level.frames = input_level_frames_.exchange(0, std::memory_order_relaxed);
     level.peak = input_level_peak_.exchange(0, std::memory_order_relaxed);
     const int32_t rms = input_level_peak_rms_.exchange(0, std::memory_order_relaxed);
+    level.loudest_frame_rms = rms;
     const int64_t started = input_level_window_start_ms_.load(std::memory_order_relaxed);
     if (level.frames > 0 && started > 0) {
         level.window_ms = static_cast<uint32_t>((esp_timer_get_time() / 1000) - started);
@@ -952,5 +953,31 @@ AudioService::InputLevel AudioService::TakeInputLevel() {
     if (rms > 0) {
         level.loudest_frame_rms_dbfs = 20.0f * std::log10(static_cast<float>(rms) / 32768.0f);
     }
+    {
+        std::lock_guard<std::mutex> lock(input_level_mutex_);
+        last_input_level_ = level;
+        last_input_level_closed_ms_ = esp_timer_get_time() / 1000;
+    }
     return level;
+}
+
+AudioService::InputLevel AudioService::LastInputLevel() const {
+    std::lock_guard<std::mutex> lock(input_level_mutex_);
+    InputLevel level = last_input_level_;
+    if (last_input_level_closed_ms_ > 0) {
+        level.age_ms =
+            static_cast<uint32_t>((esp_timer_get_time() / 1000) - last_input_level_closed_ms_);
+    }
+    return level;
+}
+
+void AudioService::LogInputWatch() {
+    const InputLevel level = TakeInputLevel();
+    // Raw sample magnitudes, not dB: an integer cannot be misread, and 0 means silence rather
+    // than a floor value someone has to recognise. frames=0 is the line that matters - it says
+    // nothing reached the engine at all, which is a different fault from a quiet room.
+    ESP_LOGI(TAG, "input: wake_word=%d processor=%d frames=%u peak=%d rms=%d win=%ums",
+             IsWakeWordRunning() ? 1 : 0, IsAudioProcessorRunning() ? 1 : 0,
+             (unsigned)level.frames, (int)level.peak, (int)level.loudest_frame_rms,
+             (unsigned)level.window_ms);
 }
