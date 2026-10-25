@@ -430,6 +430,11 @@ public:
 
     void AddCommonTools();
     void AddUserOnlyTools();
+    // Print the inventory once registration is complete. Deliberately states the counts and
+    // nothing else: how many a server will accept is the server's policy, not something the
+    // firmware should hardcode a number for. The counts are enough - whoever adds a tool can
+    // see what the total became.
+    void LogToolInventory() const;
     void AddTool(std::unique_ptr<McpTool> tool);
     void AddTool(const std::string& name, const std::string& description,
                  const PropertyList& properties, ToolCallback callback);

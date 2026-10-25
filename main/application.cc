@@ -110,6 +110,11 @@ void Application::Initialize() {
     auto& mcp_server = McpServer::GetInstance();
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
+    // Registration is complete here, so this is the only place the whole inventory exists.
+    // It is logged because a server that accepts a bounded number of tools drops the rest
+    // quietly: the only sign on this device was an alert at boot and a sad face, which is
+    // easy to see and hard to connect to a tool list.
+    mcp_server.LogToolInventory();
 
     // Set network event callback for UI updates and network state handling
     board.SetNetworkEventCallback([this](NetworkEvent event, const std::string& data) {
