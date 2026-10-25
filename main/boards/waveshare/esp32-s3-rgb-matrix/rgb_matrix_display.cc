@@ -360,9 +360,9 @@ bool CustomMatrixDisplay::SetEmotion(const char* emotion) {
     }
     lv_label_set_text(emotion_icon_label_, MATERIAL_SYMBOLS_ROBOT_2);
     SetObjectVisible(emotion_icon_label_, true);
-    // A generic robot icon stands in for every emotion this collection has no image for, so
-    // the request itself was not honoured.
-    return false;
+    // The built-in icon fulfils an explicit robot_2 request. For other missing emotions it
+    // is only a placeholder, so callers can still try a fallback.
+    return strcmp(emotion, "robot_2") == 0;
 }
 
 void CustomMatrixDisplay::SetChatMessage(const char* role, const char* content) {
