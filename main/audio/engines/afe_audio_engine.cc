@@ -157,6 +157,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
         if (wakenet_models.size() > 1) {
             afe_config->wakenet_model_name_2 = wakenet_models[1];
         }
+        wakenet_model_count_ = wakenet_models.empty() ? 0 : (wakenet_models.size() > 1 ? 2 : 1);
         // Only the two models selected above are active in the AFE.
         wake_words_.clear();
         for (auto name : {afe_config->wakenet_model_name, afe_config->wakenet_model_name_2}) {
@@ -390,6 +391,17 @@ void AfeAudioEngine::ApplyAfeControls() {
         } else {
             afe_iface_->disable_wakenet(afe_data_);
         }
+        // Re-applied on every pass rather than once after create: setting it is cheap, and
+        // doing it here means it cannot be lost to a disable/re-enable cycle or to an AFE
+        // re-created while a caller's value was still the intended one.
+        const float threshold = wake_word_threshold_.load();
+        if (threshold > 0.0f && afe_iface_->set_wakenet_threshold != nullptr) {
+            for (int index = 1; index <= wakenet_model_count_; ++index) {
+                if (afe_iface_->set_wakenet_threshold(afe_data_, index, threshold) != 1) {
+                    ESP_LOGW(TAG, "set_wakenet_threshold(%d, %.4f) rejected", index, threshold);
+                }
+            }
+        }
     }
     if (codec_->input_reference()) {
         const bool enable_aec = (bits & kWakeWordEnabled) ||
@@ -532,6 +544,32 @@ void AfeAudioEngine::OutputRawAudio(const std::vector<int16_t>& data) {
             std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
         output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
     }
+}
+
+bool AfeAudioEngine::SetWakeWordThreshold(float threshold) {
+    if (wake_detector_ != WakeDetector::kWakeNet) {
+        return false;
+    }
+    // 0 is the documented way back to the model's own default; anything else has to be inside
+    // the range esp-sr accepts, because it rejects the rest and the caller would never know.
+    if (threshold != 0.0f && (threshold < 0.4f || threshold > 0.9999f)) {
+        return false;
+    }
+    wake_word_threshold_.store(threshold);
+    if (afe_data_ == nullptr) {
+        // Initialize() has not run yet. The value is kept and applied by the first
+        // ApplyAfeControls after the AFE exists.
+        return true;
+    }
+    if (threshold == 0.0f && afe_iface_->reset_wakenet_threshold != nullptr) {
+        for (int index = 1; index <= wakenet_model_count_; ++index) {
+            afe_iface_->reset_wakenet_threshold(afe_data_, index);
+        }
+    }
+    // Not applied from this task: ProcessingTask may be inside fetch on the same AFE instance,
+    // which is the same reason the WakeNet and AEC toggles are deferred.
+    afe_control_dirty_ = true;
+    return true;
 }
 
 void AfeAudioEngine::EncodeWakeWordData() {
