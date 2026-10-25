@@ -299,12 +299,25 @@ void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
 
 void AfeAudioEngine::EnableVoiceProcessing(bool enable) {
     if (enable) {
+        // A new window starts here, so the held peak belongs to it rather than to the last one.
+        // Reset on enable rather than on read: a value cleared by reading is correct for one
+        // reader and wrong for two.
+        input_level_valid_.store(false, std::memory_order_relaxed);
         xEventGroupSetBits(event_group_, kVoiceProcessingEnabled);
     } else {
         xEventGroupClearBits(event_group_, kVoiceProcessingEnabled);
         is_speaking_ = false;
     }
     UpdateActiveState();
+}
+
+bool AfeAudioEngine::GetInputLevel(float& peak_db, float& latest_db) const {
+    if (!input_level_valid_.load(std::memory_order_relaxed)) {
+        return false;
+    }
+    peak_db = input_peak_db_.load(std::memory_order_relaxed);
+    latest_db = input_latest_db_.load(std::memory_order_relaxed);
+    return true;
 }
 
 void AfeAudioEngine::EnableDeviceAec(bool enable) {
@@ -484,6 +497,20 @@ void AfeAudioEngine::HandleVoiceResult(const afe_fetch_result_t* result) {
     if (output_reset_pending_.exchange(false)) {
         output_buffer_.clear();
     }
+    // data_volume is produced on every fetch and was discarded here, two lines from
+    // vad_state, which is used.
+    //
+    // The valid flag is published LAST, after the value it vouches for: set first, a reader
+    // arriving between the two sees valid=true paired with the previous window's peak.
+    const float volume_db = result->data_volume;
+    input_latest_db_.store(volume_db, std::memory_order_relaxed);
+    if (!input_level_valid_.load(std::memory_order_relaxed)) {
+        input_peak_db_.store(volume_db, std::memory_order_relaxed);
+        input_level_valid_.store(true, std::memory_order_relaxed);
+    } else if (volume_db > input_peak_db_.load(std::memory_order_relaxed)) {
+        input_peak_db_.store(volume_db, std::memory_order_relaxed);
+    }
+
     if (vad_state_change_callback_) {
         if (result->vad_state == VAD_SPEECH && !is_speaking_) {
             is_speaking_ = true;

@@ -37,9 +37,23 @@ class McpServerTest(unittest.TestCase):
                 #include <string>
                 #include <utility>
                 #include <vector>
+                class AudioService {
+                public:
+                    bool level_available = false;
+                    float peak_db = 0.0f;
+                    float latest_db = 0.0f;
+                    bool GetInputLevel(float& peak, float& latest) const {
+                        if (!level_available) return false;
+                        peak = peak_db;
+                        latest = latest_db;
+                        return true;
+                    }
+                };
                 class Application {
                 public:
                     std::vector<std::function<void()>> pending;
+                    AudioService audio_service;
+                    AudioService& GetAudioService() { return audio_service; }
                     static Application& GetInstance() {
                         static Application app;
                         return app;

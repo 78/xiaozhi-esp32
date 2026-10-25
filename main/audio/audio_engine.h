@@ -29,6 +29,16 @@ public:
     virtual std::vector<std::string> GetWakeWords() const = 0;
     virtual size_t GetFeedSize() const = 0;
 
+    // The input level measured during the most recent voice-processing window: the loudest
+    // it got, and the last reading, both in decibels before any gain is applied. Returns
+    // false on an engine that does not measure it, which is the default - only the AFE
+    // produces this value.
+    virtual bool GetInputLevel(float& peak_db, float& latest_db) const {
+        (void)peak_db;
+        (void)latest_db;
+        return false;
+    }
+
     virtual void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) = 0;
     virtual void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) = 0;
     virtual void OnVadStateChange(std::function<void(bool speaking)> callback) = 0;

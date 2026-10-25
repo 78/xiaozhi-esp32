@@ -133,6 +133,9 @@ public:
         return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING;
     }
     bool IsAfeWakeWord();
+    bool GetInputLevel(float& peak_db, float& latest_db) const {
+        return audio_engine_ ? audio_engine_->GetInputLevel(peak_db, latest_db) : false;
+    }
 
     void EnableWakeWordDetection(bool enable);
     void ReleaseWakeWordResources();

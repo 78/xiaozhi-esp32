@@ -59,6 +59,27 @@ void McpServer::AddCommonTools() {
                 return true;
             });
 
+    AddTool("self.audio_microphone.get_level",
+            "How loud the microphone input was during the most recent listening window. "
+            "`peak_db` is the loudest reading and `latest_db` the last one, both in decibels as "
+            "the audio front end measures them, before any gain is applied. `available` is false "
+            "when the device has not listened yet since starting, or when its audio engine does "
+            "not measure this. No audio is recorded, stored or returned.",
+            PropertyList(),
+            [](const PropertyList& properties) -> ReturnValue {
+                float peak_db = 0.0f;
+                float latest_db = 0.0f;
+                bool available = Application::GetInstance().GetAudioService().GetInputLevel(
+                    peak_db, latest_db);
+                cJSON* root = cJSON_CreateObject();
+                cJSON_AddBoolToObject(root, "available", available);
+                if (available) {
+                    cJSON_AddNumberToObject(root, "peak_db", peak_db);
+                    cJSON_AddNumberToObject(root, "latest_db", latest_db);
+                }
+                return root;
+            });
+
     auto backlight = board.GetBacklight();
     if (backlight) {
         AddTool("self.screen.set_brightness", "Set the brightness of the screen.",

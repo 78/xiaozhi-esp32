@@ -38,6 +38,7 @@ public:
     bool IsAfeWakeWord() const override { return HasWakeWord(); }
     std::vector<std::string> GetWakeWords() const override;
     size_t GetFeedSize() const override;
+    bool GetInputLevel(float& peak_db, float& latest_db) const override;
 
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) override;
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) override;
@@ -70,6 +71,12 @@ private:
     StackType_t* processing_task_stack_ = nullptr;
     int frame_samples_ = 0;
     bool is_speaking_ = false;
+    // afe_fetch_result_t::data_volume, held across the window rather than sampled live:
+    // the AFE only runs while voice processing is on, and a tool call arrives after that.
+    // Written on the processing task, read by whichever task serves the caller.
+    std::atomic<bool> input_level_valid_{false};
+    std::atomic<float> input_peak_db_{0.0f};
+    std::atomic<float> input_latest_db_{0.0f};
     std::atomic<bool> device_aec_enabled_{false};
     // Deferred AFE buffer reset, performed by ProcessingTask (see UpdateActiveState)
     std::atomic<bool> reset_pending_{false};
