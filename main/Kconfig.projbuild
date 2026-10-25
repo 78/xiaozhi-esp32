@@ -365,7 +365,7 @@ choice BOARD_TYPE
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_STACKCHAN
-        bool "StackChan (M5Stack CoreS3 + Feetech SCS servo neck)"
+        bool "M5Stack StackChan (CoreS3 + Feetech SCS servo neck)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_STICK_S3
         bool "M5Stack StickS3"
