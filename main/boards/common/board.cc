@@ -58,6 +58,40 @@ Led* Board::GetLed() {
     return &led;
 }
 
+const char* Board::ResetReasonName(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_POWERON:    return "power-on";
+        case ESP_RST_EXT:        return "external pin";
+        case ESP_RST_SW:         return "software restart";
+        case ESP_RST_PANIC:      return "panic or exception";
+        case ESP_RST_INT_WDT:    return "interrupt watchdog";
+        case ESP_RST_TASK_WDT:   return "task watchdog";
+        case ESP_RST_WDT:        return "other watchdog";
+        case ESP_RST_DEEPSLEEP:  return "deep sleep wake";
+        case ESP_RST_BROWNOUT:   return "brownout";
+        case ESP_RST_SDIO:       return "SDIO";
+        case ESP_RST_USB:        return "USB peripheral";
+        case ESP_RST_JTAG:       return "JTAG";
+        case ESP_RST_EFUSE:      return "efuse error";
+        case ESP_RST_PWR_GLITCH: return "power glitch";
+        case ESP_RST_CPU_LOCKUP: return "CPU lockup";
+        case ESP_RST_UNKNOWN:    return "undetermined";
+    }
+    return "unrecognised";
+}
+
+// Why the chip last came up. esp_reset_reason() is latched for the whole boot, so this reads
+// the same whenever it is asked - which is the point of having it here as well as in the log.
+// The log line is printed at the top of app_main, and a reset re-enumerates the USB serial
+// device, so a recorder reopens the port after that line has already gone past. An unexplained
+// reboot is then indistinguishable from a replugged cable, and a panic that never got to print
+// looks like a button press. Asking the device is the only way to find out after the fact.
+void Board::AddSystemStatus(cJSON* root) {
+    auto system = cJSON_CreateObject();
+    cJSON_AddStringToObject(system, "reset_reason", ResetReasonName(esp_reset_reason()));
+    cJSON_AddItemToObject(root, "system", system);
+}
+
 std::string Board::GetSystemInfoJson() {
     /*
         {
