@@ -449,7 +449,14 @@ void Application::CheckAssetsVersion() {
     // Apply assets
     assets.Apply();
     display->SetChatMessage("system", "");
-    display->SetEmotion("robot_2");
+    // "robot_2" is declared only by a board shipping its own pack: esp-vocat maps it to
+    // neutral.eaf, and the rgb-matrix display special-cases the string. None of the shared
+    // esp_emote_assets packs (320_240, 360_360, 1024_600) declares it, so on every board that
+    // uses one this call fails, logs two errors and leaves whatever face was already up.
+    // Fall back to an emotion all three packs do declare.
+    if (!display->SetEmotion("robot_2")) {
+        display->SetEmotion("neutral");
+    }
 }
 
 void Application::CheckNewVersion() {
