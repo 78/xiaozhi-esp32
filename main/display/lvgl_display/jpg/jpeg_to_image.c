@@ -20,8 +20,35 @@
 
 #define TAG "jpeg_to_image"
 
-static esp_err_t decode_with_new_jpeg(const uint8_t* src, size_t src_len, uint8_t** out, size_t* out_len, size_t* width,
-                                      size_t* height, size_t* stride) {
+// Largest size within max_width x max_height (0 = no limit) that esp_new_jpeg can scale to:
+// multiples of 8 and no smaller than 1/8 of the source. Leaves scale zeroed (no scaling)
+// when the image already fits or cannot be scaled that far.
+static void fit_scale(int src_width, int src_height, size_t max_width, size_t max_height,
+                      jpeg_resolution_t* scale) {
+    scale->width = 0;
+    scale->height = 0;
+    float ratio = 1.0f;
+    if (max_width > 0) {
+        ratio = MIN(ratio, (float)max_width / src_width);
+    }
+    if (max_height > 0) {
+        ratio = MIN(ratio, (float)max_height / src_height);
+    }
+    if (ratio >= 1.0f) {
+        return;
+    }
+    int w = (int)(src_width * ratio) / 8 * 8;
+    int h = (int)(src_height * ratio) / 8 * 8;
+    if (w * 8 < src_width || h * 8 < src_height) {
+        return;
+    }
+    scale->width = w;
+    scale->height = h;
+}
+
+static esp_err_t decode_with_new_jpeg(const uint8_t* src, size_t src_len, size_t max_width,
+                                      size_t max_height, uint8_t** out, size_t* out_len,
+                                      size_t* width, size_t* height, size_t* stride) {
     ESP_LOGD(TAG, "Decoding JPEG with software decoder");
     esp_err_t ret = ESP_OK;
     jpeg_error_t jpeg_ret = JPEG_ERR_OK;
@@ -52,6 +79,30 @@ static esp_err_t decode_with_new_jpeg(const uint8_t* src, size_t src_len, uint8_
     }
 
     ESP_LOGD(TAG, "JPEG header info: width=%d, height=%d", out_info.width, out_info.height);
+
+    // The scale is part of the decoder config, so reopen once the source size is known
+    fit_scale(out_info.width, out_info.height, max_width, max_height, &config.scale);
+    if (config.scale.width > 0) {
+        ESP_LOGD(TAG, "Scaling to width=%d, height=%d", config.scale.width, config.scale.height);
+        jpeg_dec_close(jpeg_dec);
+        jpeg_dec = NULL;
+        jpeg_ret = jpeg_dec_open(&config, &jpeg_dec);
+        if (jpeg_ret != JPEG_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to open JPEG decoder");
+            ret = ESP_FAIL;
+            goto jpeg_dec_failed;
+        }
+        jpeg_io.inbuf = (uint8_t*)src;
+        jpeg_io.inbuf_len = (int)src_len;
+        jpeg_ret = jpeg_dec_parse_header(jpeg_dec, &jpeg_io, &out_info);
+        if (jpeg_ret != JPEG_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to parse JPEG header");
+            ret = ESP_ERR_INVALID_ARG;
+            goto jpeg_dec_failed;
+        }
+        out_info.width = config.scale.width;
+        out_info.height = config.scale.height;
+    }
 
     out_buf = jpeg_calloc_align(out_info.width * out_info.height * 2, 16);
     if (out_buf == NULL) {
@@ -244,6 +295,12 @@ jpeg_hw_dec_failed:
 
 esp_err_t jpeg_to_image(const uint8_t* src, size_t src_len, uint8_t** out, size_t* out_len, size_t* width,
                         size_t* height, size_t* stride) {
+    return jpeg_to_image_fit(src, src_len, 0, 0, out, out_len, width, height, stride);
+}
+
+esp_err_t jpeg_to_image_fit(const uint8_t* src, size_t src_len, size_t max_width, size_t max_height,
+                            uint8_t** out, size_t* out_len, size_t* width, size_t* height,
+                            size_t* stride) {
 #ifdef CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
     esp_log_level_set(TAG, ESP_LOG_DEBUG);
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
@@ -260,5 +317,6 @@ esp_err_t jpeg_to_image(const uint8_t* src, size_t src_len, uint8_t** out, size_
     ESP_LOGW(TAG, "Failed to decode with hardware JPEG, fallback to software decoder");
     // Fallback to esp_new_jpeg
 #endif
-    return decode_with_new_jpeg(src, src_len, out, out_len, width, height, stride);
+    return decode_with_new_jpeg(src, src_len, max_width, max_height, out, out_len, width, height,
+                                stride);
 }
