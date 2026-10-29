@@ -31,6 +31,7 @@ jobs:
       - name: Patch - show activation code on screen
         shell: bash
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           python3 - <<'PY'
           import pathlib, sys
 
@@ -55,7 +56,7 @@ jobs:
           path.write_text(src.replace(old, new))
           print("Patched main/application.cc")
           PY
-          git diff --stat
+          grep -n "screen_message" main/application.cc
 
       - name: Build firmware
         shell: bash
@@ -72,4 +73,3 @@ jobs:
           name: xiaozhi_${{ inputs.variant }}
           path: build/merged-binary.bin
           if-no-files-found: error
-          
