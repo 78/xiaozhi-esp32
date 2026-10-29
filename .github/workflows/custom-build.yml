@@ -14,6 +14,10 @@ on:
         description: Variant name (e.g. bread-compact-wifi, bread-compact-wifi-128x64)
         required: true
         default: bread-compact-wifi-128x64
+      wake_word:
+        description: Wake word model (wn9_alexa = "Alexa" as in your old S3 image; hiesp = "Hi ESP"; nihaoxiaozhi; disabled)
+        required: true
+        default: wn9_alexa
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
@@ -74,9 +78,10 @@ jobs:
         env:
           BOARD: ${{ inputs.board }}
           VARIANT: ${{ inputs.variant }}
+          WAKE_WORD: ${{ inputs.wake_word }}
         run: |
           source "$IDF_PATH/export.sh"
-          python scripts/build.py "$BOARD" --name "$VARIANT"
+          python scripts/build.py "$BOARD" --name "$VARIANT" --wake-word "$WAKE_WORD"
 
       - name: Upload firmware
         uses: actions/upload-artifact@v7
