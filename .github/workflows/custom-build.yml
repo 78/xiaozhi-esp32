@@ -14,6 +14,10 @@ on:
         description: Variant name (e.g. bread-compact-wifi, bread-compact-wifi-128x64)
         required: true
         default: bread-compact-wifi-128x64
+      bootloader_logs:
+        description: Print bootloader messages on the serial port (diagnostic)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -58,6 +62,13 @@ jobs:
           PY
           grep -n "screen_message" main/application.cc
 
+      - name: Enable bootloader logs (diagnostic)
+        if: ${{ inputs.bootloader_logs }}
+        shell: bash
+        run: |
+          sed -i 's/^CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y/CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y/' sdkconfig.defaults
+          grep -n "BOOTLOADER_LOG_LEVEL" sdkconfig.defaults
+
       - name: Build firmware
         shell: bash
         env:
@@ -73,3 +84,4 @@ jobs:
           name: xiaozhi_${{ inputs.variant }}
           path: build/merged-binary.bin
           if-no-files-found: error
+          
