@@ -1,0 +1,75 @@
+name: Custom build (activation code on screen)
+
+# Builds ONE board variant of xiaozhi-esp32 with the activation code also
+# shown on the display. Run it manually from the Actions tab of your fork.
+
+on:
+  workflow_dispatch:
+    inputs:
+      board:
+        description: Board directory under main/boards/ (e.g. bread-compact-wifi)
+        required: true
+        default: bread-compact-wifi
+      variant:
+        description: Variant name (e.g. bread-compact-wifi, bread-compact-wifi-128x64)
+        required: true
+        default: bread-compact-wifi-128x64
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.variant }}
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Patch - show activation code on screen
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+
+          path = pathlib.Path("main/application.cc")
+          src = path.read_text()
+
+          old = r'''    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);'''
+          new = r'''    // The server's message usually does not contain the code itself, and the code is otherwise
+              // only spoken. Show it on screen too (code first, so it stays visible on small/scrolling
+              // displays). It is cleared by HandleActivationDoneEvent() once pairing succeeds.
+              std::string screen_message = message;
+              if (!code.empty() && message.find(code) == std::string::npos) {
+                  screen_message = "Code: " + code + "\n" + message;
+              }
+
+              // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, screen_message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);'''
+
+          if src.count(old) != 1:
+              sys.exit("ERROR: expected code not found in main/application.cc (upstream changed?)")
+          path.write_text(src.replace(old, new))
+          print("Patched main/application.cc")
+          PY
+          git diff --stat
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py "$BOARD" --name "$VARIANT"
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v7
+        with:
+          name: xiaozhi_${{ inputs.variant }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+          
