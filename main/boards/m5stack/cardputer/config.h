@@ -1,0 +1,56 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+
+// M5Stack Cardputer (StampS3: ESP32-S3FN8, no PSRAM)
+
+// Audio: SPM1423 PDM mic + NS4168 I2S amplifier, no codec chip.
+// GPIO43 is both the mic CLK and the speaker LRCK, so audio is half-duplex.
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+#define AUDIO_I2S_SPK_GPIO_BCLK  GPIO_NUM_41
+#define AUDIO_I2S_SPK_GPIO_LRCK  GPIO_NUM_43
+#define AUDIO_I2S_SPK_GPIO_DOUT  GPIO_NUM_42
+
+#define AUDIO_MIC_PDM_GPIO_CLK   GPIO_NUM_43
+#define AUDIO_MIC_PDM_GPIO_DATA  GPIO_NUM_46
+#define AUDIO_MIC_GAIN           4.0f
+
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define BUILTIN_LED_GPIO        GPIO_NUM_NC
+#define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_NC
+#define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+
+// Display: ST7789V2 1.14" 240x135 (same panel and wiring as the Cardputer Adv)
+#define DISPLAY_WIDTH   240
+#define DISPLAY_HEIGHT  135
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY true
+
+#define DISPLAY_OFFSET_X  40
+#define DISPLAY_OFFSET_Y  53
+
+#define DISPLAY_SPI_MOSI_PIN GPIO_NUM_35
+#define DISPLAY_SPI_SCLK_PIN GPIO_NUM_36
+#define DISPLAY_SPI_CS_PIN   GPIO_NUM_37
+#define DISPLAY_DC_PIN       GPIO_NUM_34
+#define DISPLAY_RST_PIN      GPIO_NUM_33
+
+#define DISPLAY_BACKLIGHT_PIN GPIO_NUM_38
+#define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+
+// Keyboard: 74HC138 address lines A0-A2 and the 7 column inputs
+#define KEYBOARD_ADDRESS_PINS { GPIO_NUM_8, GPIO_NUM_9, GPIO_NUM_11 }
+#define KEYBOARD_INPUT_PINS   { GPIO_NUM_13, GPIO_NUM_15, GPIO_NUM_3, GPIO_NUM_4, GPIO_NUM_5, GPIO_NUM_6, GPIO_NUM_7 }
+
+// Battery: GPIO10 (ADC1_CH9) behind a 1:2 divider
+#define BATTERY_ADC_UNIT        ADC_UNIT_1
+#define BATTERY_ADC_CHANNEL     ADC_CHANNEL_9
+#define BATTERY_UPPER_RESISTOR  100000.0f
+#define BATTERY_LOWER_RESISTOR  100000.0f
+#define BATTERY_CHARGING_PIN    GPIO_NUM_NC
+
+#endif // _BOARD_CONFIG_H_
