@@ -85,6 +85,8 @@ choice
         bool "Indonesian"
     config LANGUAGE_UK_UA
         bool "Ukrainian"
+    config LANGUAGE_BE_BY
+        bool "Belarusian"
     config LANGUAGE_RO_RO
         bool "Romanian"
     config LANGUAGE_BG_BG
@@ -184,6 +186,12 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_CHD_ESP32S3_EYE
         bool "CHD ESP32-S3-EYE (虫洞)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CYBERAI_VOCAT_V2_0
+        bool "Cyberai-Vocat-V2.0"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_CYBERAI_VOCAT_V2_1
+        bool "Cyberai-Vocat-V2.1"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_DF_S3_AI_CAM
         bool "DFRobot ESP32-S3 AI Camera Module"
@@ -356,6 +364,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_STACKCHAN
+        bool "M5Stack StackChan (CoreS3 + Feetech SCS servo neck)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_STICK_S3
         bool "M5Stack StickS3"
         depends on IDF_TARGET_ESP32S3
@@ -428,8 +439,14 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_QUANDONG_S3_DEV
-        bool "Quandong ESP32-S3 Development Board (全动)"
+    config BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD
+        bool "Quandong ESP32-S3 2.8-inch SPI LCD (全动 2.8寸)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV_3_5_LCD
+        bool "Quandong ESP32-S3 3.5-inch QSPI LCD (全动 3.5寸)"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_QUANDONG_S3_DEV_4_0_LCD
+        bool "Quandong ESP32-S3 4.0-inch SPI LCD (全动 4.0寸)"
         depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_RYMCU_BIGSMART
         bool "RYMCU BigSmart"
@@ -458,6 +475,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8
         bool "Waveshare ESP32-C5-Touch-LCD-2.8"
         depends on IDF_TARGET_ESP32C5
+    config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5
+        bool "Waveshare ESP32-C5-Touch-LCD-3.5"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54
         bool "Waveshare ESP32-C6-e-Paper-1.54"
         depends on IDF_TARGET_ESP32C6
@@ -476,6 +496,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-C6-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8_V2
+        bool "Waveshare ESP32-C6-Touch-AMOLED-1.8 V2"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-C6-Touch-AMOLED-2.06"
         depends on IDF_TARGET_ESP32C6
@@ -487,6 +510,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_83
         bool "Waveshare ESP32-C6-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8
+        bool "Waveshare ESP32-C6-Touch-LCD-2.8"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C
         bool "Waveshare ESP32-P4 Wi-Fi 6 Touch LCD 3.4C"
@@ -922,8 +948,9 @@ choice DISPLAY_STYLE
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP32_S3_BOX || BOARD_TYPE_ESP32_S3_BOX_3 \
-            || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
-            || BOARD_TYPE_ESP_SENSAIRSHUTTLE
+            || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_CYBERAI_VOCAT_V2_0 || BOARD_TYPE_CYBERAI_VOCAT_V2_1 \
+            || BOARD_TYPE_LICHUANG_DEV_S3 || BOARD_TYPE_RYMCU_BIGSMART \
+            || BOARD_TYPE_ESP_SENSAIRSHUTTLE || BOARD_TYPE_STACKCHAN
 endchoice
 
 config JC4827W543_EXTERNAL_AMP
@@ -1036,7 +1063,8 @@ config USE_DEVICE_AEC
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7B || BOARD_TYPE_CHD_ESP32S3_BOX \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_4C || BOARD_TYPE_ESP32_S3_LCD_EV_BOARD_2 || BOARD_TYPE_YUNLIAO_S3 \
         || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_7 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_8 || BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_10_1 \
-        || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49_V2 || BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \
+        || BOARD_TYPE_ESP_VOCAT || BOARD_TYPE_CYBERAI_VOCAT_V2_0 || BOARD_TYPE_CYBERAI_VOCAT_V2_1 \
+        || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_49_V2 || BOARD_TYPE_WAVESHARE_ESP32_S3_RLCD_4_2 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_85B || BOARD_TYPE_ZHENGCHEN_CAM || BOARD_TYPE_ZHENGCHEN_CAM_ML307 \
         || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3C || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_1_54 || BOARD_TYPE_WAVESHARE_ESP32_S3_LCD_0_85 || BOARD_TYPE_AI_VOX3 || BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_43C || BOARD_TYPE_ATK_DNESP32S3_BOX3)
     help
         To work properly, device-side AEC requires a clean output reference path from the speaker signal and physical acoustic isolation between the microphone and speaker.

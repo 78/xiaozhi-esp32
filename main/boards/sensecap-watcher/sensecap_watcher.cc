@@ -132,7 +132,16 @@ private:
             bool is_charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
             if (is_charging) {
                 ESP_LOGI(TAG, "charging");
-                GetBacklight()->SetBrightness(0);
+                // Serialize with battery polling on the main task. USB may have
+                // disconnected by the time the request is handled.
+                Application::GetInstance().Schedule([this]() {
+                    power_save_timer_->SetEnabled(false);
+                    if (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0) {
+                        GetBacklight()->SetBrightness(0);
+                    } else {
+                        power_save_timer_->SetEnabled(true);
+                    }
+                });
             } else {
                 IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);
             }
@@ -639,16 +648,14 @@ public:
         WifiBoard::SetPowerSaveLevel(level);
     }
 
-    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
-        static bool last_discharging = false;
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         charging = (IoExpanderGetLevel(BSP_PWR_VBUS_IN_DET) == 0);
         discharging = !charging;
         level = (int)BatterygetPercent(false);
 
-        if (discharging != last_discharging) {
-            power_save_timer_->SetEnabled(discharging);
-            last_discharging = discharging;
-        }
+        // Always synchronize, including the first snapshot and a short USB
+        // connection observed only by the shutdown callback. Re-enabling is a no-op.
+        power_save_timer_->SetEnabled(discharging);
         if (level <= 1  &&  discharging) {
             ESP_LOGI(TAG, "Battery level is low, shutting down");
             IoExpanderSetLevel(BSP_PWR_SYSTEM, 0);

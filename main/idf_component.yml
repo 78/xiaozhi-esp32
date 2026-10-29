@@ -54,7 +54,11 @@ dependencies:
   espressif/esp_video:
     version: ^2.4.1
     rules:
+    - if: target in [esp32c5, esp32p4, esp32s3, esp32s31]
+    matches:
     - if: target in [esp32p4, esp32s3, esp32s31]
+    - if: target == esp32c5 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5} == True
+      version: ^2.5.0
 
   espressif/esp_image_effects:
     version: ^1.1.0
@@ -73,7 +77,7 @@ dependencies:
   waveshare/esp_lcd_touch_cst3530:
     version: ^1.0.0
     rules:
-    - if: target in [esp32c5]
+    - if: (target == esp32c5 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8} == True) || (target == esp32c6 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8} == True)
   lvgl/lvgl: ~9.5.0
   esp_lvgl_port: ~2.9.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.2

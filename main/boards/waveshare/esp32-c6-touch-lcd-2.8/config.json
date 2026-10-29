@@ -1,0 +1,11 @@
+{
+    "manufacturer": "waveshare",
+    "type": "esp32-c6-touch-lcd-2.8",
+    "target": "esp32c6",
+    "builds": [
+        {
+            "name": "esp32-c6-touch-lcd-2.8",
+            "sdkconfig_append": []
+        }
+    ]
+}

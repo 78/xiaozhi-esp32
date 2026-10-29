@@ -117,8 +117,24 @@ public:
         SpiLcdDisplay::SetupUI();
 
         DisplayLockGuard lock(this);
-        lv_obj_set_style_pad_left(status_bar_, LV_HOR_RES*  0.1, 0);
-        lv_obj_set_style_pad_right(status_bar_, LV_HOR_RES*  0.1, 0);
+        if (top_bar_ != nullptr) {
+            lv_obj_set_style_pad_left(top_bar_, DISPLAY_CORNER_INSET, 0);
+            lv_obj_set_style_pad_right(top_bar_, DISPLAY_CORNER_INSET, 0);
+        }
+        lv_obj_set_style_pad_left(status_bar_, DISPLAY_CORNER_INSET, 0);
+        lv_obj_set_style_pad_right(status_bar_, DISPLAY_CORNER_INSET, 0);
+
+        // Keep the centered labels clear of the side icons inside the inset:
+        // the left slot fits the network icon (30 px + gap), the right slot
+        // also fits the mute icon next to the battery icon.
+        constexpr int kIconSlot = DISPLAY_CORNER_INSET + 38;
+        constexpr int kRightSlot = DISPLAY_CORNER_INSET + 72;
+        constexpr int kLabelWidth = DISPLAY_WIDTH - kIconSlot - kRightSlot;
+        constexpr int kLabelOffset = (kIconSlot - kRightSlot) / 2;
+        lv_obj_set_width(status_label_, kLabelWidth);
+        lv_obj_set_width(notification_label_, kLabelWidth);
+        lv_obj_align(status_label_, LV_ALIGN_CENTER, kLabelOffset, 0);
+        lv_obj_align(notification_label_, LV_ALIGN_CENTER, kLabelOffset, 0);
         lv_display_add_event_cb(display_, rounder_event_cb, LV_EVENT_INVALIDATE_AREA, NULL);
     }
 };
@@ -280,8 +296,8 @@ private:
             },
             .flags = {
                 .swap_xy = 0,
-                .mirror_x = 1,
-                .mirror_y = 1,
+                .mirror_x = 0,
+                .mirror_y = 0,
             },
         };
         esp_lcd_panel_io_handle_t tp_io_handle = NULL;
@@ -338,7 +354,8 @@ public:
             AUDIO_CODEC_PA_PIN, 
             AUDIO_CODEC_ES8311_ADDR, 
             AUDIO_CODEC_ES7210_ADDR, 
-            AUDIO_INPUT_REFERENCE);
+            AUDIO_INPUT_REFERENCE,
+            30.0f, -1, 0.0f, AUDIO_CODEC_PA_VOLTAGE);
         return &audio_codec;
     }
 

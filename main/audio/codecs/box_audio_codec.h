@@ -34,7 +34,7 @@ public:
                   gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
                   gpio_num_t pa_pin, uint8_t es8311_addr, uint8_t es7210_addr, bool input_reference,
                   float input_gain = 30.0f, int reference_gain_channel = -1,
-                  float reference_gain = 0.0f);
+                  float reference_gain = 0.0f, float pa_voltage = 5.0f);
     virtual ~BoxAudioCodec();
 
     virtual void SetOutputVolume(int volume) override;
