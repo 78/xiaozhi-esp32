@@ -21,8 +21,9 @@
 #define TAG "jpeg_to_image"
 
 // Largest size within max_width x max_height (0 = no limit) that esp_new_jpeg can scale to:
-// multiples of 8 and no smaller than 1/8 of the source. Leaves scale zeroed (no scaling)
-// when the image already fits or cannot be scaled that far.
+// multiples of 8 and no smaller than 1/8 of the source. When the bounds need more than 1/8,
+// returns that minimum instead, which overflows the bounds but is far smaller than a full-size
+// decode. Leaves scale zeroed (no scaling) when the image already fits.
 static void fit_scale(int src_width, int src_height, size_t max_width, size_t max_height,
                       jpeg_resolution_t* scale) {
     scale->width = 0;
@@ -37,9 +38,14 @@ static void fit_scale(int src_width, int src_height, size_t max_width, size_t ma
     if (ratio >= 1.0f) {
         return;
     }
-    int w = (int)(src_width * ratio) / 8 * 8;
-    int h = (int)(src_height * ratio) / 8 * 8;
-    if (w * 8 < src_width || h * 8 < src_height) {
+    // Rounding down to multiples of 8 can land just under 1/8 of the source (e.g. 1080 -> 128),
+    // and very small bounds (e.g. a 128x32 screen) need more than 1/8, so raise each side to the
+    // smallest aligned size the decoder accepts: ceil(src / 8) rounded up to a multiple of 8,
+    // which is ceil(src / 64) * 8
+    int w = MAX((int)(src_width * ratio) / 8 * 8, (src_width + 63) / 64 * 8);
+    int h = MAX((int)(src_height * ratio) / 8 * 8, (src_height + 63) / 64 * 8);
+    // The decoder only scales down; a side thinner than 8 pixels cannot be aligned
+    if (w > src_width || h > src_height) {
         return;
     }
     scale->width = w;
