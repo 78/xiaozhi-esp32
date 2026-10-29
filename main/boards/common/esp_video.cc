@@ -856,8 +856,13 @@ bool EspVideo::Capture() {
                 size_t out_height = 0;
                 size_t out_stride = 0;
 
-                esp_err_t ret = jpeg_to_image(frame_.data, frame_.len, &out_data, &out_len,
-                                              &out_width, &out_height, &out_stride);
+                // Decode only as large as the screen: a full-size HD frame needs a ~1.8 MB
+                // buffer, which fails while the previous preview is still held. The AI
+                // still receives the original frame_ in Explain().
+                esp_err_t ret = jpeg_to_image_fit(frame_.data, frame_.len,
+                                                  static_cast<size_t>(display->width()),
+                                                  static_cast<size_t>(display->height()), &out_data,
+                                                  &out_len, &out_width, &out_height, &out_stride);
                 if (ret != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to decode JPEG image: %d (%s)", (int)ret,
                              esp_err_to_name(ret));

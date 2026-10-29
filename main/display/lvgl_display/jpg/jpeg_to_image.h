@@ -55,6 +55,21 @@ extern "C" {
 esp_err_t jpeg_to_image(const uint8_t* src, size_t src_len, uint8_t** out, size_t* out_len, size_t* width,
                         size_t* height, size_t* stride);
 
+/**
+ * @brief Same as jpeg_to_image(), but the software decoder scales the image down to fit within
+ *        max_width x max_height (0 = no limit on that side), keeping the aspect ratio.
+ *
+ * Decoding a large camera frame at full size needs a large contiguous buffer (1280x720 RGB565 is
+ * about 1.8 MB); scaling it to the display size while decoding avoids that.
+ *
+ * @note The output size is rounded to multiples of 8, and the scale is at most 1/8; images that
+ *       need more are decoded at 1/8, so the output can exceed max_width x max_height. The
+ *       hardware decoder does not scale, so its output is always full size.
+ */
+esp_err_t jpeg_to_image_fit(const uint8_t* src, size_t src_len, size_t max_width, size_t max_height,
+                            uint8_t** out, size_t* out_len, size_t* width, size_t* height,
+                            size_t* stride);
+
 #ifdef __cplusplus
 }
 #endif
