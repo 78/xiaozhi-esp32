@@ -77,7 +77,7 @@ dependencies:
   waveshare/esp_lcd_touch_cst3530:
     version: ^1.0.0
     rules:
-    - if: target == esp32c6 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8} == True
+    - if: (target == esp32c5 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8} == True) || (target == esp32c6 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8} == True)
   lvgl/lvgl: ~9.5.0
   esp_lvgl_port: ~2.9.0
   espressif/esp_io_expander_tca95xx_16bit: ^2.0.2
