@@ -1,40 +1,53 @@
-name: Custom build (activation code on screen)
+name: Custom build (WakeNet9 Jarvis + activation code)
 
-# Builds ONE board variant of xiaozhi-esp32 with the activation code also
-# shown on the display. Run it manually from the Actions tab of your fork.
+# Builds a separate test firmware with WakeNet9 Jarvis and the existing
+# activation-code display patch. Uses XiaoZhi v2.5.2 and ESP-IDF 6.1,
+# matching the upstream v2.5.2 release toolchain. The original workflow
+# is left unchanged. Run manually from the Actions tab.
 
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: Upstream git tag or branch to build (v2.2.2 = known-good, main = latest)
+        required: true
+        default: v2.5.2
+      idf_image:
+        description: ESP-IDF docker image for XiaoZhi v2.5.2
+        required: true
+        default: espressif/idf:release-v6.1
       board:
-        description: Board directory under main/boards/ (e.g. bread-compact-wifi)
+        description: Board directory under main/boards/
         required: true
         default: bread-compact-wifi
       variant:
-        description: Variant name (e.g. bread-compact-wifi, bread-compact-wifi-128x64)
+        description: Variant name (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED)
         required: true
-        default: bread-compact-wifi-128x64
-      wake_word:
-        description: Wake word model (wn9_alexa = "Alexa" as in your old S3 image; hiesp = "Hi ESP"; nihaoxiaozhi; disabled)
-        required: true
-        default: wn9_alexa
+        default: bread-compact-wifi
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
-        default: true
+        default: false
+      wake_word:
+        description: ESP-SR WakeNet model to test
+        required: true
+        default: wn9_jarvis_tts
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build ${{ inputs.variant }}
+    name: Build ${{ inputs.variant }} @ ${{ inputs.ref }}
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:release-v6.1
+      image: ${{ inputs.idf_image }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          repository: 78/xiaozhi-esp32
+          ref: ${{ inputs.ref }}
 
       - name: Patch - show activation code on screen
         shell: bash
@@ -81,12 +94,19 @@ jobs:
           WAKE_WORD: ${{ inputs.wake_word }}
         run: |
           source "$IDF_PATH/export.sh"
-          python scripts/build.py "$BOARD" --name "$VARIANT" --wake-word "$WAKE_WORD"
+          idf.py --version
+          if [ -f scripts/build.py ]; then
+            python scripts/build.py "$BOARD" --name "$VARIANT" --language en-US --wake-word "$WAKE_WORD"
+          else
+            echo "ERROR: this ref does not provide scripts/build.py with --wake-word support."
+            echo "Choose XiaoZhi v2.5.2 or another ref that supports --wake-word."
+            exit 1
+          fi
 
       - name: Upload firmware
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: xiaozhi_${{ inputs.variant }}
+          name: xiaozhi_${{ inputs.variant }}_${{ inputs.ref }}
           path: build/merged-binary.bin
           if-no-files-found: error
           
