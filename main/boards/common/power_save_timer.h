@@ -25,6 +25,7 @@ public:
 
 private:
     void PowerSaveCheck();
+    void ApplySettings();
 
     esp_timer_handle_t power_save_timer_ = nullptr;
     bool enabled_ = false;
@@ -33,6 +34,8 @@ private:
     bool shutdown_requested_ = false;
     int ticks_ = 0;
     int cpu_max_freq_;
+    int default_seconds_to_sleep_;
+    int default_seconds_to_shutdown_;
     int seconds_to_sleep_;
     int seconds_to_shutdown_;
 
