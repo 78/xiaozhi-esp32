@@ -80,6 +80,48 @@ private:
         return true;
     }
 
+    bool DetectGc2145Camera(uint16_t& detected_pid) {
+        i2c_device_config_t dev_cfg = {
+            .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+            .device_address = OTTO_GC2145_SCCB_ADDR,
+            .scl_speed_hz = 100000,
+        };
+        i2c_master_dev_handle_t dev_handle = nullptr;
+        if (i2c_master_bus_add_device(i2c_bus_, &dev_cfg, &dev_handle) != ESP_OK) {
+            return false;
+        }
+
+        // GC2145 在异常状态下可能不响应 SCCB，先软复位（0xfe bit7），再切到 page 0。
+        uint8_t reset_cmd[2] = {0xFE, 0x80};
+        if (i2c_master_transmit(dev_handle, reset_cmd, sizeof(reset_cmd), 200) == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
+        uint8_t page0_cmd[2] = {0xFE, 0x00};
+        bool found = false;
+        if (i2c_master_transmit(dev_handle, page0_cmd, sizeof(page0_cmd), 200) == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+
+            const uint8_t reg_high = 0xF0;
+            const uint8_t reg_low = 0xF1;
+            uint8_t pid_high = 0;
+            uint8_t pid_low = 0;
+            if (i2c_master_transmit_receive(dev_handle, &reg_high, 1, &pid_high, 1, 200) ==
+                    ESP_OK &&
+                i2c_master_transmit_receive(dev_handle, &reg_low, 1, &pid_low, 1, 200) == ESP_OK) {
+                uint16_t pid = (pid_high << 8) | pid_low;
+                ESP_LOGD(TAG, "GC2145 探测 PID=0x%04X", pid);
+                if (pid == OTTO_GC2145_PID) {
+                    detected_pid = pid;
+                    found = true;
+                }
+            }
+        }
+
+        i2c_master_bus_rm_device(dev_handle);
+        return found;
+    }
+
     bool DetectCamera() {
         ledc_timer_config_t ledc_timer = {
             .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -129,7 +171,9 @@ private:
         }
         const uint8_t camera_addresses[] = {0x30, 0x3C, 0x21, 0x60};
         bool camera_found = false;
+        bool unknown_camera_found = false;
         uint16_t detected_pid = 0;
+        uint16_t unknown_pid = 0;
 
         for (size_t i = 0; i < sizeof(camera_addresses); i++) {
             uint8_t addr = camera_addresses[i];
@@ -147,12 +191,17 @@ private:
                 uint8_t reg_addr_8bit = 0x0A;
                 ret = i2c_master_transmit_receive(dev_handle, &reg_addr_8bit, 1, data, 2, 200);
                 if (ret == ESP_OK && (data[0] != 0 || data[1] != 0)) {
-                    detected_pid = (data[0] << 8) | data[1];
-                    ESP_LOGI(TAG, "检测到摄像头 (OV2640方式) PID=0x%04X (地址=0x%02X)",
-                             detected_pid, addr);
-                    camera_found = true;
-                    i2c_master_bus_rm_device(dev_handle);
-                    break;
+                    uint16_t pid = (data[0] << 8) | data[1];
+                    if (pid == OTTO_OV2640_PID_1 || pid == OTTO_OV2640_PID_2) {
+                        detected_pid = pid;
+                        ESP_LOGI(TAG, "检测到摄像头 (OV2640方式) PID=0x%04X (地址=0x%02X)",
+                                 detected_pid, addr);
+                        camera_found = true;
+                        i2c_master_bus_rm_device(dev_handle);
+                        break;
+                    }
+                    unknown_pid = pid;
+                    unknown_camera_found = true;
                 }
 
                 uint8_t reg_addr_high[2] = {0x30, 0x0A};
@@ -164,18 +213,38 @@ private:
                     ret =
                         i2c_master_transmit_receive(dev_handle, reg_addr_low, 2, &pid_low, 1, 200);
                     if (ret == ESP_OK) {
-                        detected_pid = (pid_high << 8) | pid_low;
-                        if (detected_pid != 0) {
-                            ESP_LOGI(TAG, "检测到摄像头 (OV3660方式) PID=0x%04X (地址=0x%02X)",
-                                     detected_pid, addr);
-                            camera_found = true;
-                            i2c_master_bus_rm_device(dev_handle);
-                            break;
+                        uint16_t pid = (pid_high << 8) | pid_low;
+                        if (pid != 0) {
+                            if (pid == OTTO_OV3660_PID) {
+                                detected_pid = pid;
+                                ESP_LOGI(TAG, "检测到摄像头 (OV3660方式) PID=0x%04X (地址=0x%02X)",
+                                         detected_pid, addr);
+                                camera_found = true;
+                                i2c_master_bus_rm_device(dev_handle);
+                                break;
+                            }
+                            unknown_pid = pid;
+                            unknown_camera_found = true;
                         }
                     }
                 }
 
                 i2c_master_bus_rm_device(dev_handle);
+            }
+        }
+
+        // OV2640/OV3660 与 GC2145 的寄存器协议不同，先按各自方式探测；
+        // 只有都没命中时才尝试 GC2145，避免软复位干扰已经识别到的 OV 传感器。
+        if (!camera_found) {
+            uint16_t gc2145_pid = 0;
+            if (DetectGc2145Camera(gc2145_pid)) {
+                detected_pid = gc2145_pid;
+                camera_found = true;
+                ESP_LOGI(TAG, "检测到摄像头 (GC2145方式) PID=0x%04X", detected_pid);
+            } else if (unknown_camera_found) {
+                detected_pid = unknown_pid;
+                camera_found = true;
+                ESP_LOGW(TAG, "摄像头 PID 未识别，按未知型号继续初始化: PID=0x%04X", detected_pid);
             }
         }
 
@@ -192,6 +261,9 @@ private:
             } else if (detected_pid == OTTO_OV3660_PID) {
                 camera_type_ = OTTO_CAMERA_OV3660;
                 ESP_LOGI(TAG, "摄像头类型: OV3660 (PID=0x%04X)", detected_pid);
+            } else if (detected_pid == OTTO_GC2145_PID) {
+                camera_type_ = OTTO_CAMERA_GC2145;
+                ESP_LOGI(TAG, "摄像头类型: GC2145 (PID=0x%04X)", detected_pid);
             } else {
                 camera_type_ = OTTO_CAMERA_UNKNOWN;
                 ESP_LOGW(TAG, "未知摄像头类型，PID=0x%04X", detected_pid);

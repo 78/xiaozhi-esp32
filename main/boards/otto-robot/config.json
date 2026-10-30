@@ -11,7 +11,8 @@
             "sdkconfig_append": [
                 "CONFIG_HTTPD_WS_SUPPORT=y",
                 "CONFIG_CAMERA_OV2640=y",
-                "CONFIG_CAMERA_OV3660=y"
+                "CONFIG_CAMERA_OV3660=y",
+                "CONFIG_GC2145_SUPPORT=y"
             ]
         }
     ]
