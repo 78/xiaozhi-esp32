@@ -34,6 +34,11 @@ public:
     void CloseAudioChannel(bool send_goodbye = true) override;
     bool IsAudioChannelOpened() const override;
 
+    // True when the UDP audio path was recently found blackholed on the current
+    // network, so the caller should pick the WebSocket protocol instead.
+    // Consumes one boot of the remaining fallback period.
+    static bool IsUdpBlockedOnThisNetwork();
+
 private:
     // Alive flag for safe scheduled callbacks - set to false in destructor
     std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
@@ -57,6 +62,15 @@ private:
     uint32_t local_sequence_;
     uint32_t remote_sequence_;
     esp_timer_handle_t reconnect_timer_;
+
+    // UDP audio health check: a TTS segment that announced sentences but
+    // delivered no UDP packet at all means the network drops the UDP audio
+    // (e.g. behind a transparent proxy).
+    std::atomic<uint32_t> udp_rx_packets_{0};
+    uint32_t tts_start_rx_packets_ = 0;
+    int64_t tts_start_time_us_ = -1;
+    int tts_sentences_ = 0;
+    void CheckUdpHealth(const char* tts_state);
 
     bool StartMqttClient(bool report_error=false);
     void ParseServerHello(const cJSON* root);

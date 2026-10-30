@@ -560,7 +560,9 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
-    if (ota_->HasMqttConfig()) {
+    // Prefer WebSocket where the MQTT protocol's UDP audio was found blocked
+    bool udp_blocked = ota_->HasWebsocketConfig() && MqttProtocol::IsUdpBlockedOnThisNetwork();
+    if (ota_->HasMqttConfig() && !udp_blocked) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
         protocol_ = std::make_unique<WebsocketProtocol>();
