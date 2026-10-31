@@ -14,6 +14,8 @@
 #include <noto_emoji.h>
 
 #define TAG "OledDisplay"
+#include "oled_eyes.h"
+static OledEyes g_oled_eyes;
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
@@ -37,9 +39,21 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     dark_theme->set_large_icon_font(large_icon_font);
     dark_theme->set_emoji_font(emoji_font);
 
+    // Light theme: same fonts, colors are applied in ApplyPalette().
+    auto light_theme = new LvglTheme("light");
+    light_theme->set_text_font(text_font);
+    light_theme->set_icon_font(icon_font);
+    light_theme->set_large_icon_font(large_icon_font);
+    light_theme->set_emoji_font(emoji_font);
+
     auto& theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("dark", dark_theme);
-    current_theme_ = dark_theme;
+    theme_manager.RegisterTheme("light", light_theme);
+
+    // Restore the theme saved by the last `self.screen.set_theme` call.
+    Settings display_settings("display", false);
+    light_ = display_settings.GetString("theme", "dark") == "light";
+    current_theme_ = light_ ? static_cast<Theme*>(light_theme) : static_cast<Theme*>(dark_theme);
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
@@ -291,6 +305,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_pad_all(content_right_, 0, 0);
     lv_obj_set_style_border_width(content_right_, 0, 0);
     lv_obj_set_flex_grow(content_right_, 1);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    g_oled_eyes.Create(content_, LV_HOR_RES, height_ - 16, content_right_);
     lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
 
     chat_message_label_ = lv_label_create(content_right_);
@@ -320,6 +336,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    ApplyPalette(light_);
 }
 
 void OledDisplay::SetupUI_128x32() {
@@ -408,9 +426,40 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
     lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000),
                                    LV_PART_MAIN);
+
+    ApplyPalette(light_);
+}
+
+// Dark: black background, white eyes / Wi-Fi / time / text.
+// Light: white background, black eyes / Wi-Fi / time / text.
+// Caller must hold the display lock.
+void OledDisplay::ApplyPalette(bool light) {
+    light_ = light;
+    lv_color_t bg = light ? lv_color_white() : lv_color_black();
+    lv_color_t fg = light ? lv_color_black() : lv_color_white();
+
+    auto screen = lv_screen_active();
+    lv_obj_set_style_bg_color(screen, bg, 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(screen, fg, 0);
+
+    lv_obj_t* panels[] = {container_,     top_bar_,       status_bar_, content_,
+                          content_left_, content_right_, side_bar_};
+    for (lv_obj_t* o : panels) {
+        if (o != nullptr) {
+            lv_obj_set_style_bg_color(o, bg, 0);
+            lv_obj_set_style_text_color(o, fg, 0);
+        }
+    }
+    g_oled_eyes.SetLight(light);
+    lv_obj_invalidate(screen);
 }
 
 bool OledDisplay::SetEmotion(const char* emotion) {
+  if (g_oled_eyes.IsReady()) {
+    DisplayLockGuard lock(this);
+    return g_oled_eyes.SetEmotion(emotion);
+  }
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     const char* utf8 = noto_emoji_get_utf8(emotion);
     const lv_font_t* emotion_font = lvgl_theme->emoji_font()->font();
@@ -442,6 +491,10 @@ void OledDisplay::SetTheme(Theme* theme) {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
+
+    // Switch between the dark and light palette, and remember the choice across reboots.
+    ApplyPalette(theme->name() == "light");
+    Display::SetTheme(theme);
 }
 
 void OledDisplay::SetPowerSaveMode(bool on) {
