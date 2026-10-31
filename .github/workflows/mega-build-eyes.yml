@@ -1,0 +1,629 @@
+name: Mega build (Jarvis + eyes)
+
+# One firmware build with everything in it:
+#   - WakeNet9 "Jarvis" wake word (default wn9_jarvis_tts)
+#   - activation code shown on the display (not only spoken)
+#   - optional wake word strictness (wake_threshold)
+#   - optional microphone level (mic_shift) for the INMP441
+#   - optional pin overrides for the INMP441 mic and the speaker amp
+#   - noise fix: noise suppression on + stricter voice detection (noise_fix)
+#   - animated desk-buddy eyes on the 128x64 OLED (eyes)
+#
+# Every optional input does nothing while it is left at its default, so the
+# first run is the stock Jarvis build. Run manually from the Actions tab.
+# Builds upstream 78/xiaozhi-esp32 v2.5.2 with ESP-IDF 6.1.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Upstream git tag to build (v2.5.2 is the tested one)
+        required: true
+        default: v2.5.2
+      idf_image:
+        description: ESP-IDF docker image
+        required: true
+        default: espressif/idf:release-v6.1
+      board:
+        description: Board directory under main/boards/
+        required: true
+        default: bread-compact-wifi
+      variant:
+        description: Variant (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED)
+        required: true
+        default: bread-compact-wifi
+      wake_word:
+        description: ESP-SR WakeNet model
+        required: true
+        default: wn9_jarvis_tts
+      wake_threshold:
+        description: "Optional. Wake word strictness 0.40 to 0.9999. Higher = fewer false wake-ups but may miss Jarvis. Try 0.70. Empty = model default"
+        required: false
+        default: ""
+      mic_shift:
+        description: "INMP441 level shift 10 to 16. Stock is 12 (too loud, clips speech). 14 recommended. Raise to 15 if still noisy, lower to 13 if too quiet. Empty = stock"
+        required: false
+        default: "14"
+      pin_overrides:
+        description: "Optional. Comma list, e.g. mic_ws=4,mic_sck=5,mic_din=6,spk_dout=7,spk_bclk=15,spk_lrck=16 (any subset). Empty = stock pins"
+        required: false
+        default: ""
+      noise_fix:
+        description: Turn noise suppression on and make voice detection stricter
+        type: boolean
+        default: true
+      eyes:
+        description: Animated eyes on the 128x64 OLED (replaces the static emoji)
+        type: boolean
+        default: true
+      bootloader_logs:
+        description: Print bootloader messages on the serial port (diagnostic)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.variant }} @ ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.idf_image }}
+    steps:
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          repository: 78/xiaozhi-esp32
+          ref: ${{ inputs.ref }}
+
+      - name: Apply patches
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          WAKE_THRESHOLD: ${{ inputs.wake_threshold }}
+          MIC_SHIFT: ${{ inputs.mic_shift }}
+          PIN_OVERRIDES: ${{ inputs.pin_overrides }}
+          NOISE_FIX: ${{ inputs.noise_fix }}
+          EYES: ${{ inputs.eyes }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+
+          applied = []
+
+          def patch(path, old, new, label):
+              p = pathlib.Path(path)
+              src = p.read_text()
+              if src.count(old) != 1:
+                  sys.exit("ERROR [%s]: expected code not found exactly once in %s. "
+                           "Upstream changed? Use ref v2.5.2." % (label, path))
+              p.write_text(src.replace(old, new))
+              applied.append(label)
+              print("Applied:", label)
+
+          # 1. Show the activation code on the display (code first, so it stays
+          #    visible on small scrolling displays). Cleared when pairing succeeds.
+          patch(
+              "main/application.cc",
+              r'''    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);''',
+              r'''    // The server's message usually does not contain the code itself, and the code is otherwise
+              // only spoken. Show it on screen too (code first, so it stays visible on small/scrolling
+              // displays). It is cleared by HandleActivationDoneEvent() once pairing succeeds.
+              std::string screen_message = message;
+              if (!code.empty() && message.find(code) == std::string::npos) {
+                  screen_message = "Code: " + code + "\n" + message;
+              }
+
+              // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, screen_message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);''',
+              "activation code on screen",
+          )
+
+          # 2. Wake word strictness.
+          raw = os.environ.get("WAKE_THRESHOLD", "").strip()
+          if raw:
+              try:
+                  thr = float(raw)
+              except ValueError:
+                  sys.exit("ERROR: wake_threshold must be a number between 0.40 and 0.9999")
+              if not 0.40 <= thr <= 0.9999:
+                  sys.exit("ERROR: wake_threshold must be between 0.40 and 0.9999")
+              patch(
+                  "main/audio/engines/afe_audio_engine.cc",
+                  '''        afe_data_ = nullptr;
+                  return false;
+              }
+
+              if (wake_detector_ == WakeDetector::kWakeNet) {
+                  afe_iface_->disable_wakenet(afe_data_);
+              }
+              ''',
+                  '''        afe_data_ = nullptr;
+                  return false;
+              }
+
+              if (wake_detector_ == WakeDetector::kWakeNet) {
+                  if (afe_iface_->set_wakenet_threshold != nullptr) {
+                      int threshold_result = afe_iface_->set_wakenet_threshold(afe_data_, 1, %.4ff);
+                      ESP_LOGI(TAG, "Wake word threshold set to %.4f (result %%d)", threshold_result);
+                  }
+                  afe_iface_->disable_wakenet(afe_data_);
+              }
+              ''' % (thr, thr),
+                  "wake word threshold %.4f" % thr,
+              )
+
+          # 3. INMP441 level. Stock code uses >> 12 on the 32-bit samples.
+          raw = os.environ.get("MIC_SHIFT", "").strip()
+          if raw:
+              if not re.fullmatch(r"\d{1,2}", raw) or not 10 <= int(raw) <= 16:
+                  sys.exit("ERROR: mic_shift must be a whole number from 10 to 16")
+              if int(raw) != 12:
+                  patch(
+                      "main/audio/codecs/no_audio_codec.cc",
+                      "int32_t value = bit32_buffer[i] >> 12;",
+                      "int32_t value = bit32_buffer[i] >> %d;" % int(raw),
+                      "microphone shift %s" % raw,
+                  )
+
+          # 4. Pin overrides for the INMP441 mic and the speaker amp.
+          raw = os.environ.get("PIN_OVERRIDES", "").strip()
+          if raw:
+              macros = {
+                  "mic_ws": "AUDIO_I2S_MIC_GPIO_WS",
+                  "mic_sck": "AUDIO_I2S_MIC_GPIO_SCK",
+                  "mic_din": "AUDIO_I2S_MIC_GPIO_DIN",
+                  "spk_dout": "AUDIO_I2S_SPK_GPIO_DOUT",
+                  "spk_bclk": "AUDIO_I2S_SPK_GPIO_BCLK",
+                  "spk_lrck": "AUDIO_I2S_SPK_GPIO_LRCK",
+              }
+              reserved = set(range(26, 38)) | {19, 20}  # flash, PSRAM, USB
+              path = pathlib.Path("main/boards/%s/config.h" % os.environ["BOARD"])
+              if not path.is_file():
+                  sys.exit("ERROR: %s not found. pin_overrides needs a board that has a config.h "
+                           "(for example bread-compact-wifi)." % path)
+              text = path.read_text()
+              for item in raw.split(","):
+                  item = item.strip()
+                  if not item:
+                      continue
+                  m = re.fullmatch(r"(\w+)\s*=\s*(\d{1,2})", item)
+                  if not m or m.group(1) not in macros:
+                      sys.exit("ERROR: bad pin override %r. Use names: %s" % (item, ", ".join(macros)))
+                  pin = int(m.group(2))
+                  if pin > 48 or pin in reserved or 22 <= pin <= 25:
+                      sys.exit("ERROR: GPIO %d cannot be used on an ESP32-S3 N16R8 (flash, PSRAM, USB or missing)" % pin)
+                  pattern = re.compile(r"(#define\s+%s\s+)GPIO_NUM_\d+" % macros[m.group(1)])
+                  if len(pattern.findall(text)) != 1:
+                      sys.exit("ERROR: %s not found exactly once in %s (is the board right?)" % (macros[m.group(1)], path))
+                  text = pattern.sub(lambda mm: "%sGPIO_NUM_%d" % (mm.group(1), pin), text)
+                  applied.append("pin %s = GPIO %d" % (m.group(1), pin))
+                  print("Applied: pin %s = GPIO %d" % (m.group(1), pin))
+              used = {}
+              for name, num in re.findall(r"#define\s+(\w+)\s+GPIO_NUM_(\d+)", text):
+                  if name.startswith("AUDIO_I2S_GPIO_"):
+                      continue  # the duplex block reuses the same pins by design
+                  if num in used:
+                      sys.exit("ERROR: GPIO %s is used twice (%s and %s)" % (num, used[num], name))
+                  used[num] = name
+              path.write_text(text)
+
+
+          # 5. Noise fix: AFE noise suppression on, stricter voice detection.
+          if os.environ.get("NOISE_FIX", "") == "true":
+              patch(
+                  "main/audio/engines/afe_audio_engine.cc",
+                  "afe_config->ns_init = false;",
+                  "afe_config->ns_init = true;",
+                  "noise suppression on",
+              )
+              patch(
+                  "main/audio/engines/afe_audio_engine.cc",
+                  "afe_config->vad_mode = VAD_MODE_0;",
+                  "afe_config->vad_mode = VAD_MODE_3;",
+                  "stricter voice detection",
+              )
+
+          # 6. Animated eyes (128x64 OLED only). oled_eyes.h is written by the next step.
+          if os.environ.get("EYES", "") == "true":
+              patch(
+                  "main/display/oled_display.cc",
+                  '''#define TAG "OledDisplay"\n''',
+                  '''#define TAG "OledDisplay"\n\n#include "oled_eyes.h"\nstatic OledEyes g_oled_eyes;\n''',
+                  "eyes: include",
+              )
+              patch(
+                  "main/display/oled_display.cc",
+                  "    lv_obj_set_flex_grow(content_right_, 1);\n",
+                  "    lv_obj_set_flex_grow(content_right_, 1);\n"
+                  "    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);\n"
+                  "    g_oled_eyes.Create(content_, LV_HOR_RES, height_ - 16, content_right_);\n",
+                  "eyes: create widget",
+              )
+              patch(
+                  "main/display/oled_display.cc",
+                  "void OledDisplay::SetEmotion(const char* emotion) {\n",
+                  "void OledDisplay::SetEmotion(const char* emotion) {\n"
+                  "    if (g_oled_eyes.IsReady()) {\n"
+                  "        DisplayLockGuard lock(this);\n"
+                  "        g_oled_eyes.SetEmotion(emotion);\n"
+                  "        return;\n"
+                  "    }\n",
+                  "eyes: emotion hook",
+              )
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a") as handle:
+                  handle.write("### Patches applied\n")
+                  for item in applied:
+                      handle.write("- %s\n" % item)
+          PY
+          git --no-pager diff --stat
+
+      - name: Add eyes widget
+        if: ${{ inputs.eyes }}
+        shell: bash
+        run: |
+          cat > main/display/oled_eyes.h <<'XZ_HEADER_END'
+          #ifndef OLED_EYES_H
+          #define OLED_EYES_H
+
+          // Animated "desk buddy" eyes for a monochrome SSD1306 OLED (header-only).
+          // Two white rounded rectangles on black, with black "lids" over them.
+          // The eyes blink, glance around and change shape with the emotion name that
+          // the firmware already sends (happy, sad, angry, thinking, ...).
+
+          #include <lvgl.h>
+
+          #include <esp_random.h>
+          #include <math.h>
+          #include <string.h>
+
+          class OledEyes {
+          public:
+              bool IsReady() const { return root_ != nullptr; }
+
+              // parent: the LVGL content area. width/height: size of the area the eyes may use.
+              // subtitle_box: the object that holds the chat text; while it is visible the eyes
+              // shrink into the left column automatically.
+              void Create(lv_obj_t* parent, int width, int height, lv_obj_t* subtitle_box) {
+                  subtitle_box_ = subtitle_box;
+                  full_w_ = width;
+                  full_h_ = height;
+
+                  root_ = lv_obj_create(parent);
+                  lv_obj_remove_style_all(root_);
+                  lv_obj_add_flag(root_, LV_OBJ_FLAG_FLOATING);  // ignored by the parent's flex layout
+                  lv_obj_remove_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
+                  lv_obj_remove_flag(root_, LV_OBJ_FLAG_CLICKABLE);
+                  lv_obj_set_pos(root_, 0, 0);
+                  lv_obj_set_size(root_, full_w_, full_h_);
+                  lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
+                  lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
+
+                  for (int i = 0; i < 2; i++) {
+                      eye_[i].o = MakeBox(lv_color_white());
+                  }
+                  for (int i = 0; i < 2; i++) {
+                      lid_top_[i].o = MakeBox(lv_color_black());
+                      lid_bot_[i].o = MakeBox(lv_color_black());
+                  }
+
+                  SetEmotion("neutral");
+                  cur_ = target_;
+                  uint32_t now = lv_tick_get();
+                  next_blink_ = now + 2000;
+                  next_look_ = now + 1500;
+                  Render(true);
+                  timer_ = lv_timer_create(&OledEyes::TimerCb, 40, this);
+              }
+
+              // Eyes use the whole area normally; compact mode squeezes them into the
+              // left 32 px column so a chat subtitle can be shown on the right.
+              void SetCompact(bool compact) {
+                  if (root_ == nullptr || compact == compact_) {
+                      return;
+                  }
+                  compact_ = compact;
+                  lv_obj_set_size(root_, compact_ ? 32 : full_w_, full_h_);
+                  Render(true);
+              }
+
+              // Returns true when the emotion name is known.
+              bool SetEmotion(const char* name) {
+                  if (name == nullptr) {
+                      name = "neutral";
+                  }
+                  Pose p;
+                  can_blink_ = true;
+                  can_look_ = true;
+                  bool known = true;
+                  auto is = [&](const char* s) { return strcmp(name, s) == 0; };
+
+                  if (is("neutral") || is("confident")) {
+                      // default pose
+                  } else if (is("relaxed")) {
+                      p.top = 22;
+                  } else if (is("cool")) {
+                      p.top = 32;
+                  } else if (is("happy") || is("laughing") || is("funny") || is("silly") || is("loving") ||
+                             is("delicious") || is("kissy")) {
+                      p.bot = 48;  // upturned "happy" eyes
+                      p.h = 1.05f;
+                      can_blink_ = false;
+                  } else if (is("sad") || is("crying") || is("embarrassed")) {
+                      p.top = 30;
+                      p.h = 0.8f;
+                      p.gap = 1.25f;
+                      p.ly = 4;
+                      can_look_ = false;
+                  } else if (is("angry")) {
+                      p.top = 45;
+                      p.gap = 0.55f;
+                      can_look_ = false;
+                  } else if (is("surprised") || is("shocked")) {
+                      p.w = 1.12f;
+                      p.h = 1.3f;
+                      p.gap = 1.1f;
+                      can_look_ = false;
+                  } else if (is("thinking") || is("confused")) {
+                      p.lx = 1;   // look up and to the side (scaled by amplitude)
+                      p.ly = -1;
+                      p.top = 15;
+                      can_look_ = false;
+                  } else if (is("winking")) {
+                      p.r = 0.12f;  // right eye closed
+                      can_blink_ = false;
+                  } else if (is("sleepy")) {
+                      p.top = 68;
+                      p.h = 0.9f;
+                      can_blink_ = false;
+                      can_look_ = false;
+                  } else {
+                      known = false;  // unknown name: stay neutral
+                  }
+                  base_ = p;
+                  look_x_ = 0;
+                  look_y_ = 0;
+                  target_ = base_;
+                  // thinking/confused store look direction in lx/ly as a sign, convert now
+                  ApplyLookAmplitudeToBase();
+                  return known;
+              }
+
+          private:
+              struct Pose {
+                  float w = 1, h = 1;   // eye size scale
+                  float top = 0;        // top lid, % of eye height
+                  float bot = 0;        // bottom lid, % of eye height
+                  float gap = 1;        // gap scale
+                  float lx = 0, ly = 0; // look offset (pixels after ApplyLookAmplitudeToBase)
+                  float r = 1;          // right eye height scale (wink)
+              };
+              struct Box {
+                  lv_obj_t* o = nullptr;
+                  int x = -9999, y = -9999, w = -1, h = -1;
+                  bool hidden = false;
+              };
+
+              lv_obj_t* root_ = nullptr;
+              lv_obj_t* subtitle_box_ = nullptr;
+              lv_timer_t* timer_ = nullptr;
+              Box eye_[2], lid_top_[2], lid_bot_[2];
+              Pose base_, target_, cur_;
+              int full_w_ = 128, full_h_ = 48;
+              bool compact_ = false;
+              bool can_blink_ = true, can_look_ = true;
+              int look_x_ = 0, look_y_ = 0;  // -1, 0, 1 glance direction
+              uint32_t next_blink_ = 0, next_look_ = 0, blink_until_ = 0;
+
+              lv_obj_t* MakeBox(lv_color_t color) {
+                  lv_obj_t* o = lv_obj_create(root_);
+                  lv_obj_remove_style_all(o);
+                  lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+                  lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+                  lv_obj_set_style_bg_color(o, color, 0);
+                  lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+                  lv_obj_set_style_radius(o, 0, 0);
+                  return o;
+              }
+
+              static uint32_t Rand(uint32_t n) { return n == 0 ? 0 : esp_random() % n; }
+
+              float LookAmpX() const { return compact_ ? 2.0f : 8.0f; }
+              float LookAmpY() const { return compact_ ? 2.0f : 4.0f; }
+
+              void ApplyLookAmplitudeToBase() {
+                  base_.lx *= LookAmpX();
+                  base_.ly *= LookAmpY();
+                  target_ = base_;
+              }
+
+              static void TimerCb(lv_timer_t* t) {
+                  static_cast<OledEyes*>(lv_timer_get_user_data(t))->Tick();
+              }
+
+              static float Ease(float cur, float tgt) {
+                  float d = tgt - cur;
+                  if (fabsf(d) < 0.05f) {
+                      return tgt;
+                  }
+                  return cur + d * 0.45f;
+              }
+
+              void Tick() {
+                  uint32_t now = lv_tick_get();
+
+                  if (subtitle_box_ != nullptr) {
+                      SetCompact(!lv_obj_has_flag(subtitle_box_, LV_OBJ_FLAG_HIDDEN));
+                  }
+
+                  if (can_blink_ && now >= next_blink_ && now >= blink_until_) {
+                      blink_until_ = now + 140;
+                      next_blink_ = now + 2500 + Rand(3500);
+                  }
+                  if (can_look_ && now >= next_look_) {
+                      look_x_ = (int)Rand(3) - 1;
+                      look_y_ = (int)Rand(3) - 1;
+                      if (look_y_ != 0 && Rand(2) == 0) {
+                          look_y_ = 0;  // mostly glance sideways
+                      }
+                      next_look_ = now + 1200 + Rand(2800);
+                  }
+
+                  target_ = base_;
+                  if (can_look_) {
+                      target_.lx = look_x_ * LookAmpX();
+                      target_.ly = look_y_ * LookAmpY();
+                  }
+                  if (now < blink_until_) {
+                      target_.h = base_.h * 0.1f;
+                      target_.top = 0;
+                      target_.bot = 0;
+                  }
+
+                  cur_.w = Ease(cur_.w, target_.w);
+                  cur_.h = Ease(cur_.h, target_.h);
+                  cur_.top = Ease(cur_.top, target_.top);
+                  cur_.bot = Ease(cur_.bot, target_.bot);
+                  cur_.gap = Ease(cur_.gap, target_.gap);
+                  cur_.lx = Ease(cur_.lx, target_.lx);
+                  cur_.ly = Ease(cur_.ly, target_.ly);
+                  cur_.r = Ease(cur_.r, target_.r);
+                  Render(false);
+              }
+
+              static void Place(Box& b, int x, int y, int w, int h, int radius, bool force) {
+                  if (h < 1 || w < 1) {
+                      if (!b.hidden || force) {
+                          lv_obj_add_flag(b.o, LV_OBJ_FLAG_HIDDEN);
+                          b.hidden = true;
+                      }
+                      return;
+                  }
+                  if (b.hidden || force) {
+                      lv_obj_remove_flag(b.o, LV_OBJ_FLAG_HIDDEN);
+                      b.hidden = false;
+                  }
+                  if (force || x != b.x || y != b.y) {
+                      lv_obj_set_pos(b.o, x, y);
+                      b.x = x;
+                      b.y = y;
+                  }
+                  if (force || w != b.w || h != b.h) {
+                      lv_obj_set_size(b.o, w, h);
+                      lv_obj_set_style_radius(b.o, radius < h / 2 ? radius : h / 2, 0);
+                      b.w = w;
+                      b.h = h;
+                  }
+              }
+
+              void Render(bool force) {
+                  if (root_ == nullptr) {
+                      return;
+                  }
+                  const int area_w = compact_ ? 32 : full_w_;
+                  const int ew = compact_ ? 13 : 36;
+                  const int eh = compact_ ? 26 : 32;
+                  const int gap0 = compact_ ? 4 : 22;
+                  const int radius = compact_ ? 5 : 11;
+
+                  int w = (int)lroundf(ew * cur_.w);
+                  int gap = (int)lroundf(gap0 * cur_.gap);
+                  int total = 2 * w + gap;
+                  int x0 = (area_w - total) / 2 + (int)lroundf(cur_.lx);
+                  int cy = full_h_ / 2 + (int)lroundf(cur_.ly);
+
+                  for (int i = 0; i < 2; i++) {
+                      float hs = cur_.h * (i == 1 ? cur_.r : 1.0f);
+                      int h = (int)lroundf(eh * hs);
+                      if (h < 2) {
+                          h = 2;  // a closed eye is a thin line
+                      }
+                      int x = x0 + i * (w + gap);
+                      int y = cy - h / 2;
+                      Place(eye_[i], x, y, w, h, radius, force);
+
+                      int ht = (int)lroundf(h * cur_.top / 100.0f);
+                      if (ht < 1) {
+                          Place(lid_top_[i], x - 2, y - 1, w + 4, 0, 0, force);  // hide
+                      } else {
+                          Place(lid_top_[i], x - 2, y - 1, w + 4, ht + 1, 0, force);
+                      }
+                      int hb = (int)lroundf(h * cur_.bot / 100.0f);
+                      if (hb < 1) {
+                          Place(lid_bot_[i], x - 2, y + h, w + 4, 0, 0, force);  // hide
+                      } else {
+                          Place(lid_bot_[i], x - 2, y + h - hb, w + 4, hb + 2, 0, force);
+                      }
+                  }
+              }
+          };
+
+          #endif  // OLED_EYES_H
+          XZ_HEADER_END
+          wc -l main/display/oled_eyes.h
+
+      - name: Enable bootloader logs (diagnostic)
+        if: ${{ inputs.bootloader_logs }}
+        shell: bash
+        run: |
+          sed -i 's/^CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y/CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y/' sdkconfig.defaults
+          grep -n "BOOTLOADER_LOG_LEVEL" sdkconfig.defaults
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          VARIANT: ${{ inputs.variant }}
+          WAKE_WORD: ${{ inputs.wake_word }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          idf.py --version
+          if [ -f scripts/build.py ]; then
+            python scripts/build.py "$BOARD" --name "$VARIANT" --language en-US --wake-word "$WAKE_WORD"
+          else
+            echo "ERROR: this ref does not provide scripts/build.py with --wake-word support."
+            echo "Choose XiaoZhi v2.5.2 or another ref that supports --wake-word."
+            exit 1
+          fi
+
+      - name: Write build info
+        shell: bash
+        env:
+          INFO_REF: ${{ inputs.ref }}
+          INFO_BOARD: ${{ inputs.board }}
+          INFO_VARIANT: ${{ inputs.variant }}
+          INFO_WAKE_WORD: ${{ inputs.wake_word }}
+          INFO_THRESHOLD: ${{ inputs.wake_threshold }}
+          INFO_SHIFT: ${{ inputs.mic_shift }}
+          INFO_PINS: ${{ inputs.pin_overrides }}
+          INFO_NOISE: ${{ inputs.noise_fix }}
+          INFO_EYES: ${{ inputs.eyes }}
+        run: |
+          {
+            echo "ref=$INFO_REF"
+            echo "board=$INFO_BOARD"
+            echo "variant=$INFO_VARIANT"
+            echo "wake_word=$INFO_WAKE_WORD"
+            echo "wake_threshold=${INFO_THRESHOLD:-default}"
+            echo "mic_shift=${INFO_SHIFT:-stock}"
+            echo "pin_overrides=${INFO_PINS:-stock}"
+            echo "noise_fix=$INFO_NOISE"
+            echo "eyes=$INFO_EYES"
+            echo "flash merged-binary.bin at address 0x0"
+          } > build/build-info.txt
+          cat build/build-info.txt
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis_${{ inputs.variant }}_${{ inputs.ref }}
+          path: |
+            build/merged-binary.bin
+            build/build-info.txt
+          if-no-files-found: error
