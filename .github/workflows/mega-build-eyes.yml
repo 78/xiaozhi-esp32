@@ -9,6 +9,7 @@ name: Mega build (Jarvis + eyes)
 #   - noise fix: noise suppression on + stricter voice detection (noise_fix)
 #   - animated desk-buddy eyes on the 128x64 OLED (eyes)
 #   - dark / light theme for the OLED, switched by voice (light_dark_theme)
+#   - optional prebuilt Jarvis assets image from this repo (custom_assets)
 #
 # Every optional input does nothing while it is left at its default, so the
 # first run is the stock Jarvis build. Run manually from the Actions tab.
@@ -61,6 +62,10 @@ on:
         description: Dark and light mode for the OLED (needs eyes). Say "light mode" or "dark mode" to Jarvis
         type: boolean
         default: true
+      custom_assets:
+        description: Flash custom_assets/jarvis_wakeword_assets.bin from this repo (a ready Jarvis wake word image) instead of the assets the build generates
+        type: boolean
+        default: true
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
@@ -81,6 +86,15 @@ jobs:
         with:
           repository: 78/xiaozhi-esp32
           ref: ${{ inputs.ref }}
+
+      - name: Fetch custom assets from this repo
+        if: ${{ inputs.custom_assets }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.ref }}
+          path: fork_files
+          sparse-checkout: custom_assets
 
       - name: Apply patches
         shell: bash
@@ -690,6 +704,16 @@ jobs:
           print("Applied: light/dark theme")
           XZ_THEME_PY
           git --no-pager diff --stat
+
+      - name: Use custom Jarvis assets image
+        if: ${{ inputs.custom_assets }}
+        shell: bash
+        run: |
+          ASSETS="$GITHUB_WORKSPACE/fork_files/custom_assets/jarvis_wakeword_assets.bin"
+          test -s "$ASSETS" || { echo "ERROR: $ASSETS is missing or empty"; exit 1; }
+          ls -l "$ASSETS"
+          printf '\nCONFIG_FLASH_CUSTOM_ASSETS=y\nCONFIG_CUSTOM_ASSETS_FILE="%s"\n' "$ASSETS" >> sdkconfig.defaults
+          tail -3 sdkconfig.defaults
 
       - name: Enable bootloader logs (diagnostic)
         if: ${{ inputs.bootloader_logs }}
