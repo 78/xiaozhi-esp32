@@ -24,8 +24,11 @@ private:
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
+    bool light_ = false;
+
     void SetupUI_128x64();
     void SetupUI_128x32();
+    void ApplyPalette(bool light);
 
 public:
     OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width,

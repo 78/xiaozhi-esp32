@@ -42,6 +42,8 @@ public:
             lid_bot_[i].o = MakeBox(lv_color_black());
         }
 
+        ApplyColors();
+
         SetEmotion("neutral");
         cur_ = target_;
         uint32_t now = lv_tick_get();
@@ -60,6 +62,13 @@ public:
         compact_ = compact;
         lv_obj_set_size(root_, compact_ ? 32 : full_w_, full_h_);
         Render(true);
+    }
+
+    // Dark mode (default): white eyes on a black background.
+    // Light mode: black eyes on a white background.
+    void SetLight(bool light) {
+        light_ = light;
+        ApplyColors();
     }
 
     // Returns true when the emotion name is known.
@@ -146,6 +155,7 @@ private:
     Pose base_, target_, cur_;
     int full_w_ = 128, full_h_ = 48;
     bool compact_ = false;
+    bool light_ = false;
     bool can_blink_ = true, can_look_ = true;
     int look_x_ = 0, look_y_ = 0;  // -1, 0, 1 glance direction
     uint32_t next_blink_ = 0, next_look_ = 0, blink_until_ = 0;
@@ -159,6 +169,22 @@ private:
         lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(o, 0, 0);
         return o;
+    }
+
+    // The lids must match the background and the eyes must match the foreground.
+    void ApplyColors() {
+        if (root_ == nullptr) {
+            return;
+        }
+        lv_color_t bg = light_ ? lv_color_white() : lv_color_black();
+        lv_color_t fg = light_ ? lv_color_black() : lv_color_white();
+        lv_obj_set_style_bg_color(root_, bg, 0);
+        for (int i = 0; i < 2; i++) {
+            lv_obj_set_style_bg_color(eye_[i].o, fg, 0);
+            lv_obj_set_style_bg_color(lid_top_[i].o, bg, 0);
+            lv_obj_set_style_bg_color(lid_bot_[i].o, bg, 0);
+        }
+        lv_obj_invalidate(root_);
     }
 
     static uint32_t Rand(uint32_t n) { return n == 0 ? 0 : esp_random() % n; }
