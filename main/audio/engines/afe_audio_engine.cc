@@ -141,7 +141,6 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
         afe_config->vad_model_name = vad_model_name;
     }
     afe_config->wakenet_init = wake_detector_ == WakeDetector::kWakeNet;
-    afe_config->wakenet_mode = DET_MODE_95;
     afe_config->wakenet_model_name = nullptr;
     afe_config->wakenet_model_name_2 = nullptr;
     if (wake_detector_ == WakeDetector::kWakeNet && models_ != nullptr) {
