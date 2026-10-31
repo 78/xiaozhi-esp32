@@ -157,7 +157,9 @@ private:
     bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
-
+#ifdef CONFIG_XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+    std::atomic<int64_t> last_voice_ms_{0};
+#endif
 
     // Event handlers
     void HandleStateChangedEvent();

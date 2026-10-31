@@ -88,6 +88,11 @@ void Application::Initialize() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_WAKE_WORD_DETECTED);
     };
     callbacks.on_vad_change = [this](bool speaking) {
+#ifdef CONFIG_XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+        if (speaking) {
+            last_voice_ms_.store(esp_timer_get_time() / 1000, std::memory_order_relaxed);
+        }
+#endif
         xEventGroupSetBits(event_group_, MAIN_EVENT_VAD_CHANGE);
     };
     callbacks.on_playback_drained = [this]() {
@@ -285,7 +290,24 @@ void Application::Run() {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
-
+#ifdef CONFIG_XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+            if (GetDeviceState() == kDeviceStateListening) {
+                int64_t now_ms = esp_timer_get_time() / 1000;
+                int64_t last = last_voice_ms_.load(std::memory_order_relaxed);
+                if (last != 0 && (now_ms - last) >= CONFIG_XIAOZHI_LISTENING_TIMEOUT_SECONDS * 1000) {
+                    ESP_LOGI(TAG, "Silence timeout (%lld ms), stop listening",
+                            (long long)(now_ms - last));
+                    if (protocol_) protocol_->SendStopListening();
+                    SetDeviceState(kDeviceStateIdle);
+                    if (protocol_ && protocol_->IsAudioChannelOpened()) {
+                        protocol_->CloseAudioChannel();
+                    }
+                    last_voice_ms_.store(0, std::memory_order_relaxed);
+                }
+            } else {
+                last_voice_ms_.store(0, std::memory_order_relaxed);
+            }
+#endif
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
                 SystemInfo::PrintHeapStats();
@@ -1052,7 +1074,9 @@ void Application::HandleStateChangedEvent() {
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("neutral");
-
+#ifdef CONFIG_XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+            last_voice_ms_.store(esp_timer_get_time() / 1000, std::memory_order_relaxed);
+#endif
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
                 // For auto mode, wait for the playback queue to drain before enabling

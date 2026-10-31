@@ -1085,6 +1085,27 @@ config USE_AUDIO_DEBUGGER
     help
         Enable audio debugger, send audio data through UDP to the host machine
 
+config XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+    bool "Enable silent exit on listening timeout"
+    default n
+    help
+        When enabled, the device silently exits the listening state after
+        the configured timeout instead of playing the timeout prompt sound.
+        When disabled (default), the original behavior is preserved: the
+        device plays a prompt sound when the listening state times out.
+
+config XIAOZHI_LISTENING_TIMEOUT_SECONDS
+    int "Listening timeout (seconds)"
+    depends on XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT
+    default 60
+    range 5 55
+    help
+        Listening state timeout in seconds. After staying in listening mode
+        for longer than this duration without voice input, the device exits
+        listening mode. Only takes effect when
+        XIAOZHI_LISTENING_TIMEOUT_SILENT_EXIT is enabled.
+        The original hard-coded timeout is 60 seconds.
+
 menu "WiFi Configuration Method"
     help
         WiFi Configuration Method Selection
