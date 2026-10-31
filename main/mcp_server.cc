@@ -17,6 +17,7 @@
 #include "display.h"
 #include "lvgl_image.h"
 #include "lvgl_theme.h"
+#include "mcp_remote_client.h"
 #include "settings.h"
 
 #define TAG "MCP"
@@ -115,6 +116,9 @@ void McpServer::AddCommonTools() {
                 });
     }
 #endif
+
+    // Optional: tools for reaching other MCP servers (no-op unless CONFIG_USE_MCP_CLIENT).
+    AddMcpRemoteClientTools();
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), std::make_move_iterator(original_tools.begin()),
