@@ -14,6 +14,8 @@
 #include <noto_emoji.h>
 
 #define TAG "OledDisplay"
+#include "oled_eyes.h"
+static OledEyes g_oled_eyes;
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
@@ -291,6 +293,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_pad_all(content_right_, 0, 0);
     lv_obj_set_style_border_width(content_right_, 0, 0);
     lv_obj_set_flex_grow(content_right_, 1);
+    lv_obj_add_flag(emotion_label_, LV_OBJ_FLAG_HIDDEN);
+    g_oled_eyes.Create(content_, LV_HOR_RES, height_ - 16, content_right_);
     lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
 
     chat_message_label_ = lv_label_create(content_right_);
@@ -411,6 +415,10 @@ void OledDisplay::SetupUI_128x32() {
 }
 
 bool OledDisplay::SetEmotion(const char* emotion) {
+  if (g_oled_eyes.IsReady()) {
+    DisplayLockGuard lock(this);
+    return g_oled_eyes.SetEmotion(emotion);
+  }
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     const char* utf8 = noto_emoji_get_utf8(emotion);
     const lv_font_t* emotion_font = lvgl_theme->emoji_font()->font();
