@@ -15,13 +15,17 @@ How a server uses it:
 """
 
 import difflib
+import hashlib
+import http.server
 import json
 import os
 import random
 import re
+import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 import unicodedata
 from pathlib import Path
@@ -29,6 +33,7 @@ from pathlib import Path
 AUDIO_EXTS = (".flac", ".mp3", ".m4a", ".opus", ".ogg", ".wav", ".aac", ".mp4")  # best first
 FILLER_WORDS = {"play", "song", "songs", "music", "gaana", "gana"}
 MIN_SCORE = 0.55
+BOT_WORDS = {"bot", "here", "local", "speaker", "device", "jarvis"}
 
 OFFLINE_NOTE = (
     "Offline only: this plays music saved on the phone and never searches the internet. "
@@ -51,6 +56,10 @@ class LocalMusic:
         self.ipc_path = ipc_path or os.path.join(tempfile.gettempdir(), "jarvis-mpv.sock")
         self.rescan_seconds = rescan_seconds
         self.volume = 70
+        self.stream_port = int(os.environ.get("JARVIS_STREAM_PORT", "8765"))
+        self.ffmpeg = os.environ.get("JARVIS_FFMPEG", "ffmpeg")
+        self._server = None
+        self._ids = {}
         self._proc = None
         self._library = []
         self._scanned_at = 0.0
@@ -180,6 +189,99 @@ class LocalMusic:
         except (OSError, ValueError):
             return None
 
+    # ---- streaming to the bot's own speaker --------------------------------------------
+    # The bot cannot read the phone's files, so the phone serves the song as raw 16-bit mono
+    # audio over HTTP and the bot pulls it (firmware tool: self.music.play_url).
+    def _song_id(self, entry):
+        sid = hashlib.sha1(entry["path"].encode("utf-8")).hexdigest()[:16]
+        self._ids[sid] = entry["path"]
+        return sid
+
+    def _ensure_server(self):
+        if self._server is not None:
+            return None
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                try:
+                    owner._serve_stream(self)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+
+        try:
+            self._server = http.server.ThreadingHTTPServer(("0.0.0.0", self.stream_port), Handler)
+        except OSError as exc:
+            return "Could not open the music stream port %d: %s" % (self.stream_port, exc)
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        return None
+
+    def _serve_stream(self, handler):
+        from urllib.parse import parse_qs, urlparse
+
+        parsed = urlparse(handler.path)
+        if not parsed.path.startswith("/stream/"):
+            handler.send_error(404)
+            return
+        path = self._ids.get(parsed.path.rsplit("/", 1)[-1].split(".")[0])
+        if not path or not os.path.isfile(path):
+            handler.send_error(404)
+            return
+        try:
+            rate = int(parse_qs(parsed.query).get("rate", ["24000"])[0])
+        except ValueError:
+            rate = 24000
+        rate = max(8000, min(48000, rate))
+        cmd = [self.ffmpeg, "-v", "quiet", "-i", path, "-vn", "-f", "s16le", "-ac", "1",
+               "-ar", str(rate), "-"]
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                    stdin=subprocess.DEVNULL)
+        except FileNotFoundError:
+            handler.send_error(500, "ffmpeg is not installed")
+            return
+        handler.send_response(200)
+        handler.send_header("Content-Type", "application/octet-stream")
+        handler.end_headers()
+        try:
+            while True:
+                chunk = proc.stdout.read(8192)
+                if not chunk:
+                    break
+                handler.wfile.write(chunk)
+        finally:
+            proc.kill()
+            proc.wait()
+            proc.stdout.close()
+
+    def phone_address(self):
+        env = os.environ.get("JARVIS_PHONE_IP")
+        if env:
+            return env
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("10.255.255.255", 1))
+                return s.getsockname()[0]
+        except OSError:
+            return None
+
+    def prepare_for_bot(self, entry):
+        failed = self._ensure_server()
+        if failed:
+            return failed
+        if shutil.which(self.ffmpeg) is None:
+            return "ffmpeg is not installed on the phone. Run: pkg install ffmpeg"
+        host = self.phone_address()
+        if not host:
+            return ("The phone's address is unknown. Set JARVIS_PHONE_IP to the phone's address "
+                    "on the same Wi-Fi as the bot.")
+        url = "http://%s:%d/stream/%s.pcm" % (host, self.stream_port, self._song_id(entry))
+        return ("Ready to play %s on the bot's speaker. Now call the device tool "
+                "self.music.play_url with url=%s" % (self._label(entry), url))
+
     # ---- actions ----------------------------------------------------------------------
     def _no_library(self):
         if not self.music_dir:
@@ -189,7 +291,7 @@ class LocalMusic:
             return "The music folder is empty."
         return None
 
-    def play(self, query):
+    def play(self, query, target="phone"):
         problem = self._no_library()
         if problem:
             return problem
@@ -199,8 +301,11 @@ class LocalMusic:
         if not hits:
             return ("No song matching '%s' is saved on the phone. Nothing was searched online. "
                     "Ask the user for another song." % query)
+        if target == "bot":
+            self.stop()  # do not play on the phone as well
+            return self.prepare_for_bot(hits[0])
         failed = self._start(hits)
-        return failed or "Playing %s from the phone." % self._label(hits[0])
+        return failed or "Playing %s on the phone." % self._label(hits[0])
 
     def shuffle(self, artist=""):
         problem = self._no_library()
@@ -283,7 +388,7 @@ class LocalMusic:
     def call(self, name, args=None):
         args = args or {}
         table = {
-            "local_music_play": lambda: self.play(args.get("query", "")),
+            "local_music_play": lambda: self.play(args.get("query", ""), _target(args)),
             "local_music_shuffle": lambda: self.shuffle(args.get("artist", "")),
             "local_music_find": lambda: self.find(args.get("query", "")),
             "local_music_list": lambda: self.list_songs(args.get("limit", 60), args.get("artist", "")),
@@ -300,6 +405,11 @@ class LocalMusic:
         return table[name]()
 
 
+def _target(args):
+    value = str(args.get("target", "phone")).strip().lower()
+    return "bot" if value in BOT_WORDS else "phone"
+
+
 def _str(description):
     return {"type": "string", "description": description}
 
@@ -313,8 +423,13 @@ TOOLS = [
     ("local_music_play",
      "Play a song or artist from the music saved on the user's phone. " + OFFLINE_NOTE +
      " Pass only the song and/or artist name as the user said it, without words like 'play'. "
-     "If the user names no song, call local_music_shuffle instead.",
-     {"query": _str("Song title and/or artist, e.g. 'tum hi ho' or 'arijit singh'")}, ["query"]),
+     "If the user names no song, call local_music_shuffle instead. "
+     "Where to play: target 'phone' (default; also when the user says mobile, phone or PH) plays on "
+     "the phone's speaker. Target 'bot' (when the user says bot, here, local, speaker or device) "
+     "plays on the bot's own speaker: the result then names a device tool, self.music.play_url, "
+     "and you MUST call it with the url from the result to start the music.",
+     {"query": _str("Song title and/or artist, e.g. 'tum hi ho' or 'arijit singh'"),
+      "target": _str("'phone' (default) or 'bot'")}, ["query"]),
     ("local_music_shuffle",
      "Play random songs from the phone, optionally only one artist. " + OFFLINE_NOTE +
      " For a mood request, call local_music_list first, pick fitting songs, then use local_music_play.",

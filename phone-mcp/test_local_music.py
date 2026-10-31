@@ -10,6 +10,8 @@ import stat
 import tempfile
 import threading
 import unittest
+import urllib.error
+import urllib.request
 
 import local_music
 from local_music import LocalMusic, TOOLS
@@ -147,6 +149,62 @@ class IpcTests(Fixture):
     def test_controls_when_nothing_plays(self):
         self.assertEqual(self.m.pause(), "Nothing is playing.")
         self.assertEqual(self.m.next(), "Nothing is playing.")
+
+
+class BotSpeakerTests(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.ffmpeg = os.path.join(self.tmp.name, "fakeffmpeg")
+        with open(self.ffmpeg, "w") as f:
+            f.write("#!/bin/sh\necho \"$@\" > %s.args\nprintf 'ABCDEFGHIJKLMNOP'\n" % self.ffmpeg)
+        os.chmod(self.ffmpeg, os.stat(self.ffmpeg).st_mode | stat.S_IEXEC)
+        self.m.ffmpeg = self.ffmpeg
+        self.m.stream_port = 0  # any free port
+        os.environ["JARVIS_PHONE_IP"] = "127.0.0.1"
+
+    def tearDown(self):
+        os.environ.pop("JARVIS_PHONE_IP", None)
+        if self.m._server:
+            self.m._server.shutdown()
+            self.m._server.server_close()
+        super().tearDown()
+
+    def _url(self, reply):
+        self.assertIn("self.music.play_url", reply)
+        url = reply.split("url=")[1].strip()
+        port = self.m._server.server_address[1]
+        return url.replace(":0/", ":%d/" % port)
+
+    def test_bot_target_gives_stream_url_and_does_not_play_on_phone(self):
+        reply = self.m.play("kesariya", "bot")
+        self.assertIn("Kesariya by Arijit Singh", reply)
+        self.assertFalse(os.path.exists(self.log))  # the phone player was not started
+
+    def test_stream_serves_raw_audio_at_requested_rate(self):
+        url = self._url(self.m.play("kesariya", "bot"))
+        with urllib.request.urlopen(url + "?rate=16000", timeout=5) as r:
+            self.assertEqual(r.read(), b"ABCDEFGHIJKLMNOP")
+        args = open(self.ffmpeg + ".args").read()
+        self.assertIn("Kesariya - Arijit Singh.flac", args)
+        self.assertIn("-ar 16000", args)
+        self.assertIn("s16le", args)
+
+    def test_stream_refuses_unknown_ids_and_paths(self):
+        url = self._url(self.m.play("kesariya", "bot"))
+        base = url.rsplit("/", 2)[0]
+        for bad in ("/stream/deadbeef.pcm", "/stream/..%2f..%2fetc%2fpasswd.pcm", "/other"):
+            with self.assertRaises(urllib.error.HTTPError):
+                urllib.request.urlopen(base + bad, timeout=5)
+
+    def test_missing_ffmpeg_is_reported(self):
+        self.m.ffmpeg = "/no/such/ffmpeg"
+        self.assertIn("pkg install ffmpeg", self.m.play("kesariya", "bot"))
+
+    def test_target_words(self):
+        for word in ("bot", "here", "Local", "speaker"):
+            self.assertIn("self.music.play_url", self.m.call("local_music_play", {"query": "kesariya", "target": word}))
+        for word in ("phone", "mobile", "PH", "", "anything"):
+            self.assertIn("on the phone", self.m.call("local_music_play", {"query": "kesariya", "target": word}))
 
 
 class ToolSpecTests(Fixture):

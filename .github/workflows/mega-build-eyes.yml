@@ -11,6 +11,7 @@ name: Mega build (Jarvis + eyes)
 #   - dark / light theme for the OLED, switched by voice (light_dark_theme)
 #   - optional prebuilt Jarvis assets image from this repo (custom_assets)
 #   - speaker tuning for small speakers: high-pass, makeup gain, peak limiter, volume cap (speaker_tune)
+#   - EXPERIMENTAL: play phone music on the bot's own speaker (bot_speaker_music, off by default)
 #
 # Every optional input does nothing while it is left at its default, so the
 # first run is the stock Jarvis build. Run manually from the Actions tab.
@@ -83,6 +84,10 @@ on:
         description: "Extra voice loudness before the limiter, dB (0 to 12). Default 6"
         required: false
         default: "6"
+      bot_speaker_music:
+        description: EXPERIMENTAL. Let Jarvis play the phone's songs on the bot's own speaker (say "on bot"). Off by default so a problem here cannot block the main build
+        type: boolean
+        default: false
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
@@ -105,7 +110,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Fetch files from this repo
-        if: ${{ inputs.custom_assets || inputs.speaker_tune }}
+        if: ${{ inputs.custom_assets || inputs.speaker_tune || inputs.bot_speaker_music }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
@@ -788,6 +793,101 @@ jobs:
           print("Applied: speaker tuning (max %.0f%%, high-pass %.0f Hz, makeup %.1f dB)" % (max_amp * 100, highpass, makeup))
           XZ_SPK_PY
           git --no-pager diff --stat main/audio
+
+      - name: Add bot speaker music (experimental)
+        if: ${{ inputs.bot_speaker_music }}
+        shell: bash
+        run: |
+          python3 - <<'XZ_BOT_PY'
+          import os
+          import pathlib
+          import sys
+
+
+          def replace_once(text, old, new, label):
+              if text.count(old) != 1:
+                  sys.exit("ERROR: bot speaker music anchor not found exactly once (%s)" % label)
+              return text.replace(old, new)
+
+
+          src = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "fork_files/patches/phone_music.h"
+          if not src.is_file() or src.stat().st_size == 0:
+              sys.exit("ERROR: patches/phone_music.h is missing from this repo")
+          pathlib.Path("main/phone_music.h").write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+          # AudioService: a way to queue raw PCM for playback
+          path = pathlib.Path("main/audio/audio_service.h")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "    bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);\n",
+              "    bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);\n"
+              "    bool PushPcmToPlayback(std::vector<int16_t>&& pcm, uint32_t generation);\n"
+              "    uint32_t GetPlaybackGeneration();\n",
+              "audio_service.h")
+          path.write_text(text, encoding="utf-8")
+
+          path = pathlib.Path("main/audio/audio_service.cc")
+          text = path.read_text(encoding="utf-8")
+          methods = """uint32_t AudioService::GetPlaybackGeneration() {
+              std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+              return playback_generation_;
+          }
+
+          // Queue PCM (already at the codec output rate) for playback. Waits while the playback queue is
+          // full, and gives up when a new conversation or a stop has reset the decoder since `generation`.
+          bool AudioService::PushPcmToPlayback(std::vector<int16_t>&& pcm, uint32_t generation) {
+              std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+              audio_queue_cv_.wait(lock, [this, generation]() {
+                  return service_stopped_.load() || generation != playback_generation_ ||
+                         audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE;
+              });
+              if (service_stopped_.load() || generation != playback_generation_) {
+                  return false;
+              }
+              AudioTask task;
+              task.type = kAudioTaskTypeDecodeToPlaybackQueue;
+              task.pcm = std::move(pcm);
+              playback_drained_notified_ = false;
+              audio_playback_queue_.push_back(std::move(task));
+              audio_queue_cv_.notify_all();
+              return true;
+          }
+
+          """
+          anchor = "std::unique_ptr<AudioStreamPacket> AudioService::PopPacketFromSendQueue() {\n"
+          text = replace_once(text, anchor, methods + anchor, "audio_service.cc")
+          path.write_text(text, encoding="utf-8")
+
+          # MCP: two device tools
+          path = pathlib.Path("main/mcp_server.cc")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(text, '#include "settings.h"\n', '#include "settings.h"\n#include "phone_music.h"\n', "mcp include")
+          tools = """    auto original_tools = std::move(tools_);
+              auto& board = Board::GetInstance();
+
+              // Phone music on the bot's own speaker (see phone_music.h)
+              AddTool("self.music.play_url",
+                      "Play a song on the bot's own speaker. ONLY use the url that the phone tool "
+                      "local_music_play returned for target 'bot'. After calling this, say one very short "
+                      "sentence such as 'Playing now' and nothing more: the conversation ends and the music "
+                      "starts.",
+                      PropertyList({Property("url", kPropertyTypeString)}),
+                      [](const PropertyList& properties) -> ReturnValue {
+                          return phone_music::Start(properties["url"].value<std::string>());
+                      });
+              AddTool("self.music.stop", "Stop the music playing on the bot's own speaker.", PropertyList(),
+                      [](const PropertyList&) -> ReturnValue {
+                          phone_music::Stop();
+                          return true;
+                      });
+          """
+          old = "    auto original_tools = std::move(tools_);\n    auto& board = Board::GetInstance();\n"
+          text = replace_once(text, old, tools, "mcp tools")
+          path.write_text(text, encoding="utf-8")
+          print("Applied: bot speaker music (experimental)")
+          XZ_BOT_PY
+          git --no-pager diff --stat main/audio main/mcp_server.cc
 
       - name: Use custom Jarvis assets image
         if: ${{ inputs.custom_assets }}

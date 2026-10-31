@@ -6,7 +6,7 @@ if a song is not in the library it says so and stops.
 ## Install in Termux
 
 ```
-pkg install mpv
+pkg install mpv ffmpeg
 termux-setup-storage
 curl -L -o ~/xiaozhi-phone-mcp/local_music.py \
   https://raw.githubusercontent.com/mhatrehitaanshu09-hash/xiaozhi-esp32/oled-light-dark-theme/phone-mcp/local_music.py
@@ -15,6 +15,21 @@ curl -L -o ~/xiaozhi-phone-mcp/local_music.py \
 Music folder: `~/storage/shared/SpotMusic` by default. Files are named `Song - Artist.flac`
 (`.mp3 .m4a .opus .ogg .wav .aac .mp4` also work). Change it with `JARVIS_MUSIC_DIR=/path`.
 Extra player options go in `JARVIS_MPV_ARGS`, for example `--audio-device=...` for a Bluetooth speaker.
+
+## Where it plays
+
+Say it when you ask for a song:
+
+| You say | It plays on |
+| --- | --- |
+| "... on phone" or "... on mobile" (default if you say nothing) | the phone's speaker (mpv) |
+| "... on bot" or "... here" or "... on local" | the bot's own speaker (streamed from the phone) |
+
+The bot speaker needs the experimental `bot_speaker_music` option in the firmware build and
+`ffmpeg`. The phone must be reachable from the bot on the same Wi-Fi. If its address is not
+detected correctly, set `JARVIS_PHONE_IP` to the phone's address on that Wi-Fi (if the Wi-Fi is
+the phone's own hotspot, that is usually the address the bot shows as its gateway). The stream
+port is `8765` (`JARVIS_STREAM_PORT` changes it).
 
 ## Tools it provides
 
