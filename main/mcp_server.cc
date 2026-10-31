@@ -88,6 +88,22 @@ void McpServer::AddCommonTools() {
                     return false;
                 });
     }
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    if (display) {
+        AddTool("self.screen.set_subtitle_mode",
+                "Set how the screen follows a spoken answer. `words` lights the text word by "
+                "word as it is read out; `sentences` lights a whole sentence when it starts. "
+                "The choice is kept across restarts.",
+                PropertyList({Property("mode", kPropertyTypeString)}),
+                [display](const PropertyList& properties) -> ReturnValue {
+                    auto mode = properties["mode"].value<std::string>();
+                    if (mode != "words" && mode != "sentences") {
+                        return false;
+                    }
+                    return display->SetSpeechFollowWords(mode == "words");
+                });
+    }
+#endif
 
     auto camera = board.GetCamera();
     if (camera) {

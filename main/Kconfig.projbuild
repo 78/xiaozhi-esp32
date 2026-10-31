@@ -948,6 +948,15 @@ choice DISPLAY_STYLE
     config USE_WECHAT_MESSAGE_STYLE
         bool "Enable WeChat Message Style"
 
+    config USE_READING_MESSAGE_STYLE
+        bool "Enable reading message style"
+        help
+            For LCD boards with a small screen. The emotion moves into the status row
+            and the rest of the screen shows the conversation as wrapped text: every
+            sentence of the answer is appended instead of replacing the previous one,
+            a new question starts a new page, and the view follows the newest text.
+            Only the most recent turns are kept to bound memory use.
+
     config USE_EMOTE_MESSAGE_STYLE
         bool "Emote animation style"
         depends on BOARD_TYPE_ESP32_S3_BOX || BOARD_TYPE_ESP32_S3_BOX_3 \
@@ -975,6 +984,18 @@ config USE_MULTILINE_CHAT_MESSAGE
         with auto-adaptive height.
         When disabled (default), a single-line horizontally scrolling label
         is shown at the bottom of the screen.
+
+config READING_MESSAGE_STYLE_FOLLOW_WORDS
+    bool "Reading style: light the answer word by word as it is spoken"
+    depends on USE_READING_MESSAGE_STYLE
+    default y
+    help
+        The text of a sentence appears before its voice; the part already spoken is
+        drawn in the text color and the rest is faded. When enabled, the lit part
+        moves through each sentence with the audio (estimated from the playback
+        position and the measured speaking rate). When disabled, a whole sentence
+        lights up when its audio starts. This is the default; the device MCP tool
+        self.screen.set_subtitle_mode changes it at runtime and keeps the choice.
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
