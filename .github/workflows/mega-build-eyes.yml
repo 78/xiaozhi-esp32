@@ -10,6 +10,7 @@ name: Mega build (Jarvis + eyes)
 #   - animated desk-buddy eyes on the 128x64 OLED (eyes)
 #   - dark / light theme for the OLED, switched by voice (light_dark_theme)
 #   - optional prebuilt Jarvis assets image from this repo (custom_assets)
+#   - speaker tuning for small speakers: high-pass, makeup gain, peak limiter, volume cap (speaker_tune)
 #
 # Every optional input does nothing while it is left at its default, so the
 # first run is the stock Jarvis build. Run manually from the Actions tab.
@@ -66,6 +67,22 @@ on:
         description: Flash custom_assets/jarvis_wakeword_assets.bin from this repo (a ready Jarvis wake word image) instead of the assets the build generates
         type: boolean
         default: true
+      speaker_tune:
+        description: Speaker tuning for the MAX98357A amp (high-pass filter, makeup gain, peak limiter, volume cap). Fixes crackle on loud sound
+        type: boolean
+        default: true
+      speaker_max_amp:
+        description: "Loudest clean output, % of full scale reached at volume 100. Default 15. Still crackles at 100% -> try 12, 10. Clean but quiet -> try 18, 22"
+        required: false
+        default: "15"
+      speaker_highpass_hz:
+        description: "Bass cut for the small speaker, Hz (60 to 600). Default 250. Voice sounds thin -> 200. Still crackles on bass -> 300"
+        required: false
+        default: "250"
+      speaker_makeup_db:
+        description: "Extra voice loudness before the limiter, dB (0 to 12). Default 6"
+        required: false
+        default: "6"
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
@@ -87,14 +104,16 @@ jobs:
           repository: 78/xiaozhi-esp32
           ref: ${{ inputs.ref }}
 
-      - name: Fetch custom assets from this repo
-        if: ${{ inputs.custom_assets }}
+      - name: Fetch files from this repo
+        if: ${{ inputs.custom_assets || inputs.speaker_tune }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.ref }}
           path: fork_files
-          sparse-checkout: custom_assets
+          sparse-checkout: |
+            custom_assets
+            patches
 
       - name: Apply patches
         shell: bash
@@ -704,6 +723,71 @@ jobs:
           print("Applied: light/dark theme")
           XZ_THEME_PY
           git --no-pager diff --stat
+
+      - name: Add speaker tuning
+        if: ${{ inputs.speaker_tune }}
+        shell: bash
+        env:
+          SPK_MAX_AMP_PCT: ${{ inputs.speaker_max_amp }}
+          SPK_HIGHPASS_HZ: ${{ inputs.speaker_highpass_hz }}
+          SPK_MAKEUP_DB: ${{ inputs.speaker_makeup_db }}
+        run: |
+          python3 - <<'XZ_SPK_PY'
+          import os
+          import pathlib
+          import re
+          import sys
+
+
+          def number(name, low, high):
+              raw = os.environ[name].strip()
+              try:
+                  value = float(raw)
+              except ValueError:
+                  sys.exit("ERROR: %s must be a number, got %r" % (name, raw))
+              if not low <= value <= high:
+                  sys.exit("ERROR: %s must be between %s and %s, got %s" % (name, low, high, raw))
+              return value
+
+
+          max_amp = number("SPK_MAX_AMP_PCT", 2, 60) / 100.0
+          highpass = number("SPK_HIGHPASS_HZ", 60, 600)
+          makeup = number("SPK_MAKEUP_DB", 0, 12)
+
+          src = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "fork_files/patches/speaker_dsp.h"
+          if not src.is_file() or src.stat().st_size == 0:
+              sys.exit("ERROR: patches/speaker_dsp.h is missing from this repo")
+          codec_dir = pathlib.Path("main/audio/codecs")
+          (codec_dir / "speaker_dsp.h").write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+          (codec_dir / "speaker_dsp_config.h").write_text(
+              "#define SPK_HIGHPASS_HZ %.1ff\n#define SPK_MAKEUP_DB %.1ff\n#define SPK_MAX_AMP %.4ff\n"
+              % (highpass, makeup, max_amp),
+              encoding="utf-8",
+          )
+
+          path = codec_dir / "no_audio_codec.cc"
+          text = path.read_text(encoding="utf-8")
+          include = '#include "no_audio_codec.h"\n'
+          if text.count(include) != 1:
+              sys.exit("ERROR: speaker tuning anchor not found (include)")
+          text = text.replace(include, include + '#include "speaker_dsp.h"\n')
+
+          old_volume = re.compile(
+              r"    // output_volume_: 0-100\n.*?buffer\[i\] = static_cast<int32_t>\(temp\);\n        \}\n    \}\n",
+              re.S,
+          )
+          new_volume = (
+              "    // Speaker tuning: high-pass, makeup gain, peak limiter, then volume (see speaker_dsp.h).\n"
+              "    static SpeakerDsp speaker_dsp;\n"
+              "    speaker_dsp.Process(data, buffer.data(), samples, output_sample_rate_, output_volume_);\n"
+          )
+          text, count = old_volume.subn(lambda m: new_volume, text)
+          if count != 1:
+              sys.exit("ERROR: speaker tuning anchor not found (volume loop)")
+          path.write_text(text, encoding="utf-8")
+          print("Applied: speaker tuning (max %.0f%%, high-pass %.0f Hz, makeup %.1f dB)" % (max_amp * 100, highpass, makeup))
+          XZ_SPK_PY
+          git --no-pager diff --stat main/audio
 
       - name: Use custom Jarvis assets image
         if: ${{ inputs.custom_assets }}
