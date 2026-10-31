@@ -30,6 +30,14 @@ python scripts/build.py folotoy/ai-passport --name ai-passport
 
 Outputs `build/merged-binary.bin` (8 MB flash, USB Serial/JTAG console).
 
+## Display
+
+The board uses the reading message style (`CONFIG_USE_READING_MESSAGE_STYLE`):
+the emotion sits in the status row and the rest of the 240x320 screen shows the
+conversation as wrapped text, so a whole answer can be read instead of one
+scrolling line. Each answer sentence is appended as it arrives and a new
+question opens a fresh page.
+
 ## Controls
 
 The three physical keys map to XiaoZhi's voice-assistant actions:

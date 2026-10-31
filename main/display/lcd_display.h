@@ -6,8 +6,17 @@
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
+#include <sdkconfig.h>
 #include <atomic>
 #include <memory>
+
+#if CONFIG_USE_READING_MESSAGE_STYLE
+#include "reading_transcript.h"
+
+#include <vector>
+
+class LvglTheme;
+#endif
 
 #define PREVIEW_IMAGE_DURATION_MS 5000
 
@@ -37,6 +46,36 @@ protected:
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    // Reading message style (lcd_display_reading.cc): one view per transcript turn.
+    struct ReadingTurnView {
+        uint32_t id = 0;
+        lv_obj_t* box = nullptr;
+        lv_obj_t* user = nullptr;
+        lv_obj_t* assistant = nullptr;
+    };
+    static constexpr size_t kReadingMaxTurns = 2;
+    static constexpr size_t kReadingMaxBytes = 1800;
+    ReadingTranscript transcript_{kReadingMaxTurns, kReadingMaxBytes};
+    std::vector<ReadingTurnView> turn_views_;
+    lv_obj_t* system_label_ = nullptr;
+    lv_obj_t* more_below_label_ = nullptr;
+    bool follow_latest_ = true;
+
+    void ApplyTranscriptUpdate(const ReadingTranscript::Update& update);
+    ReadingTurnView* FindTurnView(uint32_t id);
+    void CreateTurnView(uint32_t id);
+    void DeleteTurnView(uint32_t id);
+    void SyncTurnView(ReadingTurnView& view);
+    void ResizeNewestTurn();
+    void AttachTrailingLabels();
+    void ParkTrailingLabels();
+    void ApplyTurnColors(LvglTheme* theme);
+    void ApplyReadingColors(LvglTheme* theme);
+    void ScrollToLatest(bool animate);
+    void UpdateMoreBelow();
+#endif
+
 protected:
     // Add protected constructor
     LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, int width,
@@ -55,6 +94,10 @@ public:
 
     // Set whether to hide chat messages/subtitles
     virtual void SetHideSubtitle(bool hide) override;
+
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    virtual bool ScrollChat(int direction) override;
+#endif
 };
 
 // SPI LCD display
