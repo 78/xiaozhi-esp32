@@ -299,6 +299,8 @@ std::string EthernetBoard::GetDeviceStatusJson() {
         cJSON_AddItemToObject(root, "chip", chip);
     }
 
+    AddSystemStatus(root);
+
     auto str = cJSON_PrintUnformatted(root);
     std::string result(str);
     cJSON_free(str);
