@@ -33,9 +33,9 @@ on:
         required: true
         default: bread-compact-wifi
       variant:
-        description: Variant (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED)
+        description: Variant (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED). The eyes need the 128x64 one
         required: true
-        default: bread-compact-wifi
+        default: bread-compact-wifi-128x64
       wake_word:
         description: ESP-SR WakeNet model
         required: true
@@ -127,6 +127,17 @@ jobs:
           sparse-checkout: |
             custom_assets
             patches
+
+      - name: Check the screen variant matches the eyes
+        if: ${{ inputs.eyes }}
+        shell: bash
+        env:
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          case "$VARIANT" in
+            *128x64*) echo "Variant $VARIANT: 128x64 screen, eyes are fine." ;;
+            *) echo "ERROR: the eyes are drawn for a 128x64 OLED but variant is '$VARIANT'. Use bread-compact-wifi-128x64 (or turn eyes off)."; exit 1 ;;
+          esac
 
       - name: Apply patches
         shell: bash
