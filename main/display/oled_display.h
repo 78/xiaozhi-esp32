@@ -18,6 +18,7 @@ private:
     lv_obj_t* content_right_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* alert_box_ = nullptr;
     lv_obj_t* emotion_label_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
 
@@ -38,6 +39,7 @@ public:
     virtual void SetupUI() override;
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void RemoveChatMessage(const char* role, const char* content) override;
+    virtual void SetStatus(const char* status) override;
     virtual bool SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
     virtual bool IsMonochrome() const override { return true; }
