@@ -88,6 +88,14 @@ on:
         description: EXPERIMENTAL. Let Jarvis play the phone's songs on the bot's own speaker (say "on bot"). Off by default so a problem here cannot block the main build
         type: boolean
         default: false
+      gesture_endpoint:
+        description: Let the phone's hand-gesture bridge show emotions on the eyes and wake the bot (HTTP on port 8080). Off by default
+        type: boolean
+        default: false
+      gesture_key:
+        description: Secret for the gesture endpoint, 8 to 64 letters, digits, - or _. Must match bot_key in the phone's gestures.json
+        required: false
+        default: ""
       bootloader_logs:
         description: Print bootloader messages on the serial port (diagnostic)
         type: boolean
@@ -110,7 +118,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Fetch files from this repo
-        if: ${{ inputs.custom_assets || inputs.speaker_tune || inputs.bot_speaker_music }}
+        if: ${{ inputs.custom_assets || inputs.speaker_tune || inputs.bot_speaker_music || inputs.gesture_endpoint }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
@@ -888,6 +896,52 @@ jobs:
           print("Applied: bot speaker music (experimental)")
           XZ_BOT_PY
           git --no-pager diff --stat main/audio main/mcp_server.cc
+
+      - name: Add gesture endpoint
+        if: ${{ inputs.gesture_endpoint }}
+        shell: bash
+        env:
+          GESTURE_KEY: ${{ inputs.gesture_key }}
+        run: |
+          python3 - <<'XZ_GESTURE_PY'
+          import os
+          import pathlib
+          import re
+          import sys
+
+
+          def replace_once(text, old, new, label):
+              if text.count(old) != 1:
+                  sys.exit("ERROR: gesture endpoint anchor not found exactly once (%s)" % label)
+              return text.replace(old, new)
+
+
+          key = os.environ.get("GESTURE_KEY", "")
+          if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", key):
+              sys.exit("ERROR: gesture_key must be 8 to 64 letters, digits, - or _")
+          src = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "fork_files/patches/gesture_endpoint.h"
+          if not src.is_file() or src.stat().st_size == 0:
+              sys.exit("ERROR: patches/gesture_endpoint.h is missing from this repo")
+          pathlib.Path("main/gesture_endpoint.h").write_text(
+              '#define GESTURE_KEY "%s"\n' % key + src.read_text(encoding="utf-8"), encoding="utf-8")
+
+          path = pathlib.Path("main/application.cc")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(text, '#include "application.h"\n', '#include "application.h"\n#include "gesture_endpoint.h"\n', "include")
+          text = replace_once(
+              text,
+              '    ESP_LOGI(TAG, "Network connected");\n    auto state = GetDeviceState();\n',
+              '    ESP_LOGI(TAG, "Network connected");\n    gesture_endpoint::Start();\n    auto state = GetDeviceState();\n',
+              "network connected")
+          path.write_text(text, encoding="utf-8")
+
+          path = pathlib.Path("main/CMakeLists.txt")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(text, "                        esp_netif\n", "                        esp_netif\n                        esp_http_server\n", "cmake requires")
+          path.write_text(text, encoding="utf-8")
+          print("Applied: gesture endpoint on port 8080")
+          XZ_GESTURE_PY
+          git --no-pager diff --stat main/application.cc main/CMakeLists.txt
 
       - name: Use custom Jarvis assets image
         if: ${{ inputs.custom_assets }}
