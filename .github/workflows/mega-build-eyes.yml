@@ -88,6 +88,10 @@ on:
         description: EXPERIMENTAL. Let Jarvis play the phone's songs on the bot's own speaker (say "on bot"). Off by default so a problem here cannot block the main build
         type: boolean
         default: false
+      fullscreen_eyes:
+        description: Eyes fill the whole 128x64 screen, talking mouth, no clock or Wi-Fi bar (needs eyes and light_dark_theme)
+        type: boolean
+        default: true
       gesture_endpoint:
         description: Let the phone's hand-gesture bridge show emotions on the eyes and wake the bot (HTTP on port 8080). Off by default
         type: boolean
@@ -118,7 +122,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Fetch files from this repo
-        if: ${{ inputs.custom_assets || inputs.speaker_tune || inputs.bot_speaker_music || inputs.gesture_endpoint }}
+        if: ${{ inputs.custom_assets || inputs.speaker_tune || inputs.bot_speaker_music || inputs.gesture_endpoint || inputs.fullscreen_eyes }}
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
@@ -747,6 +751,24 @@ jobs:
           print("Applied: light/dark theme")
           XZ_THEME_PY
           git --no-pager diff --stat
+
+      - name: Use full-screen eyes
+        if: ${{ inputs.fullscreen_eyes }}
+        shell: bash
+        env:
+          EYES: ${{ inputs.eyes }}
+          THEME: ${{ inputs.light_dark_theme }}
+        run: |
+          if [ "$EYES" != "true" ] || [ "$THEME" != "true" ]; then
+            echo "ERROR: fullscreen_eyes needs eyes and light_dark_theme to be on."; exit 1
+          fi
+          SRC="$GITHUB_WORKSPACE/fork_files/patches/fullscreen"
+          for f in oled_display.cc oled_display.h oled_eyes.h; do
+            test -s "$SRC/$f" || { echo "ERROR: patches/fullscreen/$f is missing"; exit 1; }
+            cp "$SRC/$f" "main/display/$f"
+          done
+          echo "Applied: full-screen eyes (128x64)"
+          git --no-pager diff --stat main/display
 
       - name: Add speaker tuning
         if: ${{ inputs.speaker_tune }}
