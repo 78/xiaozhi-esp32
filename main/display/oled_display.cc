@@ -219,6 +219,7 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
+    lv_obj_set_style_outline_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
 
     /* Layer 1: Top bar - for status icons */
@@ -284,6 +285,9 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_radius(content_, 0, 0);
     lv_obj_set_style_pad_all(content_, 0, 0);
+    lv_obj_set_style_border_width(content_, 0, 0);  // removes the stray line under the status bar
+    lv_obj_set_style_outline_width(content_, 0, 0);
+    lv_obj_set_style_shadow_width(content_, 0, 0);
     lv_obj_set_width(content_, LV_HOR_RES);
     lv_obj_set_flex_grow(content_, 1);
     lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_ROW);

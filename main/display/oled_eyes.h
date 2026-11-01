@@ -104,8 +104,8 @@ public:
             p.gap = 0.55f;
             can_look_ = false;
         } else if (is("surprised") || is("shocked")) {
-            p.w = 1.12f;
-            p.h = 1.3f;
+            p.w = 1.1f;
+            p.h = 1.2f;
             p.gap = 1.1f;
             can_look_ = false;
         } else if (is("thinking") || is("confused")) {
@@ -282,10 +282,11 @@ private:
             return;
         }
         const int area_w = compact_ ? 32 : full_w_;
-        const int ew = compact_ ? 13 : 36;
-        const int eh = compact_ ? 26 : 32;
-        const int gap0 = compact_ ? 4 : 22;
-        const int radius = compact_ ? 5 : 11;
+        // Full mode fills most of the 128x48 area below the status bar.
+        const int ew = compact_ ? 13 : 44;
+        const int eh = compact_ ? 30 : 38;
+        const int gap0 = compact_ ? 4 : 16;
+        const int radius = compact_ ? 5 : 13;
 
         int w = (int)lroundf(ew * cur_.w);
         int gap = (int)lroundf(gap0 * cur_.gap);
