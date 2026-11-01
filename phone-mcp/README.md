@@ -8,9 +8,16 @@ if a song is not in the library it says so and stops.
 ```
 pkg install mpv ffmpeg
 termux-setup-storage
-curl -L -o ~/xiaozhi-phone-mcp/local_music.py \
-  https://raw.githubusercontent.com/mhatrehitaanshu09-hash/xiaozhi-esp32/oled-light-dark-theme/phone-mcp/local_music.py
+cd ~/xiaozhi-phone-mcp
+B=https://raw.githubusercontent.com/mhatrehitaanshu09-hash/xiaozhi-esp32/oled-light-dark-theme/phone-mcp
+curl -LO $B/local_music.py -O $B/jarvis_music_tools.py -O $B/install_music.py
+python3 install_music.py
+python3 server.py --check
 ```
+
+`install_music.py` edits `server.py` for you: it removes the old `music_tools` register calls and
+adds one call to `jarvis_music_tools`. It keeps a backup (`server.py.bak-music`), changes nothing
+if run twice, and `python3 install_music.py --undo` puts the backup back. Then restart the server.
 
 Music folder: `~/storage/shared/SpotMusic` by default. Files are named `Song - Artist.flac`
 (`.mp3 .m4a .opus .ogg .wav .aac .mp4` also work). Change it with `JARVIS_MUSIC_DIR=/path`.
