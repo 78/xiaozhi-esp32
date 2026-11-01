@@ -26,10 +26,10 @@ Say it when you ask for a song:
 | "... on bot" or "... here" or "... on local" | the bot's own speaker (streamed from the phone) |
 
 The bot speaker needs the experimental `bot_speaker_music` option in the firmware build and
-`ffmpeg`. The phone must be reachable from the bot on the same Wi-Fi. If its address is not
-detected correctly, set `JARVIS_PHONE_IP` to the phone's address on that Wi-Fi (if the Wi-Fi is
-the phone's own hotspot, that is usually the address the bot shows as its gateway). The stream
-port is `8765` (`JARVIS_STREAM_PORT` changes it).
+`ffmpeg` on the phone. When the bot is on the phone's own hotspot, nothing else is needed: the
+phone is the bot's Wi-Fi gateway, and the bot finds it by itself. If the bot is on another Wi-Fi,
+set `JARVIS_PHONE_IP` to the phone's address on that Wi-Fi. The stream port is `8765`
+(`JARVIS_STREAM_PORT` changes it).
 
 ## Tools it provides
 

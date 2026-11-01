@@ -5,7 +5,8 @@
 // (see phone-mcp/local_music.py). The stream is 16-bit mono PCM at the codec's output rate.
 //
 // Flow: the cloud assistant calls the phone tool local_music_play(target "bot"), which returns a
-// URL; it then calls the device tool self.music.play_url with that URL. The reply finishes, the
+// URL (host "gateway" means the Wi-Fi gateway, i.e. the phone when it is the hotspot); it then
+// calls the device tool self.music.play_url with that URL. The reply finishes, the
 // conversation is closed so the music is not sent to the server, and the song streams in.
 // Starting a new conversation, or self.music.stop, ends the music.
 
@@ -16,6 +17,7 @@
 #include <vector>
 
 #include <esp_log.h>
+#include <esp_netif.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -117,6 +119,23 @@ inline void StreamTask(void* arg) {
     vTaskDelete(nullptr);
 }
 
+// The phone cannot always know its own address on the bot's Wi-Fi. When the Wi-Fi is the phone's
+// hotspot, the phone is the Wi-Fi gateway, so a url with the host "gateway" is pointed there.
+inline std::string ResolveGateway(const std::string& url) {
+    const std::string marker = "http://gateway";
+    if (url.rfind(marker, 0) != 0) {
+        return url;
+    }
+    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    esp_netif_ip_info_t info = {};
+    if (netif == nullptr || esp_netif_get_ip_info(netif, &info) != ESP_OK || info.gw.addr == 0) {
+        return "";
+    }
+    char ip[16] = {};
+    esp_ip4addr_ntoa(&info.gw, ip, sizeof(ip));
+    return "http://" + std::string(ip) + url.substr(marker.size());
+}
+
 inline void Stop() {
     g_session.fetch_add(1);
     Application::GetInstance().GetAudioService().ResetDecoder();
@@ -126,6 +145,10 @@ inline std::string Start(const std::string& url) {
     if (url.rfind("http://", 0) != 0) {
         return "Not started: the url must be the http address given by the phone music tool.";
     }
+    const std::string resolved = ResolveGateway(url);
+    if (resolved.empty()) {
+        return "Not started: the bot cannot find the Wi-Fi gateway (the phone).";
+    }
     Stop();
     for (int i = 0; i < 30 && g_running.load(); i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -134,7 +157,7 @@ inline std::string Start(const std::string& url) {
         return "Not started: the previous song is still stopping. Try again.";
     }
     g_running.store(true);
-    auto* job = new Job{url};
+    auto* job = new Job{resolved};
     if (xTaskCreate(StreamTask, "phone_music", 8192, job, 3, nullptr) != pdPASS) {
         delete job;
         g_running.store(false);

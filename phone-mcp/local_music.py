@@ -258,15 +258,9 @@ class LocalMusic:
             proc.stdout.close()
 
     def phone_address(self):
-        env = os.environ.get("JARVIS_PHONE_IP")
-        if env:
-            return env
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(("10.255.255.255", 1))
-                return s.getsockname()[0]
-        except OSError:
-            return None
+        """Address the bot should use. "gateway" means the bot's Wi-Fi gateway, which is the phone
+        when the bot is on the phone's hotspot. Set JARVIS_PHONE_IP when the bot is on another Wi-Fi."""
+        return os.environ.get("JARVIS_PHONE_IP") or "gateway"
 
     def prepare_for_bot(self, entry):
         failed = self._ensure_server()
@@ -275,9 +269,6 @@ class LocalMusic:
         if shutil.which(self.ffmpeg) is None:
             return "ffmpeg is not installed on the phone. Run: pkg install ffmpeg"
         host = self.phone_address()
-        if not host:
-            return ("The phone's address is unknown. Set JARVIS_PHONE_IP to the phone's address "
-                    "on the same Wi-Fi as the bot.")
         url = "http://%s:%d/stream/%s.pcm" % (host, self.stream_port, self._song_id(entry))
         return ("Ready to play %s on the bot's speaker. Now call the device tool "
                 "self.music.play_url with url=%s" % (self._label(entry), url))

@@ -189,6 +189,11 @@ class BotSpeakerTests(Fixture):
         self.assertIn("-ar 16000", args)
         self.assertIn("s16le", args)
 
+    def test_default_host_is_the_wifi_gateway_for_hotspot(self):
+        os.environ.pop("JARVIS_PHONE_IP", None)
+        reply = self.m.play("kesariya", "bot")
+        self.assertIn("url=http://gateway:", reply)
+
     def test_stream_refuses_unknown_ids_and_paths(self):
         url = self._url(self.m.play("kesariya", "bot"))
         base = url.rsplit("/", 2)[0]
