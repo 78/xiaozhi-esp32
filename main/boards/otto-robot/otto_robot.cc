@@ -395,6 +395,18 @@ private:
         config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
         camera_ = new (std::nothrow) Esp32Camera(config);
+        if (camera_ != nullptr && camera_type_ == OTTO_CAMERA_GC2145) {
+            // The GC2145 module is mounted 180 degrees relative to the OV sensors.
+            // Undo the board-wide hmirror/vflip for this sensor only.
+            camera_->SetHMirror(false);
+            camera_->SetVFlip(false);
+            // The preview path also applies a 90-degree LVGL rotation. For this
+            // module the final image is 180 degrees off, so compensate it.
+            if (display_ != nullptr) {
+                static_cast<OttoEmojiDisplay*>(display_)->SetPreviewRotation(2700);
+            }
+            ESP_LOGI(TAG, "GC2145 orientation corrected (hmirror=0, vflip=0, preview=270)");
+        }
         return camera_ != nullptr;
     }
 
