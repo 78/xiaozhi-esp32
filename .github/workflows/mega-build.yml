@@ -1,0 +1,266 @@
+name: Mega build (Jarvis)
+
+# One firmware build with everything in it:
+#   - WakeNet9 "Jarvis" wake word (default wn9_jarvis_tts)
+#   - activation code shown on the display (not only spoken)
+#   - optional wake word strictness (wake_threshold)
+#   - optional microphone level (mic_shift) for the INMP441
+#   - optional pin overrides for the INMP441 mic and the speaker amp
+#
+# Every optional input does nothing while it is left at its default, so the
+# first run is the stock Jarvis build. Run manually from the Actions tab.
+# Builds upstream 78/xiaozhi-esp32 v2.5.2 with ESP-IDF 6.1.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Upstream git tag to build (v2.5.2 is the tested one)
+        required: true
+        default: v2.5.2
+      idf_image:
+        description: ESP-IDF docker image
+        required: true
+        default: espressif/idf:release-v6.1
+      board:
+        description: Board directory under main/boards/
+        required: true
+        default: bread-compact-wifi
+      variant:
+        description: Variant (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED)
+        required: true
+        default: bread-compact-wifi
+      wake_word:
+        description: ESP-SR WakeNet model
+        required: true
+        default: wn9_jarvis_tts
+      wake_threshold:
+        description: "Optional. Wake word strictness 0.40 to 0.9999. Higher = fewer false wake-ups but may miss Jarvis. Try 0.70. Empty = model default"
+        required: false
+        default: ""
+      mic_shift:
+        description: "Optional. INMP441 level shift 10 to 16. Stock is 12. Raise to 13 or 14 if speech sounds clipped or noisy, lower to 11 if too quiet. Empty = stock"
+        required: false
+        default: ""
+      pin_overrides:
+        description: "Optional. Comma list, e.g. mic_ws=4,mic_sck=5,mic_din=6,spk_dout=7,spk_bclk=15,spk_lrck=16 (any subset). Empty = stock pins"
+        required: false
+        default: ""
+      bootloader_logs:
+        description: Print bootloader messages on the serial port (diagnostic)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.variant }} @ ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.idf_image }}
+    steps:
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          repository: 78/xiaozhi-esp32
+          ref: ${{ inputs.ref }}
+
+      - name: Apply patches
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          WAKE_THRESHOLD: ${{ inputs.wake_threshold }}
+          MIC_SHIFT: ${{ inputs.mic_shift }}
+          PIN_OVERRIDES: ${{ inputs.pin_overrides }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+
+          applied = []
+
+          def patch(path, old, new, label):
+              p = pathlib.Path(path)
+              src = p.read_text()
+              if src.count(old) != 1:
+                  sys.exit("ERROR [%s]: expected code not found exactly once in %s. "
+                           "Upstream changed? Use ref v2.5.2." % (label, path))
+              p.write_text(src.replace(old, new))
+              applied.append(label)
+              print("Applied:", label)
+
+          # 1. Show the activation code on the display (code first, so it stays
+          #    visible on small scrolling displays). Cleared when pairing succeeds.
+          patch(
+              "main/application.cc",
+              r'''    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);''',
+              r'''    // The server's message usually does not contain the code itself, and the code is otherwise
+              // only spoken. Show it on screen too (code first, so it stays visible on small/scrolling
+              // displays). It is cleared by HandleActivationDoneEvent() once pairing succeeds.
+              std::string screen_message = message;
+              if (!code.empty() && message.find(code) == std::string::npos) {
+                  screen_message = "Code: " + code + "\n" + message;
+              }
+
+              // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, screen_message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);''',
+              "activation code on screen",
+          )
+
+          # 2. Wake word strictness.
+          raw = os.environ.get("WAKE_THRESHOLD", "").strip()
+          if raw:
+              try:
+                  thr = float(raw)
+              except ValueError:
+                  sys.exit("ERROR: wake_threshold must be a number between 0.40 and 0.9999")
+              if not 0.40 <= thr <= 0.9999:
+                  sys.exit("ERROR: wake_threshold must be between 0.40 and 0.9999")
+              patch(
+                  "main/audio/engines/afe_audio_engine.cc",
+                  '''        afe_data_ = nullptr;
+                  return false;
+              }
+
+              if (wake_detector_ == WakeDetector::kWakeNet) {
+                  afe_iface_->disable_wakenet(afe_data_);
+              }
+              ''',
+                  '''        afe_data_ = nullptr;
+                  return false;
+              }
+
+              if (wake_detector_ == WakeDetector::kWakeNet) {
+                  if (afe_iface_->set_wakenet_threshold != nullptr) {
+                      int threshold_result = afe_iface_->set_wakenet_threshold(afe_data_, 1, %.4ff);
+                      ESP_LOGI(TAG, "Wake word threshold set to %.4f (result %%d)", threshold_result);
+                  }
+                  afe_iface_->disable_wakenet(afe_data_);
+              }
+              ''' % (thr, thr),
+                  "wake word threshold %.4f" % thr,
+              )
+
+          # 3. INMP441 level. Stock code uses >> 12 on the 32-bit samples.
+          raw = os.environ.get("MIC_SHIFT", "").strip()
+          if raw:
+              if not re.fullmatch(r"\d{1,2}", raw) or not 10 <= int(raw) <= 16:
+                  sys.exit("ERROR: mic_shift must be a whole number from 10 to 16")
+              if int(raw) != 12:
+                  patch(
+                      "main/audio/codecs/no_audio_codec.cc",
+                      "int32_t value = bit32_buffer[i] >> 12;",
+                      "int32_t value = bit32_buffer[i] >> %d;" % int(raw),
+                      "microphone shift %s" % raw,
+                  )
+
+          # 4. Pin overrides for the INMP441 mic and the speaker amp.
+          raw = os.environ.get("PIN_OVERRIDES", "").strip()
+          if raw:
+              macros = {
+                  "mic_ws": "AUDIO_I2S_MIC_GPIO_WS",
+                  "mic_sck": "AUDIO_I2S_MIC_GPIO_SCK",
+                  "mic_din": "AUDIO_I2S_MIC_GPIO_DIN",
+                  "spk_dout": "AUDIO_I2S_SPK_GPIO_DOUT",
+                  "spk_bclk": "AUDIO_I2S_SPK_GPIO_BCLK",
+                  "spk_lrck": "AUDIO_I2S_SPK_GPIO_LRCK",
+              }
+              reserved = set(range(26, 38)) | {19, 20}  # flash, PSRAM, USB
+              path = pathlib.Path("main/boards/%s/config.h" % os.environ["BOARD"])
+              if not path.is_file():
+                  sys.exit("ERROR: %s not found. pin_overrides needs a board that has a config.h "
+                           "(for example bread-compact-wifi)." % path)
+              text = path.read_text()
+              for item in raw.split(","):
+                  item = item.strip()
+                  if not item:
+                      continue
+                  m = re.fullmatch(r"(\w+)\s*=\s*(\d{1,2})", item)
+                  if not m or m.group(1) not in macros:
+                      sys.exit("ERROR: bad pin override %r. Use names: %s" % (item, ", ".join(macros)))
+                  pin = int(m.group(2))
+                  if pin > 48 or pin in reserved or 22 <= pin <= 25:
+                      sys.exit("ERROR: GPIO %d cannot be used on an ESP32-S3 N16R8 (flash, PSRAM, USB or missing)" % pin)
+                  pattern = re.compile(r"(#define\s+%s\s+)GPIO_NUM_\d+" % macros[m.group(1)])
+                  if len(pattern.findall(text)) != 1:
+                      sys.exit("ERROR: %s not found exactly once in %s (is the board right?)" % (macros[m.group(1)], path))
+                  text = pattern.sub(lambda mm: "%sGPIO_NUM_%d" % (mm.group(1), pin), text)
+                  applied.append("pin %s = GPIO %d" % (m.group(1), pin))
+                  print("Applied: pin %s = GPIO %d" % (m.group(1), pin))
+              used = {}
+              for name, num in re.findall(r"#define\s+(\w+)\s+GPIO_NUM_(\d+)", text):
+                  if name.startswith("AUDIO_I2S_GPIO_"):
+                      continue  # the duplex block reuses the same pins by design
+                  if num in used:
+                      sys.exit("ERROR: GPIO %s is used twice (%s and %s)" % (num, used[num], name))
+                  used[num] = name
+              path.write_text(text)
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a") as handle:
+                  handle.write("### Patches applied\n")
+                  for item in applied:
+                      handle.write("- %s\n" % item)
+          PY
+          git --no-pager diff --stat
+
+      - name: Enable bootloader logs (diagnostic)
+        if: ${{ inputs.bootloader_logs }}
+        shell: bash
+        run: |
+          sed -i 's/^CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y/CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y/' sdkconfig.defaults
+          grep -n "BOOTLOADER_LOG_LEVEL" sdkconfig.defaults
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          VARIANT: ${{ inputs.variant }}
+          WAKE_WORD: ${{ inputs.wake_word }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          idf.py --version
+          if [ -f scripts/build.py ]; then
+            python scripts/build.py "$BOARD" --name "$VARIANT" --language en-US --wake-word "$WAKE_WORD"
+          else
+            echo "ERROR: this ref does not provide scripts/build.py with --wake-word support."
+            echo "Choose XiaoZhi v2.5.2 or another ref that supports --wake-word."
+            exit 1
+          fi
+
+      - name: Write build info
+        shell: bash
+        env:
+          INFO_REF: ${{ inputs.ref }}
+          INFO_BOARD: ${{ inputs.board }}
+          INFO_VARIANT: ${{ inputs.variant }}
+          INFO_WAKE_WORD: ${{ inputs.wake_word }}
+          INFO_THRESHOLD: ${{ inputs.wake_threshold }}
+          INFO_SHIFT: ${{ inputs.mic_shift }}
+          INFO_PINS: ${{ inputs.pin_overrides }}
+        run: |
+          {
+            echo "ref=$INFO_REF"
+            echo "board=$INFO_BOARD"
+            echo "variant=$INFO_VARIANT"
+            echo "wake_word=$INFO_WAKE_WORD"
+            echo "wake_threshold=${INFO_THRESHOLD:-default}"
+            echo "mic_shift=${INFO_SHIFT:-stock}"
+            echo "pin_overrides=${INFO_PINS:-stock}"
+            echo "flash merged-binary.bin at address 0x0"
+          } > build/build-info.txt
+          cat build/build-info.txt
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis_${{ inputs.variant }}_${{ inputs.ref }}
+          path: |
+            build/merged-binary.bin
+            build/build-info.txt
+          if-no-files-found: error
+          
