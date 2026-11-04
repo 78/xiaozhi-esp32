@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading message style demo / 阅读样式演示</title>
+<style>
+  :root {
+    --page: #f2f2f0; --ink: #1a1a1a; --muted: #4d4d4d; --card: #ffffff; --accent: #1559c7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 28px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+  h1 { margin: 0; font-size: 26px; line-height: 1.3; }
+  p.lead { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 820px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tabs button, .controls button { min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #c9c9c4;
+         background: #fff; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .stage { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; }
+  .left { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .bezel { position: relative; padding: 10px; background: #1e1f22; border-radius: 20px; zoom: var(--zoom, 1.4); }
+  /* the physical keys on the case edges, at the heights measured on the product drawings */
+  .key { position: absolute; width: 4px; border-radius: 2px; background: #70737a; }
+  .key.at-left { left: 2px; } .key.at-right { right: 2px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+  .controls .time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .controls label { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .desc { margin: 0; font-size: 14px; color: #333; text-align: center; max-width: 340px; line-height: 1.6; }
+  .log { flex: 1 1 360px; max-width: 600px; min-width: 0; }
+  .log h2 { margin: 0 0 10px; font-size: 17px; }
+  .log ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .log li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; padding: 9px 12px; border-radius: 8px; }
+  .log li.past { background: #fff; }
+  .log li.now { background: #e3eeff; }
+  .log li.future { color: #6b6b6b; }
+  .log .t { font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .log .who { font-size: 12px; padding: 0 6px; border-radius: 4px; background: #e6e6e6; margin-right: 6px; }
+  .log .what { font-size: 15px; font-weight: 500; }
+  .log .fx { display: block; font-size: 14px; line-height: 1.55; color: inherit; opacity: .85; margin-top: 2px; }
+  footer { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ---- the 240x320 screen, styled after the firmware (light theme) ---- */
+  .screen { position: relative; width: 240px; height: 320px; overflow: hidden; background: #fff; color: #000;
+            border-radius: 4px; font-size: 20px; line-height: 26px; }
+  .row { position: absolute; left: 0; right: 0; top: 0; height: 42px; display: flex; align-items: center; gap: 8px;
+         padding: 0 8px; border-bottom: 2px solid #d7d7d7; background: #f0f0f0; }
+  .row .status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; font-size: 20px; }
+  .row svg { flex: none; }
+  .body { position: absolute; left: 0; right: 0; top: 42px; bottom: 0; overflow: hidden; }
+  .content { padding: 4px 10px; transition: transform 300ms ease-out; }
+  .turn { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+  .turn + .turn { border-top: 1px solid #d7d7d7; padding-top: 6px; }
+  .turn:last-child { margin-bottom: 0; }
+  .q { color: #696969; word-break: break-all; line-break: anywhere; }
+  .a { word-break: break-all; line-break: anywhere; }
+  .a .rest { color: #696969; }
+  .old .a, .ended .a { color: #696969; }
+  .pending.listen { color: #184aa4; }
+  .pending.think { color: #696969; }
+  .system { background: #f0f0f0; border-radius: 4px; padding: 4px; }
+  .more { position: absolute; right: 8px; bottom: 4px; width: 26px; height: 26px; border-radius: 13px; background: #000;
+          display: none; align-items: center; justify-content: center; }
+  .more.show { display: flex; }
+  .scrollbar { position: absolute; right: 2px; width: 3px; border-radius: 2px; background: #696969; display: none; }
+  .hints { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .hints.show { display: block; }
+  .hint { position: absolute; display: flex; align-items: center; gap: 2px; padding: 3px 5px; color: #000; white-space: nowrap; }
+  .hint.at-left { left: 2px; } .hint.at-right { right: 2px; text-align: right; }
+  .hint svg { flex: none; }
+  .hints.grey .hint { color: #696969; }
+  /* a two-line label pushed down by the status row keeps its arrow on the first line */
+  .hint.first-line { align-items: flex-start; }
+  .hint.first-line svg { margin-top: 5px; }
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,.62); display: none; }
+  .dim.show { display: block; }
+  body.capture main > :not(.stage) { display: none; }
+  body.capture .stage .log, body.capture .controls, body.capture .desc { display: none; }
+  body.capture main { padding: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>阅读样式（reading message style）：不同状态下屏幕怎么变</h1>
+  <p class="lead">按固件里的实际行为画的 240×320 浅色屏幕。每句回答逐句追加；已经读到的字是黑色，读到哪里点亮到哪里（逐字跟读），还没读到的是灰色。
+  A 240×320 mock of the reading message style as implemented: answer sentences are appended, the spoken part is black and lights up with the voice, the rest is grey.</p>
+  <div class="tabs" id="tabs"></div>
+  <div class="stage">
+    <div class="left">
+      <div class="bezel">
+        <div class="key at-left" style="top:20px;height:75px" title="电源键"></div>
+        <div class="key at-right" style="top:21px;height:62px" title="上键"></div>
+        <div class="key at-right" style="top:135px;height:63px" title="下键"></div>
+        <div class="key at-right" style="top:250px;height:68px" title="确定键"></div>
+        <div class="screen" id="screen">
+        <div class="row" id="row">
+          <span id="face"></span>
+          <span class="status" id="status"></span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1"/></svg>
+          <svg width="22" height="16" viewBox="0 0 26 16" fill="none" aria-hidden="true"><rect x="1" y="3" width="21" height="10" rx="2" stroke="#000" stroke-width="1.5"/><rect x="23" y="6" width="2" height="4" rx="1" fill="#000"/><rect x="3" y="5" width="14" height="6" rx="1" fill="#000"/></svg>
+        </div>
+        <div class="body" id="body"><div class="content" id="content"></div></div>
+        <div class="scrollbar" id="scrollbar"></div>
+        <div class="more" id="more"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div>
+        <div class="hints" id="hints">
+          <div class="hint at-left" style="top:47px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>电源</span></div>
+          <div class="hint at-right first-line" style="top:47px"><span>长按 音量+<br>轻触 上翻页</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
+          <div class="hint at-right" style="top:128px"><span>长按 音量-<br>轻触 下翻页</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
+          <div class="hint at-right" style="top:258px"><span id="okhint">轻触 开始/结束对话</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></div>
+        </div>
+        <div class="dim" id="dim"></div>
+      </div></div>
+      <div class="controls">
+        <button type="button" id="play">暂停</button>
+        <button type="button" id="replay">重播</button>
+        <button type="button" id="speed">速度 1×</button>
+        <label><input type="checkbox" id="words" checked> 逐字跟读</label>
+        <span class="time" id="time"></span>
+      </div>
+      <p class="desc" id="desc"></p>
+    </div>
+    <div class="log"><h2>这一段发生了什么</h2><ol id="log"></ol></div>
+  </div>
+  <footer>说明：语速按每字约 230 毫秒示意；真机上点亮跟着实际播放进度走，每句读完用实测时长校准。状态栏颜色、灰度、尺寸取自固件代码。
+  Timing is illustrative; on the device the highlight follows the playback position and is calibrated per sentence.</footer>
+</main>
+<script>
+(function () {
+  const CHAR_MS = 230, GAP_MS = 380, LINE = 26;
+  const TINT = { idle: ["#f0f0f0", "#d7d7d7"], listen: ["#cedcf5", "#1f5fd1"], think: ["#f3e5c7", "#c98a00"], speak: ["#cee6d8", "#1e8e4e"] };
+  const FACE = {
+    neutral: '<circle cx="16" cy="16" r="15" fill="#FFC83D"/><circle cx="11" cy="13" r="2" fill="#5B3A00"/><circle cx="21" cy="13" r="2" fill="#5B3A00"/><path d="M11 21h10" stroke="#5B3A00" stroke-width="2" stroke-linecap="round"/>',
+    think: '<circle cx="16" cy="16" r="15" fill="#FFC83D"/><circle cx="12" cy="11" r="2" fill="#5B3A00"/><circle cx="22" cy="11" r="2" fill="#5B3A00"/><path d="M9 7.5l5 1.5" stroke="#5B3A00" stroke-width="1.6" stroke-linecap="round"/><circle cx="17" cy="22" r="2.2" fill="none" stroke="#5B3A00" stroke-width="1.8"/>',
+    happy: '<circle cx="16" cy="16" r="15" fill="#FFC83D"/><path d="M8.5 13.5q2.5-3 5 0" fill="none" stroke="#5B3A00" stroke-width="2" stroke-linecap="round"/><path d="M18.5 13.5q2.5-3 5 0" fill="none" stroke="#5B3A00" stroke-width="2" stroke-linecap="round"/><path d="M9 19q7 7 14 0" fill="none" stroke="#5B3A00" stroke-width="2" stroke-linecap="round"/>',
+    error: '<circle cx="16" cy="16" r="13" fill="none" stroke="#000" stroke-width="2.4"/><path d="M11 11l10 10M21 11L11 21" stroke="#000" stroke-width="2.4" stroke-linecap="round"/>'
+  };
+
+  // Sentences are given with the time their audio starts; each lasts len * CHAR_MS.
+  function talk(ev, at, texts, firstLog) {
+    let t = at;
+    texts.forEach((text, i) => {
+      const e = { at: t, type: "say", text };
+      if (i === 0 && firstLog) Object.assign(e, firstLog);
+      else if (i === 1) Object.assign(e, { who: "服务器", what: "开始读第 2 句", screen: "新句子接在后面，不覆盖上一句" });
+      ev.push(e);
+      t += [...text].length * CHAR_MS + (i < texts.length - 1 ? GAP_MS : 0);
+    });
+    return t;
+  }
+  function prefill(ev, q, texts) {
+    ev.push({ at: 0, type: "stt", text: q, instant: true });
+    texts.forEach(text => ev.push({ at: 0, type: "say", text, v: -1e6 }));
+  }
+
+  const Q1 = "番茄炒蛋怎么做才嫩？";
+  const A1 = ["鸡蛋里加一小勺清水打散，下锅后别急着翻。", "等边缘凝固再轻轻推几下，七成熟就盛出来。", "番茄炒出汁以后再把鸡蛋倒回去，翻匀就关火。"];
+  const S = [];
+  let ev, end;
+
+  ev = [];
+  ev.push({ at: 0, type: "connect", who: "按键", what: "按 OK 开始对话", screen: "状态栏“连接中...”，正文清空" });
+  ev.push({ at: 700, type: "listen", who: "设备", what: "开始听", screen: "状态栏变蓝“聆听中...”，正文出现“聆听中...”" });
+  ev.push({ at: 3200, type: "stt", text: Q1, who: "服务器", what: "送回识别出的问题", screen: "问题用灰色上屏；状态栏变黄“请稍候...”，2 秒后开始计秒" });
+  end = talk(ev, 4900, A1, { who: "服务器", what: "开始读第 1 句", screen: "整句上屏，读到哪里黑到哪里；状态栏变绿“说话中...”" });
+  ev.push({ at: end + 200, type: "stop", who: "服务器", what: "读完", screen: "回答留在屏上；回到“聆听中...”，可以直接追问" });
+  S.push({ name: "一问一答", desc: "按一次 OK，问一个问题，听它说完。", events: ev, end: end + 3200 });
+
+  ev = [];
+  prefill(ev, Q1, A1);
+  ev.push({ at: 0, type: "listen", who: "设备", what: "上一轮说完，设备在听", screen: "上一轮回答还在屏上，末尾是“聆听中...”" });
+  ev.push({ at: 2500, type: "stt", text: "那放多少盐合适？", who: "服务器", what: "你接着追问", screen: "整页往上翻，新问题到页顶；上一轮变灰，按 ▲ 能翻回去" });
+  end = talk(ev, 4100, ["两个鸡蛋配一个番茄，盐放一小撮就够。", "番茄本身有咸鲜味，出锅前尝一下再补。"], { who: "服务器", what: "开始读新回答", screen: "新回答从新问题下面开始" });
+  ev.push({ at: end + 200, type: "stop", who: "服务器", what: "读完", screen: "回到“聆听中...”" });
+  S.push({ name: "连续追问", desc: "上一轮刚说完，接着问下一句。", events: ev, end: end + 3200 });
+
+  ev = [];
+  ev.push({ at: 0, type: "listen", who: "设备", what: "设备在听", screen: "正文显示“聆听中...”" });
+  ev.push({ at: 1800, type: "stt", text: "周末去爬山要准备什么？", who: "服务器", what: "送回问题", screen: "问题上屏，开始等回答" });
+  talk(ev, 3300, ["先看天气预报，如果有雨就改天。", "鞋子要穿防滑的登山鞋，别穿新鞋。"], { who: "服务器", what: "开始读回答", screen: "逐句上屏" });
+  ev.push({ at: 9000, type: "abort", who: "按键", what: "你按 OK 打断", screen: "声音停；读到的字保持黑色，没读到的保持灰色；后面的句子不会再来" });
+  ev.push({ at: 9300, type: "stop", who: "服务器", what: "确认停止", screen: "回到“聆听中...”，可以直接问下一句" });
+  S.push({ name: "中途打断", desc: "回答还没读完，按 OK 打断。", events: ev, end: 12300 });
+
+  ev = [];
+  ev.push({ at: 0, type: "listen", who: "设备", what: "设备在听", screen: "正文显示“聆听中...”" });
+  ev.push({ at: 1800, type: "stt", text: "这周末上海会下雨吗？", who: "服务器", what: "送回问题，然后去查天气", screen: "问题下方是“...”；状态栏“请稍候...”并计秒" });
+  end = talk(ev, 11300, ["查到了，周六多云，周日下午可能有小雨。", "周日出门的话记得带把伞。"], { who: "服务器", what: "查完开始读", screen: "等待行换成回答，状态栏变绿" });
+  ev.push({ at: end + 200, type: "stop", who: "服务器", what: "读完", screen: "回到“聆听中...”" });
+  S.push({ name: "长时间思考", desc: "要查资料，回答前等了好几秒。", events: ev, end: end + 3000 });
+
+  ev = [];
+  prefill(ev, Q1, A1);
+  ev.push({ at: 0, type: "listen", who: "设备", what: "上一轮说完，设备在听", screen: "回答在屏上，末尾“聆听中...”" });
+  ev.push({ at: 2500, type: "end", who: "按键", what: "你按 OK 结束对话（服务器静默超时断开也一样）", screen: "状态栏回到待命并显示时间；回答保留但整体变灰" });
+  ev.push({ at: 6000, type: "dim", who: "设备", what: "一分钟没操作（这里压缩成几秒）", screen: "背光调暗，内容不动" });
+  ev.push({ at: 9500, type: "connect", who: "按键", what: "再按 OK 开始新对话", screen: "屏幕亮起，旧内容清空" });
+  ev.push({ at: 10200, type: "listen", who: "设备", what: "开始听", screen: "正文只剩“聆听中...”" });
+  S.push({ name: "结束与待机", desc: "说完不再问，结束对话后放着不管。", events: ev, end: 12700 });
+
+  ev = [];
+  ev.push({ at: 0, type: "listen", who: "设备", what: "设备在听", screen: "正文显示“聆听中...”" });
+  ev.push({ at: 1500, type: "stt", text: "给我讲个简短的睡前故事", who: "服务器", what: "送回问题", screen: "问题上屏，开始等回答" });
+  talk(ev, 3000, ["从前有一只小狐狸，住在一棵很老的橡树下面。", "每天晚上，它都会爬到树顶去数星星。"], { who: "服务器", what: "开始讲", screen: "逐句上屏" });
+  ev.push({ at: 10000, type: "error", text: "无法连接服务，请稍后再试", who: "设备", what: "网络断了", screen: "已收到的字保留并变灰；末尾出现系统提示；状态栏“错误”，表情换成错误图标" });
+  ev.push({ at: 13500, type: "connect", who: "按键", what: "你按 OK 重试", screen: "提示和旧内容清掉，重新连接" });
+  ev.push({ at: 14200, type: "listen", who: "设备", what: "连上了，开始听", screen: "正文显示“聆听中...”" });
+  S.push({ name: "网络断开", desc: "讲到一半网络断了。", events: ev, end: 16700 });
+
+  ev = [];
+  ev.push({ at: 0, type: "stt", text: "我下个月要去日本玩一周，第一次去，你帮我说说要注意些什么？", who: "服务器", what: "你问了一个长问题", screen: "问题按行折开，全部显示" });
+  end = talk(ev, 1200, ["先确认护照有效期还剩半年以上，再办好签证。", "交通可以买一张交通卡，地铁和便利店都能刷。", "日本很多小店只收现金，身上备一些日元。", "垃圾要分类，街上垃圾桶很少，可以随身带个袋子。", "电车里尽量别打电话，说话也要小声。", "遇到地震提示不要慌，跟着周围人的指引走。"], { who: "服务器", what: "开始读回答", screen: "逐句上屏，满屏后自动往下滚" });
+  ev.push({ at: 23000, type: "scroll", lines: -2, who: "按键", what: "单击 ▲", screen: "往回翻两行；自动跟随暂停，右下角出现 ▼" });
+  ev.push({ at: 24500, type: "scroll", lines: -2, who: "按键", what: "再单击 ▲", screen: "继续往回翻" });
+  ev.push({ at: 26400, type: "none", who: "服务器", what: "最后一句到了", screen: "新句子照样在下面追加，画面不动" });
+  ev.push({ at: 27300, type: "scroll", lines: 2, who: "按键", what: "单击 ▼", screen: "往下翻两行" });
+  ev.push({ at: 28500, type: "scroll", lines: 40, who: "按键", what: "再单击 ▼ 翻到底", screen: "到底后恢复自动跟随，▼ 消失" });
+  ev.push({ at: 29300, type: "notify", text: "音量 85", dur: 2400, who: "按键", what: "按住 ▲ 调音量", screen: "每 150 毫秒加 5 格，状态栏临时显示音量，不挡正文" });
+  ev.push({ at: end + 200, type: "stop", who: "服务器", what: "读完", screen: "回到“聆听中...”" });
+  S.push({ name: "翻页与音量", desc: "回答很长，边听边往回看，再调一下音量。", events: ev, end: end + 3000 });
+
+  ev = [];
+  ev.push({ at: 0, type: "boot", text: "正在初始化...", who: "按键", what: "按住电源键 0.5 秒开机", screen: "四块提示贴在对应的按键旁边：左边电源，右边上、下、确定；还没连上 Wi-Fi 时轻触确定会进配网，所以确定键写“轻触 进入配网”" });
+  ev.push({ at: 1500, type: "status", text: "检查新版本...", online: true, who: "设备", what: "连上 Wi-Fi，检查新版本", screen: "确定键的提示换成“轻触 开始/结束对话”；状态栏的文字在变，提示不受影响" });
+  ev.push({ at: 3000, type: "hintsgrey", who: "设备", what: "3 秒到", screen: "提示变灰" });
+  ev.push({ at: 4000, type: "hintsoff", who: "设备", what: "再过 1 秒", screen: "提示消失" });
+  ev.push({ at: 4600, type: "status", text: "待命", who: "设备", what: "激活完成，进入待命", screen: "状态栏短暂显示版本号" });
+  ev.push({ at: 4600, type: "notify", text: "版本 2.5.3", dur: 3000 });
+  ev.push({ at: 8600, type: "boot", text: "正在初始化...", who: "按键", what: "另一台还没配过网的设备开机", screen: "提示照常出现（深睡后按键唤醒也会出现）" });
+  ev.push({ at: 10100, type: "status", text: "配网模式" });
+  ev.push({ at: 10100, type: "system", text: "手机连接热点 Xiaozhi-1A2B，浏览器访问 192.168.4.1", who: "设备", what: "进入配网模式，正文出现配网说明", screen: "正文一出现文字，提示马上消失，不经过变灰" });
+  S.push({ name: "开机按键提示", desc: "开机时在按键旁边标出它们的作用，3 秒后变灰、再 1 秒消失；正文出现文字时马上消失。", events: ev, end: 13600 });
+  S.forEach(sc => sc.events.sort((a, b) => a.at - b.at));
+
+  const $ = id => document.getElementById(id);
+  const content = $("content"), body = $("body");
+  let sc = 0, t = 0, playing = true, speed = 1, words = true, last = performance.now();
+  const params = new URLSearchParams(location.search);
+  if (params.has("capture")) { document.body.classList.add("capture"); playing = false; }
+  if (params.has("zoom")) document.documentElement.style.setProperty("--zoom", params.get("zoom"));
+
+  // Replays the events up to time t into a model of what is on screen.
+  function simulate(scn, now) {
+    const st = { status: "22:59", tone: "idle", mood: "neutral", turns: [], listening: false, thinkSince: -1,
+                 notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: null, sys: "", starting: false };
+    for (const e of scn.events) {
+      if (e.at > now) break;
+      const cur = st.turns[st.turns.length - 1];
+      // Text in the transcript removes the key hints at once; status row text does not.
+      if (["listen", "stt", "say", "error", "system"].includes(e.type)) st.hints = null;
+      switch (e.type) {
+        case "boot": Object.assign(st, { status: e.text, tone: "idle", mood: "neutral", turns: [], listening: false, thinkSince: -1,
+            notif: null, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [], hints: "on", sys: "", starting: true }); break;
+        case "status": st.status = e.text; if (e.online) st.starting = false; break;
+        case "hintsgrey": if (st.hints) st.hints = "grey"; break;
+        case "hintsoff": st.hints = null; break;
+        case "system": st.sys = e.text; break;
+        case "connect": Object.assign(st, { status: "连接中...", tone: "idle", mood: "neutral", turns: [], listening: false,
+            thinkSince: -1, error: "", ended: false, dim: false, follow: true, abs: 0, scrolls: [] }); break;
+        case "listen": case "stop": Object.assign(st, { status: "聆听中...", tone: "listen", mood: "neutral", listening: true, thinkSince: -1 }); break;
+        case "stt": st.turns.push({ q: e.text, sents: [], abortAt: -1, cutAt: -1 });
+          Object.assign(st, { listening: false, thinkSince: e.instant ? -1 : e.at, follow: true, abs: 0, tone: e.instant ? st.tone : "think",
+            mood: e.instant ? st.mood : "think", status: e.instant ? st.status : "请稍候..." }); break;
+        case "say": if (cur) cur.sents.push({ text: e.text, v: e.v !== undefined ? e.v : e.at });
+          Object.assign(st, { thinkSince: -1, status: "说话中...", tone: "speak", mood: "happy" }); break;
+        case "abort": if (cur) cur.abortAt = e.at; break;
+        case "error": if (cur) cur.cutAt = e.at;
+          Object.assign(st, { error: e.text, status: "错误", tone: "idle", mood: "error", listening: false, thinkSince: -1, ended: true }); break;
+        case "end": Object.assign(st, { ended: true, status: "22:59", tone: "idle", mood: "neutral", listening: false }); break;
+        case "dim": st.dim = true; break;
+        case "notify": st.notif = { text: e.text, until: e.at + e.dur }; break;
+        case "scroll": st.scrolls.push(e.lines); break;
+      }
+    }
+    return st;
+  }
+
+  function litChars(sent, stopAt) {
+    const n = [...sent.text].length;
+    if (stopAt < sent.v) return 0;
+    if (!words) return n;
+    return Math.min(n, Math.floor((stopAt - sent.v) / CHAR_MS) + 1);
+  }
+
+  function render() {
+    const scn = S[sc];
+    const st = simulate(scn, t);
+    // status row
+    let status = st.status;
+    if (st.thinkSince >= 0) {
+      const s = Math.floor((t - st.thinkSince) / 1000);
+      status = s >= 2 ? "请稍候... " + s + "s" : "请稍候...";
+    }
+    if (st.notif && t < st.notif.until) status = st.notif.text;
+    $("status").textContent = status;
+    const tint = TINT[st.tone] || TINT.idle;
+    $("row").style.background = tint[0];
+    $("row").style.borderBottomColor = tint[1];
+    $("face").innerHTML = '<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">' + (FACE[st.mood] || FACE.neutral) + "</svg>";
+    // transcript
+    const frag = document.createDocumentFragment();
+    st.turns.forEach((tn, i) => {
+      const newest = i === st.turns.length - 1;
+      const div = document.createElement("div");
+      div.className = "turn" + (newest ? "" : " old") + (st.ended ? " ended" : "");
+      const q = document.createElement("div"); q.className = "q"; q.textContent = tn.q; div.appendChild(q);
+      if (tn.sents.length) {
+        const a = document.createElement("div"); a.className = "a";
+        const stopAt = Math.min(tn.abortAt >= 0 ? tn.abortAt : Infinity, tn.cutAt >= 0 ? tn.cutAt : Infinity, t);
+        // Sentences play in order: once one is not fully lit, everything after it is unlit.
+        let lit = "", rest = "";
+        tn.sents.forEach(s => {
+          if (rest) { rest += s.text; return; }
+          const chars = [...s.text], k = litChars(s, stopAt);
+          lit += chars.slice(0, k).join("");
+          rest += chars.slice(k).join("");
+        });
+        a.appendChild(document.createTextNode(lit));
+        if (rest && !st.ended) { const r = document.createElement("span"); r.className = "rest"; r.textContent = rest; a.appendChild(r); }
+        else if (rest) a.appendChild(document.createTextNode(rest));
+        div.appendChild(a);
+      }
+      if (newest && st.thinkSince >= 0) { const p = document.createElement("div"); p.className = "pending think"; p.textContent = "..."; div.appendChild(p); }
+      if (newest && st.listening) { const p = document.createElement("div"); p.className = "pending listen"; p.textContent = "聆听中..."; div.appendChild(p); }
+      if (newest && st.error) { const p = document.createElement("div"); p.className = "system"; p.textContent = st.error; div.appendChild(p); }
+      frag.appendChild(div);
+    });
+    if (!st.turns.length && st.listening) { const p = document.createElement("div"); p.className = "pending listen"; p.textContent = "聆听中..."; frag.appendChild(p); }
+    if (!st.turns.length && st.sys) { const p = document.createElement("div"); p.className = "system"; p.textContent = st.sys; frag.appendChild(p); }
+    content.replaceChildren(frag);
+    // the newest turn is at least one page tall, so following = scrolling to the end
+    const page = body.clientHeight;
+    const turns = content.querySelectorAll(".turn");
+    if (turns.length) turns[turns.length - 1].style.minHeight = (page - 8) + "px";
+    const max = Math.max(0, content.scrollHeight - page);
+    let scroll = max, follow = true;
+    for (const lines of st.scrolls) {
+      const from = follow ? max : scroll;
+      scroll = Math.max(0, Math.min(max, from + lines * 2 * LINE));
+      follow = scroll >= max;
+    }
+    if (follow) scroll = max;
+    content.style.transform = "translateY(" + (-scroll) + "px)";
+    $("more").classList.toggle("show", !follow);
+    const bar = $("scrollbar");
+    if (max > 0) {
+      const track = page - 12, h = Math.max(24, Math.round(track * page / content.scrollHeight));
+      bar.style.display = "block"; bar.style.height = h + "px"; bar.style.top = (48 + Math.round((track - h) * scroll / max)) + "px";
+    } else bar.style.display = "none";
+    $("dim").classList.toggle("show", st.dim);
+    $("hints").className = "hints" + (st.hints ? " show" : "") + (st.hints === "grey" ? " grey" : "");
+    $("okhint").textContent = st.starting ? "轻触 进入配网" : "轻触 开始/结束对话";
+    // event list
+    const evs = scn.events.filter(e => e.what);
+    let cur = -1; evs.forEach((e, i) => { if (e.at <= t) cur = i; });
+    $("log").innerHTML = evs.map((e, i) => `<li class="${i === cur ? "now" : i < cur ? "past" : "future"}"><span class="t">${(e.at / 1000).toFixed(1)} 秒</span><div><span class="who">${e.who}</span><span class="what">${e.what}</span><span class="fx">${e.screen}</span></div></li>`).join("");
+    $("desc").textContent = scn.desc;
+    const fmt = ms => (ms / 1000).toFixed(1).padStart(4, "0");
+    $("time").textContent = fmt(t) + " / " + fmt(scn.end) + " 秒";
+    $("play").textContent = t >= scn.end ? "再放一次" : playing ? "暂停" : "继续";
+    $("speed").textContent = "速度 " + speed + "×";
+  }
+
+  function tabs() {
+    $("tabs").innerHTML = S.map((x, i) => `<button type="button" aria-pressed="${i === sc}" data-i="${i}">${x.name}</button>`).join("");
+  }
+  $("tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; sc = +b.dataset.i; t = 0; playing = true; tabs(); render(); });
+  $("play").addEventListener("click", () => {
+    if (t >= S[sc].end) { t = 0; playing = true; } else { playing = !playing; }
+    render();
+  });
+  $("replay").addEventListener("click", () => { t = 0; playing = true; render(); });
+  $("speed").addEventListener("click", () => { speed = speed === 1 ? 2 : 1; render(); });
+  $("words").addEventListener("change", e => { words = e.target.checked; render(); });
+  function tick(now) {
+    const dt = Math.min(now - last, 200); last = now;
+    if (playing) { t += dt * speed; if (t >= S[sc].end) { t = S[sc].end; playing = false; } render(); }
+    requestAnimationFrame(tick);
+  }
+  // Hooks for frame capture: window.demo.seek(scenario, ms)
+  window.demo = { scenarios: S.map(x => ({ name: x.name, end: x.end })), seek(i, ms) { sc = i; t = ms; playing = false; tabs(); render(); } };
+  tabs(); render(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
