@@ -17,8 +17,11 @@ class OttoEmojiDisplay : public SpiLcdDisplay {
     virtual void SetStatus(const char* status) override;
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
     virtual void SetupUI() override;
+    void SetPreviewRotation(int rotation) { preview_rotation_ = rotation; }
 
    private:
     void InitializeOttoEmojis();
     void SetupPreviewImage();
+
+    int preview_rotation_ = 900;
 };
