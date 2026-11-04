@@ -43,6 +43,12 @@ public:
     void OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) override;
     void OnVadStateChange(std::function<void(bool speaking)> callback) override;
 
+    uint32_t TakeFetchCount() override { return fetch_count_.exchange(0); }
+    uint32_t TakeFetchDropCount() override { return fetch_drop_count_.exchange(0); }
+
+    bool SetWakeWordThreshold(float threshold) override;
+    float GetWakeWordThreshold() const override { return wake_word_threshold_.load(); }
+
     void EncodeWakeWordData() override;
     bool GetWakeWordOpus(std::vector<uint8_t>& opus) override;
     const std::string& GetLastDetectedWakeWord() const override { return last_detected_wake_word_; }
@@ -81,6 +87,18 @@ private:
     // uses it to reject a fetch result produced before a disable/re-enable cycle.
     std::atomic<uint32_t> control_generation_{0};
     WakeDetector wake_detector_ = WakeDetector::kNone;
+    // How many WakeNet models the AFE was actually configured with, 0 to 2. Not the number of
+    // wake words: one model can declare several, so wake_words_ cannot be counted here.
+    int wakenet_model_count_ = 0;
+    // 0 means the model's own default. Applied by ProcessingTask, never from the caller's task.
+    std::atomic<float> wake_word_threshold_{0.0f};
+    // Counted in ProcessingTask, cleared by whoever reads them. fetch_count_ is results that
+    // were acted on; fetch_drop_count_ is results thrown away, whether because a control change
+    // invalidated them, because the AFE went inactive, or because the fetch itself failed. The
+    // two are separate because "nothing comes back" and "everything that comes back is thrown
+    // away" are different faults that produce the same silence.
+    std::atomic<uint32_t> fetch_count_{0};
+    std::atomic<uint32_t> fetch_drop_count_{0};
 
     std::unique_ptr<CustomWakeWord> custom_wake_word_;
     std::vector<std::string> wake_words_;

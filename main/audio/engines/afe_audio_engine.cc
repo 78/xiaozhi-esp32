@@ -157,6 +157,7 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
         if (wakenet_models.size() > 1) {
             afe_config->wakenet_model_name_2 = wakenet_models[1];
         }
+        wakenet_model_count_ = wakenet_models.empty() ? 0 : (wakenet_models.size() > 1 ? 2 : 1);
         // Only the two models selected above are active in the AFE.
         wake_words_.clear();
         for (auto name : {afe_config->wakenet_model_name, afe_config->wakenet_model_name_2}) {
@@ -373,6 +374,14 @@ void AfeAudioEngine::UpdateActiveState() {
         output_reset_pending_ = true;
     }
     afe_control_dirty_ = true;
+    // The request side of the chain. It is logged because the other end of it is invisible:
+    // everything downstream happens inside the AFE, and the only way to tell "nobody asked" from
+    // "asked and it did not take" is to see both ends. Only runs on a control change, a handful
+    // of times per conversation, so it costs nothing in a steady state.
+    bits = xEventGroupGetBits(event_group_);
+    ESP_LOGI(TAG, "wanted: wake_word=%d voice=%d afe_active=%d",
+             (bits & kWakeWordEnabled) ? 1 : 0, (bits & kVoiceProcessingEnabled) ? 1 : 0,
+             (bits & kAfeActive) ? 1 : 0);
 }
 
 void AfeAudioEngine::UpdateAecState() {
@@ -384,11 +393,26 @@ void AfeAudioEngine::UpdateAecState() {
 
 void AfeAudioEngine::ApplyAfeControls() {
     EventBits_t bits = xEventGroupGetBits(event_group_);
+    const char* wakenet_applied = "n/a";
+    const char* aec_applied = "n/a";
     if (wake_detector_ == WakeDetector::kWakeNet) {
         if (bits & kWakeWordEnabled) {
             afe_iface_->enable_wakenet(afe_data_);
+            wakenet_applied = "on";
         } else {
             afe_iface_->disable_wakenet(afe_data_);
+            wakenet_applied = "off";
+        }
+        // Re-applied on every pass rather than once after create: setting it is cheap, and
+        // doing it here means it cannot be lost to a disable/re-enable cycle or to an AFE
+        // re-created while a caller's value was still the intended one.
+        const float threshold = wake_word_threshold_.load();
+        if (threshold > 0.0f && afe_iface_->set_wakenet_threshold != nullptr) {
+            for (int index = 1; index <= wakenet_model_count_; ++index) {
+                if (afe_iface_->set_wakenet_threshold(afe_data_, index, threshold) != 1) {
+                    ESP_LOGW(TAG, "set_wakenet_threshold(%d, %.4f) rejected", index, threshold);
+                }
+            }
         }
     }
     if (codec_->input_reference()) {
@@ -396,10 +420,19 @@ void AfeAudioEngine::ApplyAfeControls() {
                                 (device_aec_enabled_.load() && (bits & kVoiceProcessingEnabled));
         if (enable_aec) {
             afe_iface_->enable_aec(afe_data_);
+            aec_applied = "on";
         } else {
             afe_iface_->disable_aec(afe_data_);
+            aec_applied = "off";
         }
     }
+    // The applied side. A "wanted" line with no "applied" line after it means the dirty flag
+    // never reached ProcessingTask, which is a different repair from WakeNet being enabled and
+    // declining to fire. Measured on u22 while the robot was deaf: the detector enabled, a full
+    // thousand frames fed, 313 fetches returned, nothing discarded, and a signal forty times the
+    // noise floor - so the AFE was running its whole pipeline and never reported a detection.
+    // These two lines are what is left to look at.
+    ESP_LOGI(TAG, "applied: wakenet=%s aec=%s", wakenet_applied, aec_applied);
 }
 
 void AfeAudioEngine::ApplyPendingReset() {
@@ -431,15 +464,18 @@ void AfeAudioEngine::ProcessingTask() {
             (xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
             // A disable/re-enable may make an old blocked fetch return after the
             // AFE is active again. Reset immediately and never process that frame.
+            fetch_drop_count_.fetch_add(1, std::memory_order_relaxed);
             ApplyPendingReset();
             continue;
         }
         if (result == nullptr || result->ret_value == ESP_FAIL) {
+            fetch_drop_count_.fetch_add(1, std::memory_order_relaxed);
             if (result != nullptr) {
                 ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
             }
             continue;
         }
+        fetch_count_.fetch_add(1, std::memory_order_relaxed);
 
         EventBits_t bits = xEventGroupGetBits(event_group_);
         if (bits & kWakeWordEnabled) {
@@ -532,6 +568,32 @@ void AfeAudioEngine::OutputRawAudio(const std::vector<int16_t>& data) {
             std::vector<int16_t>(output_buffer_.begin(), output_buffer_.begin() + frame_samples_));
         output_buffer_.erase(output_buffer_.begin(), output_buffer_.begin() + frame_samples_);
     }
+}
+
+bool AfeAudioEngine::SetWakeWordThreshold(float threshold) {
+    if (wake_detector_ != WakeDetector::kWakeNet) {
+        return false;
+    }
+    // 0 is the documented way back to the model's own default; anything else has to be inside
+    // the range esp-sr accepts, because it rejects the rest and the caller would never know.
+    if (threshold != 0.0f && (threshold < 0.4f || threshold > 0.9999f)) {
+        return false;
+    }
+    wake_word_threshold_.store(threshold);
+    if (afe_data_ == nullptr) {
+        // Initialize() has not run yet. The value is kept and applied by the first
+        // ApplyAfeControls after the AFE exists.
+        return true;
+    }
+    if (threshold == 0.0f && afe_iface_->reset_wakenet_threshold != nullptr) {
+        for (int index = 1; index <= wakenet_model_count_; ++index) {
+            afe_iface_->reset_wakenet_threshold(afe_data_, index);
+        }
+    }
+    // Not applied from this task: ProcessingTask may be inside fetch on the same AFE instance,
+    // which is the same reason the WakeNet and AEC toggles are deferred.
+    afe_control_dirty_ = true;
+    return true;
 }
 
 void AfeAudioEngine::EncodeWakeWordData() {
