@@ -2,6 +2,7 @@
 #define WIFI_BOARD_H
 
 #include "board.h"
+#include "button.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <esp_timer.h>
@@ -64,6 +65,14 @@ public:
      * Check if in WiFi config mode
      */
     bool IsInWifiConfigMode() const;
+
+    /**
+     * Register double-click on a button to enter WiFi config mode.
+     * Call this from InitializeButtons() after setting up single-click.
+     * The double-click handler is active only when device is NOT in starting state
+     * (since starting state already uses single-click for config mode).
+     */
+    void SetupDoubleClickForConfigMode(Button& button);
 };
 
 #endif // WIFI_BOARD_H
