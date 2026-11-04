@@ -10,7 +10,8 @@
 - 双模拟麦克风阵列（双通道输入）+ 双 NS4150B 功放（立体声输出）
 - RGB 接口 LCD 子板（ST7262E43，800x480，16MHz PCLK，背光常开）
 - GT1151 触摸（与 codec 共享 I2C 总线）
-- OV3660 摄像头（DVP 8bit，SCCB 共享 I2C 总线，地址 0x78，180° 旋转安装）
+- OV3660 或 SC101IOT 摄像头（DVP 8bit，SCCB 共享 I2C 总线，启动时自动探测；
+  当前默认方向按本板实际使用的 SC101IOT 配置）
 - WS2812 RGB 状态灯（GPIO37）
 - BOOT 键（GPIO61）+ 4 个 ADC 按键（GPIO42，电阻分压）
 - microSD 卡槽、USB-A OTG（暂未启用）
@@ -62,8 +63,9 @@ idf.py menuconfig   # Xiaozhi Assistant -> Board Type -> Espressif ESP32-S31-Kor
 idf.py build flash monitor
 ```
 
-摄像头（OV3660）默认随固件启用（`config.json` 的 `sdkconfig_append` 已包含
-`CONFIG_CAMERA_OV3660=y`）；若手工配置 sdkconfig，请确认该项开启。
+OV3660 与 SC101IOT 摄像头驱动默认随固件启用，运行时自动探测板载型号
+（`config.json` 的 `sdkconfig_append` 已包含两个驱动）；若手工配置
+sdkconfig，请确认对应型号已开启。
 
 硬件验证建议覆盖：麦克风采集、扬声器播放（立体声）、唤醒词、ADC 四键、
 BOOT 键、RGB 灯、屏幕显示、触摸、拍照（方向应为正，偏色则检查 RGB565
