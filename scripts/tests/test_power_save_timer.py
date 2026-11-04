@@ -78,9 +78,20 @@ struct esp_pm_config_t {
 };
 int esp_pm_configure(const esp_pm_config_t*) { return ESP_OK; }
 bool sleep_allowed = true;
+int dim_minutes = -1, off_minutes = -1;
 struct Settings {
     Settings(const char*, bool) {}
-    bool GetBool(const char*, bool) { return sleep_allowed; }
+    bool GetBool(const char* key, bool) {
+        assert(std::string(key).size() <= 15);  // NVS key limit
+        return sleep_allowed;
+    }
+    int GetInt(const char* key, int fallback) {
+        std::string k(key);
+        assert(k.size() <= 15);  // NVS key limit
+        if (k == "sleep_dim_min") return dim_minutes;
+        if (k == "sleep_off_min") return off_minutes;
+        return fallback;
+    }
 };
 struct AudioService {
     bool IsWakeWordRunning() { return false; }
@@ -202,10 +213,31 @@ int main(int argc, char** argv) {
     int requests = 0;
     timer.OnShutdownRequest([&]() { ++requests; });
     if (test == "settings_disabled") sleep_allowed = false;
+    if (test == "nvs_override") { dim_minutes = 0; off_minutes = 1; }
+    if (test == "late_change") { dim_minutes = 0; off_minutes = 10; }
     timer.SetEnabled(true);
     Tick(3);
     if (test == "settings_disabled") {
         assert(requests == 0);
+        return 0;
+    }
+    if (test == "nvs_override") {
+        // NVS minutes (0 = dim disabled, 1 = power off after 60 s) must win
+        // over the constructor's shutdown-at-2-s fallback.
+        assert(requests == 0);
+        Tick(57);
+        assert(requests == 1);
+        return 0;
+    }
+    if (test == "late_change") {
+        // Changing the values mid-run applies them to the running clock
+        // without restarting it: 60 s in, switching to power off at 60 s
+        // fires on the next tick instead of counting 60 s again.
+        Tick(57);
+        assert(requests == 0);
+        off_minutes = 1;
+        Tick(1);
+        assert(requests == 1);
         return 0;
     }
     assert(requests == 1);
@@ -266,6 +298,12 @@ int main(int argc, char** argv) {
 
     def test_settings_disable_timer(self):
         self.run_case("settings_disabled")
+
+    def test_nvs_minutes_override_constructor(self):
+        self.run_case("nvs_override")
+
+    def test_settings_apply_without_clock_restart(self):
+        self.run_case("late_change")
 
     def test_watcher_usb_boot_then_unplug(self):
         self.run_case("usb_boot")
