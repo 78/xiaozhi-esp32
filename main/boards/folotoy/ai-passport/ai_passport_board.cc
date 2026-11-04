@@ -93,6 +93,14 @@ static constexpr int kDimBrightness = 10;
 // woke the device finishes, so this only bounds a release event that never
 // arrives, or a key that is stuck down.
 static constexpr int kWakeKeyGuardMs = 10000;
+#if CONFIG_USE_READING_MESSAGE_STYLE
+// Holding UP or DOWN changes the volume by one step per interval until the key is
+// released. The step cap is a safety net for a release event that never arrives:
+// 25 steps cover the whole range.
+static constexpr int kVolumeRepeatMs = 150;
+static constexpr int kVolumeRepeatStep = 5;
+static constexpr int kVolumeRepeatMaxSteps = 25;
+#endif
 // ESP32-C3 caps at 160 MHz.
 static constexpr int kCpuMaxFreq = 160;
 // Standby clock. DFS does not stop the tick, which is what keeps the three
@@ -267,6 +275,12 @@ private:
     // does; the generation check in each transition is what drops them, and this
     // deadline is the second line of defence for the same window.
     int64_t last_key_us_ = 0;
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    // UP/DOWN held down: the repeat timer keeps changing the volume by this delta.
+    esp_timer_handle_t volume_repeat_timer_ = nullptr;
+    std::atomic<int> volume_repeat_delta_{0};
+    std::atomic<int> volume_repeat_steps_{0};
+#endif
 
     // Guards the stage transitions against a key press that arrived while they
     // were queued: the re-arm has already forgiven that press, but the wake
@@ -341,6 +355,44 @@ private:
         codec->SetOutputVolume(volume);
         GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
     }
+
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    // Called from the button task. The first step is taken at once and the rest by the
+    // repeat timer; every step runs on the main task.
+    void StartVolumeRepeat(int delta) {
+        volume_repeat_delta_ = delta;
+        volume_repeat_steps_ = 0;
+        Application::GetInstance().Schedule([this, delta]() { ChangeVolume(delta); });
+        esp_timer_stop(volume_repeat_timer_);
+        esp_timer_start_periodic(volume_repeat_timer_, kVolumeRepeatMs * 1000);
+    }
+
+    void StopVolumeRepeat() {
+        volume_repeat_delta_ = 0;
+        esp_timer_stop(volume_repeat_timer_);
+    }
+
+    void InitializeVolumeRepeat() {
+        esp_timer_create_args_t args = {
+            .callback =
+                [](void* arg) {
+                    auto* board = static_cast<AiPassportBoard*>(arg);
+                    const int delta = board->volume_repeat_delta_;
+                    if (delta == 0 || ++board->volume_repeat_steps_ > kVolumeRepeatMaxSteps) {
+                        board->StopVolumeRepeat();
+                        return;
+                    }
+                    Application::GetInstance().Schedule(
+                        [board, delta]() { board->ChangeVolume(delta); });
+                },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "volume_repeat",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &volume_repeat_timer_));
+    }
+#endif
 
     void ToggleChat() {
         auto& app = Application::GetInstance();
@@ -432,6 +484,31 @@ private:
         // Button callbacks run on the button task; schedule all UI/audio
         // work onto the main task so LVGL and codec access stay on one thread.
         auto up = adc_button_[kAdcButtonUp];
+        auto down = adc_button_[kAdcButtonDown];
+#if CONFIG_USE_READING_MESSAGE_STYLE
+        // UP/DOWN page through the conversation on screen; holding one changes the
+        // volume step by step until the key is released.
+        InitializeVolumeRepeat();
+        up->OnClick([this]() {
+            if (KeyEventsBlocked()) return;
+            Application::GetInstance().Schedule([this]() { GetDisplay()->ScrollChat(-1); });
+        });
+        up->OnLongPress([this]() {
+            if (KeyEventsBlocked()) return;
+            StartVolumeRepeat(kVolumeRepeatStep);
+        });
+        up->OnPressUp([this]() { StopVolumeRepeat(); });
+
+        down->OnClick([this]() {
+            if (KeyEventsBlocked()) return;
+            Application::GetInstance().Schedule([this]() { GetDisplay()->ScrollChat(1); });
+        });
+        down->OnLongPress([this]() {
+            if (KeyEventsBlocked()) return;
+            StartVolumeRepeat(-kVolumeRepeatStep);
+        });
+        down->OnPressUp([this]() { StopVolumeRepeat(); });
+#else
         up->OnClick([this]() {
             if (KeyEventsBlocked()) return;
             Application::GetInstance().Schedule([this]() { ChangeVolume(10); });
@@ -444,7 +521,6 @@ private:
             });
         });
 
-        auto down = adc_button_[kAdcButtonDown];
         down->OnClick([this]() {
             if (KeyEventsBlocked()) return;
             Application::GetInstance().Schedule([this]() { ChangeVolume(-10); });
@@ -456,6 +532,7 @@ private:
                 GetDisplay()->ShowNotification(Lang::Strings::MUTED);
             });
         });
+#endif
 
         auto ok = adc_button_[kAdcButtonOk];
         ok->OnClick([this]() {
