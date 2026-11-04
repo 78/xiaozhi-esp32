@@ -9,6 +9,7 @@
 class WifiBoard : public Board {
 protected:
     esp_timer_handle_t connect_timer_ = nullptr;
+    esp_timer_handle_t config_exit_timer_ = nullptr;
     bool in_config_mode_ = false;
     NetworkEventCallback network_event_callback_ = nullptr;
 
@@ -35,6 +36,11 @@ protected:
      * WiFi connection timeout callback
      */
     static void OnWifiConnectTimeout(void* arg);
+
+    /**
+     * Delayed reconnect after WiFi config AP teardown
+     */
+    static void OnWifiConfigExitReconnect(void* arg);
 
 public:
     WifiBoard();
