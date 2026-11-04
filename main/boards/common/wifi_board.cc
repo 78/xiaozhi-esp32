@@ -54,7 +54,7 @@ void WifiBoard::StartNetwork() {
 
     // Initialize WiFi manager
     WifiManagerConfig config;
-    config.ssid_prefix = "Xiaozhi";
+    config.ssid_prefix = CONFIG_WIFI_AP_SSID_PREFIX;
     config.language = Lang::CODE;
     config.show_ota_config = true;
     config.show_sleep_config = true;
@@ -65,6 +65,12 @@ void WifiBoard::StartNetwork() {
     if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
         char hostname[32];
         snprintf(hostname, sizeof(hostname), "%s-%02X%02X", config.ssid_prefix.c_str(), mac[4], mac[5]);
+        // Hostnames cannot contain spaces (the SSID prefix may)
+        for (char* p = hostname; *p; ++p) {
+            if (*p == ' ') {
+                *p = '-';
+            }
+        }
         config.station_hostname = hostname;
     }
     wifi_manager.Initialize(config);
