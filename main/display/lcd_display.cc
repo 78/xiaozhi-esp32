@@ -335,6 +335,22 @@ LcdDisplay::~LcdDisplay() {
         esp_timer_delete(preview_timer_);
     }
 
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    // The reading style uses one row as both top_bar_ and status_bar_; delete it once.
+    if (status_bar_ == top_bar_) {
+        status_bar_ = nullptr;
+    }
+    if (more_below_label_ != nullptr) {
+        lv_obj_del(more_below_label_);
+    }
+    if (thinking_timer_ != nullptr) {
+        lv_timer_delete(thinking_timer_);
+    }
+    if (speech_timer_ != nullptr) {
+        lv_timer_delete(speech_timer_);
+    }
+#endif
+
     if (preview_image_ != nullptr) {
         lv_obj_del(preview_image_);
     }
@@ -883,6 +899,9 @@ void LcdDisplay::ClearChatMessages() {
     ESP_LOGI(TAG, "Chat messages cleared");
 }
 #else
+// The reading style (lcd_display_reading.cc) shares SetPreviewImage() with the default
+// style and brings its own layout and chat message handling.
+#if !CONFIG_USE_READING_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
     // Prevent duplicate calls - if already called, return early
     if (setup_ui_called_) {
@@ -1078,6 +1097,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
+#endif  // !CONFIG_USE_READING_MESSAGE_STYLE
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
@@ -1115,6 +1135,7 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     ESP_ERROR_CHECK(esp_timer_start_once(preview_timer_, PREVIEW_IMAGE_DURATION_MS * 1000));
 }
 
+#if !CONFIG_USE_READING_MESSAGE_STYLE
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     if (!setup_ui_called_) {
         ESP_LOGW(TAG, "SetChatMessage('%s', '%s') called before SetupUI() - message will be lost!",
@@ -1173,6 +1194,7 @@ void LcdDisplay::ClearChatMessages() {
         lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
     }
 }
+#endif  // !CONFIG_USE_READING_MESSAGE_STYLE
 #endif
 
 bool LcdDisplay::SetEmotion(const char* emotion) {
@@ -1395,6 +1417,13 @@ void LcdDisplay::SetTheme(Theme* theme) {
             ESP_LOGW(TAG, "child[%lu] Bubble type is not found", i);
         }
     }
+#elif CONFIG_USE_READING_MESSAGE_STYLE
+    ApplyReadingColors(lvgl_theme);
+    // A new font can change the status row height and with it the page height.
+    ResizeNewestTurn();
+    if (follow_latest_) {
+        ScrollToLatest(false);
+    }
 #else
     // Simple UI mode - just update the main chat message
     if (chat_message_label_ != nullptr) {
@@ -1436,4 +1465,15 @@ void LcdDisplay::SetHideSubtitle(bool hide) {
             }
         }
     }
+#if CONFIG_USE_READING_MESSAGE_STYLE
+    // The transcript is the subtitle in this style; the status row stays visible.
+    if (content_ != nullptr) {
+        if (hide) {
+            lv_obj_add_flag(content_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_remove_flag(content_, LV_OBJ_FLAG_HIDDEN);
+        }
+        UpdateMoreBelow();
+    }
+#endif
 }
