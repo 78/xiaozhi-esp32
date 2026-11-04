@@ -142,6 +142,7 @@
 - [joey-zhou/xiaozhi-esp32-server-java](https://github.com/joey-zhou/xiaozhi-esp32-server-java) Java 服务器
 - [AnimeAIChat/xiaozhi-server-go](https://github.com/AnimeAIChat/xiaozhi-server-go) Golang 服务器
 - [hackers365/xiaozhi-esp32-server-golang](https://github.com/hackers365/xiaozhi-esp32-server-golang) Golang 服务器
+- [korexil/gpu-duet](https://github.com/korexil/gpu-duet) 本地 LLM + 声音克隆 TTS 跑在一块 8 GB 显卡上的离线服务器（Windows）
 
 使用小智通信协议的第三方客户端项目：
 
