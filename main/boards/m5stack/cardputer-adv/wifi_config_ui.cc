@@ -35,22 +35,22 @@ void WifiConfigUI::OpenScreen() {
     if (screen_ != nullptr) {
         return;
     }
-    // A panel on the top layer rather than a separate screen: the display
-    // keeps its own screen active, so theme/font refreshes that run while this
-    // UI is open (e.g. assets reloading after WiFi connects) still update the
-    // right objects. The built-in font is never unloaded by an assets reload.
-    screen_ = lv_obj_create(lv_layer_top());
+    // A full-screen panel on the display's own screen, without a font of its
+    // own: it inherits the theme text font (which covers Chinese UI text and
+    // SSIDs), and when assets reload, LcdDisplay::SetTheme() rebinds that font
+    // on the screen before the old one is freed, so the panel follows safely.
+    screen_ = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(screen_);
     lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(screen_, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(screen_, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_font(screen_, &lv_font_montserrat_14, 0);
     lv_obj_remove_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 lv_obj_t* WifiConfigUI::ClearScreen() {
     DisplayLockGuard lock(display_);
     lv_obj_clean(screen_);
+    lv_obj_move_foreground(screen_);
     return screen_;
 }
 
@@ -363,9 +363,11 @@ void WifiConfigUI::DrawFooter(const char* hint) {
     lv_obj_t* canvas = screen_;
 
     lv_obj_t* footer = lv_label_create(canvas);
+    // Theme font (Montserrat has no CJK glyphs); scroll hints wider than the screen
+    lv_obj_set_width(footer, LV_PCT(96));
+    lv_label_set_long_mode(footer, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_label_set_text(footer, hint);
     lv_obj_set_style_text_color(footer, lv_color_hex(0x888888), 0);
-    lv_obj_set_style_text_font(footer, &lv_font_montserrat_14, 0);
     lv_obj_align(footer, LV_ALIGN_BOTTOM_LEFT, 5, -2);
 }
 

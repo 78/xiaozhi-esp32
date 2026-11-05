@@ -49,6 +49,7 @@ private:
     void StartSpeaker();
     void StartMic();
     bool SpeakerBusy() const;
+    int ReadSilence(int16_t* dest, int samples);
 
     virtual int Read(int16_t* dest, int samples) override;
     virtual int Write(const int16_t* data, int samples) override;

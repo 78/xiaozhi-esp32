@@ -86,6 +86,11 @@ static inline uint64_t LogicalKeyMask(uint8_t row, uint8_t col) {
     return 1ULL << ((row * 14) + col);
 }
 
+// Shift, CapsLock, Ctrl, Opt and Alt (see UpdateModifierState)
+static inline bool IsModifierKey(uint8_t row, uint8_t col) {
+    return (row == 2 && col <= 1) || (row == 3 && col <= 2);
+}
+
 MatrixKeyboard::MatrixKeyboard(const gpio_num_t (&address_pins)[3], const gpio_num_t (&input_pins)[7]) {
     for (int i = 0; i < 3; i++) {
         address_pins_[i] = address_pins[i];
@@ -148,12 +153,26 @@ uint64_t MatrixKeyboard::Scan() {
 }
 
 void MatrixKeyboard::UpdateModifierState(uint8_t row, uint8_t col, bool pressed) {
-    // Shift key: row 2, col 0
-    if (row == 2 && col == 0) {
-        if (pressed) {
+    if (pressed && aa_held_ && !IsModifierKey(row, col)) {
+        aa_used_ = true;
+    }
+
+    // fn (row 2, col 0) and Aa (row 2, col 1) both act as Shift while held
+    if (row == 2 && col <= 1) {
+        (col == 0 ? fn_held_ : aa_held_) = pressed;
+        if (fn_held_ || aa_held_) {
             modifier_mask_ |= KEY_MOD_SHIFT;
         } else {
             modifier_mask_ &= ~KEY_MOD_SHIFT;
+        }
+        // Aa tapped on its own toggles CapsLock
+        if (col == 1) {
+            if (pressed) {
+                aa_used_ = false;
+            } else if (!aa_used_) {
+                caps_lock_on_ = !caps_lock_on_;
+                ESP_LOGD(TAG, "CapsLock toggled: %s", caps_lock_on_ ? "ON" : "OFF");
+            }
         }
     }
     // Ctrl key: row 3, col 0
@@ -179,11 +198,6 @@ void MatrixKeyboard::UpdateModifierState(uint8_t row, uint8_t col, bool pressed)
         } else {
             modifier_mask_ &= ~KEY_MOD_OPT;
         }
-    }
-    // CapsLock key: row 2, col 1 (toggle on press)
-    else if (row == 2 && col == 1 && pressed) {
-        caps_lock_on_ = !caps_lock_on_;
-        ESP_LOGD(TAG, "CapsLock toggled: %s", caps_lock_on_ ? "ON" : "OFF");
     }
 }
 
@@ -217,6 +231,12 @@ KeyEvent MatrixKeyboard::MapKeyEvent(uint8_t row, uint8_t col, bool pressed) {
 
     const KeyValue& kv = KEY_MAP[row][col];
     event.key_code = kv.normal_code;
+
+    // Fn + ` is Esc, as printed on the key; Aa + ` stays "~"
+    if (event.key_code == KC_GRAVE && fn_held_) {
+        event.key_code = KC_ESC;
+        return event;
+    }
 
     // Check if this is a modifier key
     if (event.key_code == KC_LSHIFT || event.key_code == KC_LCTRL ||
@@ -289,11 +309,15 @@ void MatrixKeyboard::KeyboardTask(void* arg) {
         }
         keyboard->key_state_mask_ = raw;
 
-        for (uint8_t row = 0; row < 4; row++) {
-            for (uint8_t col = 0; col < 14; col++) {
-                uint64_t mask = LogicalKeyMask(row, col);
-                if (changed & mask) {
-                    keyboard->DispatchKey(row, col, (raw & mask) != 0);
+        // Modifiers first, so Shift and a character key that settle in the
+        // same scan (in either direction) produce the right character.
+        for (int pass = 0; pass < 2; pass++) {
+            for (uint8_t row = 0; row < 4; row++) {
+                for (uint8_t col = 0; col < 14; col++) {
+                    uint64_t mask = LogicalKeyMask(row, col);
+                    if ((changed & mask) && IsModifierKey(row, col) == (pass == 0)) {
+                        keyboard->DispatchKey(row, col, (raw & mask) != 0);
+                    }
                 }
             }
         }
