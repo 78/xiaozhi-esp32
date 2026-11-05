@@ -126,7 +126,7 @@ void OttoEmojiDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     auto img_dsc = preview_image_cached_->image_dsc();
     // 设置图片源并显示预览图片
     lv_image_set_src(preview_image_, img_dsc);
-    lv_image_set_rotation(preview_image_, 900);
+    lv_image_set_rotation(preview_image_, preview_rotation_);
     if (img_dsc->header.w > 0 && img_dsc->header.h > 0) {
         // zoom factor 1.0
         lv_image_set_scale(preview_image_, 256 * width_ / img_dsc->header.w);

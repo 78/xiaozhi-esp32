@@ -814,6 +814,14 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 
+config BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
+    bool "Disable LCD (frees GPIO19/20 for built-in USB-JTAG debugging)"
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    default n
+    help
+        The LCD SPI uses GPIO19/GPIO20, which are the ESP32-S3 USB D-/D+ pins.
+        Enable this to run without the LCD so USB-Serial/JTAG stays available.
+
 choice DISPLAY_LCD_TYPE
     depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_WDMOMO_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM || (BOARD_TYPE_WK_ESP32S3_DEV && WK_ESP32S3_DEV_DISPLAY_LCD)
     prompt "LCD Type"
