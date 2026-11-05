@@ -266,6 +266,21 @@ private:
         ESP_LOGI(TAG, "GT1151 touch initialized");
     }
 
+    static std::optional<EspVideo::Orientation> GetCameraOrientation(uint16_t sensor_pid) {
+        switch (sensor_pid) {
+            case 0x3660:
+                ESP_LOGI(TAG, "OV3660: enabling horizontal and vertical flip");
+                return EspVideo::Orientation{true, true};
+            case 0xda4a:
+                ESP_LOGI(TAG, "SC101IOT: disabling horizontal and vertical flip");
+                return EspVideo::Orientation{false, false};
+            default:
+                ESP_LOGW(TAG, "Unknown camera PID=0x%04x; keeping sensor-native orientation",
+                         sensor_pid);
+                return std::nullopt;
+        }
+    }
+
     void InitializeCamera() {
         static esp_cam_ctlr_dvp_pin_config_t dvp_pin_config = {
             .data_width = CAM_CTLR_DATA_WIDTH_8,
@@ -305,7 +320,7 @@ private:
             .dvp = &dvp_config,
         };
 
-        camera_ = new EspVideo(video_config);
+        camera_ = new EspVideo(video_config, GetCameraOrientation);
     }
 
 public:

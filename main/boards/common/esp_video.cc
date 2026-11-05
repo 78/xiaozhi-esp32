@@ -13,6 +13,7 @@
 #include "esp_imgfx_color_convert.h"
 #include "esp_video_device.h"
 #include "esp_video_init.h"
+#include "esp_video_ioctl.h"
 #include "linux/videodev2.h"
 
 #include "board.h"
@@ -107,7 +108,8 @@ static void log_available_video_devices() {
 #define CAM_PRINT_FOURCC(pixelformat) (void)0;
 #endif  // CONFIG_XIAOZHI_ENABLE_CAMERA_DEBUG_MODE
 
-EspVideo::EspVideo(const esp_video_init_config_t& config) {
+EspVideo::EspVideo(const esp_video_init_config_t& config,
+                   SensorOrientationCallback orientation_callback) {
     if (esp_video_init(&config) != ESP_OK) {
         ESP_LOGE(TAG, "esp_video_init failed");
         return;
@@ -286,10 +288,7 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
         return;
     }
 
-#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
-    SetHMirror(kConfiguredHMirror);
-    SetVFlip(kConfiguredVFlip);
-#endif
+    ConfigureOrientation(orientation_callback);
 
 #ifdef CONFIG_XIAOZHI_ENABLE_ROTATE_CAMERA_IMAGE
     frame_.width = setformat.fmt.pix.height;
@@ -386,6 +385,38 @@ EspVideo::EspVideo(const esp_video_init_config_t& config) {
     ESP_LOGI(TAG, "Camera init success");
     streaming_on_ = true;
 #endif  // CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE
+}
+
+void EspVideo::ConfigureOrientation(SensorOrientationCallback callback) {
+#if CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED
+    SetHMirror(kConfiguredHMirror);
+    SetVFlip(kConfiguredVFlip);
+    return;
+#endif
+
+    if (callback == nullptr) {
+        return;
+    }
+
+    esp_cam_sensor_id_t sensor_id = {};
+    struct v4l2_ext_control ctrl = {};
+    ctrl.id = ESP_CAM_SENSOR_IOC_G_CHIP_ID;
+    ctrl.size = sizeof(sensor_id);
+    ctrl.p_u8 = reinterpret_cast<uint8_t*>(&sensor_id);
+    struct v4l2_ext_controls ctrls = {};
+    ctrls.ctrl_class = V4L2_CTRL_CLASS_ESP_CAM_IOCTL;
+    ctrls.count = 1;
+    ctrls.controls = &ctrl;
+    if (ioctl(video_fd_, VIDIOC_G_EXT_CTRLS, &ctrls) != 0) {
+        ESP_LOGW(TAG, "Cannot read sensor ID; keeping sensor-native orientation");
+        return;
+    }
+
+    auto orientation = callback(sensor_id.pid);
+    if (orientation) {
+        SetHMirror(orientation->hmirror);
+        SetVFlip(orientation->vflip);
+    }
 }
 
 EspVideo::~EspVideo() {
