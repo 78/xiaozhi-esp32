@@ -50,6 +50,8 @@ If the mic level is too low or clips, adjust `AUDIO_MIC_GAIN` in `config.h`.
 | `,` / `/` (left / right) | Brightness |
 | `W` on the WiFi config screen | Enter WiFi credentials on the keyboard |
 | `S` on the WiFi config screen | Pick a saved network |
+| Hold `fn`, press `` ` `` (Esc) on the WiFi config screen | Go back / leave WiFi config |
+| Hold `Aa` while typing | Shift; tap `Aa` alone for CapsLock |
 
 ## Using a self-hosted server
 

@@ -37,6 +37,9 @@ private:
     TaskHandle_t task_handle_ = nullptr;
     uint8_t modifier_mask_ = 0;
     bool caps_lock_on_ = false;
+    bool fn_held_ = false;
+    bool aa_held_ = false;
+    bool aa_used_ = false;  // Aa was held with another key, so it isn't a CapsLock tap
     uint64_t key_state_mask_ = 0;  // 4x14 logical keys, bit=1 means pressed
 
     uint64_t Scan();
