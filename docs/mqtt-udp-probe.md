@@ -137,6 +137,21 @@ A PONG completes the round only when:
 
 On success, clear the pending round, mark the channel healthy, and schedule the next round. A duplicate completed PONG, stale session response, unsolicited response, or response after cancellation must not refresh health. In particular, retransmitting a PING does not invalidate a valid response to its earlier transmission. Discard other invalid packets without immediately terminating the conversation for one bad packet.
 
+Each successfully authenticated, matching PONG logs one timing sample at INFO level:
+
+```text
+UDP RTT: 42.137 ms
+UDP RTT: unknown after retransmission (attempts=2, elapsed=1100.123 ms)
+```
+
+An unretransmitted round reports milliseconds with three decimal places, measured from the first
+send attempt to the receive callback's monotonic timestamp. This includes local dispatch/HMAC,
+server response processing, and modem AT overhead where applicable. A retransmitted round instead
+reports the attempt count and elapsed time since the first PING: its response cannot be attributed
+to a particular attempt, so that elapsed time is not labeled as a valid RTT. Duplicate, invalid,
+expired, and old-session PONGs do not produce samples. Logging occurs after releasing the channel
+lock, and uses the existing timing state without changing the packet format.
+
 ## 6. Channel state and concurrent wake flow
 
 Socket readiness and verified health are separate concepts. Preserve `OpenAudioChannel()`, `IsAudioChannelOpened()`, and `OnAudioChannelOpened()` as the existing indication that the socket can carry business traffic. These APIs do not certify bidirectional UDP reachability.

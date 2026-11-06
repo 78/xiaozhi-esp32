@@ -28,6 +28,7 @@ int main() {
     assert(probe.NextActionAt() == 0);
     assert(probe.Poll(0) == Action::Send);
     assert(probe.NextActionAt() == 1000000);
+    assert(probe.Attempts() == 1 && probe.ElapsedUs(12345) == 12345);
     assert(memcmp(probe.Packet().data(), expected, 16) == 0);
     const auto original = probe.Packet();
     auto pong = original;
@@ -41,6 +42,7 @@ int main() {
     assert(probe.Poll(999999) == Action::None);
     assert(probe.Poll(1000000) == Action::Send);
     assert(probe.NextActionAt() == 3000000);
+    assert(probe.Attempts() == 2 && probe.ElapsedUs(1000123) == 1000123);
     assert(probe.Packet() == original);
     assert(probe.Poll(2999999) == Action::None);
     assert(probe.Poll(3000000) == Action::Send);
@@ -53,6 +55,7 @@ int main() {
     assert(probe.Poll(21499998) == Action::None);
     assert(probe.Poll(21499999) == Action::Send);
     assert(probe.Packet()[15] == 2);
+    assert(probe.Attempts() == 1 && probe.ElapsedUs(21500999) == 1000);
     for (int i = 8; i < 12; ++i) assert(probe.Packet()[i] == 0); // no ACK
     assert(!probe.Matches(pong.data(), 21499999)); // previous round
     pong = probe.Packet();
@@ -122,6 +125,8 @@ int main() {
 #include <functional>
 #include <string>
 #include <arpa/inet.h>
+#include <cstdarg>
+#include <cstdio>
 #include <openssl/hmac.h>
 #include <openssl/crypto.h>
 int64_t clock_us = 0;
@@ -178,6 +183,17 @@ struct Udp {
     }
 };
 #define ESP_LOGE(...)
+#define TAG "MQTT"
+std::vector<std::string> logs;
+void log_info(const char*, const char* format, ...) {
+    char buffer[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    logs.emplace_back(buffer);
+}
+#define ESP_LOGI(...) log_info(__VA_ARGS__)
 struct AudioStreamPacket {
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
@@ -254,10 +270,13 @@ int main() {
         protocol.ReceivePong(ctx, std::string(reinterpret_cast<char*>(bytes.data()), bytes.size()));
     };
     receive(channel, pong);
+    assert(logs.size() == 1 && logs.back() == "UDP RTT: 0.100 ms");
+    assert(!channel->receiving_pong.load());
     assert(protocol.timer.due == 15000100);
     assert(channel->probe.Poll(1000000) == UdpProbe::Action::None);
     clock_us = 10000000;
     receive(channel, pong); // completed duplicate cannot extend next-round deadline
+    assert(logs.size() == 1); // duplicate PONG does not produce another RTT sample
     assert(channel->probe.Poll(15000100) == UdpProbe::Action::Send);
     for (int i = 0; i < 32; ++i) {
         channel = fresh();
@@ -266,10 +285,12 @@ int main() {
         receive(channel, altered);
         assert(channel->probe.Poll(1000000) == UdpProbe::Action::Send);
     }
+    assert(logs.size() == 1); // malformed or unauthenticated packets cannot pollute samples
     channel = fresh();
     clock_us = 5000000;
     receive(channel, pong);
     assert(channel->probe.Poll(clock_us) == UdpProbe::Action::Failed);
+    assert(logs.size() == 1);
     auto old = fresh();
     channel = fresh(); // previous session callback cannot complete the new pending round
     receive(old, pong);
@@ -291,6 +312,16 @@ int main() {
     receiver.join();
     assert(!channel->receiving_pong.load());
     assert(channel->probe.Poll(clock_us) == UdpProbe::Action::None);
+
+    // Retransmitted requests share a sequence: elapsed time is not an unambiguous RTT.
+    channel = fresh();
+    assert(channel->probe.Poll(1000000) == UdpProbe::Action::Send);
+    clock_us = 1100123;
+    receive(channel, pong);
+    assert(logs.back() == "UDP RTT: unknown after retransmission (attempts=2, elapsed=1100.123 ms)");
+    const auto samples = logs.size();
+    receive(channel, pong);
+    assert(logs.size() == samples);
 
     // Real timer driver: exactly three identical sends and a single final failure.
     channel = fresh();

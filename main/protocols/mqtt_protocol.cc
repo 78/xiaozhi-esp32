@@ -684,28 +684,44 @@ void MqttProtocol::ReceivePong(const std::shared_ptr<ProbeChannel>& channel,
     if (channel == nullptr || data.size() != 32) {
         return;
     }
-    // Claim reception before taking the state lock so deadline processing cannot
-    // overtake an already arriving response while its authentication is pending.
-    channel->receiving_pong = true;
-    const int64_t now = esp_timer_get_time();
-    struct Reception {
-        std::atomic<bool>& active;
-        ~Reception() { active = false; }
-    } reception{channel->receiving_pong};
-    // Authentication and timeout completion share the same short critical section.
-    std::lock_guard<std::mutex> lock(channel_mutex_);
-    if (probe_channel_ != channel ||
-        !channel->probe.Matches(reinterpret_cast<const uint8_t*>(data.data()), now)) {
-        return;
+    int64_t elapsed_us;
+    unsigned attempts;
+    {
+        // Claim reception before taking the state lock so deadline processing cannot
+        // overtake an already arriving response while its authentication is pending.
+        channel->receiving_pong = true;
+        const int64_t now = esp_timer_get_time();
+        struct Reception {
+            std::atomic<bool>& active;
+            ~Reception() { active = false; }
+        } reception{channel->receiving_pong};
+        // Authentication and timeout completion share the same short critical section.
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        if (probe_channel_ != channel ||
+            !channel->probe.Matches(reinterpret_cast<const uint8_t*>(data.data()), now)) {
+            return;
+        }
+        const auto algorithm = PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16);
+        if (psa_mac_verify(channel->key, algorithm, reinterpret_cast<const uint8_t*>(data.data()),
+                           16, reinterpret_cast<const uint8_t*>(data.data() + 16),
+                           16) != PSA_SUCCESS) {
+            return;
+        }
+        elapsed_us = channel->probe.ElapsedUs(now);
+        attempts = channel->probe.Attempts();
+        channel->probe.Complete(now, esp_random() % (UdpProbe::kIntervalUs / 10 + 1));
+        // Timer operations are non-blocking; the receive task never sends a PING.
+        ArmProbeTimer(channel->probe.NextActionAt());
     }
-    const auto algorithm = PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16);
-    if (psa_mac_verify(channel->key, algorithm, reinterpret_cast<const uint8_t*>(data.data()), 16,
-                       reinterpret_cast<const uint8_t*>(data.data() + 16), 16) != PSA_SUCCESS) {
-        return;
+    // Serial logging must not hold up channel state or timeout processing.
+    if (attempts == 1) {
+        ESP_LOGI(TAG, "UDP RTT: %lld.%03lld ms", static_cast<long long>(elapsed_us / 1000),
+                 static_cast<long long>(elapsed_us % 1000));
+    } else {
+        ESP_LOGI(TAG, "UDP RTT: unknown after retransmission (attempts=%u, elapsed=%lld.%03lld ms)",
+                 attempts, static_cast<long long>(elapsed_us / 1000),
+                 static_cast<long long>(elapsed_us % 1000));
     }
-    channel->probe.Complete(now, esp_random() % (UdpProbe::kIntervalUs / 10 + 1));
-    // Timer operations are non-blocking; the receive task never sends a PING.
-    ArmProbeTimer(channel->probe.NextActionAt());
 }
 
 void MqttProtocol::ArmProbeTimer(int64_t due) {

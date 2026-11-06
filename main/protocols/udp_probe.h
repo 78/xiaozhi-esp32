@@ -60,6 +60,8 @@ public:
     }
 
     bool Failed() const { return failed_; }
+    int64_t ElapsedUs(int64_t now) const { return now - started_; }
+    unsigned Attempts() const { return attempt_; }
     int64_t NextActionAt() const {
         if (!pending_) {
             return next_round_;
