@@ -1,0 +1,8 @@
+# ESP-IDF Partition Table for ostb-xiaozhi-3st (16MB Flash)
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   16K,
+otadata,  data, ota,     0xd000,   8K,
+phy_init, data, phy,     0xf000,   4K,
+ota_0,    app,  ota_0,   0x20000,  5376K,
+ota_1,    app,  ota_1,   0x560000, 5376K,
+assets,   data, spiffs,  0xaa0000, 5504K,

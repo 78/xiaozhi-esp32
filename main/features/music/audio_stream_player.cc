@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file audio_stream_player.cc
  * @brief Implementation of the base audio stream player.
  *
@@ -332,27 +332,53 @@ void AudioStreamPlayer::SourceDataLoop(const std::string& source)
     }
 
     auto network = Board::GetInstance().GetNetwork();
-    auto http = network->CreateHttp(0);
+    std::unique_ptr<Http> http;
+    std::string current_url = source;
+    int redirects = 0;
+    const int max_redirects = 5;
 
-    http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
-    http->SetHeader("Accept", "*/*");
-    http->SetHeader("Range", "bytes=0-");
+    while (redirects <= max_redirects) {
+        http = std::unique_ptr<Http>(network->CreateHttp(0));
+        http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
+        http->SetHeader("Accept", "*/*");
+        http->SetHeader("Range", "bytes=0-");
 
-    OnPrepareHttp(http.get());
+        OnPrepareHttp(http.get());
 
-    if (!http->Open("GET", source)) {
-        ESP_LOGE(TAG, "Failed to connect: %s", source.c_str());
+        if (!http->Open("GET", current_url)) {
+            ESP_LOGE(TAG, "Failed to connect: %s", current_url.c_str());
+            return;
+        }
+
+        int status = http->GetStatusCode();
+        if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+            std::string location = http->GetResponseHeader("Location");
+            http->Close();
+            if (location.empty()) {
+                ESP_LOGE(TAG, "HTTP %d redirect without Location header", status);
+                return;
+            }
+            ESP_LOGI(TAG, "HTTP %d redirect -> %s", status, location.c_str());
+            current_url = location;
+            redirects++;
+            continue;
+        }
+
+        if (status != 200 && status != 206) {
+            ESP_LOGE(TAG, "HTTP status %d for: %s", status, current_url.c_str());
+            http->Close();
+            return;
+        }
+
+        break;
+    }
+
+    if (redirects > max_redirects) {
+        ESP_LOGE(TAG, "Too many redirects (%d)", redirects);
         return;
     }
 
-    int status = http->GetStatusCode();
-    if (status != 200 && status != 206) {
-        ESP_LOGE(TAG, "HTTP status %d for: %s", status, source.c_str());
-        http->Close();
-        return;
-    }
-
-    ESP_LOGI(TAG, "HTTP connected, status=%d", status);
+    ESP_LOGI(TAG, "HTTP connected, status=%d", http->GetStatusCode());
 
     /* Capture content length for duration estimation */
     content_length_ = http->GetBodyLength();
@@ -754,7 +780,7 @@ void AudioStreamPlayer::PlayLoopCompressed()
 
         if (ret == ESP_AUDIO_ERR_BUFF_NOT_ENOUGH) {
             ESP_LOGI(TAG, "Decoder needs bigger output buffer: %zu bytes",
-                     out.needed_size);
+                     (size_t)out.needed_size);
             if (decoder_type_ == AudioDecoderType::AAC) {
                 dec_out_vec_.resize(out.needed_size);
             } else {
@@ -803,7 +829,7 @@ void AudioStreamPlayer::PlayLoopCompressed()
         if (!dec_info_ready_ && dec_info_.sample_rate > 0) {
             dec_info_ready_ = true;
             ESP_LOGI(TAG, "Stream: %d Hz, %d bit, %d ch, %d kbps, %d frame size",
-                     dec_info_.sample_rate, dec_info_.bits_per_sample, dec_info_.channel, dec_info_.bitrate, dec_info_.frame_size);
+                     (int)dec_info_.sample_rate, (int)dec_info_.bits_per_sample, (int)dec_info_.channel, (int)dec_info_.bitrate, (int)dec_info_.frame_size);
             OnStreamInfoReady(dec_info_.sample_rate, dec_info_.bits_per_sample, dec_info_.channel, dec_info_.bitrate, dec_info_.frame_size);
         }
 

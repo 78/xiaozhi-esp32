@@ -200,11 +200,12 @@ void WeatherUI::SetupIdleUI(lv_obj_t* parent, int screen_width, int screen_heigh
 
     // --- 2. HEADER (PIN, WIFI) ---
     lv_obj_t* row_header = lv_obj_create(container_);
-    lv_obj_set_width(row_header, LV_PCT(90)); 
+    lv_obj_set_width(row_header, LV_PCT(80)); 
     lv_obj_set_height(row_header, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(row_header, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(row_header, 0, 0);
     lv_obj_set_style_pad_all(row_header, 0, 0);
+    lv_obj_set_style_margin_top(row_header, 6, 0);
     lv_obj_set_style_margin_bottom(row_header, 10, 0);
     lv_obj_set_scrollbar_mode(row_header, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_flex_flow(row_header, LV_FLEX_FLOW_ROW);

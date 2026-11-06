@@ -387,6 +387,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_XINGZHI_CUBE_1_83TFT_WIFI_1ST
         bool "XINGZHI_CUBE 1.83(WIFI)_1ST"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OSTB_XIAOZHI_3ST
+        bool "OSTB Xiaozhi 3st (1.83\"/2.0\" NV3030B, 16M Flash)"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER
         bool "Seeed Studio SenseCAP Watcher"
         depends on IDF_TARGET_ESP32S3
