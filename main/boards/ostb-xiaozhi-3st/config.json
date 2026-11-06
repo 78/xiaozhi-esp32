@@ -1,0 +1,20 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "ostb-xiaozhi-3st",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_OSTB_XIAOZHI_3ST=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m_ostb_xiaozhi_3st.csv\"",
+                "CONFIG_SD_CARD_SPI_INTERFACE=n",
+                "CONFIG_FATFS_LFN_HEAP=y",
+                "CONFIG_FATFS_API_ENCODING_UTF_8=y",
+                "CONFIG_FATFS_FS_LOCK=5",
+                "CONFIG_LOG_DEFAULT_LEVEL_NONE=y",
+                "CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING=y",
+                "CONFIG_USE_DEVICE_AEC=y",
+                "CONFIG_WEATHER_IDLE_DISPLAY_ENABLE=y"
+            ]
+        }
+    ]
+}
