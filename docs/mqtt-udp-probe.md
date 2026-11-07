@@ -127,6 +127,12 @@ Sending a PONG does not prove that the device received it. Because the client ad
 
 Publish the pending header, sequence, generation, and deadline before the first send attempt, so a fast response cannot arrive before the pending state exists.
 
+At the UDP callback boundary, dispatch PONG before acquiring `channel_mutex_`, including the
+audio generation gate. `ReceivePong()` claims reception and records the monotonic time before its
+first lock wait. Under the lock it checks that the callback's captured probe channel is still the
+current channel, then validates the round and MAC. Closing or reopening replaces that identity, so
+an old callback cannot revive a channel or complete a new round. Audio keeps its generation gate.
+
 A PONG completes the round only when:
 
 - The channel generation is still current and the round is still pending.
@@ -301,6 +307,7 @@ matching, and authenticated PONG processing; server and physical integration che
 | Initial concurrency | Exactly one initial PING at socket readiness before wake upload; no PONG wait and no probe processing in audio/control send functions |
 | Wake configuration | Verify wake-audio enabled and disabled configurations, plus reuse of an already open channel |
 | Loss and reordering | Drop initial PING, initial PONG, and multiple packets; accept a valid response to an earlier transmission before the deadline |
+| Callback lock contention | Run the registered UDP callback while holding the channel lock across the deadline; force timeout processing before releasing the receiver; accept a pre-deadline PONG, reject a truly late one, and ignore old blocked callbacks after close/reopen |
 | Duplicates | Duplicate current PING receives a PONG; duplicate completed PONG does not extend health; one wake creates only one conversation |
 | Failure isolation | MQTT remains active while UDP uplink, downlink, or both are blocked; only valid PONG refreshes health |
 | Periodic operation | Capture, long playback, and silence retain periodic checks; valid PONGs do not bypass or renew the existing receive-timeout predicate; no new automatic idle close |

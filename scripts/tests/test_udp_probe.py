@@ -92,10 +92,11 @@ int main() {
                 ["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
                  str(cpp), "-o", str(binary)], check=True, capture_output=True, text=True
             )
-            subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_production_timer_and_pong_authentication(self):
-        # Adapt platform APIs; compile the real channel check, receive and timer handlers.
+        # Adapt platform APIs; compile the production UDP callback, close, send and timer paths.
         import shlex
         flags = None
         if shutil.which('pkg-config'):
@@ -112,7 +113,16 @@ int main() {
         opened_start = text.index('bool MqttProtocol::IsAudioChannelOpened() const {')
         sends_start = text.index('bool MqttProtocol::SendText(')
         sends_end = text.index('void MqttProtocol::CloseAudioChannel(', sends_start)
-        method = text[sends_start:sends_end] + text[opened_start:]
+        callback_start = text.index('    udp->OnMessage([this, generation, probe]')
+        callback_end = text.index('\n    if (auto connected = udp->Connect', callback_start)
+        callback = text[callback_start:callback_end]
+        close_end = text.index('bool MqttProtocol::OpenAudioChannel()', sends_end)
+        method = (text[sends_start:close_end] + text[opened_start:] +
+                  '\nvoid MqttProtocol::InstallReceiver(std::shared_ptr<Udp> udp, uint64_t generation, '
+                  'std::shared_ptr<ProbeChannel> probe) {\n' + callback + '\n}\n')
+        # Instrument lock acquisition only; keep the production callback/routing/body unchanged.
+        method = method.replace('std::lock_guard<std::mutex>',
+                                'std::lock_guard<ObservedMutex>')
         source = r'''
 #include "main/protocols/udp_probe.h"
 #include <cassert>
@@ -121,6 +131,8 @@ int main() {
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <chrono>
+#include <condition_variable>
 #include <vector>
 #include <functional>
 #include <string>
@@ -136,6 +148,40 @@ int64_t esp_timer_get_time() {
     clock_read = true;
     return now;
 }
+// A barrier lets the controller hold the receiver at the real callback's first lock.
+// No sleeps or mutex scheduling order are used to decide which side of the deadline wins.
+thread_local bool in_delivery = false;
+struct ObservedMutex {
+    std::mutex mutex;
+    std::mutex gate;
+    std::condition_variable changed;
+    bool pause_receiver = false;
+    bool receiver_waiting = false;
+    void lock() {
+        if (in_delivery) {
+            std::unique_lock<std::mutex> lock(gate);
+            receiver_waiting = true;
+            changed.notify_all();
+            changed.wait(lock, [&] { return !pause_receiver; });
+        }
+        mutex.lock();
+    }
+    void unlock() { mutex.unlock(); }
+    void PauseReceiver() {
+        std::lock_guard<std::mutex> lock(gate);
+        receiver_waiting = false;
+        pause_receiver = true;
+    }
+    void WaitForReceiver() {
+        std::unique_lock<std::mutex> lock(gate);
+        assert(changed.wait_for(lock, std::chrono::seconds(5), [&] { return receiver_waiting; }));
+    }
+    void ReleaseReceiver() {
+        std::lock_guard<std::mutex> lock(gate);
+        pause_receiver = false;
+        changed.notify_all();
+    }
+};
 uint32_t esp_random() { return 0; }
 constexpr int PSA_SUCCESS = 0;
 constexpr int PSA_ALG_SHA_256 = 256;
@@ -176,6 +222,15 @@ constexpr int SERVER_TIMEOUT = 2;
 struct Udp {
     std::vector<std::string> sent;
     std::function<void(const std::string&)> on_send;
+    std::function<void(const std::string&)> on_message;
+    void OnMessage(std::function<void(const std::string&)> callback) {
+        on_message = std::move(callback);
+    }
+    void Deliver(const std::string& data) {
+        in_delivery = true;
+        on_message(data);
+        in_delivery = false;
+    }
     int Send(const std::string& data) {
         sent.push_back(data);
         if (on_send) on_send(data);
@@ -183,6 +238,7 @@ struct Udp {
     }
 };
 #define ESP_LOGE(...)
+#define ESP_LOGW(...)
 #define TAG "MQTT"
 std::vector<std::string> logs;
 void log_info(const char*, const char* format, ...) {
@@ -195,6 +251,8 @@ void log_info(const char*, const char* format, ...) {
 }
 #define ESP_LOGI(...) log_info(__VA_ARGS__)
 struct AudioStreamPacket {
+    int sample_rate = 0;
+    int frame_duration = 0;
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
 };
@@ -212,7 +270,7 @@ struct MqttProtocol {
         Key key{};
         std::atomic<bool> receiving_pong{false};
     };
-    mutable std::mutex channel_mutex_;
+    mutable ObservedMutex channel_mutex_;
     std::shared_ptr<ProbeChannel> probe_channel_;
     Timer timer;
     Timer* probe_timer_ = &timer;
@@ -223,6 +281,15 @@ struct MqttProtocol {
     std::string publish_topic_ = "out";
     std::string aes_nonce_ = std::string(16, 0);
     uint32_t local_sequence_ = 0;
+    uint32_t remote_sequence_ = 0;
+    int server_sample_rate_ = 24000;
+    int server_frame_duration_ = 60;
+    std::chrono::steady_clock::time_point last_incoming_time_;
+    std::function<void(std::unique_ptr<AudioStreamPacket>)> on_incoming_audio_;
+    uint64_t channel_generation_ = 0;
+    std::atomic<bool> awaiting_hello_{false};
+    std::string session_id_ = "test-session";
+    std::function<void()> on_audio_channel_closed_ = [this] { ++closes; };
     bool SendText(const std::string&);
     bool SendAudio(std::unique_ptr<AudioStreamPacket>);
     bool CryptAesCtr(const uint8_t* input, size_t size, const uint8_t*, uint8_t* output) {
@@ -239,7 +306,8 @@ struct MqttProtocol {
         error_occurred_ = true;
         ++failures;
     }
-    void CloseAudioChannel() { ++closes; probe_channel_.reset(); udp_.reset(); timer.active = false; }
+    void CloseAudioChannel(bool send_goodbye = true);
+    void InstallReceiver(std::shared_ptr<Udp>, uint64_t, std::shared_ptr<ProbeChannel>);
     void ArmProbeTimer(int64_t due);
     void ProcessPending();
     void ReceivePong(const std::shared_ptr<ProbeChannel>&, const std::string&);
@@ -303,7 +371,7 @@ int main() {
     channel = fresh();
     clock_us = 4999999;
     clock_read = false;
-    std::unique_lock<std::mutex> lock(protocol.channel_mutex_);
+    std::unique_lock<ObservedMutex> lock(protocol.channel_mutex_);
     std::thread receiver([&]() { receive(channel, pong); });
     while (!clock_read.load()) std::this_thread::yield();
     clock_us = 5000100;
@@ -400,8 +468,9 @@ int main() {
     protocol.udp_ = std::make_shared<Udp>();
     udp = protocol.udp_;
     protocol.aes_nonce_[0] = 1;
+    const auto messages = protocol.mqtt_->messages.size();
     assert(protocol.SendText("listen"));
-    assert(protocol.mqtt_->messages.size() == 1 && udp->sent.empty());
+    assert(protocol.mqtt_->messages.size() == messages + 1 && udp->sent.empty());
     auto audio = std::make_unique<AudioStreamPacket>();
     audio->payload = {1, 2, 3};
     assert(protocol.SendAudio(std::move(audio)));
@@ -409,6 +478,127 @@ int main() {
     assert(udp->sent[0].size() == 19);
     assert(channel->probe.NextActionAt() == 0 && !protocol.timer.active);
     for (int i = 12; i < 16; ++i) assert(channel->probe.Packet()[i] == 0);
+
+    // Install the exact OnMessage lambda extracted from production OpenAudioChannel,
+    // and close with the production CloseAudioChannel, rather than bypassing routing.
+    auto wire_session = [&]() {
+        if (protocol.udp_) protocol.CloseAudioChannel(false);
+        auto current = fresh();
+        ++protocol.channel_generation_;
+        protocol.udp_ = std::make_shared<Udp>();
+        protocol.InstallReceiver(protocol.udp_, protocol.channel_generation_, current);
+        return current;
+    };
+    auto wire_pong = [&](auto current) {
+        auto bytes = current->probe.Packet();
+        bytes[0] = 3;
+        size_t size = 0;
+        assert(psa_mac_compute(current->key, 256, bytes.data(), 16,
+                               bytes.data() + 16, 16, &size) == 0);
+        return std::string(reinterpret_cast<char*>(bytes.data()), bytes.size());
+    };
+
+    channel = wire_session();
+    auto wire = protocol.udp_;
+    auto reply = wire_pong(channel);
+    clock_us = 4999999;
+    clock_read = false;
+    std::unique_lock<ObservedMutex> held(protocol.channel_mutex_);
+    protocol.channel_mutex_.PauseReceiver();
+    std::thread callback([wire, reply] { wire->Deliver(reply); });
+    protocol.channel_mutex_.WaitForReceiver();
+    // Fails on PR head 05830574: the callback's generation lock precedes timestamp/claim.
+    assert(clock_read.load() && channel->receiving_pong.load());
+    clock_us = 5000100;
+    held.unlock();
+    const auto failures_before = protocol.failures;
+    protocol.ProcessPending(); // force timeout handler to run before receiver gets the lock
+    assert(protocol.failures == failures_before && protocol.probe_channel_ == channel);
+    protocol.channel_mutex_.ReleaseReceiver();
+    callback.join();
+    assert(protocol.timer.due == 19999999);
+    assert(logs.back() == "UDP RTT: 4999.999 ms");
+    assert(!channel->receiving_pong.load());
+    const auto completed_samples = logs.size();
+    clock_us = 5000200;
+    wire->Deliver(reply); // completed duplicate remains ignored even after original deadline
+    assert(logs.size() == completed_samples && protocol.timer.due == 19999999);
+
+    // Actually late at callback entry is rejected, and cannot postpone failure indefinitely.
+    channel = wire_session();
+    wire = protocol.udp_;
+    reply = wire_pong(channel);
+    const auto late_samples = logs.size();
+    clock_us = 5000000;
+    wire->Deliver(reply);
+    assert(logs.size() == late_samples && !channel->receiving_pong.load());
+    protocol.ProcessPending();
+    assert(protocol.failures == failures_before + 1 && protocol.udp_ == nullptr);
+
+    // Close while the old callback is waiting: no timer/key/session resurrection.
+    channel = wire_session();
+    wire = protocol.udp_;
+    reply = wire_pong(channel);
+    held.lock();
+    protocol.channel_mutex_.PauseReceiver();
+    std::thread closing_callback([wire, reply] { wire->Deliver(reply); });
+    protocol.channel_mutex_.WaitForReceiver();
+    held.unlock();
+    protocol.CloseAudioChannel(false);
+    const auto close_samples = logs.size();
+    protocol.channel_mutex_.ReleaseReceiver();
+    closing_callback.join();
+    assert(logs.size() == close_samples && protocol.probe_channel_ == nullptr);
+    assert(!protocol.timer.active && !channel->receiving_pong.load());
+    wire->Deliver(reply); // old callback entering only after close is also harmless
+    assert(logs.size() == close_samples && !protocol.timer.active);
+
+    // Reopen before releasing the old callback. A captured shared channel identity,
+    // checked under the lock, must protect the new pending round and HMAC key.
+    channel = wire_session();
+    wire = protocol.udp_;
+    reply = wire_pong(channel);
+    held.lock();
+    protocol.channel_mutex_.PauseReceiver();
+    std::thread reopening_callback([wire, reply] { wire->Deliver(reply); });
+    protocol.channel_mutex_.WaitForReceiver();
+    held.unlock();
+    protocol.CloseAudioChannel(false);
+    auto reopened = wire_session();
+    reopened->key[0] ^= 1;
+    auto reopened_wire = protocol.udp_;
+    protocol.ProcessPending();
+    const auto reopen_samples = logs.size();
+    const auto reopen_due = protocol.timer.due;
+    protocol.channel_mutex_.ReleaseReceiver();
+    reopening_callback.join();
+    assert(protocol.probe_channel_ == reopened && !reopened->receiving_pong.load());
+    assert(logs.size() == reopen_samples && protocol.timer.due == reopen_due);
+    assert(reopened->probe.Matches(reinterpret_cast<const uint8_t*>(reply.data()), clock_us));
+    wire->Deliver(reply); // old callback entering after reopen, not just one already waiting
+    assert(logs.size() == reopen_samples && protocol.timer.due == reopen_due);
+    reopened_wire->Deliver(reply); // old wire packet delivered to NEW callback fails new key's MAC
+    assert(logs.size() == reopen_samples && protocol.timer.due == reopen_due);
+    assert(!reopened->receiving_pong.load());
+    reopened_wire->Deliver(wire_pong(reopened));
+    assert(logs.size() == reopen_samples + 1 && protocol.timer.due == 15000100);
+
+    // PONG routing moved ahead of the gate, but audio must still honor generation.
+    int audio_received = 0;
+    protocol.remote_sequence_ = 0;
+    protocol.on_incoming_audio_ = [&](auto packet) {
+        assert(packet->payload.size() == 3);
+        ++audio_received;
+    };
+    auto audio_bytes = reply.substr(0, 16);
+    audio_bytes[0] = 1;
+    audio_bytes[2] = 0;
+    audio_bytes[3] = 3;
+    audio_bytes.append("abc");
+    wire->Deliver(audio_bytes);
+    assert(audio_received == 0 && protocol.remote_sequence_ == 0);
+    reopened_wire->Deliver(audio_bytes);
+    assert(audio_received == 1 && protocol.remote_sequence_ == 1);
 
 }
 '''
@@ -419,4 +609,5 @@ int main() {
             subprocess.run(['c++', '-std=c++17', '-pthread', '-Wall', '-Wextra', '-Werror',
                             '-I', str(ROOT), str(cpp), '-o', str(binary)] + flags,
                            check=True, capture_output=True, text=True)
-            subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+            result = subprocess.run([str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)

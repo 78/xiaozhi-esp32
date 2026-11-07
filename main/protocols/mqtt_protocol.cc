@@ -339,15 +339,18 @@ bool MqttProtocol::OpenAudioChannel() {
         probe = probe_channel_;
     }
     udp->OnMessage([this, generation, probe](const std::string& data) {
+        // Record/claim PONG reception before any channel-lock wait. ReceivePong
+        // checks the captured channel identity under that lock, including after
+        // close/reopen, so the audio generation gate must not precede it.
+        if (!data.empty() && static_cast<uint8_t>(data[0]) == 0x03) {
+            ReceivePong(probe, data);
+            return;
+        }
         {
             std::lock_guard<std::mutex> lock(channel_mutex_);
             if (generation != channel_generation_) {
                 return;
             }
-        }
-        if (!data.empty() && static_cast<uint8_t>(data[0]) == 0x03) {
-            ReceivePong(probe, data);
-            return;
         }
         /*
          * UDP Encrypted OPUS Packet Format:
