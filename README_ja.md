@@ -150,6 +150,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 - [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百問科技提供のLinuxクライアント
 - [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技のBluetoothチップファームウェア
 - [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移遠提供のQuecPythonファームウェア
+- [M5Stack ATOM Echo](https://github.com/qiaohaoforever/xiaozhi-esp32/tree/atom-echo-client) 初代 M5Stack ATOM Echo（ESP32-PICO-D4）向けの PlatformIO 音声クライアント
 
 ## プロジェクトについて
 
