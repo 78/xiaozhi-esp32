@@ -286,6 +286,12 @@ void Application::Run() {
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
 
+            // --- 新增：每 2 秒自動更新一次心率數字（可用於測試或串聯藍牙） ---
+    if (clock_ticks_ % 2 == 0) {
+        int simulated_hr = 70 + (clock_ticks_ % 35); // 讓心率在 70 到 105 之間自動浮動
+        display->UpdateHeartRate(simulated_hr);
+    }
+
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
                 SystemInfo::PrintHeapStats();
