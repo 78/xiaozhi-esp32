@@ -6,6 +6,27 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config XIAOZHI_TAVILY_API_KEY
+    string "Tavily API key"
+    default ""
+    help
+        API key for the `web.search` MCP tool, which searches the web through
+        Tavily (https://tavily.com). Leave empty to disable the tool.
+
+config XIAOZHI_TELEGRAM_BOT_TOKEN
+    string "Telegram bot token"
+    default ""
+    help
+        Bot API token (from @BotFather) used by the `self.telegram.send` MCP
+        tool. Leave empty to disable the tool.
+
+config XIAOZHI_TELEGRAM_CHAT_ID
+    string "Telegram chat ID"
+    default ""
+    help
+        Destination chat ID for messages sent by `self.telegram.send`.
+        Leave empty to disable the tool.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE

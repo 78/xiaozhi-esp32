@@ -6,7 +6,9 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "board.h"
 #include "mcp_server.h"
+#include "cjson_utils.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
@@ -17,6 +19,11 @@
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
+#include <atomic>
+#include <memory>
+#include <string>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
@@ -69,6 +76,182 @@ static const gc9a01_lcd_init_cmd_t gc9107_lcd_init_cmds[] = {
 #endif
  
 #define TAG "WkEsp32s3Dev"
+
+namespace {
+
+// Optional Lila features (web search + Telegram). Both tools are enabled at
+// build time through Kconfig string values, see main/Kconfig.projbuild. They
+// are registered only when the matching credentials are not empty, so a stock
+// build exposes neither tool.
+constexpr int kLilaHttpTimeoutMs = 15000;
+constexpr uint32_t kLilaTelegramTaskStack = 6144;
+constexpr UBaseType_t kLilaTelegramTaskPriority = 2;
+constexpr size_t kLilaSearchSnippetLength = 400;
+
+// Serialize a cJSON tree and release it. Returns an empty string on failure.
+std::string LilaJsonToString(cJSON* json) {
+    if (json == nullptr) {
+        return std::string();
+    }
+    CJsonStringUniquePtr text(cJSON_PrintUnformatted(json));
+    cJSON_Delete(json);
+    return text != nullptr ? std::string(text.get()) : std::string();
+}
+
+// Perform a JSON POST request. Returns false when the request could not be
+// completed; the HTTP status code and body are returned through the out params.
+bool LilaHttpPostJson(const std::string& url, const std::string& body, int& status_code,
+                       std::string& response) {
+    auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+    if (http == nullptr) {
+        ESP_LOGE(TAG, "Failed to create HTTP client for %s", url.c_str());
+        return false;
+    }
+
+    http->SetTimeout(kLilaHttpTimeoutMs);
+    http->SetHeader("Content-Type", "application/json");
+    http->SetHeader("Accept", "application/json");
+    std::string request = body;
+    http->SetContent(std::move(request));
+
+    auto opened = http->Open("POST", url);
+    if (!opened) {
+        ESP_LOGE(TAG, "Failed to open %s: %s", url.c_str(), opened.error().ToString().c_str());
+        return false;
+    }
+
+    auto status = http->GetStatusCode();
+    if (!status) {
+        ESP_LOGE(TAG, "Failed to read HTTP status for %s: %s", url.c_str(),
+                 status.error().ToString().c_str());
+        http->Close();
+        return false;
+    }
+    status_code = *status;
+    response = http->ReadAll();
+    http->Close();
+    return true;
+}
+
+// Web search through Tavily (https://tavily.com).
+ToolResult LilaWebSearch(const std::string& query, int max_results) {
+    if (CONFIG_XIAOZHI_TAVILY_API_KEY[0] == '\0') {
+        return std::unexpected(
+            "Tavily API key is not configured. Set it in menuconfig and rebuild.");
+    }
+
+    // Allow only a single in-flight search.
+    static std::atomic<bool> search_in_progress{false};
+    bool expected = false;
+    if (!search_in_progress.compare_exchange_strong(expected, true)) {
+        return std::unexpected("A Tavily search is already in progress");
+    }
+    struct InProgressGuard {
+        std::atomic<bool>* flag;
+        ~InProgressGuard() { flag->store(false); }
+    } guard{&search_in_progress};
+
+    cJSON* request = cJSON_CreateObject();
+    if (request == nullptr) {
+        return std::unexpected("Failed to allocate Tavily request");
+    }
+    cJSON_AddStringToObject(request, "api_key", CONFIG_XIAOZHI_TAVILY_API_KEY);
+    cJSON_AddStringToObject(request, "query", query.c_str());
+    cJSON_AddNumberToObject(request, "max_results", max_results);
+    cJSON_AddStringToObject(request, "search_depth", "basic");
+    std::string body = LilaJsonToString(request);
+
+    int status_code = 0;
+    std::string response;
+    if (!LilaHttpPostJson("https://api.tavily.com/search", body, status_code, response)) {
+        return std::unexpected("Failed to reach Tavily");
+    }
+    if (status_code < 200 || status_code >= 300) {
+        ESP_LOGE(TAG, "Tavily search failed with status %d: %s", status_code, response.c_str());
+        return std::unexpected("Tavily search failed with status " + std::to_string(status_code));
+    }
+
+    CJsonUniquePtr parsed(cJSON_Parse(response.c_str()));
+    if (parsed == nullptr) {
+        return std::unexpected("Failed to parse Tavily response");
+    }
+
+    std::string output;
+    cJSON* answer = cJSON_GetObjectItem(parsed.get(), "answer");
+    if (cJSON_IsString(answer) && answer->valuestring[0] != '\0') {
+        output += answer->valuestring;
+        output += "\n\n";
+    }
+
+    cJSON* results = cJSON_GetObjectItem(parsed.get(), "results");
+    if (cJSON_IsArray(results)) {
+        int index = 1;
+        cJSON* item = nullptr;
+        cJSON_ArrayForEach(item, results) {
+            cJSON* title = cJSON_GetObjectItem(item, "title");
+            cJSON* url = cJSON_GetObjectItem(item, "url");
+            cJSON* content = cJSON_GetObjectItem(item, "content");
+            output += std::to_string(index) + ". ";
+            output += cJSON_IsString(title) ? title->valuestring : "(untitled)";
+            output += "\n";
+            if (cJSON_IsString(url)) {
+                output += url->valuestring;
+                output += "\n";
+            }
+            if (cJSON_IsString(content)) {
+                std::string snippet(content->valuestring);
+                if (snippet.size() > kLilaSearchSnippetLength) {
+                    snippet.resize(kLilaSearchSnippetLength);
+                    snippet += "...";
+                }
+                output += snippet;
+                output += "\n";
+            }
+            output += "\n";
+            ++index;
+        }
+    }
+
+    if (output.empty()) {
+        return std::string("No results found.");
+    }
+    return output;
+}
+
+// A Telegram message is delivered from a short-lived worker task so the main
+// task (which runs MCP tool callbacks) never blocks on the network.
+struct LilaTelegramJob {
+    std::string text;
+};
+
+void LilaTelegramTask(void* arg) {
+    std::unique_ptr<LilaTelegramJob> job(static_cast<LilaTelegramJob*>(arg));
+
+    cJSON* request = cJSON_CreateObject();
+    if (request != nullptr) {
+        cJSON_AddStringToObject(request, "chat_id", CONFIG_XIAOZHI_TELEGRAM_CHAT_ID);
+        cJSON_AddStringToObject(request, "text", job->text.c_str());
+        cJSON_AddBoolToObject(request, "disable_web_page_preview", true);
+        std::string body = LilaJsonToString(request);
+
+        std::string url = std::string("https://api.telegram.org/bot") +
+                          CONFIG_XIAOZHI_TELEGRAM_BOT_TOKEN + "/sendMessage";
+        int status_code = 0;
+        std::string response;
+        if (LilaHttpPostJson(url, body, status_code, response)) {
+            if (status_code >= 200 && status_code < 300) {
+                ESP_LOGI(TAG, "Telegram message sent");
+            } else {
+                ESP_LOGE(TAG, "Telegram API returned status %d: %s", status_code,
+                         response.c_str());
+            }
+        }
+    }
+
+    vTaskDelete(nullptr);
+}
+
+}  // namespace
 
 class WkEsp32s3Dev : public WifiBoard {
 private:
@@ -263,6 +446,51 @@ private:
     // 物联网初始化，添加对 AI 可见设备
     void InitializeTools() {
         static LampController lamp(LAMP_GPIO);
+
+        auto& mcp_server = McpServer::GetInstance();
+
+        // Custom tools must be added here (not in McpServer::AddCommonTools).
+        if (CONFIG_XIAOZHI_TAVILY_API_KEY[0] != '\0') {
+            mcp_server.AddTool(
+                "web.search",
+                "Search the web for recent information using Tavily. Use this when answering "
+                "questions that require current or sourced information.",
+                PropertyList({Property("query", kPropertyTypeString),
+                              Property("max_results", kPropertyTypeInteger, 5, 1, 10)}),
+                [](const PropertyList& properties) -> ToolResult {
+                    auto query = properties["query"].value<std::string>();
+                    if (query.empty()) {
+                        return std::unexpected("Search query must not be empty");
+                    }
+                    int max_results = properties["max_results"].value<int>();
+                    return LilaWebSearch(query, max_results);
+                });
+        }
+
+        if (CONFIG_XIAOZHI_TELEGRAM_BOT_TOKEN[0] != '\0' &&
+            CONFIG_XIAOZHI_TELEGRAM_CHAT_ID[0] != '\0') {
+            mcp_server.AddTool(
+                "self.telegram.send",
+                "Send a text message to the user's phone through Telegram. Use it when the user "
+                "asks to send, forward or notify something to their phone or Telegram, for "
+                "example a list, a note or a summary.",
+                PropertyList({Property("text", kPropertyTypeString)}),
+                [](const PropertyList& properties) -> ToolResult {
+                    auto text = properties["text"].value<std::string>();
+                    if (text.empty()) {
+                        return std::unexpected("Message text must not be empty");
+                    }
+                    auto* job = new LilaTelegramJob{std::move(text)};
+                    BaseType_t created =
+                        xTaskCreate(LilaTelegramTask, "lila_tg", kLilaTelegramTaskStack,
+                                    job, kLilaTelegramTaskPriority, nullptr);
+                    if (created != pdPASS) {
+                        delete job;
+                        return std::unexpected("Failed to queue Telegram message");
+                    }
+                    return std::string("Message queued for Telegram.");
+                });
+        }
     }
 
 public:

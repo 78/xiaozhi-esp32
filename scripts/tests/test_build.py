@@ -1728,6 +1728,7 @@ class CliTests(unittest.TestCase):
             language=None,
             wake_word=None,
             build_options=None,
+            extra_sdkconfig=[],
             idf_version=(6, 0, 2),
         )
 
@@ -1788,6 +1789,49 @@ class CliTests(unittest.TestCase):
             build_board.call_args.kwargs["build_options"],
             {"wifi_provisioning": "blufi"},
         )
+
+    def test_sdkconfig_overrides_are_forwarded(self):
+        with (
+            mock.patch.object(build, "_detect_idf_version", return_value=(6, 0, 2)),
+            mock.patch.object(build, "_board_type_exists", return_value=True),
+            mock.patch.object(build, "_collect_variants", return_value=self.variants),
+            mock.patch.object(build, "build_board") as build_board,
+        ):
+            build.main([
+                "bread-compact-wifi",
+                "--sdkconfig",
+                "CONFIG_LCD_ST7789_240X240_7PIN=y",
+                "--sdkconfig",
+                'CONFIG_XIAOZHI_TAVILY_API_KEY="tvly-abc"',
+            ])
+
+        self.assertEqual(
+            build_board.call_args.kwargs["extra_sdkconfig"],
+            [
+                "CONFIG_LCD_ST7789_240X240_7PIN=y",
+                'CONFIG_XIAOZHI_TAVILY_API_KEY="tvly-abc"',
+            ],
+        )
+
+    def test_custom_wake_word_maps_to_multinet_options(self):
+        selected, options, symbols = build._wake_word_sdkconfig_options(
+            "custom:lila",
+            "esp32s3",
+        )
+
+        self.assertEqual(selected, "custom:lila")
+        self.assertIn("CONFIG_USE_CUSTOM_WAKE_WORD=y", options)
+        self.assertIn('CONFIG_CUSTOM_WAKE_WORD="lila"', options)
+        self.assertIn('CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Lila"', options)
+        self.assertIn("CONFIG_SR_MN_EN_MULTINET7_QUANT=y", options)
+        self.assertIn("CONFIG_USE_ESP_WAKE_WORD=n", options)
+        self.assertIn("CONFIG_USE_CUSTOM_WAKE_WORD", symbols)
+
+    def test_custom_wake_word_rejects_unsupported_target_and_missing_word(self):
+        with self.assertRaises(ValueError):
+            build._wake_word_sdkconfig_options("custom:lila", "esp32c3")
+        with self.assertRaises(ValueError):
+            build._wake_word_sdkconfig_options("custom:", "esp32s3")
 
 
 class BoardSourceTests(unittest.TestCase):

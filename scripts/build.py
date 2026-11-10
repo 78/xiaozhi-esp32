@@ -325,11 +325,50 @@ def _board_supports_wake_word(
     return assignments.get("CONFIG_SPIRAM") == "y"
 
 
+def _custom_wake_word_sdkconfig_options(
+    word: str,
+    target: str,
+) -> tuple[str, list[str], list[str]]:
+    """Map a MultiNet custom wake word (for example 'custom:lila') to Kconfig.
+
+    A custom wake word is not a WakeNet model. It is a single MultiNet command
+    recognized by a MultiNet model that scripts/build_default_assets.py packs
+    into the assets partition. The wake word text is consumed by
+    main/audio/wake_words/custom_wake_word.cc through the generated index.json.
+    """
+    if not word:
+        raise ValueError("A custom wake word requires a value, for example 'custom:lila'")
+    if any(character in word for character in ('"', "\n", "\r")):
+        raise ValueError(f"Invalid custom wake word {word!r}: quotes and newlines are not allowed")
+    if target not in _AFE_WAKE_WORD_TARGETS:
+        raise ValueError(
+            f"Custom wake words require ESP32-S3/S31/P4; target {target!r} is not supported"
+        )
+
+    display = word[:1].upper() + word[1:]
+    options = [
+        "CONFIG_WAKE_WORD_DISABLED=n",
+        "CONFIG_USE_ESP_WAKE_WORD=n",
+        "CONFIG_USE_AFE_WAKE_WORD=n",
+        "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+        f'CONFIG_CUSTOM_WAKE_WORD="{word}"',
+        f'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="{display}"',
+        "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=10",
+        "CONFIG_SR_MN_EN_MULTINET7_QUANT=y",
+    ]
+    symbols = ["CONFIG_USE_CUSTOM_WAKE_WORD", "CONFIG_SR_MN_EN_MULTINET7_QUANT"]
+    return f"custom:{word}", options, symbols
+
+
 def _wake_word_sdkconfig_options(
     wake_word: str,
     target: str,
 ) -> tuple[str, list[str], list[str]]:
     """Map a wake-word model to implementation and model Kconfig options."""
+    raw = wake_word.strip()
+    if raw.casefold().startswith("custom:"):
+        return _custom_wake_word_sdkconfig_options(raw[len("custom:"):].strip(), target)
+
     normalized = wake_word.strip().casefold().replace("-", "_")
     if normalized == "nihaoxiaozhi":
         normalized = (
@@ -1519,6 +1558,7 @@ def build_board(
     language: Optional[str] = None,
     wake_word: Optional[str] = None,
     build_options: Optional[dict[str, object]] = None,
+    extra_sdkconfig: Optional[list[str]] = None,
     idf_version: tuple[int, int, int] = (6, 0, 0),
 ) -> None:
     """Compile one specified variant of the specified board type.
@@ -1531,7 +1571,14 @@ def build_board(
         language: optional locale such as zh-CN; defaults to en-US when omitted
         wake_word: optional model/alias; otherwise selected from language and board support
         build_options: optional semantic, board-validated option values
+        extra_sdkconfig: optional raw CONFIG_KEY=VALUE assignments applied last
     """
+    for assignment in extra_sdkconfig or []:
+        symbol = assignment.split("=", 1)[0]
+        if "=" not in assignment or not symbol.startswith("CONFIG_"):
+            raise ValueError(
+                f"--sdkconfig expects a CONFIG_KEY=VALUE assignment, got {assignment!r}"
+            )
     cfg_path = _BOARDS_DIR / Path(board_type) / config_filename
     if not cfg_path.exists():
         print(f"[WARN] {cfg_path} does not exist, skipping {board_type}")
@@ -1650,6 +1697,13 @@ def build_board(
             sdkconfig_append,
             user_options,
         )
+        if extra_sdkconfig:
+            # Raw overrides win over every derived option, so callers can
+            # inject credentials or override a --wake-word/--language choice.
+            sdkconfig_append = _merge_sdkconfig_options(
+                sdkconfig_append,
+                extra_sdkconfig,
+            )
         sdkconfig_append = _apply_auto_selects(sdkconfig_append)
 
         print("-" * 80)
@@ -1781,8 +1835,20 @@ def main(argv: Optional[list[str]] = None) -> None:
         metavar="MODEL",
         help=(
             "Wake-word model (for example wn9_jarvis_tts), "
-            "'nihaoxiaozhi', 'hiesp', or 'disabled'. Defaults to nihaoxiaozhi "
-            "for zh-CN/zh-TW and hiesp otherwise; disabled on unsupported boards"
+            "'nihaoxiaozhi', 'hiesp', 'custom:<word>' (MultiNet custom command), "
+            "or 'disabled'. Defaults to nihaoxiaozhi for zh-CN/zh-TW and hiesp "
+            "otherwise; disabled on unsupported boards"
+        ),
+    )
+    parser.add_argument(
+        "--sdkconfig",
+        metavar="KEY=VALUE",
+        action="append",
+        default=[],
+        help=(
+            "Extra sdkconfig assignment applied last, for example "
+            "'CONFIG_XIAOZHI_TAVILY_API_KEY=\"tvly-...\"'. Repeatable; later "
+            "values override earlier ones, including --wake-word/--language."
         ),
     )
     parser.add_argument(
@@ -1967,6 +2033,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             language=args.language,
             wake_word=args.wake_word,
             build_options=parsed_build_options,
+            extra_sdkconfig=args.sdkconfig,
             idf_version=idf_version,
         )
 
