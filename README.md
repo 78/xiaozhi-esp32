@@ -1,6 +1,72 @@
-# An MCP-based Chatbot
+# Lila
+
+**Lila** is a personal fork of the [XiaoZhi AI Chatbot](https://github.com/78/xiaozhi-esp32),
+the open-source ESP32 voice assistant created by [78](https://github.com/78) and the
+XiaoZhi community. My daughter **Sophie** chose the name, so this little assistant is
+called Lila from here on.
+
+The credit for everything that makes this firmware work belongs to the upstream
+project: the audio pipeline, the ESP-SR wake-word engines, the 138 board ports, the
+WebSocket and MQTT/UDP protocols, the MCP server, the documentation and years of
+careful engineering. Thank you, 78, and thank you to everyone who contributed there.
+Lila only adds a few personal touches on top, and it inherits the upstream MIT license.
+
+If you are looking for the canonical project, its documentation, its release matrix or
+community support, please start at
+[78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32). Everything from the
+*An MCP-based Chatbot* heading below is the upstream README, kept intact so Lila users
+can still follow it.
+
+## What Lila adds over upstream
+
+Every change is additive: without a `.env` file and without API credentials, a Lila
+build behaves exactly like upstream.
+
+- **Configured builds from `.env`** — `scripts/build_lila.py` reads board, variant,
+  language, wake word, display panel, API credentials, extra sdkconfig and zip options
+  from `.env` (see `.env.example`) and forwards them to `scripts/build.py`.
+  `--dry-run` prints the exact command.
+- **Custom MultiNet wake words from the CLI** — `scripts/build.py --wake-word
+  custom:<word>` turns any word into a MultiNet custom command, which
+  `scripts/build_default_assets.py` packs into the assets partition. No source or
+  sdkconfig edits are needed, and the Lila profile wakes on `custom:lila`.
+- **Raw sdkconfig overrides** — a repeatable `--sdkconfig KEY=VALUE` flag applied after
+  every derived option, which is how API keys and the LCD panel choice are injected
+  without touching the tree.
+- **`web.search` MCP tool** — Tavily-backed web search, registered only when
+  `XIAOZHI_TAVILY_API_KEY` is non-empty. It returns the search answer plus numbered
+  results and permits a single in-flight search.
+- **`self.telegram.send` MCP tool** — sends a Telegram message, registered only when
+  both `XIAOZHI_TELEGRAM_BOT_TOKEN` and `XIAOZHI_TELEGRAM_CHAT_ID` are set. Delivery
+  runs on a one-shot worker task so the main event loop never blocks on the network.
+- **Lila hardware profile** — Spanish (`es-ES`) defaults, the `lila` wake word and an
+  ST7789 240x240 panel (`LCD_ST7789_240X240_7PIN`, or `LCD_ST7789_240X240` when the
+  module has a CS line), all selectable from `.env` and matching the 7-pin ST7789
+  wiring this build targets on the `wk-esp32s3-dev` board.
+- **Documented board changes** — `main/boards/wk-esp32s3-dev/README.md` documents the
+  wrapper, both display variants and the two optional tools.
+
+## Quick start (Lila)
+
+Source your ESP-IDF `release/v6.1` environment first (see
+[Development Environment](#development-environment)), then:
+
+```bash
+cp .env.example .env                      # edit language, wake word, panel and keys
+python scripts/build_lila.py --dry-run    # print the command
+python scripts/build_lila.py              # build
+```
+
+Both tools can also be enabled for any board in `idf.py menuconfig`
+(`Xiaozhi Assistant` → `Tavily API key`, `Telegram bot token`, `Telegram chat ID`).
+
+---
+
+## An MCP-based Chatbot
 
 (English | [中文](README_zh.md) | [日本語](README_ja.md))
+
+The sections below are the upstream XiaoZhi documentation, unmodified.
 
 ## Introduction
 
@@ -160,6 +226,10 @@ Custom Assets Tools:
 This is an open-source ESP32 project, released under the MIT license, allowing anyone to use it for free, including for commercial purposes.
 
 We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
+
+Lila keeps that spirit: it is a small personal fork made for a family assistant,
+named by my daughter Sophie, and it would not exist without the upstream authors and
+contributors thanked at the top of this README.
 
 If you have any ideas or suggestions, please feel free to raise Issues or join our [Discord](https://discord.gg/C759fGMBcZ) or QQ group: 1095994019
 
