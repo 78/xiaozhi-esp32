@@ -104,3 +104,18 @@ checking the policy first.
 
 None of the three tools is required to build the firmware. `scripts/build.py`
 and `scripts/build_lila.py` remain the only build entry points.
+
+## clang-format — pinned local formatter
+
+CI validates the C/C++ lines a branch changed with a pinned clang-format, so
+the local version must match:
+
+```bash
+python -m pip install clang-format==23.1.5
+python scripts/check_format.py --base origin/main
+```
+
+The script reads the changed line ranges from `git diff` and checks only those.
+This keeps upstream style inside patched files from failing the build, while
+still refusing unformatted new code.
+
