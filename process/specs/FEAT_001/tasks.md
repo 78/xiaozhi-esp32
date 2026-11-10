@@ -50,7 +50,7 @@ Status: done · Owner: @mauricioz · Branch: `devs/mauri/chore/lila-workflow`
 - [x] `python -m unittest discover -s scripts/tests -v` (169 tests, 12 pre-existing Windows environment errors)
 - [x] `python scripts/build_lila.py --dry-run`
 - [x] `python scripts/check_format.py --base origin/main` (pinned clang-format 23.1.5, changed lines only)
-- [ ] Firmware build with the manual workflow
+- [x] Firmware compile: the upstream `Build Boards` matrix built `wk-esp32s3-dev` in the ESP-IDF 6.1 container (CI run on `1ce9be0`)
 
 ## 6. Review and merge
 

@@ -104,11 +104,13 @@ repository secrets.
 ## Hardware validation
 
 Not applicable: no firmware behaviour changed. The log message change compiles
-with the same ESP-IDF version but was not flashed; the next Lila build validates
-it in practice.
+with the same ESP-IDF version (the upstream `Build Boards` matrix built
+`wk-esp32s3-dev` successfully in CI) but was not flashed.
 
 - [x] No device validation required for this change
-- [ ] Build the Lila variant with the manual workflow and flash it (next release)
+- [x] Firmware compiles in the ESP-IDF 6.1 container
+- [ ] Flash the Lila variant on the device and confirm the boot log shows the
+  provider label instead of a URL (next release)
 
 ## Notes
 
