@@ -6,6 +6,17 @@ XiaoZhi is an ESP-IDF C/C++ voice-assistant firmware supporting many chips, boar
 
 Use the ESP-IDF `release/v6.1` branch when possible. The minimum supported SDK is ESP-IDF v6.0.1. IDF 5.x is not supported.
 
+## Repository workflow (Lila fork)
+
+Lila is a personal fork of upstream XiaoZhi. The process is versioned in this repository and applies to every change, including process and documentation edits.
+
+- **Never push to `main`.** Every change lands through a pull request from a `devs/<user>/<type>/<slug>` branch. The full pipeline is in `process/WORKFLOW.md`; the policy decision is `process/adr/0001-pr-only-workflow.md`.
+- Read `process/README.md` and the applicable standard in `process/standards/` before editing. Security rules (`process/standards/security.md`) apply to every change, especially the rule that a URL or body embedding a secret must never be logged.
+- A behaviour change needs a spec in `process/specs/FEAT_XXX/`. A change to a contract (protocol, Kconfig surface, build CLI, release process) also needs an OpenSpec change under `openspec/changes/`.
+- Workflow skills live in `.opencode/skills/` (source of truth) and `.claude/skills/` (generated mirror). After editing one, run `python scripts/sync_skills.py --write`.
+- Before opening a PR run: `python -m compileall -q scripts`, `python scripts/sync_skills.py --check`, `python scripts/check_workflow.py`, `python -m unittest discover -s scripts/tests -v`, `python scripts/build_lila.py --dry-run`, and `clang-format --dry-run -Werror` on changed C/C++ files.
+- Update the board or root README, `process/ROADMAP.md` and `CHANGELOG.md` for every user-visible change. State what still needs hardware validation.
+
 ## Architecture
 
 - `main/application.*`: main event loop, protocol lifecycle, and high-level behavior.
@@ -84,6 +95,11 @@ The build script changes local `sdkconfig` and build state. Do not assume the bu
 ## Authoritative Documentation
 
 - Overview and SDK policy: `README.md`
+- Development workflow and PR policy: `process/WORKFLOW.md`, `process/README.md`
+- Standards per change area: `process/STANDARDS.md`, `process/standards/`
+- Roadmap and current Lila features: `process/ROADMAP.md`
+- Tooling (OpenSpec, CodeGraph, RTK): `process/TOOLING.md`
+- Branch protection setup: `.github/BRANCH_PROTECTION.md`
 - Board guide: `docs/custom-board.md`
 - Audio design: `main/audio/README.md`
 - Code style: `docs/code_style.md`

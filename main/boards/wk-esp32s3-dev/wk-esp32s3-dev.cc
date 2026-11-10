@@ -100,11 +100,13 @@ std::string LilaJsonToString(cJSON* json) {
 
 // Perform a JSON POST request. Returns false when the request could not be
 // completed; the HTTP status code and body are returned through the out params.
-bool LilaHttpPostJson(const std::string& url, const std::string& body, int& status_code,
-                       std::string& response) {
+// `label` is logged instead of the URL because provider URLs may embed secrets
+// (Telegram bot URLs contain the bot token).
+bool LilaHttpPostJson(const std::string& label, const std::string& url, const std::string& body,
+                      int& status_code, std::string& response) {
     auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
     if (http == nullptr) {
-        ESP_LOGE(TAG, "Failed to create HTTP client for %s", url.c_str());
+        ESP_LOGE(TAG, "Failed to create HTTP client for %s", label.c_str());
         return false;
     }
 
@@ -116,13 +118,13 @@ bool LilaHttpPostJson(const std::string& url, const std::string& body, int& stat
 
     auto opened = http->Open("POST", url);
     if (!opened) {
-        ESP_LOGE(TAG, "Failed to open %s: %s", url.c_str(), opened.error().ToString().c_str());
+        ESP_LOGE(TAG, "Failed to open %s: %s", label.c_str(), opened.error().ToString().c_str());
         return false;
     }
 
     auto status = http->GetStatusCode();
     if (!status) {
-        ESP_LOGE(TAG, "Failed to read HTTP status for %s: %s", url.c_str(),
+        ESP_LOGE(TAG, "Failed to read HTTP status for %s: %s", label.c_str(),
                  status.error().ToString().c_str());
         http->Close();
         return false;
@@ -163,7 +165,8 @@ ToolResult LilaWebSearch(const std::string& query, int max_results) {
 
     int status_code = 0;
     std::string response;
-    if (!LilaHttpPostJson("https://api.tavily.com/search", body, status_code, response)) {
+    if (!LilaHttpPostJson("Tavily API", "https://api.tavily.com/search", body, status_code,
+                          response)) {
         return std::unexpected("Failed to reach Tavily");
     }
     if (status_code < 200 || status_code >= 300) {
@@ -238,7 +241,7 @@ void LilaTelegramTask(void* arg) {
                           CONFIG_XIAOZHI_TELEGRAM_BOT_TOKEN + "/sendMessage";
         int status_code = 0;
         std::string response;
-        if (LilaHttpPostJson(url, body, status_code, response)) {
+        if (LilaHttpPostJson("Telegram API", url, body, status_code, response)) {
             if (status_code >= 200 && status_code < 300) {
                 ESP_LOGI(TAG, "Telegram message sent");
             } else {

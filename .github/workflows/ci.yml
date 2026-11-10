@@ -1,0 +1,96 @@
+name: CI
+
+# Host-side checks that every pull request must pass. Firmware compilation lives
+# in `firmware-build.yml` (manual) and in the upstream `build.yml` matrix.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-checks:
+    name: Host checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Compile tooling
+        run: python -m compileall -q scripts
+
+      - name: Skills mirror is in sync
+        run: python scripts/sync_skills.py --check
+
+      - name: Workflow policy
+        run: python scripts/check_workflow.py
+
+      - name: Host test suite
+        run: python -m unittest discover -s scripts/tests -v
+
+      - name: Lila build command preview
+        run: python scripts/build_lila.py --dry-run
+
+  formatting:
+    name: clang-format (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check changed C/C++ files
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE="$PR_BASE"
+            HEAD="$PR_HEAD"
+          elif [[ -n "${PUSH_BEFORE:-}" && "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]]; then
+            BASE="$PUSH_BEFORE"
+            HEAD="${{ github.sha }}"
+          else
+            BASE="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+            HEAD="HEAD"
+          fi
+
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$BASE...$HEAD" \
+            -- '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hh' '*.hpp' '*.hxx')
+
+          if [[ ${#FILES[@]} -eq 0 ]]; then
+            echo "No C/C++ files changed."
+            exit 0
+          fi
+
+          echo "Checking ${#FILES[@]} file(s) against .clang-format"
+          clang-format --version
+          clang-format --dry-run -Werror "${FILES[@]}"

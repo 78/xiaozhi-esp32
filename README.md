@@ -60,6 +60,54 @@ python scripts/build_lila.py              # build
 Both tools can also be enabled for any board in `idf.py menuconfig`
 (`Xiaozhi Assistant` → `Tavily API key`, `Telegram bot token`, `Telegram chat ID`).
 
+## Development workflow
+
+Lila is developed with the process it ships: a spec, a branch, CI, and a pull
+request. **`main` is protected and never receives a direct push** — every change,
+including process and documentation edits, arrives through a PR.
+
+| Step | Where |
+| --- | --- |
+| Process overview and map | [`process/README.md`](process/README.md) |
+| Full pipeline and quality gates | [`process/WORKFLOW.md`](process/WORKFLOW.md) |
+| Rules per change area | [`process/STANDARDS.md`](process/STANDARDS.md), [`process/standards/`](process/standards/) |
+| Feature specs (`FEAT_XXX`) | [`process/specs/`](process/specs/) |
+| Shipped and planned features | [`process/ROADMAP.md`](process/ROADMAP.md) |
+| OpenSpec, CodeGraph and RTK | [`process/TOOLING.md`](process/TOOLING.md) |
+| Branch protection setup | [`.github/BRANCH_PROTECTION.md`](.github/BRANCH_PROTECTION.md) |
+| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+
+Spec-driven development uses [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+for changes that alter a contract, plus a `FEAT_XXX` document per feature.
+[CodeGraph](https://github.com/colbymchenry/codegraph) indexes the firmware so an
+agent can find symbols and call paths without reading whole files, and
+[RTK](https://github.com/rtk-ai/rtk) compresses command output to keep agent
+context small. All three are optional for building the firmware.
+
+Skills for OpenCode and Claude Code are vendored in the repository
+(`.opencode/skills/` is the source, `.claude/skills/` is generated) so the
+pipeline, the standards selection and the review gates behave the same in both
+tools.
+
+```bash
+# The checks CI runs on every pull request
+python -m compileall -q scripts
+python scripts/sync_skills.py --check
+python scripts/check_workflow.py
+python -m unittest discover -s scripts/tests -v
+
+# Preview the configured build without starting ESP-IDF
+python scripts/build_lila.py --dry-run
+
+# C/C++ style on touched files
+clang-format --dry-run -Werror <changed files>
+```
+
+CI is split in two: `ci.yml` runs the host checks and `clang-format` on every
+pull request, while `firmware-build.yml` is a manual, reproducible Lila build in
+the ESP-IDF 6.1 container. A pull request lists which checks ran and what still
+needs validation on a physical device.
+
 ---
 
 ## An MCP-based Chatbot

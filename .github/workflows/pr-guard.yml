@@ -1,0 +1,59 @@
+name: Main branch guard
+
+# Detective layer for the PR-only policy. Branch protection is the preventive
+# layer; this workflow runs after a push to `main` and fails when the new commit
+# is not associated with a pull request, which is what a direct push looks like.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    name: Commit came from a pull request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the commit's associated pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${REPOSITORY%%/*}"
+          REPO_NAME="${REPOSITORY##*/}"
+
+          COUNT="$(gh api graphql \
+            -f owner="$OWNER" \
+            -f repo="$REPO_NAME" \
+            -f oid="$COMMIT_SHA" \
+            -f query='
+              query($owner: String!, $repo: String!, $oid: GitObjectID!) {
+                repository(owner: $owner, name: $repo) {
+                  object(oid: $oid) {
+                    ... on Commit {
+                      associatedPullRequests(first: 1) {
+                        totalCount
+                      }
+                    }
+                  }
+                }
+              }' \
+            --jq '.data.repository.object.associatedPullRequests.totalCount')"
+
+          echo "Pull requests associated with $COMMIT_SHA: $COUNT"
+
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "::error::Direct push to main detected by $ACTOR. Every change must land through a pull request; see process/WORKFLOW.md."
+            exit 1
+          fi
+
+      - name: Reminder
+        if: ${{ success() }}
+        run: echo "Commit is associated with a pull request; policy satisfied."

@@ -1,0 +1,130 @@
+name: Firmware build (manual)
+
+# On-demand Lila firmware build. Host checks run in `ci.yml`; this workflow is
+# the reproducible build, so record its run URL in the pull request when a
+# change touches firmware, a board, Kconfig or assets.
+on:
+  workflow_dispatch:
+    inputs:
+      board:
+        description: Board directory under main/boards
+        type: string
+        required: true
+        default: wk-esp32s3-dev
+      name:
+        description: Build variant name (also the OTA board identity)
+        type: string
+        required: true
+        default: wk-esp32s3-dev
+      language:
+        description: Locale, for example es-ES or en-US
+        type: string
+        required: true
+        default: es-ES
+      wake_word:
+        description: WakeNet model, "disabled", or custom:<word>
+        type: string
+        required: true
+        default: "custom:lila"
+      display:
+        description: Panel symbol, for example LCD_ST7789_240X240_7PIN
+        type: string
+        required: true
+        default: LCD_ST7789_240X240_7PIN
+      zip:
+        description: Also produce releases/<version>_<name>.zip
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ inputs.name }}
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          NAME: ${{ inputs.name }}
+          LANGUAGE: ${{ inputs.language }}
+          WAKE_WORD: ${{ inputs.wake_word }}
+          DISPLAY: ${{ inputs.display }}
+        run: |
+          set -euo pipefail
+          for value in "$BOARD" "$NAME" "$LANGUAGE" "$WAKE_WORD" "$DISPLAY"; do
+            if [[ ! "$value" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+              echo "::error::Unsupported character in input: $value"
+              exit 1
+            fi
+          done
+
+      - name: Test build tooling
+        run: python -m unittest discover -s scripts/tests -v
+
+      - name: Build Lila firmware
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          NAME: ${{ inputs.name }}
+          LANGUAGE: ${{ inputs.language }}
+          WAKE_WORD: ${{ inputs.wake_word }}
+          DISPLAY: ${{ inputs.display }}
+          ZIP_INPUT: ${{ inputs.zip }}
+        run: |
+          set -euo pipefail
+          source "$IDF_PATH/export.sh"
+
+          if [[ "$ZIP_INPUT" == "true" ]]; then
+            ZIP=1
+          else
+            ZIP=0
+          fi
+
+          # Credentials stay empty: tools are compiled out unless the caller
+          # supplies them locally. Never inject repository secrets here.
+          cat > .env <<EOF
+          LILA_BOARD=$BOARD
+          LILA_NAME=$NAME
+          LILA_LANGUAGE=$LANGUAGE
+          LILA_WAKE_WORD=$WAKE_WORD
+          LILA_DISPLAY=$DISPLAY
+          LILA_TAVILY_API_KEY=
+          LILA_TELEGRAM_BOT_TOKEN=
+          LILA_TELEGRAM_CHAT_ID=
+          LILA_SDKCONFIG=
+          LILA_ZIP=$ZIP
+          EOF
+
+          python scripts/build_lila.py
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v7
+        with:
+          name: lila_${{ inputs.name }}_${{ github.sha }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload release zip
+        if: ${{ inputs.zip }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: lila_${{ inputs.name }}_${{ github.sha }}_zip
+          path: releases/*.zip
+          if-no-files-found: error
+          retention-days: 14
