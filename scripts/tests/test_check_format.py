@@ -97,7 +97,19 @@ class ChangedSpansTests(unittest.TestCase):
         self.assertEqual(list(spans), ["sample.cc"])
         self.assertEqual(spans["sample.cc"], [(2, 3), (10, 10)])
 
+    def test_unknown_base_revision_fails(self):
+        with self.assertRaises(SystemExit):
+            check_format.changed_spans(ROOT, "no-such-revision", "HEAD")
+
     def test_repository_files_are_not_empty(self):
+        available = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if available.returncode != 0:
+            self.skipTest("origin/main is not available in this checkout")
         spans = check_format.changed_spans(ROOT, "origin/main", "HEAD")
         self.assertIsInstance(spans, dict)
 
