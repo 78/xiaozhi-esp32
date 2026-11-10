@@ -99,8 +99,12 @@ python scripts/sync_skills.py --check
 python scripts/check_workflow.py
 python -m unittest discover -s scripts/tests -v
 python scripts/build_lila.py --dry-run      # command is what we expect
-clang-format --dry-run -Werror <changed C/C++ files>
+python scripts/check_format.py --base origin/main   # clang-format on changed lines
 ```
+
+`check_format.py` checks only the C/C++ lines the branch changed, so upstream
+style inside a patched file is not a failure. It uses the pinned clang-format
+23.1.5: `python -m pip install clang-format==23.1.5`.
 
 Firmware compilation and hardware checks are reported separately; a passing host
 suite is not hardware validation. If ESP-IDF is available:
@@ -150,7 +154,7 @@ A PR is mergeable only when all of these are true:
 
 - [ ] The spec and `tasks.md` are updated to the final state.
 - [ ] `check_workflow`, skill parity, compile checks and the full host suite pass.
-- [ ] Changed C/C++ files are `clang-format` clean.
+- [ ] Changed C/C++ lines are clang-format clean (`python scripts/check_format.py --base origin/main`).
 - [ ] `python scripts/build_lila.py --dry-run` produces the expected command.
 - [ ] `architecture-compliance-check` and `code-review-checklist` pass.
 - [ ] No secret, token or private URL is added; logs are redacted.

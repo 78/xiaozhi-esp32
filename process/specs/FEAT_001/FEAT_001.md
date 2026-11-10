@@ -37,7 +37,7 @@ firmware behaviour for upstream users.
 - [x] `scripts/check_workflow.py` validates required files and links, `.env`
       policy, roadmap markers, skill parity and token-shaped secrets.
 - [x] `.github/workflows/ci.yml` runs the host checks and `clang-format` on
-      changed C/C++ files for every pull request.
+      changed C/C++ lines for every pull request.
 - [x] `.github/workflows/firmware-build.yml` builds a configurable Lila image on
       demand in the ESP-IDF 6.1 container.
 - [x] `.github/workflows/pr-guard.yml` detects a direct push to `main`, and
@@ -57,7 +57,7 @@ firmware behaviour for upstream users.
 | Process | `process/README.md`, `WORKFLOW.md`, `STANDARDS.md`, `ROADMAP.md`, `TOOLING.md`, `specs/`, `standards/`, `adr/` |
 | OpenSpec | `openspec/config.yaml`, `openspec/changes/`, `openspec/specs/` |
 | Skills | `.opencode/skills/{feature-pipeline,standards-injector,architecture-compliance-check,code-review-checklist}/SKILL.md`, mirrored to `.claude/skills/` |
-| Tooling | `scripts/sync_skills.py` (`--check`/`--write`), `scripts/check_workflow.py`, `scripts/tests/test_workflow.py` |
+| Tooling | `scripts/sync_skills.py` (`--check`/`--write`), `scripts/check_workflow.py`, `scripts/check_format.py`, `scripts/tests/test_workflow.py` |
 | CI | `ci.yml` (host checks + formatting), `firmware-build.yml` (manual), `pr-guard.yml` (detective) |
 | Repository | `AGENTS.md` workflow section, `README.md` workflow section, `.gitignore` (`.codegraph/`), `CHANGELOG.md` |
 | Firmware | `main/boards/wk-esp32s3-dev/wk-esp32s3-dev.cc`: `LilaHttpPostJson` takes a label for logging instead of the URL |
@@ -76,8 +76,10 @@ repository secrets.
   mitigation: documented setup plus the `Main branch guard` detective workflow.
 - Risk: a new required file makes the check fail on forks. → mitigation: the
   check names the missing file and the error message says how to fix it.
-- Risk: `clang-format` version drift in CI. → mitigation: format only changed
-  files and use the repository `.clang-format` on ubuntu-latest.
+- Risk: `clang-format` version drift in CI. → mitigation: the version is pinned
+  (23.1.5, installed with pip in CI and documented for contributors) and the
+  check covers only the changed lines, so upstream style inside a patched file
+  is not a failure.
 
 ## Scope
 

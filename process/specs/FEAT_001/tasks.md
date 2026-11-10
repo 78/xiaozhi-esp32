@@ -28,6 +28,7 @@ Status: done · Owner: @mauricioz · Branch: `devs/mauri/chore/lila-workflow`
 ## 3. Tests
 
 - [x] Skill mirror parity, drift, prune and CRLF normalisation
+- [x] Changed-line range detection and span merging (`scripts/tests/test_check_format.py`)
 - [x] Secret scanner: token detection, placeholders, binary skip
 - [x] `.env.example` key coverage and empty secret values
 - [x] Required files, roadmap markers and documentation links
@@ -48,7 +49,7 @@ Status: done · Owner: @mauricioz · Branch: `devs/mauri/chore/lila-workflow`
 - [x] `python scripts/check_workflow.py`
 - [x] `python -m unittest discover -s scripts/tests -v` (169 tests, 12 pre-existing Windows environment errors)
 - [x] `python scripts/build_lila.py --dry-run`
-- [ ] `clang-format --dry-run -Werror main/boards/wk-esp32s3-dev/wk-esp32s3-dev.cc` (clang-format not installed on the authoring machine)
+- [x] `python scripts/check_format.py --base origin/main` (pinned clang-format 23.1.5, changed lines only)
 - [ ] Firmware build with the manual workflow
 
 ## 6. Review and merge

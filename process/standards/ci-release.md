@@ -32,7 +32,7 @@ Enforcement is two-layered:
 2. `python scripts/sync_skills.py --check`
 3. `python scripts/check_workflow.py`
 4. `python -m unittest discover -s scripts/tests -v`
-5. `clang-format --dry-run -Werror` on changed C/C++ files
+5. `python scripts/check_format.py --base origin/main` (pinned clang-format 23.1.5, changed lines only)
 6. `python scripts/build_lila.py --dry-run`
 
 A red check blocks the merge. Do not "fix" a flaky check by disabling it in the

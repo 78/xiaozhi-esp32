@@ -118,6 +118,30 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn("WORKFLOW.md", problems[0])
 
 
+class PinnedFormatterTests(unittest.TestCase):
+    def test_ci_and_standard_pin_the_same_version(self):
+        self.assertEqual(check_workflow.check_pinned_formatter(ROOT), [])
+
+    def test_mismatched_pin_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "scripts").mkdir()
+            (root / ".github" / "workflows").mkdir(parents=True)
+            (root / "process" / "standards").mkdir(parents=True)
+            (root / "scripts" / "check_format.py").write_text(
+                'PINNED_VERSION = "23.1.5"\n', encoding="utf-8"
+            )
+            (root / ".github" / "workflows" / "ci.yml").write_text(
+                "clang-format==18.1.8\n", encoding="utf-8"
+            )
+            (root / "process" / "standards" / "firmware-cpp.md").write_text(
+                "clang-format 23.1.5\n", encoding="utf-8"
+            )
+            problems = check_workflow.check_pinned_formatter(root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("23.1.5", problems[0])
+
+
 class SkillsMirrorTests(unittest.TestCase):
     def test_repository_mirror_is_in_sync(self):
         problems = sync_skills.compare_trees(

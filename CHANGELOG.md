@@ -26,6 +26,9 @@ The development workflow release: specs, standards, skills, and CI.
   `code-review-checklist`, with `scripts/sync_skills.py` enforcing parity.
 - `scripts/check_workflow.py`: required files and links, `.env` policy, roadmap
   feature markers, skills parity and a secret scan.
+- `scripts/check_format.py`: validates the C/C++ lines a branch changed with the
+  pinned clang-format 23.1.5, so upstream style inside a patched file is not a
+  failure.
 - PR-only `main`: `.github/workflows/pr-guard.yml` detects direct pushes,
   `.github/BRANCH_PROTECTION.md` documents the preventive ruleset, and
   `.github/PULL_REQUEST_TEMPLATE.md` carries the review gates.

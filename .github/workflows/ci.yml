@@ -49,7 +49,7 @@ jobs:
         run: python scripts/build_lila.py --dry-run
 
   formatting:
-    name: clang-format (changed files)
+    name: clang-format (changed lines)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -57,12 +57,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install clang-format
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
-      - name: Check changed C/C++ files
+      - name: Install the pinned clang-format
+        run: |
+          python -m venv "$RUNNER_TEMP/clangfmt"
+          "$RUNNER_TEMP/clangfmt/bin/pip" install --quiet "clang-format==23.1.5"
+          echo "$RUNNER_TEMP/clangfmt/bin" >> "$GITHUB_PATH"
+
+      - name: Check changed C/C++ lines
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -83,14 +89,4 @@ jobs:
             HEAD="HEAD"
           fi
 
-          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$BASE...$HEAD" \
-            -- '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hh' '*.hpp' '*.hxx')
-
-          if [[ ${#FILES[@]} -eq 0 ]]; then
-            echo "No C/C++ files changed."
-            exit 0
-          fi
-
-          echo "Checking ${#FILES[@]} file(s) against .clang-format"
-          clang-format --version
-          clang-format --dry-run -Werror "${FILES[@]}"
+          python scripts/check_format.py --base "$BASE" --head "$HEAD"

@@ -20,7 +20,7 @@
 - [ ] `python scripts/check_workflow.py`
 - [ ] `python -m unittest discover -s scripts/tests -v`
 - [ ] `python scripts/build_lila.py --dry-run`
-- [ ] `clang-format --dry-run -Werror` on changed C/C++ files
+- [ ] `python scripts/check_format.py --base origin/main` (clang-format on the changed lines)
 - [ ] Manual firmware workflow (paste run URL) or local ESP-IDF build
 - [ ] Nothing (docs-only change)
 

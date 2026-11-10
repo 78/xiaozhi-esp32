@@ -37,7 +37,7 @@ and docs for that task are in the same commit.
 - [ ] `python scripts/check_workflow.py`
 - [ ] `python -m unittest discover -s scripts/tests -v`
 - [ ] `python scripts/build_lila.py --dry-run`
-- [ ] `clang-format --dry-run -Werror <changed C/C++ files>`
+- [ ] `python scripts/check_format.py --base origin/main`
 - [ ] Firmware build (manual workflow or local ESP-IDF)
 
 ## 6. Review and merge

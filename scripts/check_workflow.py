@@ -47,6 +47,9 @@ REQUIRED_FILES = [
     ".opencode/skills/standards-injector/SKILL.md",
     ".opencode/skills/architecture-compliance-check/SKILL.md",
     ".opencode/skills/code-review-checklist/SKILL.md",
+    "scripts/check_workflow.py",
+    "scripts/check_format.py",
+    "scripts/sync_skills.py",
 ]
 
 REQUIRED_ENV_KEYS = [
@@ -96,6 +99,7 @@ WORKFLOW_MARKERS = {
     ".github/workflows/ci.yml": [
         "pull_request",
         "scripts/check_workflow.py",
+        "scripts/check_format.py",
         "scripts/sync_skills.py --check",
         "unittest discover",
     ],
@@ -312,6 +316,32 @@ def check_markers(root: Path) -> list[str]:
     return problems
 
 
+def check_pinned_formatter(root: Path) -> list[str]:
+    """The CI, the checker and the standard must pin the same clang-format."""
+    script = root / "scripts" / "check_format.py"
+    workflow = root / ".github" / "workflows" / "ci.yml"
+    standard = root / "process" / "standards" / "firmware-cpp.md"
+    if not script.is_file() or not workflow.is_file():
+        return ["missing scripts/check_format.py or .github/workflows/ci.yml"]
+
+    match = re.search(r'PINNED_VERSION\s*=\s*"([^"]+)"', read_text(script))
+    if match is None:
+        return ["scripts/check_format.py must declare PINNED_VERSION"]
+    version = match.group(1)
+
+    problems = []
+    pinned = set(re.findall(r"clang-format==([0-9][0-9.]*)", read_text(workflow)))
+    if pinned != {version}:
+        problems.append(
+            f".github/workflows/ci.yml must pin clang-format=={version} (found {sorted(pinned)})"
+        )
+    if standard.is_file() and version not in read_text(standard):
+        problems.append(
+            f"process/standards/firmware-cpp.md must document clang-format {version}"
+        )
+    return problems
+
+
 def check_links(root: Path) -> list[str]:
     """Verify relative markdown links in the process documentation."""
     problems: list[str] = []
@@ -360,6 +390,7 @@ def run_checks(root: Path) -> list[str]:
     problems.extend(check_env_example(root))
     problems.extend(check_env_not_tracked(root))
     problems.extend(check_markers(root))
+    problems.extend(check_pinned_formatter(root))
     problems.extend(check_links(root))
     problems.extend(check_skills(root))
     problems.extend(scan_secrets(root))

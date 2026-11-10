@@ -60,8 +60,10 @@ wins and this file must be fixed.
 
 ## Style
 
-- **FW-18** Format touched C/C++ files with the repository `.clang-format`
-  (`clang-format --dry-run -Werror <files>`); do not reformat unrelated code.
+- **FW-18** Format the C/C++ lines you touch with the pinned clang-format
+  (23.1.5, `python -m pip install clang-format==23.1.5`). CI runs
+  `python scripts/check_format.py --base origin/main`, which validates only the
+  changed lines; do not reformat unrelated code.
 - **FW-19** Comments in English; user-facing strings follow the project locale.
 - **FW-20** Prefer the existing helper (`Http`, `Board`, MCP `Property`) over new
   abstractions. Read the closest implementation before adding one.

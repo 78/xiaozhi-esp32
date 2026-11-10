@@ -29,7 +29,7 @@ line is verifiable in the diff or from a command; "looks fine" is not an answer.
 - [ ] Logs contain no token, secret or token-bearing URL (`SEC-5`).
 - [ ] User-visible strings follow the project locale mechanism, not hardcoded
   English in a localized path.
-- [ ] `clang-format --dry-run -Werror <changed files>` is clean.
+- [ ] `python scripts/check_format.py --base origin/main` passes (clang-format on the changed lines).
 
 ## 3. Tooling diff (when `scripts/**` changed)
 

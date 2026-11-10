@@ -99,8 +99,8 @@ python -m unittest discover -s scripts/tests -v
 # Preview the configured build without starting ESP-IDF
 python scripts/build_lila.py --dry-run
 
-# C/C++ style on touched files
-clang-format --dry-run -Werror <changed files>
+# C/C++ style on the lines the change touches
+python scripts/check_format.py --base origin/main
 ```
 
 CI is split in two: `ci.yml` runs the host checks and `clang-format` on every

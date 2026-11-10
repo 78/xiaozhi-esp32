@@ -14,7 +14,7 @@ Lila is a personal fork of upstream XiaoZhi. The process is versioned in this re
 - Read `process/README.md` and the applicable standard in `process/standards/` before editing. Security rules (`process/standards/security.md`) apply to every change, especially the rule that a URL or body embedding a secret must never be logged.
 - A behaviour change needs a spec in `process/specs/FEAT_XXX/`. A change to a contract (protocol, Kconfig surface, build CLI, release process) also needs an OpenSpec change under `openspec/changes/`.
 - Workflow skills live in `.opencode/skills/` (source of truth) and `.claude/skills/` (generated mirror). After editing one, run `python scripts/sync_skills.py --write`.
-- Before opening a PR run: `python -m compileall -q scripts`, `python scripts/sync_skills.py --check`, `python scripts/check_workflow.py`, `python -m unittest discover -s scripts/tests -v`, `python scripts/build_lila.py --dry-run`, and `clang-format --dry-run -Werror` on changed C/C++ files.
+- Before opening a PR run: `python -m compileall -q scripts`, `python scripts/sync_skills.py --check`, `python scripts/check_workflow.py`, `python -m unittest discover -s scripts/tests -v`, `python scripts/build_lila.py --dry-run`, and `python scripts/check_format.py --base origin/main` (clang-format on the lines you changed).
 - Update the board or root README, `process/ROADMAP.md` and `CHANGELOG.md` for every user-visible change. State what still needs hardware validation.
 
 ## Architecture

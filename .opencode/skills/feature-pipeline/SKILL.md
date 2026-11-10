@@ -81,8 +81,12 @@ python scripts/sync_skills.py --check
 python scripts/check_workflow.py
 python -m unittest discover -s scripts/tests -v
 python scripts/build_lila.py --dry-run
-clang-format --dry-run -Werror <changed C/C++ files>
+python scripts/check_format.py --base origin/main
 ```
+
+`check_format.py` validates the C/C++ lines you changed with the pinned
+clang-format (23.1.5). Install it with
+`python -m pip install clang-format==23.1.5`.
 
 If ESP-IDF is installed, build the affected variant. If not, say so explicitly
 and list the remaining hardware checks.

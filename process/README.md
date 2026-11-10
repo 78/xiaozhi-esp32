@@ -46,8 +46,8 @@ python -m unittest discover -s scripts/tests -v
 # inspect the Lila build command without building
 python scripts/build_lila.py --dry-run
 
-# format touched C/C++ files (same config as CI)
-clang-format --dry-run -Werror <files>
+# format check on the C/C++ lines the change touched
+python scripts/check_format.py --base origin/main
 ```
 
 ## Skills
