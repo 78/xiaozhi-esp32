@@ -27,6 +27,7 @@ protected:
     lv_obj_t* emoji_label_ = nullptr;
     lv_obj_t* emoji_image_ = nullptr;
     std::unique_ptr<LvglGif> gif_controller_ = nullptr;
+    bool emotion_uses_image_ = false;
     lv_obj_t* emoji_box_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
     esp_timer_handle_t preview_timer_ = nullptr;
@@ -34,6 +35,7 @@ protected:
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
 
     void InitializeLcdThemes();
+    void ShowEmotion();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
