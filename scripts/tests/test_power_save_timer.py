@@ -76,7 +76,13 @@ struct esp_pm_config_t {
     int min_freq_mhz;
     bool light_sleep_enable;
 };
-int esp_pm_configure(const esp_pm_config_t*) { return ESP_OK; }
+bool light_sleep_enabled = false;
+int pm_min_freq = 0;
+int esp_pm_configure(const esp_pm_config_t* config) {
+    light_sleep_enabled = config->light_sleep_enable;
+    pm_min_freq = config->min_freq_mhz;
+    return ESP_OK;
+}
 bool sleep_allowed = true;
 int dim_minutes = -1, off_minutes = -1;
 struct Settings {
@@ -93,9 +99,10 @@ struct Settings {
         return fallback;
     }
 };
+bool wake_word_running = false;
 struct AudioService {
-    bool IsWakeWordRunning() { return false; }
-    void EnableWakeWordDetection(bool) {}
+    bool IsWakeWordRunning() { return wake_word_running; }
+    void EnableWakeWordDetection(bool enable) { wake_word_running = enable; }
 };
 struct Codec { void EnableInput(bool) {} };
 struct Board {
@@ -171,6 +178,94 @@ public:
 int main(int argc, char** argv) {
     assert(argc == 2);
     std::string test = argv[1];
+
+    if (test == "disable_active_sleep" || test == "disable_dim_active_sleep") {
+        wake_word_running = true;
+        PowerSaveTimer sleeping(160, 1, 60);
+        int entered = 0, exited = 0, requests = 0;
+        sleeping.OnEnterSleepMode([&]() { ++entered; });
+        sleeping.OnExitSleepMode([&]() { ++exited; });
+        sleeping.OnShutdownRequest([&]() { ++requests; });
+        sleeping.SetEnabled(true);
+        Tick(1);
+        assert(entered == 1 && light_sleep_enabled && !wake_word_running);
+        if (test == "disable_active_sleep") sleep_allowed = false;
+        else dim_minutes = 0;
+        Tick(1);
+        assert(exited == 1 && !light_sleep_enabled && wake_word_running && pm_min_freq == 160);
+        Tick(57);
+        assert(requests == 0 && exited == 1);
+        Tick(1);
+        assert(requests == (test == "disable_active_sleep" ? 0 : 1));
+        return 0;
+    }
+    if (test == "reenable_fresh_cycle") {
+        sleep_allowed = false;
+        PowerSaveTimer polling(-1, -1, 2);
+        int requests = 0;
+        polling.OnShutdownRequest([&]() { ++requests; });
+        polling.SetEnabled(true);
+        Tick(10);
+        assert(requests == 0);
+        sleep_allowed = true;
+        Tick(1);
+        assert(requests == 0);
+        Tick(1);
+        assert(requests == 1);
+        return 0;
+    }
+    if (test == "all_steps_disabled") {
+        dim_minutes = 0;
+        off_minutes = 0;
+        PowerSaveTimer polling(-1, 1, 2);
+        int requests = 0;
+        polling.OnShutdownRequest([&]() { ++requests; });
+        polling.SetEnabled(true);
+        Tick(100);
+        assert(requests == 0);
+        off_minutes = 1;
+        Tick(59);
+        assert(requests == 0);
+        Tick(1);
+        assert(requests == 1);
+        return 0;
+    }
+    if (test == "invalid_dim_minutes" || test == "invalid_off_minutes" ||
+        test == "minutes_out_of_range" || test == "negative_minutes") {
+        int value = test == "minutes_out_of_range" ? 1441 :
+                    test == "negative_minutes" ? -2 : 2147483647;
+        if (test == "invalid_off_minutes") off_minutes = value;
+        else dim_minutes = value;
+        PowerSaveTimer guarded(-1, 20, 30);
+        int entered = 0, requests = 0;
+        guarded.OnEnterSleepMode([&]() { ++entered; });
+        guarded.OnShutdownRequest([&]() { ++requests; });
+        guarded.SetEnabled(true);
+        Tick(19);
+        assert(entered == 0 && requests == 0);
+        Tick(1);
+        assert(entered == 1 && requests == 0);
+        Tick(9);
+        assert(requests == 0);
+        Tick(1);
+        assert(requests == 1);
+        return 0;
+    }
+    if (test == "maximum_minutes") {
+        dim_minutes = 1440;
+        off_minutes = 0;
+        PowerSaveTimer bounded(-1, 1, 2);
+        int entered = 0, requests = 0;
+        bounded.OnEnterSleepMode([&]() { ++entered; });
+        bounded.OnShutdownRequest([&]() { ++requests; });
+        bounded.SetEnabled(true);
+        Tick(86399);
+        assert(entered == 0 && requests == 0);
+        Tick(1);
+        assert(entered == 1 && requests == 0);
+        return 0;
+    }
+
     if (test == "usb_boot" || test == "battery_boot" || test == "plug_unplug" ||
         test == "short_usb" || test == "queued_usb") {
         usb_connected = test == "usb_boot";
@@ -275,7 +370,7 @@ int main(int argc, char** argv) {
     assert(requests == 2);
 }
 '''
-        subprocess.run(["c++", "-std=c++20", "-fsanitize=undefined", "-x", "c++", "-",
+        subprocess.run(["c++", "-std=c++20", "-fsanitize=undefined", "-fno-sanitize-recover=undefined", "-x", "c++", "-",
                         "-o", cls.binary], input=source, text=True, check=True)
 
     def run_case(self, name):
@@ -319,3 +414,30 @@ int main(int argc, char** argv) {
 
     def test_watcher_unplugs_before_queued_charging_request_runs(self):
         self.run_case("queued_usb")
+
+    def test_disabling_settings_exits_sleep_and_restores_power_state(self):
+        self.run_case("disable_active_sleep")
+
+    def test_disabling_dim_preserves_shutdown_deadline(self):
+        self.run_case("disable_dim_active_sleep")
+
+    def test_reenabling_settings_starts_fresh_idle_cycle(self):
+        self.run_case("reenable_fresh_cycle")
+
+    def test_enabling_step_after_all_disabled_starts_fresh_cycle(self):
+        self.run_case("all_steps_disabled")
+
+    def test_invalid_dim_minutes_preserve_board_default(self):
+        self.run_case("invalid_dim_minutes")
+
+    def test_invalid_shutdown_minutes_preserve_board_default(self):
+        self.run_case("invalid_off_minutes")
+
+    def test_minutes_above_portal_limit_preserve_board_default(self):
+        self.run_case("minutes_out_of_range")
+
+    def test_negative_minutes_preserve_board_default(self):
+        self.run_case("negative_minutes")
+
+    def test_maximum_supported_minutes(self):
+        self.run_case("maximum_minutes")
