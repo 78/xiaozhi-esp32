@@ -98,6 +98,15 @@ void Application::Initialize() {
     };
     audio_service_.SetCallbacks(callbacks);
 
+    // Load local fonts, images and speech models before starting the network. A pending
+    // update must finish first: these resources can reference the partition being rewritten.
+    {
+        Settings settings("assets", false);
+        if (settings.GetString("download_url").empty()) {
+            CheckAssetsVersion();
+        }
+    }
+
     // Add state change listeners
     state_machine_.AddStateChangeListener([this](DeviceState old_state, DeviceState new_state) {
         xEventGroupSetBits(event_group_, MAIN_EVENT_STATE_CHANGED);
@@ -733,10 +742,9 @@ void Application::InitializeProtocol() {
             if (cJSON_IsObject(payload)) {
                 CJsonStringUniquePtr payload_json(cJSON_PrintUnformatted(payload));
                 if (payload_json) {
-                    Schedule(
-                        [this, display, payload_str = std::string(payload_json.get())]() {
-                            display->SetChatMessage("system", payload_str.c_str());
-                        });
+                    Schedule([this, display, payload_str = std::string(payload_json.get())]() {
+                        display->SetChatMessage("system", payload_str.c_str());
+                    });
                 }
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
