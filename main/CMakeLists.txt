@@ -67,6 +67,9 @@ list(APPEND SOURCES
 if(CONFIG_XIAOZHI_NETWORK_ETHERNET)
     list(APPEND SOURCES "boards/common/ethernet_board.cc")
 endif()
+if(CONFIG_ENABLE_LOCAL_API)
+    list(APPEND SOURCES "local_api_server.cc")
+endif()
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 
 
@@ -1201,6 +1204,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_netif
                         esp_eth
+                        esp_http_server
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi

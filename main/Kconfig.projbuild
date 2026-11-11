@@ -1245,4 +1245,56 @@ menu "TAIJIPAI_S3_CONFIG"
         启动双声道
 endmenu
 
+menu "Local HTTP API"
+    config ENABLE_LOCAL_API
+        bool "Enable local HTTP API"
+        default n
+        help
+            Runs an HTTP server on the device (after the network connects) exposing
+            /api/info, /api/status, /api/tools, /api/tools/<name>, /api/mcp and
+            /api/chat/{start,toggle,abort}. Requests are executed on the main task.
+
+    config LOCAL_API_PORT
+        int "HTTP port"
+        depends on ENABLE_LOCAL_API
+        range 1 65535
+        default 8080
+        help
+            otto-robot and electron-bot already use port 8080 for their WebSocket
+            control server; pick another port on those boards.
+
+    config LOCAL_API_CTRL_PORT
+        int "httpd internal control port (UDP)"
+        depends on ENABLE_LOCAL_API
+        range 1 65535
+        default 32780
+        help
+            Must be unique among all httpd instances running on the device.
+
+    config LOCAL_API_TOKEN
+        string "Access token (empty = no authentication)"
+        depends on ENABLE_LOCAL_API
+        default ""
+        help
+            When set, clients must send "Authorization: Bearer <token>"
+            or "X-Api-Token: <token>".
+
+    config LOCAL_API_TIMEOUT_MS
+        int "Timeout waiting for the main task (ms)"
+        depends on ENABLE_LOCAL_API
+        range 500 60000
+        default 10000
+
+    config LOCAL_API_MAX_BODY
+        int "Maximum request body size (bytes)"
+        depends on ENABLE_LOCAL_API
+        range 256 65536
+        default 4096
+
+    config LOCAL_API_ENABLE_CORS
+        bool "Send CORS headers (allow calls from browser pages)"
+        depends on ENABLE_LOCAL_API
+        default y
+endmenu
+
 endmenu

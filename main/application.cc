@@ -1,4 +1,7 @@
 #include "application.h"
+#if CONFIG_ENABLE_LOCAL_API
+#include "local_api_server.h"
+#endif
 #include "assets.h"
 #include "assets/lang_config.h"
 #include "audio_codec.h"
@@ -321,6 +324,10 @@ void Application::HandleNetworkConnectedEvent() {
             },
             "activation", 4096 * 2, this, 2, &activation_task_handle_);
     }
+
+#if CONFIG_ENABLE_LOCAL_API
+    LocalApiServer::GetInstance().Start();  // No-op if already running
+#endif
 
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
