@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设备配置</title>
+<style>
+body{margin:0;background:#f4f6f5;color:#172a27;font:15px system-ui,sans-serif}main{max-width:600px;margin:0 auto;padding:28px 18px 50px}h1{font-size:25px;margin:0 0 5px}p{color:#53635f;margin:0 0 25px}section{border-top:1px solid #cbd5d1;padding:20px 0}h2{font-size:17px;margin:0 0 16px}label{display:block;font-weight:600;margin:14px 0 5px}input:not([type=checkbox]),select{box-sizing:border-box;width:100%;padding:10px;border:1px solid #aabbb4;border-radius:4px;background:#fff;color:inherit;font:inherit}input[type=checkbox]{width:18px;height:18px;vertical-align:middle;margin-right:8px}.check{font-weight:500}small{display:block;color:#60706b;margin-top:5px}button{border:0;border-radius:4px;background:#146b56;color:white;padding:11px 18px;font:inherit;cursor:pointer}button:disabled{opacity:.5}#status{margin:12px 0;min-height:22px;color:#146b56}#keyState{font-weight:normal;color:#60706b}
+</style>
+</head>
+<body><main><h1>设备配置</h1><p>修改后重启设备生效</p>
+<form id="form">
+<section><h2>语音接入</h2><label class="check"><input id="selected" type="checkbox">使用阿里云 Realtime</label>
+<label for="region">地域</label><select id="region"><option value="cn-beijing">北京</option><option value="ap-southeast-1">新加坡</option></select>
+<label for="workspace">业务空间 ID</label><input id="workspace" maxlength="64" autocomplete="off">
+<label for="key">API Key <span id="keyState"></span></label><input id="key" type="password" maxlength="256" autocomplete="new-password" placeholder="留空保持原值"><label class="check"><input id="clearKey" type="checkbox">清除已保存的 API Key</label></section>
+<section><h2>调试采集</h2><label class="check"><input id="debugEnabled" type="checkbox">启用采集</label>
+<label for="debugAddress">采集地址</label><input id="debugAddress" placeholder="tcp://192.168.1.20:7319" maxlength="64" autocomplete="off">
+<label for="debugLevel">采集级别</label><select id="debugLevel"><option value="0">事件</option><option value="1">协议原文</option><option value="2">协议与 PCM</option></select></section>
+<button id="save" type="submit">保存配置</button><div id="status" role="status"></div></form></main>
+<script>
+const $=id=>document.getElementById(id),status=$('status');
+fetch('/api/config',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('读取失败');return r.json()}).then(c=>{$('selected').checked=c.selected;$('region').value=c.region;$('workspace').value=c.workspace_id;$('keyState').textContent=c.api_key_set?'（已配置）':'（未配置）';$('debugEnabled').checked=c.debug_enabled;$('debugAddress').value=c.debug_address;$('debugLevel').value=c.debug_level}).catch(e=>status.textContent=e.message);
+$('form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;status.textContent='保存中…';const c={selected:$('selected').checked,region:$('region').value,workspace_id:$('workspace').value.trim(),api_key:$('key').value,clear_api_key:$('clearKey').checked,debug_enabled:$('debugEnabled').checked,debug_address:$('debugAddress').value.trim(),debug_level:Number($('debugLevel').value)};try{const r=await fetch('/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)});if(!r.ok)throw Error('配置无效或保存失败');status.textContent='已保存，请重启设备';$('key').value='';$('clearKey').checked=false;$('keyState').textContent=c.clear_api_key?'（未配置）':(c.api_key?'（已配置）':$('keyState').textContent)}catch(err){status.textContent=err.message}finally{$('save').disabled=false}});
+</script></body></html>

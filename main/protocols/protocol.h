@@ -8,6 +8,7 @@
 #include <vector>
 
 struct AudioStreamPacket {
+    bool pcm = false;
     int sample_rate = 0;
     int frame_duration = 0;
     uint32_t timestamp = 0;

@@ -11,6 +11,10 @@
 #include "system_info.h"
 #include "text_glyph_payload.h"
 #include "websocket_protocol.h"
+#if CONFIG_ALIYUN_REALTIME
+#include "realtime/aliyun_protocol.h"
+#include "realtime/config_web.h"
+#endif
 
 #include <driver/gpio.h>
 #include <esp_log.h>
@@ -225,6 +229,15 @@ void Application::Run() {
         if (bits & MAIN_EVENT_PLAYBACK_DRAINED) {
             if (audio_service_.IsPlaybackIdle()) {
                 notify_player_.OnPlaybackDrained();
+#if CONFIG_ALIYUN_REALTIME
+                if (aliyun_response_done_ && aliyun_mode_ &&
+                    GetDeviceState() == kDeviceStateSpeaking) {
+                    aliyun_response_done_ = false;
+                    SetDeviceState(listening_mode_ == kListeningModeManualStop
+                                       ? kDeviceStateIdle
+                                       : kDeviceStateListening);
+                }
+#endif
             }
             // Deferred listening start (auto mode): the playback queue has
             // drained, so it is now safe to enable voice processing.
@@ -302,6 +315,9 @@ void Application::Run() {
 
 void Application::HandleNetworkConnectedEvent() {
     ESP_LOGI(TAG, "Network connected");
+#if CONFIG_ALIYUN_REALTIME
+    StartAliyunConfigWeb();
+#endif
     auto state = GetDeviceState();
 
     if (state == kDeviceStateStarting || state == kDeviceStateWifiConfiguring) {
@@ -328,6 +344,9 @@ void Application::HandleNetworkConnectedEvent() {
 }
 
 void Application::HandleNetworkDisconnectedEvent() {
+#if CONFIG_ALIYUN_REALTIME
+    StopAliyunConfigWeb();
+#endif
     // Close current conversation when network disconnected
     auto state = GetDeviceState();
     if (state == kDeviceStateNotifying) {
@@ -383,6 +402,20 @@ void Application::HandleActivationDoneEvent() {
 void Application::ActivationTask() {
     // Create OTA object for activation process
     ota_ = std::make_unique<Ota>();
+#if CONFIG_ALIYUN_REALTIME
+    auto aliyun_config = LoadAliyunRealtimeConfig();
+    if (aliyun_config.selected) {
+        CheckAssetsVersion(false);
+        if (aliyun_config.IsReady()) {
+            InitializeProtocol();
+        } else {
+            last_error_message_ = "Configure Aliyun access at the device IP address";
+            xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
+        }
+        xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);
+        return;
+    }
+#endif
 
     // Check for new assets version
     CheckAssetsVersion();
@@ -397,7 +430,7 @@ void Application::ActivationTask() {
     xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);
 }
 
-void Application::CheckAssetsVersion() {
+void Application::CheckAssetsVersion(bool allow_download) {
     // Only allow CheckAssetsVersion to be called once
     if (assets_version_checked_) {
         return;
@@ -417,7 +450,7 @@ void Application::CheckAssetsVersion() {
     // Check if there is a new assets need to be downloaded
     std::string download_url = settings.GetString("download_url");
 
-    if (!download_url.empty()) {
+    if (allow_download && !download_url.empty()) {
         settings.EraseKey("download_url");
 
         char message[256];
@@ -560,7 +593,15 @@ void Application::InitializeProtocol() {
 
     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
 
-    if (ota_->HasMqttConfig()) {
+#if CONFIG_ALIYUN_REALTIME
+    const auto aliyun_config = LoadAliyunRealtimeConfig();
+    if (aliyun_config.selected) {
+        protocol_ = std::make_unique<AliyunProtocol>(aliyun_config);
+        audio_service_.SetPcmTransport(true);
+        aliyun_mode_ = true;
+    } else
+#endif
+        if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
         protocol_ = std::make_unique<WebsocketProtocol>();
@@ -577,6 +618,13 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
+#if CONFIG_ALIYUN_REALTIME
+        if (packet->pcm) {
+            if (aliyun_mode_)
+                audio_service_.PushPacketToDecodeQueue(std::move(packet));
+            return;
+        }
+#endif
         if (GetDeviceState() == kDeviceStateSpeaking) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
@@ -733,10 +781,9 @@ void Application::InitializeProtocol() {
             if (cJSON_IsObject(payload)) {
                 CJsonStringUniquePtr payload_json(cJSON_PrintUnformatted(payload));
                 if (payload_json) {
-                    Schedule(
-                        [this, display, payload_str = std::string(payload_json.get())]() {
-                            display->SetChatMessage("system", payload_str.c_str());
-                        });
+                    Schedule([this, display, payload_str = std::string(payload_json.get())]() {
+                        display->SetChatMessage("system", payload_str.c_str());
+                    });
                 }
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
@@ -746,6 +793,37 @@ void Application::InitializeProtocol() {
             ESP_LOGW(TAG, "Unknown message type: %s", type->valuestring);
         }
     });
+
+#if CONFIG_ALIYUN_REALTIME
+    if (aliyun_mode_) {
+        auto* aliyun = static_cast<AliyunProtocol*>(protocol_.get());
+        aliyun->OnResponseStarted([this]() {
+            Schedule([this]() {
+                aliyun_response_done_ = false;
+                if (GetDeviceState() == kDeviceStateListening ||
+                    GetDeviceState() == kDeviceStateIdle) {
+                    SetDeviceState(kDeviceStateSpeaking);
+                }
+            });
+        });
+        aliyun->OnResponseDone([this]() {
+            Schedule([this]() {
+                aliyun_response_done_ = true;
+                if (GetDeviceState() == kDeviceStateSpeaking && audio_service_.IsPlaybackIdle()) {
+                    aliyun_response_done_ = false;
+                    SetDeviceState(listening_mode_ == kListeningModeManualStop
+                                       ? kDeviceStateIdle
+                                       : kDeviceStateListening);
+                }
+            });
+        });
+        aliyun->OnTranscript([this, display](bool user, const std::string& text) {
+            Schedule([display, user, text]() {
+                display->SetChatMessage(user ? "user" : "assistant", text.c_str());
+            });
+        });
+    }
+#endif
 
     protocol_->Start();
 }
@@ -913,6 +991,18 @@ void Application::HandleStopListeningEvent() {
         return;
     } else if (state == kDeviceStateListening) {
         if (protocol_) {
+#if CONFIG_ALIYUN_REALTIME
+            if (aliyun_mode_) {
+                audio_service_.EnableVoiceProcessing(false);
+                audio_service_.WaitForEncodeIdle(200);
+                while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+                    protocol_->SendAudio(std::move(packet));
+                }
+                protocol_->SendStopListening();
+                SetDeviceState(kDeviceStateSpeaking);
+                return;
+            }
+#endif
             protocol_->SendStopListening();
         }
         SetDeviceState(kDeviceStateIdle);
@@ -1076,7 +1166,10 @@ void Application::HandleStateChangedEvent() {
                 // Only AFE wake word can be detected in speaking mode
                 audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
-            audio_service_.ResetDecoder();
+#if CONFIG_ALIYUN_REALTIME
+            if (!aliyun_mode_)
+#endif
+                audio_service_.ResetDecoder();
             break;
         case kDeviceStateNotifying:
             display->SetStatus(Lang::Strings::SPEAKING);
@@ -1279,6 +1372,10 @@ void Application::SetListeningMode(ListeningMode mode) {
 }
 
 ListeningMode Application::GetDefaultListeningMode() const {
+#if CONFIG_ALIYUN_REALTIME
+    if (aliyun_mode_)
+        return kListeningModeAutoStop;
+#endif
     return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;
 }
 

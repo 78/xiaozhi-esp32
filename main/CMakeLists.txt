@@ -43,6 +43,13 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
+if(CONFIG_ALIYUN_REALTIME)
+    list(APPEND SOURCES "realtime/config.cc" "realtime/config_web.cc"
+                        "realtime/aliyun_protocol.cc" "realtime/debug_trace.cc")
+    set(REALTIME_EMBED_FILES "realtime/config.html")
+    set(REALTIME_REQUIRES esp_http_server)
+endif()
+
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
 
 # Add board common files
@@ -1194,6 +1201,7 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
 endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_TXTFILES ${REALTIME_EMBED_FILES}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
@@ -1201,6 +1209,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_netif
                         esp_eth
+                        ${REALTIME_REQUIRES}
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi

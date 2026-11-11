@@ -406,46 +406,67 @@ void AudioService::OpusCodecTask() {
             task.playback_id = packet->playback_id;
             task.media_position_ms = packet->media_position_ms;
 
-            SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             bool decoded = false;
-            if (opus_decoder_ != nullptr) {
-                task.pcm.resize(decoder_frame_size_);
-                esp_audio_dec_in_raw_t raw = {
-                    .buffer = (uint8_t*)(packet->payload.data()),
-                    .len = (uint32_t)(packet->payload.size()),
-                    .consumed = 0,
-                    .frame_recover = ESP_AUDIO_DEC_RECOVERY_NONE,
-                };
-                esp_audio_dec_out_frame_t out_frame = {
-                    .buffer = (uint8_t*)(task.pcm.data()),
-                    .len = (uint32_t)(task.pcm.size() * sizeof(int16_t)),
-                    .decoded_size = 0,
-                };
-                esp_audio_dec_info_t dec_info = {};
-                std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
-                auto ret = esp_opus_dec_decode(opus_decoder_, &raw, &out_frame, &dec_info);
-                decoder_lock.unlock();
-                if (ret == ESP_AUDIO_ERR_OK) {
-                    task.pcm.resize(out_frame.decoded_size / sizeof(int16_t));
-                    if (decoder_sample_rate_ != codec_->output_sample_rate() &&
-                        output_resampler_ != nullptr) {
-                        uint32_t target_size = 0;
-                        esp_ae_rate_cvt_get_max_out_sample_num(output_resampler_, task.pcm.size(),
-                                                               &target_size);
-                        std::vector<int16_t> resampled(target_size);
-                        uint32_t actual_output = target_size;
-                        esp_ae_rate_cvt_process(output_resampler_, (esp_ae_sample_t)task.pcm.data(),
-                                                task.pcm.size(), (esp_ae_sample_t)resampled.data(),
-                                                &actual_output);
-                        resampled.resize(actual_output);
-                        task.pcm = std::move(resampled);
-                    }
-                    decoded = true;
-                } else {
-                    ESP_LOGE(TAG, "Failed to decode audio after resize, error code: %d", ret);
+            if (packet->pcm && packet->sample_rate == 24000 &&
+                packet->payload.size() % sizeof(int16_t) == 0 && packet->payload.size() <= 24000) {
+                task.pcm.resize(packet->payload.size() / sizeof(int16_t));
+                std::memcpy(task.pcm.data(), packet->payload.data(), packet->payload.size());
+                SetDecodeSampleRate(packet->sample_rate, 20);
+                if (packet->sample_rate != codec_->output_sample_rate() &&
+                    output_resampler_ != nullptr) {
+                    uint32_t target_size = 0;
+                    esp_ae_rate_cvt_get_max_out_sample_num(output_resampler_, task.pcm.size(),
+                                                           &target_size);
+                    std::vector<int16_t> resampled(target_size);
+                    uint32_t actual_output = target_size;
+                    esp_ae_rate_cvt_process(output_resampler_, (esp_ae_sample_t)task.pcm.data(),
+                                            task.pcm.size(), (esp_ae_sample_t)resampled.data(),
+                                            &actual_output);
+                    resampled.resize(actual_output);
+                    task.pcm = std::move(resampled);
                 }
-            } else {
-                ESP_LOGE(TAG, "Audio decoder is not configured");
+                decoded = !task.pcm.empty();
+            } else if (!packet->pcm) {
+                SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
+                if (opus_decoder_ != nullptr) {
+                    task.pcm.resize(decoder_frame_size_);
+                    esp_audio_dec_in_raw_t raw = {
+                        .buffer = (uint8_t*)(packet->payload.data()),
+                        .len = (uint32_t)(packet->payload.size()),
+                        .consumed = 0,
+                        .frame_recover = ESP_AUDIO_DEC_RECOVERY_NONE,
+                    };
+                    esp_audio_dec_out_frame_t out_frame = {
+                        .buffer = (uint8_t*)(task.pcm.data()),
+                        .len = (uint32_t)(task.pcm.size() * sizeof(int16_t)),
+                        .decoded_size = 0,
+                    };
+                    esp_audio_dec_info_t dec_info = {};
+                    std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
+                    auto ret = esp_opus_dec_decode(opus_decoder_, &raw, &out_frame, &dec_info);
+                    decoder_lock.unlock();
+                    if (ret == ESP_AUDIO_ERR_OK) {
+                        task.pcm.resize(out_frame.decoded_size / sizeof(int16_t));
+                        if (decoder_sample_rate_ != codec_->output_sample_rate() &&
+                            output_resampler_ != nullptr) {
+                            uint32_t target_size = 0;
+                            esp_ae_rate_cvt_get_max_out_sample_num(output_resampler_,
+                                                                   task.pcm.size(), &target_size);
+                            std::vector<int16_t> resampled(target_size);
+                            uint32_t actual_output = target_size;
+                            esp_ae_rate_cvt_process(
+                                output_resampler_, (esp_ae_sample_t)task.pcm.data(),
+                                task.pcm.size(), (esp_ae_sample_t)resampled.data(), &actual_output);
+                            resampled.resize(actual_output);
+                            task.pcm = std::move(resampled);
+                        }
+                        decoded = true;
+                    } else {
+                        ESP_LOGE(TAG, "Failed to decode audio after resize, error code: %d", ret);
+                    }
+                } else {
+                    ESP_LOGE(TAG, "Audio decoder is not configured");
+                }
             }
 
             lock.lock();
@@ -466,6 +487,7 @@ void AudioService::OpusCodecTask() {
         if (!audio_encode_queue_.empty()) {
             auto task = std::move(audio_encode_queue_.front());
             audio_encode_queue_.pop_front();
+            encode_in_flight_ = true;
             audio_queue_cv_.notify_all();
             lock.unlock();
 
@@ -474,7 +496,19 @@ void AudioService::OpusCodecTask() {
             packet->sample_rate = 16000;
             packet->timestamp = task.timestamp;
 
-            if (opus_encoder_ != nullptr && task.pcm.size() == encoder_frame_size_) {
+            if (task.type == kAudioTaskTypeEncodeToSendQueue && pcm_transport_.load()) {
+                packet->pcm = true;
+                packet->payload.resize(task.pcm.size() * sizeof(int16_t));
+                std::memcpy(packet->payload.data(), task.pcm.data(), packet->payload.size());
+                {
+                    std::lock_guard<std::mutex> lock2(audio_queue_mutex_);
+                    if (audio_send_queue_.full())
+                        audio_send_queue_.pop_front();
+                    audio_send_queue_.push_back(std::move(packet));
+                }
+                if (callbacks_.on_send_queue_available)
+                    callbacks_.on_send_queue_available();
+            } else if (opus_encoder_ != nullptr && task.pcm.size() == encoder_frame_size_) {
                 packet->payload.resize(encoder_outbuf_size_);
                 esp_audio_enc_in_frame_t in = {
                     .buffer = (uint8_t*)(task.pcm.data()),
@@ -523,10 +557,19 @@ void AudioService::OpusCodecTask() {
                          task.pcm.size(), encoder_frame_size_);
             }
             lock.lock();
+            encode_in_flight_ = false;
+            audio_queue_cv_.notify_all();
         }
     }
 
     ESP_LOGW(TAG, "Opus codec task stopped");
+}
+
+bool AudioService::WaitForEncodeIdle(int timeout_ms) {
+    std::unique_lock<std::mutex> lock(audio_queue_mutex_);
+    return audio_queue_cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this]() {
+        return audio_encode_queue_.empty() && !encode_in_flight_;
+    });
 }
 
 void AudioService::SetDecodeSampleRate(int sample_rate, int frame_duration) {
@@ -549,14 +592,14 @@ void AudioService::SetDecodeSampleRate(int sample_rate, int frame_duration) {
     decoder_duration_ms_ = frame_duration;
     decoder_frame_size_ = decoder_sample_rate_ / 1000 * frame_duration;
 
+    if (output_resampler_ != nullptr) {
+        esp_ae_rate_cvt_close(output_resampler_);
+        output_resampler_ = nullptr;
+    }
     auto codec = Board::GetInstance().GetAudioCodec();
     if (decoder_sample_rate_ != codec->output_sample_rate()) {
         ESP_LOGI(TAG, "Resampling audio from %d to %d", decoder_sample_rate_,
                  codec->output_sample_rate());
-        if (output_resampler_ != nullptr) {
-            esp_ae_rate_cvt_close(output_resampler_);
-            output_resampler_ = nullptr;
-        }
         esp_ae_rate_cvt_cfg_t output_resampler_cfg =
             RATE_CVT_CFG(decoder_sample_rate_, codec->output_sample_rate(), ESP_AUDIO_MONO);
         auto resampler_ret = esp_ae_rate_cvt_open(&output_resampler_cfg, &output_resampler_);

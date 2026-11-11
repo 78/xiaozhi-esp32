@@ -6,6 +6,15 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config ALIYUN_REALTIME
+    bool "Enable Aliyun Realtime development integration"
+    default y if BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_LCD_3_5B
+    default n
+    depends on IDF_TARGET_ESP32S3
+    help
+        Adds the LAN device configuration page and Aliyun Realtime voice path.
+        This first implementation targets the Waveshare ESP32-S3 Touch LCD 3.5B.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE
