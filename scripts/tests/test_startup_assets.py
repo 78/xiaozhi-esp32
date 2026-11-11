@@ -31,6 +31,7 @@ class StartupAssetsTests(unittest.TestCase):
         ))
         platform = r'''
             #include <cassert>
+            #include <cstdint>
             #include <cstdio>
             #include <functional>
             #include <string>
