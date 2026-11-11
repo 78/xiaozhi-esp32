@@ -6,14 +6,18 @@
 
 #define TAG "PowerSaveTimer"
 
-
 PowerSaveTimer::PowerSaveTimer(int cpu_max_freq, int seconds_to_sleep, int seconds_to_shutdown)
-    : cpu_max_freq_(cpu_max_freq), seconds_to_sleep_(seconds_to_sleep), seconds_to_shutdown_(seconds_to_shutdown) {
+    : cpu_max_freq_(cpu_max_freq),
+      default_seconds_to_sleep_(seconds_to_sleep),
+      default_seconds_to_shutdown_(seconds_to_shutdown),
+      seconds_to_sleep_(seconds_to_sleep),
+      seconds_to_shutdown_(seconds_to_shutdown) {
     esp_timer_create_args_t timer_args = {
-        .callback = [](void* arg) {
-            auto self = static_cast<PowerSaveTimer*>(arg);
-            self->PowerSaveCheck();
-        },
+        .callback =
+            [](void* arg) {
+                auto self = static_cast<PowerSaveTimer*>(arg);
+                self->PowerSaveCheck();
+            },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
         .name = "power_save_timer",
@@ -29,22 +33,56 @@ PowerSaveTimer::~PowerSaveTimer() {
 
 void PowerSaveTimer::SetEnabled(bool enabled) {
     if (enabled && !enabled_) {
-        Settings settings("wifi", false);
-        if (!settings.GetBool("sleep_mode", true)) {
-            ESP_LOGI(TAG, "Power save timer is disabled by settings");
-            return;
-        }
-
         ticks_ = 0;
         shutdown_requested_ = false;
         enabled_ = enabled;
+        // With sleep_mode off this leaves both steps disabled (-1), but the
+        // timer still runs so enabling it later in the web config applies
+        // without a reboot.
+        ApplySettings();
         ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
-        ESP_LOGI(TAG, "Power save timer enabled");
+        ESP_LOGI(TAG, "Power save timer enabled (sleep=%d s, shutdown=%d s)", seconds_to_sleep_,
+                 seconds_to_shutdown_);
     } else if (!enabled && enabled_) {
         ESP_ERROR_CHECK(esp_timer_stop(power_save_timer_));
         enabled_ = enabled;
         WakeUp();
         ESP_LOGI(TAG, "Power save timer disabled");
+    }
+}
+
+// Re-read the sleep timer values from settings. NVS keys (minutes) win over the
+// board's constructor defaults; 0 disables that step; when sleep_mode is off
+// both steps are disabled. Numeric changes keep the current idle countdown.
+void PowerSaveTimer::ApplySettings() {
+    Settings settings("wifi", false);
+    const bool sleep_enabled = settings.GetBool("sleep_mode", true);
+    int eff_sleep = -1;
+    int eff_shutdown = -1;
+    if (sleep_enabled) {
+        auto seconds_from_minutes = [](int minutes, int fallback) {
+            // Match the portal's contract and validate before multiplying.
+            if (minutes < 0 || minutes > 1440) {
+                return fallback;
+            }
+            return minutes == 0 ? -1 : minutes * 60;
+        };
+        // NVS keys are limited to 15 characters.
+        eff_sleep =
+            seconds_from_minutes(settings.GetInt("sleep_dim_min", -1), default_seconds_to_sleep_);
+        eff_shutdown = seconds_from_minutes(settings.GetInt("sleep_off_min", -1),
+                                            default_seconds_to_shutdown_);
+    }
+    if (eff_sleep != seconds_to_sleep_ || eff_shutdown != seconds_to_shutdown_) {
+        ESP_LOGI(TAG, "Sleep timers updated: sleep=%d s, shutdown=%d s", eff_sleep, eff_shutdown);
+        seconds_to_sleep_ = eff_sleep;
+        seconds_to_shutdown_ = eff_shutdown;
+    }
+    if (!sleep_enabled) {
+        WakeUp();
+    } else if (seconds_to_sleep_ == -1) {
+        // Disabling dimming restores the screen without delaying an active shutdown deadline.
+        ExitSleepMode();
     }
 }
 
@@ -61,8 +99,21 @@ void PowerSaveTimer::OnShutdownRequest(std::function<void()> callback) {
 }
 
 void PowerSaveTimer::PowerSaveCheck() {
+    // Pick up sleep timer changes saved through the web config without a reboot.
+    ApplySettings();
+
+    if (seconds_to_sleep_ == -1 && seconds_to_shutdown_ == -1) {
+        // Continue polling settings, but enabling a step must start a fresh idle cycle.
+        ticks_ = 0;
+        shutdown_requested_ = false;
+        return;
+    }
+
     auto& app = Application::GetInstance();
     if (!in_sleep_mode_ && !app.CanEnterSleepMode()) {
+        if (ticks_ > 0) {
+            ESP_LOGI(TAG, "Activity detected, power save timer reset");
+        }
         ticks_ = 0;
         shutdown_requested_ = false;
         return;
@@ -111,6 +162,10 @@ void PowerSaveTimer::PowerSaveCheck() {
 void PowerSaveTimer::WakeUp() {
     ticks_ = 0;
     shutdown_requested_ = false;
+    ExitSleepMode();
+}
+
+void PowerSaveTimer::ExitSleepMode() {
     if (in_sleep_mode_) {
         ESP_LOGI(TAG, "Exiting power save mode");
         in_sleep_mode_ = false;
