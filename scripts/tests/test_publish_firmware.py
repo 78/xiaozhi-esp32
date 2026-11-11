@@ -12,7 +12,9 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-SPEC = importlib.util.spec_from_file_location("release_tooling", ROOT / "scripts/release.py")
+SPEC = importlib.util.spec_from_file_location(
+    "publish_firmware_tooling", ROOT / "scripts/publish_firmware.py"
+)
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
 

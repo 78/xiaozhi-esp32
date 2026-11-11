@@ -1,8 +1,8 @@
-# M5Stack CoreP4
+# M5Stack CoreP4X
 
 
 - **MCU**: ESP32-P4
-- **PSRAM**: 8MB
+- **PSRAM**: 32MB
 - **Flash**: 16MB
 - **Wi-Fi**: ESP32-C6, ESP-Hosted SDIO
 - **Display**: 480x480 MIPI LCD, Capacitive Touch Panel
@@ -33,10 +33,11 @@
     * RST    -- M5IOE1_G11
     * BL     -- M5IOE1_G9/PWM1
 * **Touch Panel**
-    * Driver: CST3xx
+    * Driver: CST3530
     * Interface: I2C1
     * RST -- M5IOE1_G8
-    * INT -- G1
+    * INT -- GPIO1
+    * Tap anywhere on the screen to start or stop a conversation
 * **Audio**
     * PWR_EN -- M5IOE1_G1 (Active High)
     * ADC: ES7210
@@ -52,28 +53,20 @@
             * DIN  -- G5
     * PA: AW8737A
         * EN -- M5IOE1_G3 (Active High)
-* **IMU: BMI270**
-    * Interface: I2C1 @0x68
+* **IMU: LSM6DS3TR-C**
+    * Interface: I2C1 @0x6A
     * INT -- G0
 * **RTC: RX8130CE**
     * Interface: I2C1 @0x51
     * INT -- G4
 
 -----------
-## 构建
+## Build
 
-CoreP4 使用 ESP32-C6 作为 Wi-Fi 协处理器，通过 ESP-Hosted SDIO 连接。板级配置已包含实际使用的 SDIO 引脚和复位引脚。
-
-早期 ESP32-P4 芯片使用 ESP-IDF 5.5：
+CoreP4X uses an ESP32-C6 as the Wi-Fi coprocessor over ESP-Hosted SDIO. The board configuration includes the required SDIO and reset pins.
 
 ```bash
-python3 scripts/build.py m5stack/corep4 --name m5stack-corep4 --zip
+python3 scripts/build.py m5stack/corep4x --name m5stack-corep4x --zip
 ```
 
-ESP32-P4 v3.x（P4X）使用 ESP-IDF 6.0 或更高版本：
-
-```bash
-python3 scripts/build.py m5stack/corep4 --name m5stack-corep4x --zip
-```
-
-构建脚本会生成合并固件和 release ZIP。烧录前请确认设备使用的 ESP32-P4 芯片版本与构建变体一致。
+The build script generates a merged firmware image and a release ZIP archive.

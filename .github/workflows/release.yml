@@ -47,7 +47,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          python3 scripts/release.py prepare \
+          python3 scripts/publish_firmware.py prepare \
             --idf-version 6.1.0 \
             --source-sha "$RELEASE_SHA" \
             --repository "$GITHUB_REPOSITORY" \
@@ -125,7 +125,7 @@ jobs:
           if [[ "$PUBLISH" == "true" ]]; then
             OPTIONS+=(--make-public)
           fi
-          python3 scripts/release.py publish \
+          python3 scripts/publish_firmware.py publish \
             --manifest release-metadata/release-manifest.json \
             --assets-dir release-assets \
             --metadata-dir release-metadata \

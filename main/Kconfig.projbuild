@@ -361,8 +361,8 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_CARDPUTER_ADV
         bool "M5Stack Cardputer Adv"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_M5STACK_CORE_P4
-        bool "M5Stack CoreP4"
+    config BOARD_TYPE_M5STACK_CORE_P4X
+        bool "M5Stack CoreP4X"
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
@@ -813,6 +813,14 @@ choice DISPLAY_OLED_TYPE
         bool "SH1106 128*64"
 endchoice
 
+
+config BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
+    bool "Disable LCD (frees GPIO19/20 for built-in USB-JTAG debugging)"
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    default n
+    help
+        The LCD SPI uses GPIO19/GPIO20, which are the ESP32-S3 USB D-/D+ pins.
+        Enable this to run without the LCD so USB-Serial/JTAG stays available.
 
 choice DISPLAY_LCD_TYPE
     depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_WDMOMO_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM || (BOARD_TYPE_WK_ESP32S3_DEV && WK_ESP32S3_DEV_DISPLAY_LCD)
