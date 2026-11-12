@@ -117,23 +117,28 @@ bool EmojiWidget::SetEmotion(const char* emotion) {
         return false;
     }
 
-    using Param = std::tuple<std::string, bool, int>;
-    static const std::unordered_map<std::string, Param> emotion_map = {
-        {"happy", {"happy_loop", true, 25}},       {"laughing", {"happy_loop", true, 25}},
-        {"funny", {"happy_loop", true, 25}},       {"loving", {"happy_loop", true, 25}},
-        {"embarrassed", {"happy_loop", true, 25}}, {"confident", {"happy_loop", true, 25}},
-        {"delicious", {"happy_loop", true, 25}},   {"sad", {"sad_loop", true, 25}},
-        {"crying", {"sad_loop", true, 25}},        {"sleepy", {"sad_loop", true, 25}},
-        {"silly", {"sad_loop", true, 25}},         {"angry", {"anger_loop", true, 25}},
-        {"surprised", {"panic_loop", true, 25}},   {"shocked", {"panic_loop", true, 25}},
-        {"thinking", {"happy_loop", true, 25}},    {"winking", {"blink_quick", true, 5}},
-        {"relaxed", {"scorn_loop", true, 25}},     {"confused", {"scorn_loop", true, 25}},
+    struct EmotionMapping {
+        const char* emotion;
+        const char* asset;
+        bool repeat;
+        int fps;
+    };
+    static constexpr EmotionMapping emotion_map[] = {
+        {"happy", "happy_loop", true, 25},       {"laughing", "happy_loop", true, 25},
+        {"funny", "happy_loop", true, 25},       {"loving", "happy_loop", true, 25},
+        {"embarrassed", "happy_loop", true, 25}, {"confident", "happy_loop", true, 25},
+        {"delicious", "happy_loop", true, 25},   {"sad", "sad_loop", true, 25},
+        {"crying", "sad_loop", true, 25},        {"sleepy", "sad_loop", true, 25},
+        {"silly", "sad_loop", true, 25},         {"angry", "anger_loop", true, 25},
+        {"surprised", "panic_loop", true, 25},   {"shocked", "panic_loop", true, 25},
+        {"thinking", "happy_loop", true, 25},    {"winking", "blink_quick", true, 5},
+        {"relaxed", "scorn_loop", true, 25},     {"confused", "scorn_loop", true, 25},
     };
 
-    auto it = emotion_map.find(emotion);
-    if (it != emotion_map.end()) {
-        const auto& [aaf, repeat, fps] = it->second;
-        return player_->StartPlayer(aaf, repeat, fps);
+    for (const auto& mapping : emotion_map) {
+        if (strcmp(emotion, mapping.emotion) == 0) {
+            return player_->StartPlayer(mapping.asset, mapping.repeat, mapping.fps);
+        }
     }
     // "neutral" is a request this widget deliberately has nothing to play for, which is still
     // an accepted request rather than a missing resource.
