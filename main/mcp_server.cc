@@ -561,9 +561,16 @@ void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) 
             ReplyError(context, -32602, "Invalid tool name or arguments", response_sender);
             return;
         }
-        if (context.modern && strcmp(name->valuestring, "self.camera.take_photo") == 0 &&
-            std::any_of(tools_.begin(), tools_.end(),
-                        [&](const auto& tool) { return tool->name() == name->valuestring; })) {
+        auto tool = std::find_if(tools_.begin(), tools_.end(), [&](const auto& item) {
+            return item->name() == name->valuestring;
+        });
+        if (tool == tools_.end()) {
+            std::string error = "Unknown tool: ";
+            error += name->valuestring;
+            ReplyError(context, -32602, error, response_sender);
+            return;
+        }
+        if (context.modern && (*tool)->name() == "self.camera.take_photo") {
             auto vision = cJSON_GetObjectItemCaseSensitive(extensions, kVisionExtension);
             if (!vision) {
                 ReplyError(context, -32021, "Missing required client capability", response_sender,
@@ -578,7 +585,7 @@ void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) 
                 return;
             }
         }
-        DoToolCall(std::move(context), name->valuestring, arguments, std::move(response_sender));
+        DoToolCall(std::move(context), tool->get(), arguments, std::move(response_sender));
     } else {
         ReplyError(context, -32601, "Method not implemented: " + std::string(method_name),
                    response_sender);
@@ -697,16 +704,8 @@ void McpServer::GetToolsList(const McpRequestContext& context, const std::string
     ReplyResult(context, json, response_sender);
 }
 
-void McpServer::DoToolCall(McpRequestContext context, const std::string& tool_name,
-                           const cJSON* tool_arguments, ResponseSender response_sender) {
-    auto tool_iter = std::find_if(tools_.begin(), tools_.end(), [&tool_name](const auto& tool) {
-        return tool->name() == tool_name;
-    });
-    if (tool_iter == tools_.end()) {
-        ReplyError(context, -32602, "Unknown tool: " + tool_name, response_sender);
-        return;
-    }
-    McpTool* tool = tool_iter->get();
+void McpServer::DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
+                           ResponseSender response_sender) {
     PropertyList arguments = tool->properties();
     for (auto& argument : arguments) {
         bool found = false;

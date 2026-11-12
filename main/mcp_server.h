@@ -490,8 +490,8 @@ private:
 
     void GetToolsList(const McpRequestContext& context, const std::string& cursor,
                       bool list_user_only_tools, const ResponseSender& response_sender);
-    void DoToolCall(McpRequestContext context, const std::string& tool_name,
-                    const cJSON* tool_arguments, ResponseSender response_sender);
+    void DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
+                    ResponseSender response_sender);
 
     std::vector<std::unique_ptr<McpTool>> tools_;
 };
