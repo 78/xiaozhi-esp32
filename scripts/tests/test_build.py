@@ -4,6 +4,8 @@ import os
 import contextlib
 import io
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -1213,6 +1215,81 @@ class BuildOptionTests(unittest.TestCase):
             ROOT / "main/boards/bread-compact-esp32/config.h"
         ).read_text(encoding="utf-8")
         self.assertIn("CONFIG_OLED_SH1106_128X64", config_header)
+
+    def test_unsupported_board_display_models_are_rejected(self):
+        unsupported = {
+            "bread-compact-esp32-lcd": {
+                "LCD_NV3030B_240X320", "LCD_ST7796_320X480_NO_IPS",
+            },
+            "bread-compact-wifi-lcd": {"LCD_NV3030B_240X320"},
+            "bread-compact-wifi-s3cam": {"LCD_NV3030B_240X320"},
+            "bread-compact-ml307": {"OLED_SH1106_128X64"},
+            "wdmomo/esp32-cgc": {
+                "LCD_NV3030B_240X320", "LCD_ST7796_320X480_NO_IPS",
+            },
+        }
+        variants = build._collect_variants(idf_version=(6, 1, 0))
+        for board, models in unsupported.items():
+            board_variants = [v for v in variants if v["board"] == board]
+            self.assertTrue(board_variants, board)
+            for variant in board_variants:
+                definitions = variant["build_options"]
+                defaults = build._normalize_build_options(definitions, {})
+                fragment = build._build_options_sdkconfig(definitions, defaults, {})
+                for model in models:
+                    with self.subTest(board=board, name=variant["name"], model=model):
+                        with self.assertRaisesRegex(ValueError, "display_model must be one of"):
+                            build._normalize_build_options(definitions, {"display_model": model})
+                        self.assertIn(f"CONFIG_{model}=n", fragment)
+
+        fixed_display = next(v for v in variants if v["board"] == "hu-087")
+        self.assertNotIn("display_model", {o["key"] for o in fixed_display["build_options"]})
+
+    @unittest.skipUnless(shutil.which("cc"), "requires a C preprocessor")
+    def test_exposed_display_models_define_required_panel_configuration(self):
+        variants = build._collect_variants(idf_version=(6, 1, 0))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "driver").mkdir()
+            (root / "driver/gpio.h").write_text("", encoding="utf-8")
+            for variant in variants:
+                option = next((o for o in variant["build_options"]
+                               if o["key"] == "display_model"), None)
+                if option is None:
+                    continue
+                board_dir = ROOT / "main/boards" / variant["board"]
+                board_source = "\n".join(p.read_text(encoding="utf-8")
+                                         for p in board_dir.rglob("*.cc"))
+                for choice in option["choices"]:
+                    with self.subTest(board=variant["name"], model=choice["value"]):
+                        options = build._normalize_build_options(
+                            variant["build_options"], {"display_model": choice["value"]}
+                        )
+                        fragment = build._build_options_sdkconfig(
+                            variant["build_options"], options, {}
+                        )
+                        source = "\n".join(f"#define {line.split('=')[0]} 1"
+                                           for line in fragment if line.endswith("=y"))
+                        if variant["board"] == "wk-esp32s3-dev":
+                            # The WK display family is a separate Kconfig choice
+                            # whose default is OLED, before the panel selection.
+                            source += "\n#define CONFIG_WK_ESP32S3_DEV_DISPLAY_OLED 1"
+                        source += f'\n#include "{board_dir / "config.h"}"\n'
+                        required = ["DISPLAY_WIDTH", "DISPLAY_HEIGHT"]
+                        if choice["value"].startswith("LCD_"):
+                            required.extend((
+                                "DISPLAY_BACKLIGHT_OUTPUT_INVERT", "DISPLAY_RGB_ORDER",
+                                "DISPLAY_SWAP_XY", "DISPLAY_MIRROR_X", "DISPLAY_MIRROR_Y",
+                                "DISPLAY_OFFSET_X", "DISPLAY_OFFSET_Y", "DISPLAY_SPI_MODE",
+                            ))
+                        for symbol in required:
+                            if re.search(rf"\b{symbol}\b", board_source):
+                                source += f"#ifndef {symbol}\n#error Missing {symbol}\n#endif\n"
+                        result = subprocess.run(
+                            ["cc", "-E", "-x", "c", "-I", directory, "-"],
+                            input=source, text=True, capture_output=True,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_bread_compact_nt26_supports_sh1106(self):
         board_dir = ROOT / "main/boards/bread-compact-nt26"

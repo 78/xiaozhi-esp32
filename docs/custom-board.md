@@ -147,6 +147,13 @@ or performance reasons may set `CONFIG_WAKE_WORD_DISABLED=y` in
 `sdkconfig_append`. The build script preserves this opt-out and reports the
 variant's `wake_word_supported` as `false`.
 
+Shared OLED/LCD Kconfig choices do not imply that every listed panel is
+implemented by every board. The build script exposes `display_model` options
+only when the board's own source/config references the corresponding
+`CONFIG_OLED_*` or `CONFIG_LCD_*` symbol. Add the panel initialization and all
+required dimensions/backlight settings together when supporting another
+model. Fixed-display boards without model branches do not expose this option.
+
 ### 3. Implement the Board Class
 
 Create `my_custom_board.cc` containing the board-level implementation.
