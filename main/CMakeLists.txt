@@ -1233,6 +1233,13 @@ idf_component_register(SRCS ${SOURCES}
 # dialect; pin the baseline so main/ does not depend on it.
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+    # Bound individual frames in project-owned code; task call chains still need runtime checks.
+    target_compile_options(${COMPONENT_LIB} PRIVATE
+        -Werror=frame-larger-than=1536
+        -Werror=vla
+        -Werror=alloca
+        $<$<COMPILE_LANG_AND_ID:C,GNU>:-fstack-usage>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fstack-usage>)
 endif()
 
 # Use target_compile_definitions to define the reported board identity

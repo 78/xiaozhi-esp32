@@ -2,9 +2,9 @@
 
 [简体中文](mqtt-udp-probe_zh.md) | [Base MQTT + UDP protocol](mqtt-udp.md)
 
-**Status: client implemented; server implementation pending.** The client follows this specification
-and enables probing only after negotiation. Server implementation and end-to-end hardware validation
-are the next stage; the acceptance criteria below are not a claim that all integration checks passed.
+**Status: client and gateway server implemented; normal-path hardware validation passed.**
+Probes are enabled only after bilateral negotiation. Packet-loss, blocked-UDP and legacy fallback
+fault injection still require hardware validation; the acceptance checklist is not a record of completed tests.
 
 ## 1. Purpose and scope
 

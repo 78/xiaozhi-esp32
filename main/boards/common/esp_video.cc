@@ -943,12 +943,18 @@ bool EspVideo::SetVFlip(bool enabled) {
  * @param question 要向AI提出的关于图像的问题，将作为表单字段发送
  * @return 成功时返回服务器的 JSON 响应，失败时返回可读错误信息
  *
- * @note 调用此函数前必须先调用SetExplainUrl()设置服务器URL
+ * @note 旧入口使用SetExplainUrl()配置，新入口显式接收本次调用的URL和token
  * @note 函数会等待之前的编码线程完成后再开始新的处理
  * @warning 如果摄像头缓冲区为空或网络连接失败，将返回错误信息
  */
 std::expected<std::string, std::string> EspVideo::Explain(const std::string& question) {
-    if (explain_url_.empty()) {
+    return Explain(question, explain_url_, explain_token_);
+}
+
+std::expected<std::string, std::string> EspVideo::Explain(const std::string& question,
+                                                          const std::string& url,
+                                                          const std::string& token) {
+    if (url.empty()) {
         return std::unexpected("Image explain URL or token is not set");
     }
 
@@ -1033,12 +1039,12 @@ std::expected<std::string, std::string> EspVideo::Explain(const std::string& que
     auto http = network->CreateHttp(3);
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
-    if (!explain_token_.empty()) {
-        http->SetHeader("Authorization", "Bearer " + explain_token_);
+    if (!token.empty()) {
+        http->SetHeader("Authorization", "Bearer " + token);
     }
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     http->SetContent(std::move(body));
-    if (auto opened = http->Open("POST", explain_url_); !opened) {
+    if (auto opened = http->Open("POST", url); !opened) {
         ESP_LOGE(TAG, "Failed to upload photo: %s", opened.error().ToString().c_str());
         http->Close();
         return std::unexpected("Failed to upload photo");

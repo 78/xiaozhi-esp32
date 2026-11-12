@@ -70,6 +70,9 @@ public:
     virtual bool SetHMirror(bool enabled) override;
     virtual bool SetVFlip(bool enabled) override;
     virtual std::expected<std::string, std::string> Explain(const std::string& question) override;
+    std::expected<std::string, std::string> Explain(const std::string& question,
+                                                    const std::string& url,
+                                                    const std::string& token) override;
 };
 
 #endif  // ESP32_CAMERA_H

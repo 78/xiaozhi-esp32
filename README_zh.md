@@ -123,6 +123,7 @@
 ### 开发者文档
 
 - [自定义开发板指南](docs/custom-board_zh.md) - 学习如何为小智 AI 创建自定义开发板
+- [OTA 配置、激活与固件升级接口](docs/ota_zh.md) - 设备引导 HTTP 接口及协议能力上报
 - [MCP 协议物联网控制用法说明](docs/mcp-usage_zh.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol_zh.md) - 设备端 MCP 协议的实现方式
 - [MQTT + UDP 混合通信协议文档](docs/mqtt-udp_zh.md)

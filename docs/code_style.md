@@ -80,6 +80,15 @@ Make sure `clang-format` is available before you use it:
   them as recoverable runtime errors.
 - Realtime audio paths use bounded queues and avoid repeated allocation. Use fixed-capacity storage
   when the maximum is known; add a pool only after profiling shows churn or fragmentation.
+- Project-owned `main` sources enforce a 1536-byte function stack-frame limit at compilation.
+  Variable-length arrays and `alloca` are rejected. GCC also writes `.su` stack-usage reports beside
+  object files under `build/esp-idf/main/CMakeFiles/`.
+- Build protocol messages by appending to an owned string. Avoid long `operator+` chains that keep
+  several temporary strings alive in one expression. Moving an expression across source lines
+  does not reduce its memory use.
+- A function-frame limit does not bound the complete task call chain or heap allocations. Verify
+  task stack high-water marks and free internal heap on hardware; do not increase task stacks or
+  disable the frame limit to accommodate large local workspaces.
 
 ### Notes
 

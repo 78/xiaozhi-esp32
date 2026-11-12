@@ -123,6 +123,7 @@ Use the `release/v6.1` branch rather than the `v6.1` release tag: an ESP32-C3 Wi
 ### Developer Documentation
 
 - [Custom Board Guide](docs/custom-board.md) - Learn how to create custom boards for XiaoZhi AI
+- [OTA Configuration, Activation, and Firmware Updates](docs/ota.md) - Device bootstrap HTTP API and protocol capability reporting
 - [MCP Protocol IoT Control Usage](docs/mcp-usage.md) - Learn how to control IoT devices via MCP protocol
 - [MCP Protocol Interaction Flow](docs/mcp-protocol.md) - Device-side MCP protocol implementation
 - [MQTT + UDP Hybrid Communication Protocol Document](docs/mqtt-udp.md)

@@ -464,14 +464,7 @@ std::string MqttProtocol::GetHelloMessage() {
     cJSON_AddStringToObject(root, "type", "hello");
     cJSON_AddNumberToObject(root, "version", 3);
     cJSON_AddStringToObject(root, "transport", "udp");
-    cJSON* features = cJSON_CreateObject();
-#if CONFIG_USE_SERVER_AEC
-    cJSON_AddBoolToObject(features, "aec", true);
-#endif
-    cJSON_AddBoolToObject(features, "mcp", true);
-    cJSON_AddBoolToObject(features, "udp_probe", true);
-    cJSON_AddItemToObject(root, "features", features);
-    AddTextFontCapabilities(root);
+    AddClientCapabilities(root);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");
     cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);

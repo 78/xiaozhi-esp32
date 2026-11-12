@@ -1,269 +1,575 @@
-# MCP (Model Context Protocol) 交互流程
+# WebSocket 与 MQTT 上的 MCP 协议
 
-NOTICE: AI 辅助生成, 在实现后台服务时, 请参照代码确认细节!!
+[English](mcp-protocol.md) | [工具注册](mcp-usage_zh.md)
 
-本项目中的 MCP 协议用于后台 API（MCP 客户端）与 ESP32 设备（MCP 服务器）之间的通信，以便后台能够发现和调用设备提供的功能（工具）。
+设备是 **MCP 服务端**，调用工具的后端/网关是 **MCP 客户端**。
+固件在两种传输上同时支持旧版 `2024-11-05` 和新版 `2026-07-28`。
+网关发现、预取及可选凭据提示需要服务端配套。
 
-## 协议格式
+## 1. 版本与兼容性
 
-根据代码 (`main/protocols/protocol.cc`, `main/mcp_server.cc`)，MCP 消息是封装在基础通信协议（如 WebSocket 或 MQTT）的消息体中的。其内部结构遵循 [JSON-RPC 2.0](https://www.jsonrpc.org/specification) 规范。
+新版是[破坏性协议更新](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)。
+新版省去初始化，不取消 `tools/list`。固件保留两套请求格式以兼容，不代表支持中间所有版本。
 
-整体消息结构示例：
+| 后端/网关 | 设备 | 流程 |
+|---|---|---|
+| 旧版 | 旧版或双版本 | `initialize` → `tools/list` → `tools/call`。 |
+| 双版本 | 旧版 | 发现返回 `-32601` → 旧版初始化、预热目录。 |
+| 双版本 | 双版本 | 新版发现、预热目录；每次调用携带元数据。 |
+| 仅新版 | 仅旧版 | 没有旧版回退则不兼容。 |
+
+版本选择不依赖对话 hello。`features.mcp` 保持 true，`mcp_20260728` 表示支持新版。
+OTA `protocol.features` 与两个 hello 共用能力来源，见 [OTA 协议能力上报](ota_zh.md#23-协议能力)。
+
+## 2. 传输与连接预热
+
+MCP 使用 WebSocket 文本或现有 MQTT 控制主题，不走 UDP 音频通道。
+下方每个报文都是完整小智消息：`type: "mcp"` 包装 JSON-RPC `payload`。
+外层 `session_id` 属于对话/路由；MQTT 连接预热时尚无对话 ID，后续调用按现有路由携带。
+传输 hello 和音频格式见 [WebSocket](websocket_zh.md)、[MQTT/UDP](mqtt-udp_zh.md)。
+
+MQTT 认证连接且控制路由就绪后，网关立即发现版本、读取**全部**工具分页并缓存，早于对话 hello。
+首次探测使用整数 ID，避免旧固件忽略字符串 ID。直连 WebSocket 后端在原有传输 hello 后开始该流程。
+
+```mermaid
+sequenceDiagram
+    participant D as Device (MCP server)
+    participant G as Gateway (MCP client)
+    D->>G: MQTT CONNECT
+    G->>D: CONNACK
+    par MCP warmup on the control route
+        G->>D: server/discover (integer ID, unless a trusted hint selects the version)
+        alt Modern device
+            D->>G: Supported versions and capabilities
+        else Legacy device
+            D->>G: -32601
+            G->>D: Legacy initialize
+            D->>G: Legacy initialize result
+        end
+        G->>D: tools/list (all pages, selected format)
+        D->>G: Tool catalog
+        Note over G: Cache catalog for this connection
+    and Conversation independently on wake
+        D->>G: Conversation hello, listen, audio
+        G->>D: Hello reply, TTS, audio
+    end
+```
+
+每条连接只运行一个有界预热流程。重复唤醒/hello 复用已选版本及有效目录，重连才重新选择。
+预热失败时工具暂不可用，语音继续。旧设备会在连接时多一次失败的发现往返，不是每次唤醒多一步。
+
+### 2.1 可选网关版本提示
+
+OTA 服务可以依据能力上报，通过与网关约定的凭据机制传递可信 `mcp_version` 提示。
+编码和认证属于服务接入约定，固件原样使用返回的 MQTT 凭据。
+
+| 可识别的可信提示 | 预热方式 |
+|---|---|
+| `2026-07-28` | 直接新版 `tools/list`，不初始化。 |
+| `2024-11-05` | 旧版 `initialize`，再 `tools/list`。 |
+| 缺失/不识别 | 按下文发现、回退。 |
+
+提示描述当前运行固件。缓存凭据可能跨越升级/回滚；只读预热遇到版本不匹配时重新发现，不重放工具调用。
+
+## 3. 新版请求与响应规则
+
+每条新版请求，包括发现及每次分页，都携带 `payload.params._meta`：
+
+| 键 | 取值 |
+|---|---|
+| `io.modelcontextprotocol/protocolVersion` | 必填字符串：`"2026-07-28"`。 |
+| `io.modelcontextprotocol/clientCapabilities` | 必填对象；普通调用使用 `{}`。 |
+| `io.modelcontextprotocol/clientInfo` | 可选身份信息，包含字符串 `name`、`version`，建议提供。 |
+
+新版成功结果有 `resultType: "complete"`，固件同时返回
+`result._meta["io.modelcontextprotocol/serverInfo"]`。错误使用 `error`，不使用 `result`。
+参见[官方基础协议](https://modelcontextprotocol.io/specification/2026-07-28/basic/index)。
+
+- ID 支持字符串或 ±(2^53−1) 范围内的整数，响应保留值及 JSON 类型。
+  拒绝 null、小数、布尔、对象和数组 ID。通知没有 ID，不回复。
+- 每条请求独立选择处理器。新版元数据或 `server/discover` 必须带合法新版字段；
+  非法新版请求不会进入旧版。没有新版标记的列表、调用保留旧行为。
+- 不支持的版本返回 `-32022`。选择 `2024-11-05` 要走旧版流程，不能放进新版元数据中使用。
+  不相关的未知元数据忽略。
+- 设备只声明工具和可用的视觉扩展，不实现资源、提示词等其他 MCP 可选能力。
+
+## 4. 发现
+
+网关在 MQTT 对话 hello 前发送：
 
 ```json
 {
-  "session_id": "...", // 会话 ID
-  "type": "mcp",       // 消息类型，固定为 "mcp"
-  "payload": {         // JSON-RPC 2.0 负载
+  "type": "mcp",
+  "payload": {
     "jsonrpc": "2.0",
-    "method": "...",   // 方法名 (如 "initialize", "tools/list", "tools/call")
-    "params": { ... }, // 方法参数 (对于 request)
-    "id": ...,         // 请求 ID (对于 request 和 response)
-    "result": { ... }, // 方法执行结果 (对于 success response)
-    "error": { ... }   // 错误信息 (对于 error response)
+    "id": 10000,
+    "method": "server/discover",
+    "params": {
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "xiaozhi-backend",
+          "version": "example-backend"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {}
+      }
+    }
   }
 }
 ```
 
-其中，`payload` 部分是标准的 JSON-RPC 2.0 消息：
+有摄像头工具的设备回复：
 
-- `jsonrpc`: 固定的字符串 "2.0"。
-- `method`: 要调用的方法名称 (对于 Request)。
-- `params`: 方法的参数，一个结构化值，通常为对象 (对于 Request)。
-- `id`: 请求的标识符，客户端发送请求时提供，服务器响应时原样返回。用于匹配请求和响应。
-- `result`: 方法成功执行时的结果 (对于 Success Response)。
-- `error`: 方法执行失败时的错误信息 (对于 Error Response)。
-
-## 交互流程及发送时机
-
-MCP 的交互主要围绕客户端（后台 API）发现和调用设备上的“工具”（Tool）进行。
-
-1.  **连接建立与能力通告**
-
-    - **时机：** 设备启动并成功连接到后台 API 后。
-    - **发送方：** 设备。
-    - **消息：** 设备发送基础协议的 "hello" 消息给后台 API，消息中包含设备支持的能力列表，例如通过支持 MCP 协议 (`"mcp": true`)。
-    - **示例 (非 MCP 负载，而是基础协议消息):**
-      ```json
-      {
-        "type": "hello",
-        "version": ...,
-        "features": {
-          "mcp": true,
-          ...
-        },
-        "transport": "websocket", // 或 "mqtt"
-        "audio_params": { ... },
-        "session_id": "..." // 设备收到服务器hello后可能设置
-      }
-      ```
-
-2.  **初始化 MCP 会话**
-
-    - **时机：** 后台 API 收到设备 "hello" 消息，确认设备支持 MCP 后，通常作为 MCP 会话的第一个请求发送。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `initialize`
-    - **消息 (MCP payload):**
-
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "method": "initialize",
-        "params": {
-          "capabilities": {
-            // 客户端能力，可选
-
-            // 摄像头视觉相关
-            "vision": {
-              "url": "...", //摄像头: 图片处理地址(必须是http地址, 不是websocket地址)
-              "token": "..." // url token
-            }
-
-            // ... 其他客户端能力
-          }
-        },
-        "id": 1 // 请求 ID
-      }
-      ```
-
-    - **设备响应时机：** 设备收到 `initialize` 请求并处理后。
-    - **设备响应消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "id": 1, // 匹配请求 ID
-        "result": {
-          "protocolVersion": "2024-11-05",
-          "capabilities": {
-            "tools": {} // 这里的 tools 似乎不列出详细信息，需要 tools/list
-          },
-          "serverInfo": {
-            "name": "...", // 设备名称 (BOARD_NAME)
-            "version": "..." // 设备固件版本
-          }
+```json
+{
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 10000,
+    "result": {
+      "resultType": "complete",
+      "supportedVersions": [
+        "2026-07-28",
+        "2024-11-05"
+      ],
+      "capabilities": {
+        "tools": {},
+        "extensions": {
+          "me.xiaozhi/vision": {}
+        }
+      },
+      "ttlMs": 60000,
+      "cacheScope": "private",
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example-board",
+          "version": "example-firmware"
         }
       }
-      ```
-
-3.  **发现设备工具列表**
-
-    - **时机：** 后台 API 需要获取设备当前支持的具体功能（工具）列表及其调用方式时。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `tools/list`
-    - **消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "method": "tools/list",
-        "params": {
-          "cursor": "" // 用于分页，首次请求为空字符串
-        },
-        "id": 2 // 请求 ID
-      }
-      ```
-    - **设备响应时机：** 设备收到 `tools/list` 请求并生成工具列表后。
-    - **设备响应消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "id": 2, // 匹配请求 ID
-        "result": {
-          "tools": [ // 工具对象列表
-            {
-              "name": "self.get_device_status",
-              "description": "...",
-              "inputSchema": { ... } // 参数 schema
-            },
-            {
-              "name": "self.audio_speaker.set_volume",
-              "description": "...",
-              "inputSchema": { ... } // 参数 schema
-            }
-            // ... 更多工具
-          ],
-          "nextCursor": "..." // 如果列表很大需要分页，这里会包含下一个请求的 cursor 值
-        }
-      }
-      ```
-    - **分页处理：** 如果 `nextCursor` 字段非空，客户端需要再次发送 `tools/list` 请求，并在 `params` 中带上这个 `cursor` 值以获取下一页工具。
-
-4.  **调用设备工具**
-
-    - **时机：** 后台 API 需要执行设备上的某个具体功能时。
-    - **发送方：** 后台 API (客户端)。
-    - **方法：** `tools/call`
-    - **消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-          "name": "self.audio_speaker.set_volume", // 要调用的工具名称
-          "arguments": {
-            // 工具参数，对象格式
-            "volume": 50 // 参数名及其值
-          }
-        },
-        "id": 3 // 请求 ID
-      }
-      ```
-    - **设备响应时机：** 设备收到 `tools/call` 请求，执行相应的工具函数后。
-    - **设备成功响应消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "id": 3, // 匹配请求 ID
-        "result": {
-          "content": [
-            // 工具执行结果内容
-            { "type": "text", "text": "true" } // 示例：set_volume 返回 bool
-          ],
-          "isError": false // 表示成功
-        }
-      }
-      ```
-    - **设备失败响应消息 (MCP payload):**
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "id": 3, // 匹配请求 ID
-        "error": {
-          "code": -32601, // JSON-RPC 错误码，例如 Method not found (-32601)
-          "message": "Unknown tool: self.non_existent_tool" // 错误描述
-        }
-      }
-      ```
-
-5.  **设备主动发送消息 (Notifications)**
-    - **时机：** 设备内部发生需要通知后台 API 的事件时（例如，状态变化，虽然代码示例中没有明确的工具发送此类消息，但 `Application::SendMcpMessage` 的存在暗示了设备可能主动发送 MCP 消息）。
-    - **发送方：** 设备 (服务器)。
-    - **方法：** 可能是以 `notifications/` 开头的方法名，或者其他自定义方法。
-    - **消息 (MCP payload):** 遵循 JSON-RPC Notification 格式，没有 `id` 字段。
-      ```json
-      {
-        "jsonrpc": "2.0",
-        "method": "notifications/state_changed", // 示例方法名
-        "params": {
-          "newState": "idle",
-          "oldState": "connecting"
-        }
-        // 没有 id 字段
-      }
-      ```
-    - **后台 API 处理：** 接收到 Notification 后，后台 API 进行相应的处理，但不回复。
-
-## 交互图
-
-下面是一个简化的交互序列图，展示了主要的 MCP 消息流程：
-
-```mermaid
-sequenceDiagram
-    participant Device as ESP32 Device
-    participant BackendAPI as 后台 API (Client)
-
-    Note over Device, BackendAPI: 建立 WebSocket / MQTT 连接
-
-    Device->>BackendAPI: Hello Message (包含 "mcp": true)
-
-    BackendAPI->>Device: MCP Initialize Request
-    Note over BackendAPI: method: initialize
-    Note over BackendAPI: params: { capabilities: ... }
-
-    Device->>BackendAPI: MCP Initialize Response
-    Note over Device: result: { protocolVersion: ..., serverInfo: ... }
-
-    BackendAPI->>Device: MCP Get Tools List Request
-    Note over BackendAPI: method: tools/list
-    Note over BackendAPI: params: { cursor: "" }
-
-    Device->>BackendAPI: MCP Get Tools List Response
-    Note over Device: result: { tools: [...], nextCursor: ... }
-
-    loop Optional Pagination
-        BackendAPI->>Device: MCP Get Tools List Request
-        Note over BackendAPI: method: tools/list
-        Note over BackendAPI: params: { cursor: "..." }
-        Device->>BackendAPI: MCP Get Tools List Response
-        Note over Device: result: { tools: [...], nextCursor: "" }
-    end
-
-    BackendAPI->>Device: MCP Call Tool Request
-    Note over BackendAPI: method: tools/call
-    Note over BackendAPI: params: { name: "...", arguments: { ... } }
-
-    alt Tool Call Successful
-        Device->>BackendAPI: MCP Tool Call Success Response
-        Note over Device: result: { content: [...], isError: false }
-    else Tool Call Failed
-        Device->>BackendAPI: MCP Tool Call Error Response
-        Note over Device: error: { code: ..., message: ... }
-    end
-
-    opt Device Notification
-        Device->>BackendAPI: MCP Notification
-        Note over Device: method: notifications/...
-        Note over Device: params: { ... }
-    end
+    }
+  }
+}
 ```
 
-这份文档概述了该项目中 MCP 协议的主要交互流程。具体的参数细节和工具功能需要参考 `main/mcp_server.cc` 中 `McpServer::AddCommonTools` 以及各个工具的实现。
+无摄像头工具时省略 `me.xiaozhi/vision`。发现不替代 `tools/list`，也不安装视觉配置。
+
+| 发现结果 | 网关处理 |
+|---|---|
+| 合法响应支持 `2026-07-28` | 预取、缓存新版工具分页。 |
+| 首次探测返回 `-32601`，或明确只提供受支持的旧版 | 旧版初始化，再预取目录。 |
+| 版本不支持 | 使用明确支持的共同版本，否则报告不兼容。 |
+| 超时、断开、响应格式错误、ID 不匹配或其他错误 | 本次有界预热失败，不据此推断为旧版。 |
+
+新版服务端必须实现发现，已知对端版本的调用方可以省略；参见[官方发现方法](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)。
+
+## 5. 工具列表、分页与缓存
+
+版本确定后，网关立即请求：
+
+```json
+{
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "list-1",
+    "method": "tools/list",
+    "params": {
+      "withUserTools": false,
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "xiaozhi-backend",
+          "version": "example-backend"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {}
+      }
+    }
+  }
+}
+```
+
+响应示例：
+
+```json
+{
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "list-1",
+    "result": {
+      "resultType": "complete",
+      "tools": [
+        {
+          "name": "self.audio_speaker.set_volume",
+          "description": "Set the audio speaker volume.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "volume": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "volume"
+            ]
+          }
+        },
+        {
+          "name": "self.camera.take_photo",
+          "description": "Take a photo and answer the question about it.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "question"
+            ]
+          }
+        }
+      ],
+      "ttlMs": 60000,
+      "cacheScope": "private",
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example-board",
+          "version": "example-firmware"
+        }
+      }
+    }
+  }
+}
+```
+
+`withUserTools` 省略/false 时排除用户专用工具，true 时包含；它是可见性筛选，不是鉴权。
+存在 `nextCursor` 时，将其原样放入下次 `params.cursor`，保持筛选条件并携带必需元数据。
+读完所有分页才将目录标记为就绪。非法游标返回 `-32602`，可从第一页重新读取；空列表合法。
+工具列表的 JSON-RPC 响应（含新版元数据）不超过 8000 字节，单个工具过大时返回错误。
+
+发现、列表响应使用 `ttlMs: 60000`、`cacheScope: "private"`，遵循[官方缓存规则](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching)。
+缓存归网关/后端所有，区分设备、固件/工具配置、协议版本、鉴权上下文、游标及筛选条件。
+重连、相关配置变化或 TTL 到期时失效，按已选格式刷新。缓存回复保留剩余 TTL、private 范围，
+并使用当前请求的 ID 和报文格式；不缓存工具执行结果或凭据。
+
+## 6. 工具调用
+
+后端已知有效工具 schema 时，可以不初始化而直接调用：
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "volume-1",
+    "method": "tools/call",
+    "params": {
+      "name": "self.audio_speaker.set_volume",
+      "arguments": {
+        "volume": 50
+      },
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "xiaozhi-backend",
+          "version": "example-backend"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {}
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "volume-1",
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "true"
+        }
+      ],
+      "isError": false,
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example-board",
+          "version": "example-firmware"
+        }
+      }
+    }
+  }
+}
+```
+
+执行失败仍使用相同结果结构，将 `isError` 设为 true，在 `content` 中放错误文本。
+新版图片内容直接使用 `type`、`mimeType`、`data`，旧版图片 JSON 字符串包装保持不变。
+
+## 7. 逐次 vision 配置
+
+项目扩展只使用以下路径：
+
+`payload.params._meta["io.modelcontextprotocol/clientCapabilities"].extensions["me.xiaozhi/vision"]`
+
+| 字段 | 含义 |
+|---|---|
+| `url` | 必填、非空的 HTTP/HTTPS 图片解释地址。 |
+| `token` | 可选字符串。缺失/空串时不发 Authorization，否则使用 `Bearer <token>`。 |
+
+后端/网关在**每次**新版拍照调用中提供配置。模型只提供 `question` 等工具参数；
+URL、token 不进入模型的输入 schema、发现、目录、结果或日志。
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "photo-1",
+    "method": "tools/call",
+    "params": {
+      "name": "self.camera.take_photo",
+      "arguments": {
+        "question": "What is in front of me?"
+      },
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "xiaozhi-backend",
+          "version": "example-backend"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {
+          "extensions": {
+            "me.xiaozhi/vision": {
+              "url": "https://vision.example.com/analyze",
+              "token": "example-token-not-a-real-secret"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "photo-1",
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "There is a red cup on the table."
+        }
+      ],
+      "isError": false,
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "example-board",
+          "version": "example-firmware"
+        }
+      }
+    }
+  }
+}
+```
+
+固件在拍照、上传前校验扩展，并持有配置字符串直至 `Application::Schedule()` 延后执行结束。
+新版调用不读取、覆盖旧版配置，缺失 token 不复用前值。
+`Explain(question, url, token)` 复用现有上传逻辑，`Explain(question)` 使用保存的旧版配置转调。
+普通工具注册方式不变，不新增 task、定时器或持久视觉缓存。
+
+## 8. 错误与重试
+
+| 情况 | 响应 |
+|---|---|
+| 非法 JSON / 非法 JSON-RPC 请求 | `-32700` / `-32600`。 |
+| 新版元数据、视觉配置、参数缺失或非法 | 执行工具前返回 `-32602`。 |
+| 不支持的版本 | `-32022`，带 `data.supported`、`data.requested`。 |
+| 拍照缺少视觉能力 | `-32021`，带 `data.requiredCapabilities`。 |
+| 未知方法 / 工具 | `-32601` / `-32602`。 |
+| 工具执行失败 | 新版 `result.isError: true`；旧版错误 `-32603`。 |
+
+版本不匹配示例：
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "version-1",
+    "error": {
+      "code": -32022,
+      "message": "Unsupported protocol version",
+      "data": {
+        "supported": [
+          "2026-07-28",
+          "2024-11-05"
+        ],
+        "requested": "2099-01-01"
+      }
+    }
+  }
+}
+```
+
+缺少视觉能力示例：
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": "photo-1",
+    "error": {
+      "code": -32021,
+      "message": "Missing required client capability",
+      "data": {
+        "requiredCapabilities": {
+          "extensions": {
+            "me.xiaozhi/vision": {}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+只有首次发现探测的 `-32601` 用来选择旧版。非法请求、缺视觉配置、上传失败或超时不是降级信号。
+只读发现、列表可在有界预热内重试；工具调用不能跨版本、重连自动重放，响应丢失不代表没有产生副作用。
+
+## 9. 旧版流程
+
+旧客户端继续初始化并保存视觉配置：
+
+```json
+{
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {
+        "vision": {
+          "url": "https://vision.example.com/analyze",
+          "token": "example-token-not-a-real-secret"
+        }
+      },
+      "clientInfo": {
+        "name": "legacy-backend",
+        "version": "example-backend"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {
+        "tools": {}
+      },
+      "serverInfo": {
+        "name": "example-board",
+        "version": "example-firmware"
+      }
+    }
+  }
+}
+```
+
+随后读取全部旧版目录分页，不带新版元数据；`notifications/initialized` 不回复。
+后续拍照使用初始化时的配置：
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "self.camera.take_photo",
+      "arguments": {
+        "question": "What is in front of me?"
+      }
+    }
+  }
+}
+```
+
+```json
+{
+  "session_id": "session-001",
+  "type": "mcp",
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "There is a red cup on the table."
+        }
+      ],
+      "isError": false
+    }
+  }
+}
+```
+
+旧版响应不增加 `resultType`、新版缓存字段或逐次视觉配置要求，普通未标记的列表、调用不新增初始化门槛；旧版拍照仍需可用的旧版视觉配置。
+
+## 10. 与 UDP probe 联测
+
+固件同时支持两个 MCP 版本和 UDP probe。OTA 与传输 hello 共用一处能力生成逻辑，声明
+`udp_probe: true`；MQTT 探测仍需双方协商成功。
+
+```sh
+git fetch origin main
+git worktree add --detach ../xiaozhi-mcp-udp-test origin/main
+cd ../xiaozhi-mcp-udp-test
+# 加载 ESP-IDF 6.0.1+（优先 release/v6.1），并选择实际板型。
+python3 -m unittest discover -s scripts/tests -v
+python3 scripts/build.py kevin/c3 --name kevin-c3
+# 或带摄像头的 S3 变体；每次构建会替换之前的输出。
+python3 scripts/build.py bread-compact-wifi-s3cam --name bread-compact-wifi-s3cam
+```
+
+| 对端 | 验收内容 |
+|---|---|
+| 旧 MCP、无 probe | 原初始化、列表、调用及 UDP 行为。 |
+| 新 MCP、无 probe | 新版调用不要求 UDP probe 健康检测。 |
+| 旧 MCP、协商 probe | 旧版调用及认证 PING/PONG、RTT 日志。 |
+| 新 MCP、协商 probe | 两者在唤醒、音频、工具调用、重连时正常。 |
+
+验证 MQTT hello 前预取、旧设备回退、目录刷新、逐次视觉配置隔离、UDP 阻断、PONG 丢失/迟到、打断，
+以及 C3 内部堆余量、任务栈高水位。新版发现需要测试对端配套。旧版 MCP 与 UDP probe 的唤醒、
+语音及拍照链路已通过 S3 真机联调；丢包/防火墙故障注入、C3 堆余量及任务栈测量仍需单独验证。
