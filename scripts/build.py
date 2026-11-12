@@ -505,6 +505,7 @@ def _build_option_definitions(
         raise ValueError(f"build {build.get('name')!r} sdkconfig_append must be a string list")
     assignments = _sdkconfig_assignments(sdkconfig_append)
     source = _board_source_text(board)
+    display_symbols = set(re.findall(r"\bCONFIG_(?:OLED|LCD)_[A-Z0-9_]+\b", source))
     definitions: list[dict[str, Any]] = []
 
     network_choice = _kconfig_choice("XIAOZHI_NETWORK_TYPE")
@@ -527,7 +528,16 @@ def _build_option_definitions(
         choice = _kconfig_choice(choice_name)
         if board_config not in choice["board_configs"]:
             continue
-        entries = [entry for entry in choice["entries"] if entry["value"] != "LCD_CUSTOM"]
+        # A shared Kconfig choice can contain panels that this board has not
+        # implemented. Only expose models selected by its own source/config;
+        # fixed-display boards with no model branches need no selector.
+        entries = [
+            entry for entry in choice["entries"]
+            if entry["value"] != "LCD_CUSTOM"
+            and f"CONFIG_{entry['value']}" in display_symbols
+        ]
+        if not entries:
+            continue
         definitions.append({
             "key": "display_model",
             "type": "select",
@@ -678,13 +688,13 @@ def _build_options_sdkconfig(
 
     if "display_model" in options:
         selected = options["display_model"]
-        for choice in by_key["display_model"]["choices"]:
+        # Clear the entire shared choice, including panels hidden for this
+        # board, so a previous configuration cannot keep an unsupported model.
+        choice_name = (
+            "DISPLAY_LCD_TYPE" if str(selected).startswith("LCD_") else "DISPLAY_OLED_TYPE"
+        )
+        for choice in _kconfig_choice(choice_name)["entries"]:
             result.append(f"CONFIG_{choice['value']}={'y' if choice['value'] == selected else 'n'}")
-        if isinstance(selected, str) and selected.startswith("LCD_"):
-            # LCD_CUSTOM is intentionally not exposed in the cloud UI because
-            # it requires source-level panel configuration, but it is still a
-            # sibling in the Kconfig choice and must be disabled explicitly.
-            result.append("CONFIG_LCD_CUSTOM=n")
 
     if "display_style" in options:
         selected = options["display_style"]

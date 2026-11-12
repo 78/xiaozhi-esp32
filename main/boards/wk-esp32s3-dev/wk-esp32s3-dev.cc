@@ -18,6 +18,9 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 
+#ifdef SH1106
+#include <esp_lcd_panel_sh1106.h>
+#endif
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
