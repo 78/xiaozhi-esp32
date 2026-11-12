@@ -394,18 +394,22 @@ std::string JsonString(const char* value) {
     return encoded ? std::string(encoded.get()) : std::string();
 }
 
-std::string ServerInfo() {
-    return "{\"name\":" + JsonString(BOARD_NAME) +
-           ",\"version\":" + JsonString(esp_app_get_description()->version) + "}";
+void AppendServerInfo(std::string& output) {
+    output += "{\"name\":";
+    output += JsonString(BOARD_NAME);
+    output += ",\"version\":";
+    output += JsonString(esp_app_get_description()->version);
+    output += "}";
 }
 
 std::string ResultPrefix(const McpRequestContext& context) {
-    std::string prefix = "{\"jsonrpc\":\"2.0\",\"id\":" + context.id_json + ",\"result\":";
+    std::string prefix = "{\"jsonrpc\":\"2.0\",\"id\":";
+    prefix += context.id_json;
+    prefix += ",\"result\":";
     if (context.modern) {
-        prefix +=
-            "{\"resultType\":\"complete\",\"_meta\":{\"io.modelcontextprotocol/serverInfo\":" +
-            ServerInfo() + "}";
-        prefix += "}";
+        prefix += "{\"resultType\":\"complete\",\"_meta\":{\"io.modelcontextprotocol/serverInfo\":";
+        AppendServerInfo(prefix);
+        prefix += "}}";
     }
     return prefix;
 }
@@ -502,9 +506,12 @@ void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) 
         return;
     }
     if (context.modern && strcmp(protocol_version->valuestring, kModernVersion) != 0) {
-        ReplyError(context, -32022, "Unsupported protocol version", response_sender,
-                   "{\"supported\":" + std::string(kSupportedVersions) +
-                       ",\"requested\":" + JsonString(protocol_version->valuestring) + "}");
+        std::string data = "{\"supported\":";
+        data += kSupportedVersions;
+        data += ",\"requested\":";
+        data += JsonString(protocol_version->valuestring);
+        data += "}";
+        ReplyError(context, -32022, "Unsupported protocol version", response_sender, data);
         return;
     }
     auto extensions = cJSON_GetObjectItemCaseSensitive(capabilities, "extensions");
@@ -521,14 +528,15 @@ void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) 
 
     if (method_name == "initialize" && !context.modern) {
         ParseCapabilities(cJSON_GetObjectItem(params, "capabilities"));
-        ReplyResult(context,
-                    "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},"
-                    "\"serverInfo\":" +
-                        ServerInfo() + "}",
-                    response_sender);
+        std::string result =
+            "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":";
+        AppendServerInfo(result);
+        result += "}";
+        ReplyResult(context, result, response_sender);
     } else if (method_name == "server/discover") {
-        std::string result = "{\"supportedVersions\":" + std::string(kSupportedVersions) +
-                             ",\"capabilities\":{\"tools\":{}";
+        std::string result = "{\"supportedVersions\":";
+        result += kSupportedVersions;
+        result += ",\"capabilities\":{\"tools\":{}";
         if (std::any_of(tools_.begin(), tools_.end(), [](const auto& tool) {
                 return tool->name() == "self.camera.take_photo";
             })) {
@@ -588,6 +596,8 @@ void McpServer::SendResponse(const std::string& payload, const ResponseSender& r
 void McpServer::ReplyResult(const McpRequestContext& context, const std::string& result,
                             const ResponseSender& response_sender) {
     auto payload = ResultPrefix(context);
+    // Include the final brace so appending it cannot double a large response buffer.
+    payload.reserve(payload.size() + result.size() + 1);
     if (context.modern) {
         // Merge known result objects into the envelope without parsing/copying a second JSON tree.
         payload.pop_back();
@@ -608,13 +618,20 @@ void McpServer::ReplyError(const McpRequestContext& context, int code, const std
     if (encoded.empty()) {
         return;
     }
-    std::string payload = "{\"jsonrpc\":\"2.0\"";
+    std::string payload;
+    payload.reserve(context.id_json.size() + encoded.size() + data.size() + 80);
+    payload += "{\"jsonrpc\":\"2.0\"";
     if (!context.id_json.empty()) {
-        payload += ",\"id\":" + context.id_json;
+        payload += ",\"id\":";
+        payload += context.id_json;
     }
-    payload += ",\"error\":{\"code\":" + std::to_string(code) + ",\"message\":" + encoded;
+    payload += ",\"error\":{\"code\":";
+    payload += std::to_string(code);
+    payload += ",\"message\":";
+    payload += encoded;
     if (!data.empty()) {
-        payload += ",\"data\":" + data;
+        payload += ",\"data\":";
+        payload += data;
     }
     payload += "}}";
     SendResponse(payload, response_sender);
@@ -673,7 +690,8 @@ void McpServer::GetToolsList(const McpRequestContext& context, const std::string
     }
     json += suffix;
     if (!next_cursor.empty()) {
-        json += ",\"nextCursor\":" + next_cursor;
+        json += ",\"nextCursor\":";
+        json += next_cursor;
     }
     json += "}";
     ReplyResult(context, json, response_sender);
@@ -731,10 +749,10 @@ void McpServer::DoToolCall(McpRequestContext context, const std::string& tool_na
         auto result = tool->Call(arguments, context);
         if (!result) {
             if (context.modern) {
-                ReplyResult(context,
-                            "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":" +
-                                JsonString(result.error().c_str()) + "}]}",
-                            response_sender);
+                std::string error = "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":";
+                error += JsonString(result.error().c_str());
+                error += "}]}";
+                ReplyResult(context, error, response_sender);
             } else {
                 ReplyError(context, result.error(), response_sender);
             }
