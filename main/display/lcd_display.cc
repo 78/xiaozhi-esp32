@@ -384,6 +384,27 @@ bool LcdDisplay::Lock(int timeout_ms) { return lvgl_port_lock(timeout_ms); }
 
 void LcdDisplay::Unlock() { lvgl_port_unlock(); }
 
+void LcdDisplay::ShowEmotion() {
+    // Message cleanup must restore the selected renderer, not the boot logo.
+    if (emoji_label_ != nullptr) {
+        if (emotion_uses_image_) {
+            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (emoji_image_ != nullptr) {
+        if (emotion_uses_image_) {
+            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (emotion_uses_image_ && gif_controller_ && !gif_controller_->IsPlaying()) {
+        gif_controller_->Start();
+    }
+}
+
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
     // Prevent duplicate calls - if already called, return early
@@ -526,6 +547,7 @@ void LcdDisplay::SetupUI() {
     emoji_image_ = lv_img_create(screen);
     lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0,
                  text_font->line_height + lvgl_theme->spacing(8));
+    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
 
     // Display AI logo while booting
     emoji_label_ = lv_label_create(screen);
@@ -856,8 +878,8 @@ void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
             chat_message_label_ = nullptr;
         }
         lv_obj_del(container);
-        if (lv_obj_get_child_cnt(content_) == 0 && emoji_label_ != nullptr) {
-            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        if (lv_obj_get_child_cnt(content_) == 0) {
+            ShowEmotion();
         }
         return;
     }
@@ -875,10 +897,7 @@ void LcdDisplay::ClearChatMessages() {
     // Reset chat_message_label_ as it has been deleted
     chat_message_label_ = nullptr;
 
-    // Show the centered AI logo (emoji_label_) again
-    if (emoji_label_ != nullptr) {
-        lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-    }
+    ShowEmotion();
 
     ESP_LOGI(TAG, "Chat messages cleared");
 }
@@ -1211,8 +1230,8 @@ bool LcdDisplay::SetEmotion(const char* emotion) {
         }
         lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
         lv_label_set_text(emoji_label_, utf8);
-        lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        emotion_uses_image_ = false;
+        ShowEmotion();
         // The glyph is this emotion's own, from noto_emoji or material_symbols, not a
         // stand-in - so the request was honoured.
         return true;
@@ -1239,20 +1258,20 @@ bool LcdDisplay::SetEmotion(const char* emotion) {
             lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
             gif_controller_->Start();
 
-            // Show GIF, hide others
-            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+            emotion_uses_image_ = true;
+            ShowEmotion();
             shown = true;
         } else {
-            // The collection had an image for this emotion but it would not decode, so
-            // nothing is on screen for the request.
+            // Keep a valid label fallback instead of a freed GIF descriptor.
             ESP_LOGE(TAG, "Failed to load GIF for emotion: %s", emotion);
             gif_controller_.reset();
+            emotion_uses_image_ = false;
+            ShowEmotion();
         }
     } else {
         lv_image_set_src(emoji_image_, image->image_dsc());
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        emotion_uses_image_ = true;
+        ShowEmotion();
         shown = true;
     }
 
@@ -1260,10 +1279,9 @@ bool LcdDisplay::SetEmotion(const char* emotion) {
     // In WeChat message style, if emotion is neutral, don't display it
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
-        // Stop GIF animation if running
+        // Keep the descriptor alive so clearing the last bubble can show it again.
         if (gif_controller_) {
-            gif_controller_->Stop();
-            gif_controller_.reset();
+            gif_controller_->Pause();
         }
 
         lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);

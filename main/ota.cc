@@ -13,6 +13,7 @@
 #include <esp_efuse.h>
 #include <esp_efuse_table.h>
 #include <esp_heap_caps.h>
+#include <ota_url.h>
 #ifdef SOC_HMAC_SUPPORTED
 #include <esp_hmac.h>
 #endif
@@ -56,6 +57,10 @@ Ota::~Ota() {
 std::string Ota::GetCheckVersionUrl() {
     Settings settings("wifi", false);
     std::string url = settings.GetString("ota_url");
+    if (!wifi_config::IsValidOtaUrl(url)) {
+        ESP_LOGW(TAG, "Ignoring invalid saved OTA URL; using the default");
+        url.clear();
+    }
     if (url.empty()) {
         url = CONFIG_OTA_URL;
     }
@@ -93,7 +98,7 @@ NetworkResult<> Ota::CheckVersion() {
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
     std::string url = GetCheckVersionUrl();
-    if (url.length() < 10) {
+    if (url.empty() || !wifi_config::IsValidOtaUrl(url)) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return std::unexpected(NetworkError::InvalidArgument());
     }
@@ -508,6 +513,10 @@ esp_err_t Ota::Activate() {
     }
 
     std::string url = GetCheckVersionUrl();
+    if (url.empty() || !wifi_config::IsValidOtaUrl(url)) {
+        ESP_LOGE(TAG, "Activation URL is not properly set");
+        return ESP_ERR_INVALID_ARG;
+    }
     if (url.back() != '/') {
         url += "/activate";
     } else {
