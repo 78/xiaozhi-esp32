@@ -267,7 +267,7 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
         const char* ptr = static_cast<const char*>(data);
         while (size > 0) {
             auto written = http->Write(ptr, size);
-            if (!written || *written <= 0) {
+            if (!written || *written <= 0 || static_cast<size_t>(*written) > size) {
                 return false;
             }
             ptr += *written;
