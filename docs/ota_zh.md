@@ -123,7 +123,7 @@ Content-Type: application/json
     "features": {
       "mcp": true,
       "mcp_20260728": true,
-      "udp_probe": false,
+      "udp_probe": true,
       "aec": false,
       "glyph_push": true
     }

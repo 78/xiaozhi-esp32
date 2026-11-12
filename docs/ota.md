@@ -126,7 +126,7 @@ This is a common ESP32 request example. Board, chip and partition values vary by
     "features": {
       "mcp": true,
       "mcp_20260728": true,
-      "udp_probe": false,
+      "udp_probe": true,
       "aec": false,
       "glyph_push": true
     }

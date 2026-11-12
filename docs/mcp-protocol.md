@@ -571,14 +571,12 @@ a usable legacy vision configuration.
 
 ## 10. Testing with UDP probes
 
-The [MCP implementation PR](https://github.com/78/xiaozhi-esp32/pull/2415) and
-[UDP probe PR](https://github.com/78/xiaozhi-esp32/pull/2398) are independent.
-`codex/test-mcp-udp-probe` combines both for one test firmware. Its shared capability builder sets
-`udp_probe: true`; the standalone MCP branch reports false. Keep that single builder when combining PRs.
+The firmware supports both MCP revisions and UDP probes. OTA and transport hello share one
+capability builder and advertise `udp_probe: true`; MQTT probing still requires bilateral negotiation.
 
 ```sh
-git fetch origin codex/test-mcp-udp-probe
-git worktree add --detach ../xiaozhi-mcp-udp-test origin/codex/test-mcp-udp-probe
+git fetch origin main
+git worktree add --detach ../xiaozhi-mcp-udp-test origin/main
 cd ../xiaozhi-mcp-udp-test
 # Source ESP-IDF 6.0.1+ (release/v6.1 preferred), then select the actual board.
 python3 -m unittest discover -s scripts/tests -v
@@ -596,5 +594,6 @@ python3 scripts/build.py bread-compact-wifi-s3cam --name bread-compact-wifi-s3ca
 
 Verify connection-time prefetch before MQTT hello, old-device fallback, catalog refresh, per-call
 vision isolation, blocked UDP, lost/late PONG, interruption and C3 free internal heap/task stack
-high-water marks. A capable test peer is needed for modern prewarm/PONG. Record physical results
-separately from host tests/builds; the integration branch is not a replacement PR to merge into main.
+high-water marks. Modern discovery requires a capable test peer. Legacy MCP with UDP probes,
+including wake, voice and photo upload, passed S3 hardware integration. Packet-loss/firewall injection
+and C3 heap/task-stack measurements remain separate hardware acceptance work.

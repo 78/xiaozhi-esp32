@@ -549,13 +549,12 @@ URL、token 不进入模型的输入 schema、发现、目录、结果或日志�
 
 ## 10. 与 UDP probe 联测
 
-[MCP 实现 PR](https://github.com/78/xiaozhi-esp32/pull/2415) 与 [UDP probe PR](https://github.com/78/xiaozhi-esp32/pull/2398) 保持独立。
-`codex/test-mcp-udp-probe` 合并两者生成同一份测试固件；共享能力生成器声明 `udp_probe: true`，
-独立 MCP 分支为 false。合并 PR 时也保留这一处能力生成逻辑。
+固件同时支持两个 MCP 版本和 UDP probe。OTA 与传输 hello 共用一处能力生成逻辑，声明
+`udp_probe: true`；MQTT 探测仍需双方协商成功。
 
 ```sh
-git fetch origin codex/test-mcp-udp-probe
-git worktree add --detach ../xiaozhi-mcp-udp-test origin/codex/test-mcp-udp-probe
+git fetch origin main
+git worktree add --detach ../xiaozhi-mcp-udp-test origin/main
 cd ../xiaozhi-mcp-udp-test
 # 加载 ESP-IDF 6.0.1+（优先 release/v6.1），并选择实际板型。
 python3 -m unittest discover -s scripts/tests -v
@@ -572,5 +571,5 @@ python3 scripts/build.py bread-compact-wifi-s3cam --name bread-compact-wifi-s3ca
 | 新 MCP、协商 probe | 两者在唤醒、音频、工具调用、重连时正常。 |
 
 验证 MQTT hello 前预取、旧设备回退、目录刷新、逐次视觉配置隔离、UDP 阻断、PONG 丢失/迟到、打断，
-以及 C3 内部堆余量、任务栈高水位。新版预热、PONG 需要测试对端配套。
-真机结果与主机测试、构建分开记录；联测分支不替代两个 PR 合入 main。
+以及 C3 内部堆余量、任务栈高水位。新版发现需要测试对端配套。旧版 MCP 与 UDP probe 的唤醒、
+语音及拍照链路已通过 S3 真机联调；丢包/防火墙故障注入、C3 堆余量及任务栈测量仍需单独验证。
