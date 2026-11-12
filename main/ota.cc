@@ -1,7 +1,9 @@
 #include "ota.h"
-#include "system_info.h"
-#include "settings.h"
 #include "assets/lang_config.h"
+#include "cjson_utils.h"
+#include "protocols/protocol.h"
+#include "settings.h"
+#include "system_info.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -86,9 +88,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     return http;
 }
 
-/* 
- * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
- */
+// Device-facing OTA contract: docs/ota.md.
 NetworkResult<> Ota::CheckVersion() {
     auto& board = Board::GetInstance();
     auto app_desc = esp_app_get_description();
@@ -106,6 +106,24 @@ NetworkResult<> Ota::CheckVersion() {
     auto http = SetupHttp();
 
     std::string data = board.GetSystemInfoJson();
+    const auto root_start = data.find_first_not_of(" \r\n\t");
+    const auto root_end = data.find_last_not_of(" \r\n\t");
+    if (root_start != std::string::npos && data[root_start] == '{' && data[root_end] == '}') {
+        CJsonUniquePtr protocol(cJSON_CreateObject());
+        if (protocol == nullptr) {
+            return std::unexpected(NetworkError::ProtocolError());
+        }
+        Protocol::AddClientCapabilities(protocol.get(), false);
+        CJsonStringUniquePtr encoded(cJSON_PrintUnformatted(protocol.get()));
+        if (encoded == nullptr) {
+            return std::unexpected(NetworkError::ProtocolError());
+        }
+        // The board returns a root object. Append the serialized property without building
+        // a second tree of device/partition information on memory-constrained targets.
+        const auto first_property = data.find_first_not_of(" \r\n\t", root_start + 1);
+        data.insert(root_end, std::string(first_property == root_end ? "" : ",") +
+                                  "\"protocol\":" + encoded.get());
+    }
     std::string method = data.length() > 0 ? "POST" : "GET";
     http->SetContent(std::move(data));
 

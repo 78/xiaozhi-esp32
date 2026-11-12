@@ -212,13 +212,7 @@ std::string WebsocketProtocol::GetHelloMessage() {
     cJSON* root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "type", "hello");
     cJSON_AddNumberToObject(root, "version", version_);
-    cJSON* features = cJSON_CreateObject();
-#if CONFIG_USE_SERVER_AEC
-    cJSON_AddBoolToObject(features, "aec", true);
-#endif
-    cJSON_AddBoolToObject(features, "mcp", true);
-    cJSON_AddItemToObject(root, "features", features);
-    AddTextFontCapabilities(root);
+    AddClientCapabilities(root);
     cJSON_AddStringToObject(root, "transport", "websocket");
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");

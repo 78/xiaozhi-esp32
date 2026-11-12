@@ -175,7 +175,13 @@ bool Esp32Camera::SetSwapBytes(bool enabled) {
 }
 
 std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& question) {
-    if (explain_url_.empty()) {
+    return Explain(question, explain_url_, explain_token_);
+}
+
+std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& question,
+                                                             const std::string& url,
+                                                             const std::string& token) {
+    if (url.empty()) {
         return std::unexpected("Image explain URL or token is not set");
     }
 
@@ -248,15 +254,15 @@ std::expected<std::string, std::string> Esp32Camera::Explain(const std::string& 
     auto http = network->CreateHttp(3);
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
-    if (!explain_token_.empty()) {
-        http->SetHeader("Authorization", "Bearer " + explain_token_);
+    if (!token.empty()) {
+        http->SetHeader("Authorization", "Bearer " + token);
     }
     http->SetHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
     // An explicit Content-Length makes Http::Write() send raw bytes instead of
     // chunk framing, so only the JPEG is buffered.
     http->SetHeader("Content-Length",
                     std::to_string(head.size() + jpeg_size + tail.size()));
-    if (auto opened = http->Open("POST", explain_url_); !opened) {
+    if (auto opened = http->Open("POST", url); !opened) {
         free(jpeg_data);
         ESP_LOGE(TAG, "Failed to upload photo: %s", opened.error().ToString().c_str());
         http->Close();
