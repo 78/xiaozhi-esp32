@@ -142,7 +142,7 @@ class ProtocolCapabilitiesTest(unittest.TestCase):
                                      {"mcp", "mcp_20260728", "udp_probe", "aec", "glyph_push"})
                     self.assertTrue(features["mcp"])
                     self.assertTrue(features["mcp_20260728"])
-                    self.assertIs(type(features["udp_probe"]), bool)
+                    self.assertIs(features["udp_probe"], True)
                     self.assertEqual((features["aec"], features["glyph_push"]), (aec, glyph))
                     self.assertEqual((mqtt["transport"], mqtt["version"]), ("udp", 3))
                     self.assertEqual((ws["transport"], ws["version"]), ("websocket", 1))

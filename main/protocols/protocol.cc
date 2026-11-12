@@ -13,7 +13,7 @@ void Protocol::AddClientCapabilities(cJSON* root, bool include_text_font) {
     }
     cJSON_AddBoolToObject(features, "mcp", true);
     cJSON_AddBoolToObject(features, "mcp_20260728", true);
-    cJSON_AddBoolToObject(features, "udp_probe", false);
+    cJSON_AddBoolToObject(features, "udp_probe", true);
 #if CONFIG_USE_SERVER_AEC
     cJSON_AddBoolToObject(features, "aec", true);
 #else
