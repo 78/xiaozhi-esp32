@@ -1,22 +1,22 @@
 #ifndef MQTT_PROTOCOL_H
 #define MQTT_PROTOCOL_H
 
-
-#include "protocol.h"
-#include <mqtt.h>
-#include <udp.h>
+#include <esp_timer.h>
 #include <cJSON.h>
-#include <psa/crypto.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
-#include <esp_timer.h>
+#include <mqtt.h>
+#include <psa/crypto.h>
+#include <udp.h>
+#include "protocol.h"
+#include "udp_probe.h"
 
-#include <functional>
-#include <string>
-#include <map>
-#include <mutex>
-#include <memory>
 #include <atomic>
+#include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <string>
 
 #define MQTT_PING_INTERVAL_SECONDS 90
 #define MQTT_RECONNECT_INTERVAL_MS 60000
@@ -33,11 +33,12 @@ public:
     bool OpenAudioChannel() override;
     void CloseAudioChannel(bool send_goodbye = true) override;
     bool IsAudioChannelOpened() const override;
+    void ProcessPending() override;
 
 private:
     // Alive flag for safe scheduled callbacks - set to false in destructor
     std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
-    
+
     EventGroupHandle_t event_group_handle_;
 
     std::string publish_topic_;
@@ -58,14 +59,34 @@ private:
     uint32_t remote_sequence_;
     esp_timer_handle_t reconnect_timer_;
 
-    bool StartMqttClient(bool report_error=false);
+    struct ProbeChannel {
+        explicit ProbeChannel(const uint8_t* ssrc) : probe(ssrc) {}
+        ~ProbeChannel() {
+            if (key != PSA_KEY_ID_NULL) {
+                psa_destroy_key(key);
+            }
+        }
+        UdpProbe probe;
+        psa_key_id_t key = PSA_KEY_ID_NULL;
+        std::atomic<bool> receiving_pong{false};
+    };
+    std::shared_ptr<ProbeChannel> probe_channel_;
+    uint64_t channel_generation_ = 0;
+    esp_timer_handle_t probe_timer_ = nullptr;
+    std::atomic<bool> awaiting_hello_{false};
+    std::atomic<bool> hello_valid_{false};
+
+    void ArmProbeTimer(int64_t due);
+    void ReceivePong(const std::shared_ptr<ProbeChannel>& channel, const std::string& data);
+
+    bool StartMqttClient(bool report_error = false);
     void ParseServerHello(const cJSON* root);
     bool DecodeHexString(const std::string& hex_string, std::string& decoded);
-    bool CryptAesCtr(const uint8_t* input, size_t input_size, const uint8_t* nonce, uint8_t* output);
+    bool CryptAesCtr(const uint8_t* input, size_t input_size, const uint8_t* nonce,
+                     uint8_t* output);
 
     bool SendText(const std::string& text) override;
     std::string GetHelloMessage();
 };
 
-
-#endif // MQTT_PROTOCOL_H
+#endif  // MQTT_PROTOCOL_H

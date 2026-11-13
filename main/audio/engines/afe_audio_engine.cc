@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <cstring>
-#include <sstream>
+#include <string_view>
 #include <vector>
 
 #include <esp_heap_caps.h>
@@ -99,23 +99,6 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
         }
     } else if (wakenet_model_name != nullptr) {
         wake_detector_ = WakeDetector::kWakeNet;
-        for (int i = 0; i < models_->num; ++i) {
-            char* name = models_->model_name[i];
-            if (name == nullptr || strncmp(name, ESP_WN_PREFIX, strlen(ESP_WN_PREFIX)) != 0) {
-                continue;
-            }
-            auto words = esp_srmodel_get_wake_words(models_, name);
-            if (words == nullptr) {
-                continue;
-            }
-            std::stringstream stream(words);
-            std::string word;
-            while (std::getline(stream, word, ';')) {
-                if (!word.empty()) {
-                    wake_words_.push_back(word);
-                }
-            }
-        }
 #if CONFIG_SEND_WAKE_WORD_DATA
         if (!wake_word_audio_cache_.Initialize(16000 * 2)) {
             ESP_LOGW(TAG, "Wake-word audio upload disabled: PSRAM cache allocation failed");
@@ -173,6 +156,29 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
         }
         if (wakenet_models.size() > 1) {
             afe_config->wakenet_model_name_2 = wakenet_models[1];
+        }
+        // Only the two models selected above are active in the AFE.
+        wake_words_.clear();
+        for (auto name : {afe_config->wakenet_model_name, afe_config->wakenet_model_name_2}) {
+            if (name == nullptr) {
+                continue;
+            }
+            auto words = esp_srmodel_get_wake_words(models_, name);
+            if (words == nullptr) {
+                continue;
+            }
+            std::string_view remaining(words);
+            while (!remaining.empty()) {
+                const auto end = remaining.find(';');
+                const auto word = remaining.substr(0, end);
+                if (!word.empty()) {
+                    wake_words_.emplace_back(word);
+                }
+                if (end == std::string_view::npos) {
+                    break;
+                }
+                remaining.remove_prefix(end + 1);
+            }
         }
     }
     afe_config->agc_init = false;
@@ -310,6 +316,10 @@ void AfeAudioEngine::EnableDeviceAec(bool enable) {
 }
 
 bool AfeAudioEngine::HasWakeWord() const { return wake_detector_ != WakeDetector::kNone; }
+
+std::vector<std::string> AfeAudioEngine::GetWakeWords() const {
+    return custom_wake_word_ ? custom_wake_word_->GetWakeWords() : wake_words_;
+}
 
 bool AfeAudioEngine::IsWakeWordDetectionEnabled() const {
     return event_group_ != nullptr && (xEventGroupGetBits(event_group_) & kWakeWordEnabled) != 0;

@@ -14,7 +14,7 @@
 
 ## 最近の更新
 
-- 本プロジェクトはESP-IDF v6.0.1以降を必須とし、推奨SDKは[ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)です。ESP-IDF 5.xはサポートしません。現在のマトリクスは171バリアントで、ESP32-S31バリアントにはIDF 6.1以降が必要です。
+- 本プロジェクトはESP-IDF v6.0.1以降を必須とし、推奨SDKは[ESP-IDF `release/v6.1`](https://github.com/espressif/esp-idf/tree/release/v6.1)ブランチです。ESP-IDF 5.xはサポートしません。現在のマトリクスは171バリアントで、ESP32-S31バリアントにはIDF 6.1以降が必要です。
 - MQTTとBluFiの暗号処理をPSA Cryptoへ移行し、IDF 6のコンポーネント分割およびサードパーティ依存関係にも対応しました。
 - オーディオパイプラインの並行処理、MQTT/UDPパケット検証、リリースマトリクス選択処理を強化しました。
 - ESP-SR 2.4.7を使用すると、ESP32-P4 Rev1とRev3の両方がIDF 6に対応します。
@@ -114,9 +114,11 @@ Feishuドキュメントチュートリアルをご覧ください：
 ### 開発環境
 
 - Cursor または VSCode
-- ESP-IDFプラグインをインストールしてください。最低要件は[ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1)、推奨は[ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)です。ESP-IDF 5.xはサポートしません
+- ESP-IDFプラグインをインストールしてください。最低要件は[ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1)、推奨は[ESP-IDF `release/v6.1`](https://github.com/espressif/esp-idf/tree/release/v6.1)ブランチです。ESP-IDF 5.xはサポートしません
 - LinuxはWindowsよりも優れており、コンパイルが速く、ドライバの問題も少ない
 - 本プロジェクトはGoogle C++コードスタイルを採用、コード提出時は準拠を確認してください
+
+`v6.1`リリースタグではなく、`release/v6.1`ブランチを使用してください。このタグではESP32-C3のWi-Fi初期化に失敗する問題が[#2344](https://github.com/78/xiaozhi-esp32/issues/2344)で報告されています。SDKのリビジョンを切り替えた後は、ESP-IDFディレクトリで`git submodule update --init --recursive`を実行し、その`export.sh`を読み込み直してから、本プロジェクトで`idf.py fullclean`を実行して再ビルドしてください。
 
 ### 開発者ドキュメント
 

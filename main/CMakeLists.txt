@@ -170,8 +170,18 @@ elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_S3)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
-elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV)
-    set(BOARD_DIR "quandong-s3-dev")
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-spi-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_3_5_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-qspi-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_4_0_LCD)
+    set(BOARD_DIR "quandong/esp32-s3-spi-4.0")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
@@ -234,8 +244,8 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
-elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4)
-    set(BOARD_DIR "m5stack/corep4")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4X)
+    set(BOARD_DIR "m5stack/corep4x")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
@@ -244,6 +254,14 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_STACKCHAN)
+    set(BOARD_DIR "m5stack/stackchan")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    # Shared with m5stack/core-s3 rather than copied: this robot is built on that board, and the
+    # codec is the same AW88298 + ES7210 pair behind the same pins.
+    list(APPEND SOURCES "boards/m5stack/core-s3/cores3_audio_codec.cc")
 elseif(CONFIG_BOARD_TYPE_M5STACK_STICK_S3)
     set(BOARD_DIR "m5stack/stick-s3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -273,6 +291,15 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE)
     set(BOARD_DIR "m5stack/atoms3r-cam-m12-echo-base")
 elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_ECHOS3R)
     set(BOARD_DIR "m5stack/atom-echos3r")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CARDPUTER)
+    set(BOARD_DIR "m5stack/cardputer")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+    # Shared with m5stack/cardputer-adv rather than copied: same 4x14 key layout and screen,
+    # so the keyboard WiFi/server setup UI and key types are reused as-is.
+    list(APPEND SOURCES "boards/m5stack/cardputer-adv/wifi_config_ui.cc")
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/m5stack/cardputer-adv)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CARDPUTER_ADV)
     set(BOARD_DIR "m5stack/cardputer-adv")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -323,6 +350,22 @@ elseif(CONFIG_BOARD_TYPE_ESP_VOCAT)
     set(EMOTE_RESOLUTION "360_360")
     set(ESP_VOCAT_ASSETS_STAGING "${CMAKE_BINARY_DIR}/esp-vocat-assets")
     set(EMOTE_EXTERNAL_PATH "${ESP_VOCAT_ASSETS_STAGING}")
+elseif(CONFIG_BOARD_TYPE_CYBERAI_VOCAT_V2_0)
+    set(BOARD_DIR "cyberai/cyber-vocat-v2.0")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    set(EMOTE_RESOLUTION "360_360")
+    set(ESP_VOCAT_ASSETS_STAGING "${CMAKE_BINARY_DIR}/esp-vocat-assets")
+    set(EMOTE_EXTERNAL_PATH "${ESP_VOCAT_ASSETS_STAGING}")
+elseif(CONFIG_BOARD_TYPE_CYBERAI_VOCAT_V2_1)
+    set(BOARD_DIR "cyberai/cyber-vocat-v2.1")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+    set(EMOTE_RESOLUTION "360_360")
+    set(ESP_VOCAT_ASSETS_STAGING "${CMAKE_BINARY_DIR}/esp-vocat-assets")
+    set(EMOTE_EXTERNAL_PATH "${ESP_VOCAT_ASSETS_STAGING}")
 elseif(CONFIG_BOARD_TYPE_ESP_SENSAIRSHUTTLE)
     set(BOARD_DIR "espressif/esp-sensairshuttle")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
@@ -355,6 +398,11 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8)
     set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8_V2)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.8-v2")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
@@ -487,6 +535,16 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8)
+    set(BOARD_DIR "waveshare/esp32-c5-touch-lcd-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5)
+    set(BOARD_DIR "waveshare/esp32-c5-touch-lcd-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54)
     set(BOARD_DIR "waveshare/esp32-c6-epaper-1.54")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -500,6 +558,11 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_83)
     set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-1.83")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_43)
     set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.43")
@@ -738,6 +801,10 @@ elseif(CONFIG_BOARD_TYPE_SEEED_STUDIO_SENSECAP_WATCHER)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_SEEED_XIAO_ESP32S3_RESPEAKER_XVF3800)
+    set(BOARD_DIR "seeed/xiao-esp32s3-respeaker-xvf3800")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_14_1)
+    set(BUILTIN_ICON_FONT font_material_symbols_14_1)
 elseif(CONFIG_BOARD_TYPE_DOIT_S3_AIBOX)
     set(BOARD_DIR "doit-s3-aibox")
 elseif(CONFIG_BOARD_TYPE_MIXGO_NOVA)
@@ -996,6 +1063,8 @@ elseif(CONFIG_LANGUAGE_ID_ID)
     set(LANG_DIR "id-ID")
 elseif(CONFIG_LANGUAGE_UK_UA)
     set(LANG_DIR "uk-UA")
+elseif(CONFIG_LANGUAGE_BE_BY)
+    set(LANG_DIR "be-BY")
 elseif(CONFIG_LANGUAGE_RO_RO)
     set(LANG_DIR "ro-RO")
 elseif(CONFIG_LANGUAGE_BG_BG)
@@ -1088,6 +1157,10 @@ if(CONFIG_IDF_TARGET_ESP32S31)
     list(APPEND SOURCES "boards/common/esp_video.cc")
 endif()
 
+if(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
+endif()
+
 # Include Esp32Camera if target is ESP32S3
 if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "boards/common/esp32_camera.cc")
@@ -1119,6 +1192,12 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
         sdmmc
     )
 endif()
+# The Otto camera board uses the USB Serial/JTAG host connection to detect
+# charging from a USB port. The board is ESP32-S3 only, so require the driver
+# on that target and keep other target builds unchanged.
+if(IDF_TARGET STREQUAL "esp32s3")
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA esp_driver_usb_serial_jtag)
+endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
@@ -1128,6 +1207,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_netif
                         esp_eth
+                        esp_adc
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi
@@ -1153,6 +1233,13 @@ idf_component_register(SRCS ${SOURCES}
 # dialect; pin the baseline so main/ does not depend on it.
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+    # Bound individual frames in project-owned code; task call chains still need runtime checks.
+    target_compile_options(${COMPONENT_LIB} PRIVATE
+        -Werror=frame-larger-than=1536
+        -Werror=vla
+        -Werror=alloca
+        $<$<COMPILE_LANG_AND_ID:C,GNU>:-fstack-usage>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fstack-usage>)
 endif()
 
 # Use target_compile_definitions to define the reported board identity
@@ -1205,6 +1292,7 @@ add_custom_command(
             --output "${LANG_HEADER}"
     DEPENDS
         ${LANG_JSON}
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json
         ${PROJECT_DIR}/scripts/gen_lang.py
     COMMENT "Generating ${LANG_DIR} language config"
 )
@@ -1226,7 +1314,7 @@ if(NOTO_FONTS_COMPONENT_PATH)
     set(NOTO_FONTS_PATH "${NOTO_FONTS_COMPONENT_PATH}")
 endif()
 
-if(CONFIG_BOARD_TYPE_ESP_VOCAT)
+if(CONFIG_BOARD_TYPE_ESP_VOCAT OR CONFIG_BOARD_TYPE_CYBERAI_VOCAT_V2_0 OR CONFIG_BOARD_TYPE_CYBERAI_VOCAT_V2_1)
     find_component_by_pattern("esp_emote_assets" EMOTE_ASSETS_COMPONENT EMOTE_ASSETS_PATH)
     if(EMOTE_ASSETS_PATH)
         file(REMOVE_RECURSE "${ESP_VOCAT_ASSETS_STAGING}")
@@ -1434,6 +1522,35 @@ function(get_assets_local_file assets_source assets_local_file_var)
     set(${assets_local_file_var} ${ASSETS_LOCAL_FILE} PARENT_SCOPE)
 endfunction()
 
+# Custom and Emote packs contain UI resources plus prebuilt speech models.
+# Keep their UI data, but always replace the models using the current sdkconfig.
+function(configure_assets_models assets_source assets_output)
+    set(ASSETS_NAME_LENGTH 32)
+    if(CONFIG_USE_EMOTE_MESSAGE_STYLE AND CONFIG_MMAP_FILE_NAME_LENGTH)
+        set(ASSETS_NAME_LENGTH ${CONFIG_MMAP_FILE_NAME_LENGTH})
+    endif()
+    set(MODEL_ARGS
+        "--sdkconfig" "${SDKCONFIG}"
+        "--base_assets" "${assets_source}"
+        "--output" "${assets_output}"
+        "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}"
+        "--name_length" "${ASSETS_NAME_LENGTH}"
+    )
+    partition_table_get_partition_info(assets_limit "--partition-name assets" "size")
+    if(assets_limit)
+        list(APPEND MODEL_ARGS "--max_size" "${assets_limit}")
+    endif()
+    add_custom_command(
+        OUTPUT "${assets_output}"
+        COMMAND python ${PROJECT_DIR}/scripts/build_default_assets.py ${MODEL_ARGS}
+        DEPENDS "${assets_source}" "${SDKCONFIG}" "${PROJECT_DIR}/scripts/build_default_assets.py"
+        COMMENT "Configuring speech models in custom assets"
+        VERBATIM
+    )
+    add_custom_target(configured_assets ALL DEPENDS "${assets_output}")
+    add_dependencies(flash configured_assets)
+endfunction()
+
 
 partition_table_get_partition_info(size "--partition-name assets" "size")
 partition_table_get_partition_info(offset "--partition-name assets" "offset")
@@ -1447,8 +1564,10 @@ if ("${size}" AND "${offset}")
     elseif(CONFIG_FLASH_CUSTOM_ASSETS)
         # Flash custom assets
         get_assets_local_file("${CONFIG_CUSTOM_ASSETS_FILE}" ASSETS_LOCAL_FILE)
-        esptool_py_flash_to_partition(flash "assets" "${ASSETS_LOCAL_FILE}")
-        message(STATUS "Custom assets flash configured: ${ASSETS_LOCAL_FILE} -> assets partition")
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_LOCAL_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "assets" "${CONFIGURED_ASSETS_FILE}")
+        message(STATUS "Custom assets flash configured: ${CONFIGURED_ASSETS_FILE} -> assets partition")
     elseif(CONFIG_FLASH_EXPRESSION_ASSETS)
         set(ASSETS_NAME "expression_assets")
         set(ASSETS_PARTITION "assets")
@@ -1460,7 +1579,9 @@ if ("${size}" AND "${offset}")
             build_speaker_assets_bin("${ASSETS_PARTITION}" ${EMOTE_RESOLUTION} ${ASSETS_FILE} ${CONFIG_MMAP_FILE_NAME_LENGTH})
         endif()
         message(STATUS "Generated emote assets: ${ASSETS_FILE} -> ${ASSETS_PARTITION} partition")
-        esptool_py_flash_to_partition(flash "${ASSETS_PARTITION}" "${ASSETS_FILE}")
+        set(CONFIGURED_ASSETS_FILE "${CMAKE_BINARY_DIR}/configured_assets.bin")
+        configure_assets_models("${ASSETS_FILE}" "${CONFIGURED_ASSETS_FILE}")
+        esptool_py_flash_to_partition(flash "${ASSETS_PARTITION}" "${CONFIGURED_ASSETS_FILE}")
     elseif(CONFIG_FLASH_NONE_ASSETS)
         message(STATUS "Assets flashing disabled (FLASH_NONE_ASSETS)")
     endif()

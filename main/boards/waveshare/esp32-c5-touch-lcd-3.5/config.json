@@ -1,0 +1,27 @@
+{
+    "manufacturer": "waveshare",
+    "type": "esp32-c5-touch-lcd-3.5",
+    "target": "esp32c5",
+    "builds": [
+        {
+            "name": "esp32-c5-touch-lcd-3.5",
+            "sdkconfig_append": [
+                "CONFIG_SPIRAM=y",
+                "CONFIG_SPIRAM_MODE_QUAD=y",
+                "CONFIG_SPIRAM_SPEED_80M=y",
+                "CONFIG_XPOWERS_ESP_IDF_NEW_API=y",
+                "CONFIG_ESP_VIDEO_ENABLE_SPI_VIDEO_DEVICE=y",
+                "CONFIG_CAM_CTLR_SPI_ENABLE_PARLIO=y",
+                "CONFIG_CAMERA_BF3901=y",
+                "CONFIG_CAMERA_BF3901_AUTO_DETECT_SPI_INTERFACE_SENSOR=y",
+                "CONFIG_CAMERA_BF3901_SPI_YUV422_240X320_15FPS=n",
+                "CONFIG_CAMERA_BF3901_SPI2_YUV422_YUYV_240X320_18FPS=y",
+                "CONFIG_CAMERA_BF3901_SPI2_DEFAULT_FMT_YUV422_YUYV_240X320_18FPS=y",
+                "CONFIG_CAMERA_SENSOR_XCLK_INPUT_24M=y",
+                "CONFIG_CAMERA_XCLK_USE_LEDC=y",
+                "CONFIG_MBEDTLS_HARDWARE_AES=n",
+                "CONFIG_MBEDTLS_HARDWARE_SHA=n"
+            ]
+        }
+    ]
+}

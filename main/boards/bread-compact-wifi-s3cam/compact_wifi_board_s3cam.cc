@@ -64,9 +64,12 @@ class CompactWifiBoardS3Cam : public WifiBoard {
 private:
  
     Button boot_button_;
+#ifndef CONFIG_BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
     LcdDisplay* display_;
+#endif
     Esp32Camera* camera_;
 
+#ifndef CONFIG_BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
     void InitializeSpi() {
  
     }
@@ -76,6 +79,8 @@ private:
       
        
     }
+
+#endif
 
     void InitializeCamera() {
         camera_config_t config = {};
@@ -123,10 +128,12 @@ public:
        
         InitializeButtons();
         InitializeCamera();
+#ifndef CONFIG_BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
-        
+#endif
+
     }
 
     virtual Led* GetLed() override {
@@ -145,6 +152,7 @@ public:
         return &audio_codec;
     }
 
+#ifndef CONFIG_BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
     virtual Display* GetDisplay() override {
         return nullptr;
     }
@@ -156,6 +164,7 @@ public:
         }
         return nullptr;
     }
+#endif
 
     virtual Camera* GetCamera() override {
         return camera_;

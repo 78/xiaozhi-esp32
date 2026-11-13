@@ -146,13 +146,17 @@ private:
         esp_err_t ret = esp_io_expander_new_i2c_tca9554(i2c_bus_, ESP_IO_EXPANDER_I2C_TCA9554_ADDRESS_000, &io_expander);
         if(ret != ESP_OK)
         ESP_LOGE(TAG, "TCA9554 create returned error");        
-        ret = esp_io_expander_set_dir(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, IO_EXPANDER_OUTPUT);         
+        ret = esp_io_expander_set_dir(io_expander,
+            IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_7,
+            IO_EXPANDER_OUTPUT);
         ESP_ERROR_CHECK(ret);
         vTaskDelay(pdMS_TO_TICKS(100));
         ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_0 | IO_EXPANDER_PIN_NUM_1, 0);
         ESP_ERROR_CHECK(ret);
         vTaskDelay(pdMS_TO_TICKS(100));
-        ret = esp_io_expander_set_level(io_expander, IO_EXPANDER_PIN_NUM_1, 1);
+        // EXIO1: LCD reset; EXIO7: NS4150B power amplifier enable.
+        ret = esp_io_expander_set_level(io_expander,
+            IO_EXPANDER_PIN_NUM_1 | IO_EXPANDER_PIN_NUM_7, 1);
         ESP_ERROR_CHECK(ret);
     }
 

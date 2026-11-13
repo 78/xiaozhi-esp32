@@ -10,7 +10,9 @@ public:
     bool IsDischarging();
     bool IsChargingDone();
     int GetBatteryLevel();
-    float GetTemperature();
+    // Returns false and leaves `celsius` untouched when the reading is not usable -
+    // same shape as Board::GetTemperature(float&), which is what this feeds.
+    bool GetTemperature(float& celsius);
     void PowerOff();
 
 private:

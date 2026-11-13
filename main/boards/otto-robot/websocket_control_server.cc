@@ -147,6 +147,13 @@ void WebSocketControlServer::HandleMessage(httpd_req_t *req, const char* data, s
     int sock_fd = httpd_req_to_sockfd(req);
     uint64_t client_id = GetClientId(req);
     if (client_id == 0) {
+        // Some ESP-IDF HTTPD/WebSocket combinations expose a different session
+        // socket for the first data frame than for the handshake. Register the
+        // client here so the control channel does not silently drop commands.
+        AddClient(req);
+        client_id = GetClientId(req);
+    }
+    if (client_id == 0) {
         ESP_LOGW(TAG, "Ignoring message from unknown client: %d", sock_fd);
         cJSON_Delete(root);
         return;
@@ -194,7 +201,10 @@ void WebSocketControlServer::AddClient(httpd_req_t *req) {
         clients_[sock_fd] = ClientInfo{
             .client_id = client_id
         };
-        ESP_LOGI(TAG, "Client connected: %d id=%llu (total: %zu)", sock_fd, (unsigned long long)client_id, clients_.size());
+        // %llu is a 64-bit conversion, which newlib-nano's printf does not have, and
+        // CONFIG_NEWLIB_NANO_FORMAT=y is in this project's sdkconfig.defaults. The id is a
+        // per-boot counter, so 32 bits is more connections than a boot will see.
+        ESP_LOGI(TAG, "Client connected: %d id=%u (total: %zu)", sock_fd, (unsigned)client_id, clients_.size());
     }
 }
 
@@ -259,7 +269,7 @@ void WebSocketControlServer::SendMessage(int sock_fd, uint64_t client_id, const 
 
     auto client = clients_.find(sock_fd);
     if (client == clients_.end() || client->second.client_id != client_id) {
-        ESP_LOGW(TAG, "Skip send to stale client fd=%d id=%llu", sock_fd, (unsigned long long)client_id);
+        ESP_LOGW(TAG, "Skip send to stale client fd=%d id=%u", sock_fd, (unsigned)client_id);
         return;
     }
 

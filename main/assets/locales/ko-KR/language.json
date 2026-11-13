@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Wi-Fi로 전환 중...",
         "SWITCH_TO_4G_NETWORK": "4G로 전환 중...",
         "STANDBY": "대기",
+        "WAKE_WORD_HINT": "\"%s\"라고 말하면 저를 깨울 수 있어요.",
         "CONNECT_TO": "연결 대상: ",
         "CONNECTING": "연결 중...",
         "CONNECTION_SUCCESSFUL": "연결 성공",

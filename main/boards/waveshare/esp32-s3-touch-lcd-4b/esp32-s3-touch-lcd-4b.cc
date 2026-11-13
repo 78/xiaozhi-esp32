@@ -329,7 +329,10 @@ private:
                 ESP_LOGD(TAG, "Button pressed, start time recorded");
             } else {
                 uint64_t press_duration = (esp_timer_get_time() / 1000) - press_start_time_ms;
-                ESP_LOGI(TAG, "Button released after %llums", press_duration);
+                // %llu is a 64-bit conversion, which newlib-nano's printf does not have,
+                // and CONFIG_NEWLIB_NANO_FORMAT=y is in this project's sdkconfig.defaults.
+                // A press is milliseconds; 32 bits is 49 days of holding the button.
+                ESP_LOGI(TAG, "Button released after %ums", (unsigned)press_duration);
 
                 if (press_duration < 1000) {
                     ESP_LOGI(TAG, "Short press detected, switching to factory partition");

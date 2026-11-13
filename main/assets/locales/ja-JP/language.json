@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Wi-Fiに切り替え中...",
         "SWITCH_TO_4G_NETWORK": "4Gに切り替え中...",
         "STANDBY": "待機中",
+        "WAKE_WORD_HINT": "「%s」と呼びかけて起こしてください。",
         "CONNECT_TO": "接続先 ",
         "CONNECTING": "接続中...",
         "CONNECTED_TO": "接続完了 ",

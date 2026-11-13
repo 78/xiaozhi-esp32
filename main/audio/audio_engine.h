@@ -26,6 +26,7 @@ public:
     virtual bool IsWakeWordDetectionEnabled() const = 0;
     virtual bool IsVoiceProcessingEnabled() const = 0;
     virtual bool IsAfeWakeWord() const = 0;
+    virtual std::vector<std::string> GetWakeWords() const = 0;
     virtual size_t GetFeedSize() const = 0;
 
     virtual void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) = 0;

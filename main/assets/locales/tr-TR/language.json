@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Wi-Fi'ye geçiliyor...",
         "SWITCH_TO_4G_NETWORK": "4G'ye geçiliyor...",
         "STANDBY": "Bekleme",
+        "WAKE_WORD_HINT": "Beni uyandırmak için \"%s\" deyin.",
         "CONNECT_TO": "Bağlan ",
         "CONNECTING": "Bağlanıyor...",
         "CONNECTED_TO": "Bağlandı ",

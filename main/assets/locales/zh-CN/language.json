@@ -19,6 +19,7 @@
         "SWITCH_TO_WIFI_NETWORK": "切换到 Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "切换到 4G...",
         "STANDBY": "待命",
+        "WAKE_WORD_HINT": "说「%s」就能唤醒我。",
         "CONNECT_TO": "连接 ",
         "CONNECTING": "连接中...",
         "CONNECTED_TO": "已连接 ",

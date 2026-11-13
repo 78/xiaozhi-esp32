@@ -34,7 +34,8 @@ public:
 
     virtual void SetupUI() override;
     virtual void SetChatMessage(const char* role, const char* content) override;
-    virtual void SetEmotion(const char* emotion) override;
+    virtual void RemoveChatMessage(const char* role, const char* content) override;
+    virtual bool SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
     virtual bool IsMonochrome() const override { return true; }
     void SetPowerSaveMode(bool on) override;

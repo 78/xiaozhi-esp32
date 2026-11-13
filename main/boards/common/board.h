@@ -8,6 +8,8 @@
 #include <string>
 #include <functional>
 #include <network_interface.h>
+#include <esp_system.h>
+#include <cJSON.h>
 
 #include "led/led.h"
 #include "backlight.h"
@@ -55,6 +57,10 @@ protected:
     Board();
     std::string GenerateUuid();
 
+    // The "system" block of GetDeviceStatusJson. Shared, so the answer does not depend
+    // on which network stack a board happens to be built on.
+    void AddSystemStatus(cJSON* root);
+
     // 软件生成的设备唯一标识
     std::string uuid_;
 
@@ -79,6 +85,7 @@ public:
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetSystemInfoJson();
+    static const char* ResetReasonName(esp_reset_reason_t reason);
     virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;

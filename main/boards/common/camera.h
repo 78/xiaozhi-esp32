@@ -14,6 +14,9 @@ public:
     virtual bool SetVFlip(bool enabled) = 0;
     virtual bool SetSwapBytes(bool enabled) { return false; }  // Optional, default no-op
     virtual std::expected<std::string, std::string> Explain(const std::string& question) = 0;
+    virtual std::expected<std::string, std::string> Explain(const std::string& question,
+                                                            const std::string& url,
+                                                            const std::string& token) = 0;
 };
 
 #endif  // CAMERA_H

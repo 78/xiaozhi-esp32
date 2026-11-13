@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Váltás Wi-Fi-re...",
         "SWITCH_TO_4G_NETWORK": "Váltás 4G-re...",
         "STANDBY": "Készenlét",
+        "WAKE_WORD_HINT": "Így ébreszthetsz fel: „%s”.",
         "CONNECT_TO": "Csatlakozás: ",
         "CONNECTING": "Csatlakozás...",
         "CONNECTION_SUCCESSFUL": "Sikeres csatlakozás",
