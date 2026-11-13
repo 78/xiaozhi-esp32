@@ -1,5 +1,4 @@
 {
-    "type": "bread-compact-wifi",
     "target": "esp32s3",
     "builds": [
         {
