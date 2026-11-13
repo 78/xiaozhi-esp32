@@ -3,7 +3,10 @@
     "target": "esp32s3",
     "builds": [
         {
-            "name": "wk-esp32s3-dev"
+            "name": "wk-esp32s3-dev",
+            "sdkconfig_append": [
+                "CONFIG_OTA_URL=\"http://192.168.0.113:8002/xiaozhi/ota/\""
+            ]
         }
     ]
 }
