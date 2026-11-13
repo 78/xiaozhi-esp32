@@ -63,6 +63,12 @@ public:
     virtual bool IsMonochrome() const { return false; }
     virtual bool SupportsGuiOperations() const { return false; }
     virtual void SetHideSubtitle(bool hide) { (void)hide; }
+    // Scrolls the chat transcript by a step; direction < 0 shows earlier messages.
+    // Returns false when the display has no transcript or nothing left to scroll to.
+    virtual bool ScrollChat(int direction) {
+        (void)direction;
+        return false;
+    }
     virtual bool InsertAnimDialog(const char* name, uint32_t duration_ms) {
         (void)name;
         (void)duration_ms;
