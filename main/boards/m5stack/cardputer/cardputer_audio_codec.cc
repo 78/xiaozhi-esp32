@@ -120,16 +120,26 @@ bool CardputerAudioCodec::SpeakerBusy() const {
     return esp_timer_get_time() - last_write_us_.load() < kSpeakerHoldUs;
 }
 
+int CardputerAudioCodec::ReadSilence(int16_t* dest, int samples) {
+    // Feed silence at real-time pace so the wake word / VAD pipeline keeps
+    // running without spinning while the speaker owns the shared pin.
+    memset(dest, 0, samples * sizeof(int16_t));
+    vTaskDelay(pdMS_TO_TICKS(std::max(1, samples * 1000 / input_sample_rate_)));
+    return samples;
+}
+
 int CardputerAudioCodec::Read(int16_t* dest, int samples) {
     if (SpeakerBusy()) {
-        // Feed silence at real-time pace so the wake word / VAD pipeline keeps
-        // running without spinning while the speaker owns the shared pin.
-        memset(dest, 0, samples * sizeof(int16_t));
-        vTaskDelay(pdMS_TO_TICKS(std::max(1, samples * 1000 / input_sample_rate_)));
-        return samples;
+        return ReadSilence(dest, samples);
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
+    // Check again under the lock: a Write() may have held the mutex while we
+    // waited for it, and its last_write_us_ update must still win the pin.
+    if (SpeakerBusy()) {
+        lock.unlock();
+        return ReadSilence(dest, samples);
+    }
     if (!input_enabled_) {
         return 0;
     }
