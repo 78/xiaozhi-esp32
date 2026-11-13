@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Beralih ke Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Beralih ke 4G...",
         "STANDBY": "Siaga",
+        "WAKE_WORD_HINT": "Ucapkan \"%s\" untuk membangunkan saya.",
         "CONNECT_TO": "Hubungkan ke ",
         "CONNECTING": "Menghubungkan...",
         "CONNECTED_TO": "Terhubung ke ",

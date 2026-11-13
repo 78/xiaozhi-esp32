@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "تغییر به Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "تغییر به 4G...",
         "STANDBY": "آماده به کار",
+        "WAKE_WORD_HINT": "برای بیدار کردن من، «%s» را بگویید.",
         "CONNECT_TO": "اتصال به ",
         "CONNECTING": "در حال اتصال...",
         "CONNECTION_SUCCESSFUL": "اتصال موفق",

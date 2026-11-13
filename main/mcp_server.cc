@@ -1,6 +1,6 @@
 /*
  * MCP Server Implementation
- * Reference: https://modelcontextprotocol.io/specification/2024-11-05
+ * Revisions: 2024-11-05 (legacy) and 2026-07-28 (per-request metadata)
  */
 
 #include "mcp_server.h"
@@ -8,9 +8,14 @@
 #include <esp_log.h>
 #include <esp_pthread.h>
 #include <algorithm>
+#include <cctype>
+#include <climits>
+#include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <optional>
+#include <string_view>
 
 #include "application.h"
 #include "board.h"
@@ -39,11 +44,14 @@ void McpServer::AddCommonTools() {
 
     AddTool("self.get_device_status",
             "Provides the real-time information of the device, including the current status of the "
-            "audio speaker, screen, battery, network, etc.\n"
+            "audio speaker, screen, battery, network, and why the device last restarted.\n"
             "Use this tool for: \n"
             "1. Answering questions about current condition (e.g. what is the current volume of "
             "the audio speaker?)\n"
-            "2. As the first step to control the device (e.g. turn up / down the volume of the "
+            "2. Answering why the device rebooted or restarted - whether it was powered on, "
+            "reset by its button, or crashed. This is about the device, not about the "
+            "conversation.\n"
+            "3. As the first step to control the device (e.g. turn up / down the volume of the "
             "audio speaker, etc.)",
             PropertyList(), [&board](const PropertyList& properties) -> ReturnValue {
                 return board.GetDeviceStatusJson();
@@ -99,7 +107,11 @@ void McpServer::AddCommonTools() {
                 "Return:\n"
                 "  A JSON object that provides the photo information.",
                 PropertyList({Property("question", kPropertyTypeString)}),
-                [camera](const PropertyList& properties) -> ToolResult {
+                [](const PropertyList& properties, const McpRequestContext& context) -> ToolResult {
+                    auto camera = Board::GetInstance().GetCamera();
+                    if (camera == nullptr) {
+                        return std::unexpected("Camera unavailable");
+                    }
                     // Lower the priority to do the camera capture
                     TaskPriorityReset priority_reset(1);
 
@@ -107,7 +119,9 @@ void McpServer::AddCommonTools() {
                         return std::unexpected("Failed to capture photo");
                     }
                     auto question = properties["question"].value<std::string>();
-                    auto result = camera->Explain(question);
+                    auto result = context.vision ? camera->Explain(question, context.vision->url,
+                                                                   context.vision->token)
+                                                 : camera->Explain(question);
                     if (!result) {
                         return std::unexpected(std::move(result.error()));
                     }
@@ -326,6 +340,17 @@ void McpServer::AddUserOnlyTools() {
                     });
 }
 
+void McpServer::LogToolInventory() const {
+    size_t user_only = 0;
+    for (const auto& tool : tools_) {
+        if (tool->user_only()) {
+            ++user_only;
+        }
+    }
+    ESP_LOGI(TAG, "%u tools registered: %u visible to the model, %u user-only",
+             (unsigned)tools_.size(), (unsigned)(tools_.size() - user_only), (unsigned)user_only);
+}
+
 void McpServer::AddTool(std::unique_ptr<McpTool> tool) {
     // Prevent adding duplicate tools
     if (std::find_if(tools_.begin(), tools_.end(), [&tool](const auto& existing) {
@@ -344,6 +369,11 @@ void McpServer::AddTool(const std::string& name, const std::string& description,
     AddTool(std::make_unique<McpTool>(name, description, properties, std::move(callback)));
 }
 
+void McpServer::AddTool(const std::string& name, const std::string& description,
+                        const PropertyList& properties, ContextToolCallback callback) {
+    AddTool(std::make_unique<McpTool>(name, description, properties, callback));
+}
+
 void McpServer::AddUserOnlyTool(const std::string& name, const std::string& description,
                                 const PropertyList& properties, ToolCallback callback) {
     auto tool = std::make_unique<McpTool>(name, description, properties, std::move(callback));
@@ -351,120 +381,214 @@ void McpServer::AddUserOnlyTool(const std::string& name, const std::string& desc
     AddTool(std::move(tool));
 }
 
+namespace {
+constexpr const char* kProtocolVersion = "io.modelcontextprotocol/protocolVersion";
+constexpr const char* kClientCapabilities = "io.modelcontextprotocol/clientCapabilities";
+constexpr const char* kVisionExtension = "me.xiaozhi/vision";
+constexpr const char* kModernVersion = "2026-07-28";
+constexpr const char* kSupportedVersions = R"(["2026-07-28","2024-11-05"])";
+
+std::string JsonString(const char* value) {
+    CJsonUniquePtr string(cJSON_CreateString(value));
+    CJsonStringUniquePtr encoded(string ? cJSON_PrintUnformatted(string.get()) : nullptr);
+    return encoded ? std::string(encoded.get()) : std::string();
+}
+
+void AppendServerInfo(std::string& output) {
+    output += "{\"name\":";
+    output += JsonString(BOARD_NAME);
+    output += ",\"version\":";
+    output += JsonString(esp_app_get_description()->version);
+    output += "}";
+}
+
+std::string ResultPrefix(const McpRequestContext& context) {
+    std::string prefix = "{\"jsonrpc\":\"2.0\",\"id\":";
+    prefix += context.id_json;
+    prefix += ",\"result\":";
+    if (context.modern) {
+        prefix += "{\"resultType\":\"complete\",\"_meta\":{\"io.modelcontextprotocol/serverInfo\":";
+        AppendServerInfo(prefix);
+        prefix += "}}";
+    }
+    return prefix;
+}
+
+std::optional<McpRequestContext::VisionConfig> ReadVisionConfig(const cJSON* vision) {
+    auto url = cJSON_GetObjectItemCaseSensitive(vision, "url");
+    auto token = cJSON_GetObjectItemCaseSensitive(vision, "token");
+    if (!cJSON_IsString(url)) {
+        return std::nullopt;
+    }
+    return McpRequestContext::VisionConfig{url->valuestring,
+                                           cJSON_IsString(token) ? token->valuestring : ""};
+}
+
+bool ValidVisionConfig(const McpRequestContext::VisionConfig& vision) {
+    const auto& url = vision.url;
+    const auto scheme_size = url.starts_with("https://")  ? 8u
+                             : url.starts_with("http://") ? 7u
+                                                          : 0u;
+    if (scheme_size == 0 || url.size() <= scheme_size || url[scheme_size] == '/' ||
+        url[scheme_size] == '?' || url[scheme_size] == '#') {
+        return false;
+    }
+    return std::none_of(url.begin(), url.end(),
+                        [](unsigned char c) { return std::isspace(c) || std::iscntrl(c); }) &&
+           std::none_of(vision.token.begin(), vision.token.end(),
+                        [](unsigned char c) { return c == '\r' || c == '\n'; });
+}
+}  // namespace
+
 void McpServer::ParseMessage(const std::string& message, ResponseSender response_sender) {
-    CJsonUniquePtr json(cJSON_Parse(message.c_str()));
+    CJsonUniquePtr json(cJSON_ParseWithOpts(message.c_str(), nullptr, true));
     if (json == nullptr) {
-        ESP_LOGE(TAG, "Failed to parse MCP message: %s", message.c_str());
+        // Requests may contain credentials. Never log the original message.
+        ReplyError({}, -32700, "Parse error", response_sender);
         return;
     }
     ParseMessage(json.get(), std::move(response_sender));
 }
 
 void McpServer::ParseCapabilities(const cJSON* capabilities) {
-    auto vision = cJSON_GetObjectItem(capabilities, "vision");
-    if (cJSON_IsObject(vision)) {
-        auto url = cJSON_GetObjectItem(vision, "url");
-        auto token = cJSON_GetObjectItem(vision, "token");
-        if (cJSON_IsString(url)) {
-            auto camera = Board::GetInstance().GetCamera();
-            if (camera) {
-                std::string url_str = std::string(url->valuestring);
-                std::string token_str;
-                if (cJSON_IsString(token)) {
-                    token_str = std::string(token->valuestring);
-                }
-                camera->SetExplainUrl(url_str, token_str);
-            }
+    auto config = ReadVisionConfig(cJSON_GetObjectItem(capabilities, "vision"));
+    if (config) {
+        if (auto camera = Board::GetInstance().GetCamera()) {
+            camera->SetExplainUrl(config->url, config->token);
         }
     }
 }
 
 void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) {
-    // Check JSONRPC version
-    auto version = cJSON_GetObjectItem(json, "jsonrpc");
-    if (version == nullptr || !cJSON_IsString(version) ||
-        strcmp(version->valuestring, "2.0") != 0) {
-        ESP_LOGE(TAG, "Invalid JSONRPC version: %s", version ? version->valuestring : "null");
+    McpRequestContext context;
+    auto id = cJSON_GetObjectItemCaseSensitive(json, "id");
+    if (cJSON_IsString(id)) {
+        context.id_json = JsonString(id->valuestring);
+    } else if (cJSON_IsNumber(id) && std::isfinite(id->valuedouble) &&
+               std::trunc(id->valuedouble) == id->valuedouble &&
+               std::abs(id->valuedouble) <= 9007199254740991.0) {
+        // cJSON's floating formatter can round large safe integers. IDs must round-trip exactly.
+        context.id_json = std::to_string(static_cast<int64_t>(id->valuedouble));
+    }
+    auto version = cJSON_GetObjectItemCaseSensitive(json, "jsonrpc");
+    auto method = cJSON_GetObjectItemCaseSensitive(json, "method");
+    if (!cJSON_IsObject(json) || !cJSON_IsString(version) ||
+        strcmp(version->valuestring, "2.0") != 0 || !cJSON_IsString(method)) {
+        ReplyError(context, -32600, "Invalid Request", response_sender);
+        return;
+    }
+    if (id == nullptr) {
+        return;  // Notifications never execute request-only tools or receive a response.
+    }
+    if (context.id_json.empty()) {
+        ReplyError(context, -32600, "Invalid request ID", response_sender);
         return;
     }
 
-    // Check method
-    auto method = cJSON_GetObjectItem(json, "method");
-    if (method == nullptr || !cJSON_IsString(method)) {
-        ESP_LOGE(TAG, "Missing method");
-        return;
+    const std::string_view method_name(method->valuestring);
+    if (method_name.starts_with("notifications/")) {
+        return;  // Retain compatibility with notifications/initialized.
     }
-
-    auto method_str = std::string(method->valuestring);
-    if (method_str.find("notifications") == 0) {
-        return;
-    }
-
-    // Check params
-    auto params = cJSON_GetObjectItem(json, "params");
+    auto params = cJSON_GetObjectItemCaseSensitive(json, "params");
     if (params != nullptr && !cJSON_IsObject(params)) {
-        ESP_LOGE(TAG, "Invalid params for method: %s", method_str.c_str());
+        ReplyError(context, -32602, "Invalid params", response_sender);
+        return;
+    }
+    auto meta = cJSON_GetObjectItemCaseSensitive(params, "_meta");
+    auto protocol_version = cJSON_GetObjectItemCaseSensitive(meta, kProtocolVersion);
+    auto capabilities = cJSON_GetObjectItemCaseSensitive(meta, kClientCapabilities);
+    context.modern = method_name == "server/discover" || protocol_version || capabilities ||
+                     cJSON_GetObjectItemCaseSensitive(meta, "io.modelcontextprotocol/clientInfo") ||
+                     cJSON_GetObjectItemCaseSensitive(meta, "io.modelcontextprotocol/logLevel");
+    if ((meta && !cJSON_IsObject(meta)) ||
+        (context.modern && (!cJSON_IsString(protocol_version) || !cJSON_IsObject(capabilities)))) {
+        ReplyError(context, -32602, "Missing or invalid MCP request metadata", response_sender);
+        return;
+    }
+    if (context.modern && strcmp(protocol_version->valuestring, kModernVersion) != 0) {
+        std::string data = "{\"supported\":";
+        data += kSupportedVersions;
+        data += ",\"requested\":";
+        data += JsonString(protocol_version->valuestring);
+        data += "}";
+        ReplyError(context, -32022, "Unsupported protocol version", response_sender, data);
+        return;
+    }
+    auto extensions = cJSON_GetObjectItemCaseSensitive(capabilities, "extensions");
+    auto client_info = cJSON_GetObjectItemCaseSensitive(meta, "io.modelcontextprotocol/clientInfo");
+    if (context.modern &&
+        ((extensions && !cJSON_IsObject(extensions)) ||
+         (client_info &&
+          (!cJSON_IsObject(client_info) ||
+           !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(client_info, "name")) ||
+           !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(client_info, "version")))))) {
+        ReplyError(context, -32602, "Invalid MCP client capabilities or identity", response_sender);
         return;
     }
 
-    auto id = cJSON_GetObjectItem(json, "id");
-    if (id == nullptr || !cJSON_IsNumber(id)) {
-        ESP_LOGE(TAG, "Invalid id for method: %s", method_str.c_str());
-        return;
-    }
-    auto id_int = id->valueint;
-
-    if (method_str == "initialize") {
-        if (cJSON_IsObject(params)) {
-            auto capabilities = cJSON_GetObjectItem(params, "capabilities");
-            if (cJSON_IsObject(capabilities)) {
-                ParseCapabilities(capabilities);
-            }
+    if (method_name == "initialize" && !context.modern) {
+        ParseCapabilities(cJSON_GetObjectItem(params, "capabilities"));
+        std::string result =
+            "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":";
+        AppendServerInfo(result);
+        result += "}";
+        ReplyResult(context, result, response_sender);
+    } else if (method_name == "server/discover") {
+        std::string result = "{\"supportedVersions\":";
+        result += kSupportedVersions;
+        result += ",\"capabilities\":{\"tools\":{}";
+        if (std::any_of(tools_.begin(), tools_.end(), [](const auto& tool) {
+                return tool->name() == "self.camera.take_photo";
+            })) {
+            result += ",\"extensions\":{\"me.xiaozhi/vision\":{}}";
         }
-        auto app_desc = esp_app_get_description();
-        std::string message =
-            "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{"
-            "\"name\":\"" BOARD_NAME "\",\"version\":\"";
-        message += app_desc->version;
-        message += "\"}}";
-        ReplyResult(id_int, message, response_sender);
-    } else if (method_str == "tools/list") {
-        std::string cursor_str = "";
-        bool list_user_only_tools = false;
-        if (params != nullptr) {
-            auto cursor = cJSON_GetObjectItem(params, "cursor");
-            if (cJSON_IsString(cursor)) {
-                cursor_str = std::string(cursor->valuestring);
-            }
-            auto with_user_tools = cJSON_GetObjectItem(params, "withUserTools");
-            if (cJSON_IsBool(with_user_tools)) {
-                list_user_only_tools = with_user_tools->valueint == 1;
-            }
-        }
-        GetToolsList(id_int, cursor_str, list_user_only_tools, response_sender);
-    } else if (method_str == "tools/call") {
-        if (!cJSON_IsObject(params)) {
-            ESP_LOGE(TAG, "tools/call: Missing params");
-            ReplyError(id_int, -32602, "Missing params", response_sender);
+        result += "},\"ttlMs\":60000,\"cacheScope\":\"private\"}";
+        ReplyResult(context, result, response_sender);
+    } else if (method_name == "tools/list") {
+        auto cursor = cJSON_GetObjectItemCaseSensitive(params, "cursor");
+        auto with_user_tools = cJSON_GetObjectItemCaseSensitive(params, "withUserTools");
+        if (context.modern && ((cursor && !cJSON_IsString(cursor)) ||
+                               (with_user_tools && !cJSON_IsBool(with_user_tools)))) {
+            ReplyError(context, -32602, "Invalid tool-list parameters", response_sender);
             return;
         }
-        auto tool_name = cJSON_GetObjectItem(params, "name");
-        if (!cJSON_IsString(tool_name)) {
-            ESP_LOGE(TAG, "tools/call: Missing name");
-            ReplyError(id_int, -32602, "Missing tool name", response_sender);
+        GetToolsList(context, cJSON_IsString(cursor) ? cursor->valuestring : "",
+                     cJSON_IsTrue(with_user_tools), response_sender);
+    } else if (method_name == "tools/call") {
+        auto name = cJSON_GetObjectItemCaseSensitive(params, "name");
+        auto arguments = cJSON_GetObjectItemCaseSensitive(params, "arguments");
+        if (!cJSON_IsString(name) || (arguments && !cJSON_IsObject(arguments))) {
+            ReplyError(context, -32602, "Invalid tool name or arguments", response_sender);
             return;
         }
-        auto tool_arguments = cJSON_GetObjectItem(params, "arguments");
-        if (tool_arguments != nullptr && !cJSON_IsObject(tool_arguments)) {
-            ESP_LOGE(TAG, "tools/call: Invalid arguments");
-            ReplyError(id_int, -32602, "Invalid arguments: expected object", response_sender);
+        auto tool = std::find_if(tools_.begin(), tools_.end(), [&](const auto& item) {
+            return item->name() == name->valuestring;
+        });
+        if (tool == tools_.end()) {
+            std::string error = "Unknown tool: ";
+            error += name->valuestring;
+            ReplyError(context, -32602, error, response_sender);
             return;
         }
-        DoToolCall(id_int, std::string(tool_name->valuestring), tool_arguments,
-                   std::move(response_sender));
+        if (context.modern && (*tool)->name() == "self.camera.take_photo") {
+            auto vision = cJSON_GetObjectItemCaseSensitive(extensions, kVisionExtension);
+            if (!vision) {
+                ReplyError(context, -32021, "Missing required client capability", response_sender,
+                           R"({"requiredCapabilities":{"extensions":{"me.xiaozhi/vision":{}}}})");
+                return;
+            }
+            auto token = cJSON_GetObjectItemCaseSensitive(vision, "token");
+            context.vision = ReadVisionConfig(vision);
+            if (!cJSON_IsObject(vision) || !context.vision || (token && !cJSON_IsString(token)) ||
+                !ValidVisionConfig(*context.vision)) {
+                ReplyError(context, -32602, "Invalid vision configuration", response_sender);
+                return;
+            }
+        }
+        DoToolCall(std::move(context), tool->get(), arguments, std::move(response_sender));
     } else {
-        ESP_LOGE(TAG, "Method not implemented: %s", method_str.c_str());
-        ReplyError(id_int, -32601, "Method not implemented: " + method_str, response_sender);
+        ReplyError(context, -32601, "Method not implemented: " + std::string(method_name),
+                   response_sender);
     }
 }
 
@@ -476,104 +600,112 @@ void McpServer::SendResponse(const std::string& payload, const ResponseSender& r
     }
 }
 
-void McpServer::ReplyResult(int id, const std::string& result,
+void McpServer::ReplyResult(const McpRequestContext& context, const std::string& result,
                             const ResponseSender& response_sender) {
-    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
-    payload += std::to_string(id) + ",\"result\":";
-    payload += result;
+    auto payload = ResultPrefix(context);
+    // Include the final brace so appending it cannot double a large response buffer.
+    payload.reserve(payload.size() + result.size() + 1);
+    if (context.modern) {
+        // Merge known result objects into the envelope without parsing/copying a second JSON tree.
+        payload.pop_back();
+        if (result.size() > 2) {
+            payload += ",";
+        }
+        payload.append(result, 1, std::string::npos);
+    } else {
+        payload += result;
+    }
     payload += "}";
     SendResponse(payload, response_sender);
 }
 
-void McpServer::ReplyError(int id, int code, const std::string& message,
-                           const ResponseSender& response_sender) {
-    std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
-    payload += std::to_string(id);
+void McpServer::ReplyError(const McpRequestContext& context, int code, const std::string& message,
+                           const ResponseSender& response_sender, const std::string& data) {
+    auto encoded = JsonString(message.c_str());
+    if (encoded.empty()) {
+        return;
+    }
+    std::string payload;
+    payload.reserve(context.id_json.size() + encoded.size() + data.size() + 80);
+    payload += "{\"jsonrpc\":\"2.0\"";
+    if (!context.id_json.empty()) {
+        payload += ",\"id\":";
+        payload += context.id_json;
+    }
     payload += ",\"error\":{\"code\":";
     payload += std::to_string(code);
-    payload += ",\"message\":\"";
-    payload += message;
-    payload += "\"}}";
+    payload += ",\"message\":";
+    payload += encoded;
+    if (!data.empty()) {
+        payload += ",\"data\":";
+        payload += data;
+    }
+    payload += "}}";
     SendResponse(payload, response_sender);
 }
 
-void McpServer::ReplyError(int id, const std::string& message,
+void McpServer::ReplyError(const McpRequestContext& context, const std::string& message,
                            const ResponseSender& response_sender) {
-    ReplyError(id, -32603, message, response_sender);
+    ReplyError(context, -32603, message, response_sender);
 }
 
-void McpServer::GetToolsList(int id, const std::string& cursor, bool list_user_only_tools,
-                             const ResponseSender& response_sender) {
-    const int max_payload_size = 8000;
-    std::string json = "{\"tools\":[";
-
-    bool found_cursor = cursor.empty();
+void McpServer::GetToolsList(const McpRequestContext& context, const std::string& cursor,
+                             bool list_user_only_tools, const ResponseSender& response_sender) {
+    constexpr size_t kMaxPayloadSize = 8000;
+    const size_t envelope_size = ResultPrefix(context).size() + 2;
+    const std::string suffix = context.modern ? R"(],"ttlMs":60000,"cacheScope":"private")" : "]";
     auto it = tools_.begin();
-    std::string next_cursor = "";
-
-    while (it != tools_.end()) {
-        // 如果我们还没有找到起始位置，继续搜索
-        if (!found_cursor) {
-            if ((*it)->name() == cursor) {
-                found_cursor = true;
-            } else {
-                ++it;
-                continue;
+    if (!cursor.empty()) {
+        it = std::find_if(it, tools_.end(),
+                          [&](const auto& tool) { return tool->name() == cursor; });
+        if (it == tools_.end()) {
+            ReplyError(context, -32602, "Invalid cursor", response_sender);
+            return;
+        }
+    }
+    auto visible = [&](auto position) {
+        while (position != tools_.end() && !list_user_only_tools && (*position)->user_only()) {
+            ++position;
+        }
+        return position;
+    };
+    it = visible(it);
+    std::string json = "{\"tools\":[";
+    std::string next_cursor;
+    bool added = false;
+    for (; it != tools_.end();) {
+        auto next = visible(it + 1);
+        auto tool_json = (*it)->to_json();
+        const auto cursor_json = next == tools_.end() ? "" : JsonString((*next)->name().c_str());
+        const size_t reserved = cursor_json.empty() ? 0 : cursor_json.size() + 14;
+        if (tool_json.empty() ||
+            json.size() + tool_json.size() + suffix.size() + reserved + envelope_size + 2 >
+                kMaxPayloadSize) {
+            if (!added) {
+                ReplyError(context, "Tool definition exceeds payload limit", response_sender);
+                return;
             }
-        }
-
-        if (!list_user_only_tools && (*it)->user_only()) {
-            ++it;
-            continue;
-        }
-
-        // 添加tool前检查大小
-        std::string tool_json = (*it)->to_json() + ",";
-        if (json.length() + tool_json.length() + 30 > max_payload_size) {
-            // 如果添加这个tool会超出大小限制，设置next_cursor并退出循环
-            next_cursor = (*it)->name();
+            next_cursor = JsonString((*it)->name().c_str());
             break;
         }
-
+        if (added) {
+            json += ",";
+        }
         json += tool_json;
-        ++it;
+        added = true;
+        it = next;
     }
-
-    if (json.back() == ',') {
-        json.pop_back();
+    json += suffix;
+    if (!next_cursor.empty()) {
+        json += ",\"nextCursor\":";
+        json += next_cursor;
     }
-
-    if (json.back() == '[' && !tools_.empty()) {
-        // 如果没有添加任何tool，返回错误
-        ESP_LOGE(TAG, "tools/list: Failed to add tool %s because of payload size limit",
-                 next_cursor.c_str());
-        ReplyError(id, "Failed to add tool " + next_cursor + " because of payload size limit",
-                   response_sender);
-        return;
-    }
-
-    if (next_cursor.empty()) {
-        json += "]}";
-    } else {
-        json += "],\"nextCursor\":\"" + next_cursor + "\"}";
-    }
-
-    ReplyResult(id, json, response_sender);
+    json += "}";
+    ReplyResult(context, json, response_sender);
 }
 
-void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
+void McpServer::DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
                            ResponseSender response_sender) {
-    auto tool_iter = std::find_if(tools_.begin(), tools_.end(), [&tool_name](const auto& tool) {
-        return tool->name() == tool_name;
-    });
-
-    if (tool_iter == tools_.end()) {
-        ESP_LOGE(TAG, "tools/call: Unknown tool: %s", tool_name.c_str());
-        ReplyError(id, -32602, "Unknown tool: " + tool_name, response_sender);
-        return;
-    }
-
-    McpTool* tool = tool_iter->get();
     PropertyList arguments = tool->properties();
     for (auto& argument : arguments) {
         bool found = false;
@@ -583,44 +715,48 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
             if (argument.type() == kPropertyTypeBoolean && cJSON_IsBool(value)) {
                 validation = argument.set_value<bool>(value->valueint == 1);
                 found = true;
-            } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
+            } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value) &&
+                       (!context.modern ||
+                        (std::isfinite(value->valuedouble) &&
+                         std::trunc(value->valuedouble) == value->valuedouble &&
+                         value->valuedouble >= INT_MIN && value->valuedouble <= INT_MAX))) {
                 validation = argument.set_value<int>(value->valueint);
                 found = true;
             } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
                 validation = argument.set_value<std::string>(value->valuestring);
                 found = true;
             } else if (value != nullptr) {
-                ESP_LOGE(TAG, "tools/call: Invalid type for argument: %s", argument.name().c_str());
-                ReplyError(id, -32602, "Invalid type for argument: " + argument.name(),
+                ReplyError(context, -32602, "Invalid type for argument: " + argument.name(),
                            response_sender);
                 return;
             }
         }
-
         if (found && !validation) {
-            ESP_LOGE(TAG, "tools/call: %s", validation.error().c_str());
-            ReplyError(id, -32602, validation.error(), response_sender);
+            ReplyError(context, -32602, validation.error(), response_sender);
             return;
         }
-
         if (!argument.has_default_value() && !found) {
-            ESP_LOGE(TAG, "tools/call: Missing required argument: %s", argument.name().c_str());
-            ReplyError(id, -32602, "Missing required argument: " + argument.name(),
+            ReplyError(context, -32602, "Missing required argument: " + argument.name(),
                        response_sender);
             return;
         }
     }
-
-    // Use main thread to call the tool
-    auto& app = Application::GetInstance();
-    app.Schedule([this, id, tool, arguments = std::move(arguments),
-                  response_sender = std::move(response_sender)]() {
-        auto result = tool->Call(arguments);
+    // Reuse the existing application task. Context owns ID/vision after input JSON is destroyed.
+    Application::GetInstance().Schedule([this, context = std::move(context), tool,
+                                         arguments = std::move(arguments),
+                                         response_sender = std::move(response_sender)]() {
+        auto result = tool->Call(arguments, context);
         if (!result) {
-            ESP_LOGE(TAG, "tools/call: %s", result.error().c_str());
-            ReplyError(id, result.error(), response_sender);
+            if (context.modern) {
+                std::string error = "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":";
+                error += JsonString(result.error().c_str());
+                error += "}]}";
+                ReplyResult(context, error, response_sender);
+            } else {
+                ReplyError(context, result.error(), response_sender);
+            }
             return;
         }
-        ReplyResult(id, *result, response_sender);
+        ReplyResult(context, *result, response_sender);
     });
 }

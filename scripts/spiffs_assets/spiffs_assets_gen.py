@@ -465,7 +465,7 @@ def pack_assets(config: PackModelsConfig):
 
     asset_name = os.path.basename(assets_path)
     file_path = os.path.join(assets_include_path, f'mmap_generate_{asset_name}.h')
-    with open(file_path, 'w') as output_header:
+    with open(file_path, 'w', encoding='utf-8') as output_header:
         output_header.write('/*\n')
         output_header.write(' * SPDX-FileCopyrightText: 2022-{} Espressif Systems (Shanghai) CO LTD\n'.format(current_year))
         output_header.write(' *\n')
@@ -638,7 +638,7 @@ if __name__ == '__main__':
     parser.add_argument('--merge', action='store_true', help='Merge assets with app binary')
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
+    with open(args.config, 'r', encoding='utf-8') as f:
         config_data = json.load(f)
 
     if args.merge:

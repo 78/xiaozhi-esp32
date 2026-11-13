@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Skifter til Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Skifter til 4G...",
         "STANDBY": "Standby",
+        "WAKE_WORD_HINT": "Sig \"%s\" for at vække mig.",
         "CONNECT_TO": "Forbind til ",
         "CONNECTING": "Forbinder...",
         "CONNECTION_SUCCESSFUL": "Forbindelse lykkedes",

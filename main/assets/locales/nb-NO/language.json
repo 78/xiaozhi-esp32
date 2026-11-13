@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Bytter til Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Bytter til 4G...",
         "STANDBY": "Standby",
+        "WAKE_WORD_HINT": "Si «%s» for å vekke meg.",
         "CONNECT_TO": "Koble til ",
         "CONNECTING": "Kobler til...",
         "CONNECTION_SUCCESSFUL": "Tilkobling vellykket",

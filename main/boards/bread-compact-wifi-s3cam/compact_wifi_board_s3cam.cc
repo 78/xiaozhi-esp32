@@ -86,6 +86,7 @@ public:
         return &audio_codec;
     }
 
+#ifndef CONFIG_BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
     virtual Display* GetDisplay() override {
         return display_;
     }
@@ -93,6 +94,7 @@ public:
     virtual Backlight* GetBacklight() override {
         return nullptr;
     }
+#endif
 
     virtual Camera* GetCamera() override {
         return camera_;

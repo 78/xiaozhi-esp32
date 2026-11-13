@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Přepínání na Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Přepínání na 4G...",
         "STANDBY": "Pohotovost",
+        "WAKE_WORD_HINT": "Probuďte mě vyslovením „%s“.",
         "CONNECT_TO": "Připojit k ",
         "CONNECTING": "Připojování...",
         "CONNECTED_TO": "Připojeno k ",

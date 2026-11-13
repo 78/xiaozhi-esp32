@@ -14,7 +14,7 @@
 
 ## 近期更新
 
-- 项目现在要求 ESP-IDF v6.0.1 或以上版本，推荐使用 [ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)。不再支持 ESP-IDF 5.x。当前矩阵包含 171 个变体，其中 ESP32-S31 变体需要 IDF 6.1 或以上版本。
+- 项目现在要求 ESP-IDF v6.0.1 或以上版本，推荐使用 [ESP-IDF `release/v6.1`](https://github.com/espressif/esp-idf/tree/release/v6.1) 分支。不再支持 ESP-IDF 5.x。当前矩阵包含 171 个变体，其中 ESP32-S31 变体需要 IDF 6.1 或以上版本。
 - MQTT 和 BluFi 加密已迁移到 PSA Crypto，同时完成了 IDF 6 组件拆分及第三方依赖兼容处理。
 - 加固了音频流水线并发、MQTT/UDP 数据包校验和发布矩阵选择逻辑。
 - 使用 ESP-SR 2.4.7 时，ESP32-P4 Rev1 和 Rev3 均支持 IDF 6。
@@ -114,13 +114,16 @@
 ### 开发环境
 
 - Cursor 或 VSCode
-- 安装 ESP-IDF 插件。最低要求为 [ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1)，推荐 [ESP-IDF v6.1](https://github.com/espressif/esp-idf/releases/tag/v6.1)。不再支持 ESP-IDF 5.x
+- 安装 ESP-IDF 插件。最低要求为 [ESP-IDF v6.0.1](https://github.com/espressif/esp-idf/releases/tag/v6.0.1)，推荐 [ESP-IDF `release/v6.1`](https://github.com/espressif/esp-idf/tree/release/v6.1) 分支。不再支持 ESP-IDF 5.x
 - Linux 比 Windows 更好，编译速度快，也免去驱动问题的困扰
 - 本项目使用 Google C++ 代码风格，提交代码时请确保符合规范
+
+请使用 `release/v6.1` 分支，避免使用 `v6.1` 发布标签；该标签在 ESP32-C3 上存在 Wi-Fi 初始化失败的报告，详见 [#2344](https://github.com/78/xiaozhi-esp32/issues/2344)。切换 SDK 版本后，请在 ESP-IDF 目录执行 `git submodule update --init --recursive`，重新加载其 `export.sh`，并在本项目中执行 `idf.py fullclean` 后重新编译。
 
 ### 开发者文档
 
 - [自定义开发板指南](docs/custom-board_zh.md) - 学习如何为小智 AI 创建自定义开发板
+- [OTA 配置、激活与固件升级接口](docs/ota_zh.md) - 设备引导 HTTP 接口及协议能力上报
 - [MCP 协议物联网控制用法说明](docs/mcp-usage_zh.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol_zh.md) - 设备端 MCP 协议的实现方式
 - [MQTT + UDP 混合通信协议文档](docs/mqtt-udp_zh.md)

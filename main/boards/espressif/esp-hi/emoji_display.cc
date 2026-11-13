@@ -65,7 +65,7 @@ EmojiPlayer::~EmojiPlayer() {
     }
 }
 
-void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fps) {
+bool EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fps) {
     if (player_handle_) {
         uint32_t start, end;
         void* src_data = nullptr;
@@ -75,22 +75,29 @@ void EmojiPlayer::StartPlayer(const std::string& asset_name, bool repeat, int fp
         auto filename_iter = emoji_asset_name_map.find(asset_name);
         if (filename_iter == emoji_asset_name_map.end()) {
             ESP_LOGE(TAG, "Unknown emoji asset: %s", asset_name.c_str());
-            return;
+            return false;
         }
         const std::string& filename = filename_iter->second;
         if (!assets.GetAssetData(filename, src_data, src_len)) {
             ESP_LOGE(TAG, "Failed to get asset data for %s", asset_name.c_str());
-            return;
+            return false;
         }
 
-        anim_player_set_src_data(player_handle_, src_data, src_len);
+        esp_err_t err = anim_player_set_src_data(player_handle_, src_data, src_len);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to set asset data for %s: %s", asset_name.c_str(),
+                     esp_err_to_name(err));
+            return false;
+        }
         anim_player_get_segment(player_handle_, &start, &end);
         if (asset_name == "wake") {
             start = 7;
         }
         anim_player_set_segment(player_handle_, start, end, fps, true);
         anim_player_update(player_handle_, PLAYER_ACTION_START);
+        return true;
     }
+    return false;
 }
 
 void EmojiPlayer::StopPlayer() {
@@ -105,30 +112,37 @@ EmojiWidget::EmojiWidget(esp_lcd_panel_handle_t panel, esp_lcd_panel_io_handle_t
 
 EmojiWidget::~EmojiWidget() {}
 
-void EmojiWidget::SetEmotion(const char* emotion) {
-    if (!player_) {
-        return;
+bool EmojiWidget::SetEmotion(const char* emotion) {
+    if (!player_ || emotion == nullptr) {
+        return false;
     }
 
-    using Param = std::tuple<std::string, bool, int>;
-    static const std::unordered_map<std::string, Param> emotion_map = {
-        {"happy", {"happy_loop", true, 25}},       {"laughing", {"happy_loop", true, 25}},
-        {"funny", {"happy_loop", true, 25}},       {"loving", {"happy_loop", true, 25}},
-        {"embarrassed", {"happy_loop", true, 25}}, {"confident", {"happy_loop", true, 25}},
-        {"delicious", {"happy_loop", true, 25}},   {"sad", {"sad_loop", true, 25}},
-        {"crying", {"sad_loop", true, 25}},        {"sleepy", {"sad_loop", true, 25}},
-        {"silly", {"sad_loop", true, 25}},         {"angry", {"anger_loop", true, 25}},
-        {"surprised", {"panic_loop", true, 25}},   {"shocked", {"panic_loop", true, 25}},
-        {"thinking", {"happy_loop", true, 25}},    {"winking", {"blink_quick", true, 5}},
-        {"relaxed", {"scorn_loop", true, 25}},     {"confused", {"scorn_loop", true, 25}},
+    struct EmotionMapping {
+        const char* emotion;
+        const char* asset;
+        bool repeat;
+        int fps;
+    };
+    static constexpr EmotionMapping emotion_map[] = {
+        {"happy", "happy_loop", true, 25},       {"laughing", "happy_loop", true, 25},
+        {"funny", "happy_loop", true, 25},       {"loving", "happy_loop", true, 25},
+        {"embarrassed", "happy_loop", true, 25}, {"confident", "happy_loop", true, 25},
+        {"delicious", "happy_loop", true, 25},   {"sad", "sad_loop", true, 25},
+        {"crying", "sad_loop", true, 25},        {"sleepy", "sad_loop", true, 25},
+        {"silly", "sad_loop", true, 25},         {"angry", "anger_loop", true, 25},
+        {"surprised", "panic_loop", true, 25},   {"shocked", "panic_loop", true, 25},
+        {"thinking", "happy_loop", true, 25},    {"winking", "blink_quick", true, 5},
+        {"relaxed", "scorn_loop", true, 25},     {"confused", "scorn_loop", true, 25},
     };
 
-    auto it = emotion_map.find(emotion);
-    if (it != emotion_map.end()) {
-        const auto& [aaf, repeat, fps] = it->second;
-        player_->StartPlayer(aaf, repeat, fps);
-    } else if (strcmp(emotion, "neutral") == 0) {
+    for (const auto& mapping : emotion_map) {
+        if (strcmp(emotion, mapping.emotion) == 0) {
+            return player_->StartPlayer(mapping.asset, mapping.repeat, mapping.fps);
+        }
     }
+    // "neutral" is a request this widget deliberately has nothing to play for, which is still
+    // an accepted request rather than a missing resource.
+    return strcmp(emotion, "neutral") == 0;
 }
 
 void EmojiWidget::SetStatus(const char* status) {

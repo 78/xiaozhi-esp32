@@ -38,25 +38,41 @@ public:
         encoded_data_ = Base64Encode(data);
     }
 
-    std::string to_json() const {
+    CJsonUniquePtr to_json_value() const {
         CJsonUniquePtr json(cJSON_CreateObject());
-        if (json == nullptr) {
-            return {};
+        if (json != nullptr) {
+            cJSON_AddStringToObject(json.get(), "type", "image");
+            cJSON_AddStringToObject(json.get(), "mimeType", mime_type_.c_str());
+            cJSON_AddStringToObject(json.get(), "data", encoded_data_.c_str());
         }
-        cJSON_AddStringToObject(json.get(), "type", "image");
-        cJSON_AddStringToObject(json.get(), "mimeType", mime_type_.c_str());
-        cJSON_AddStringToObject(json.get(), "data", encoded_data_.c_str());
-        CJsonStringUniquePtr json_str(cJSON_PrintUnformatted(json.get()));
+        return json;
+    }
+
+    std::string to_json() const {
+        auto json = to_json_value();
+        CJsonStringUniquePtr json_str(json ? cJSON_PrintUnformatted(json.get()) : nullptr);
         return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 };
 
 class PropertyList;
 
+// Owned by one request, including while its tool waits in Application::Schedule().
+struct McpRequestContext {
+    struct VisionConfig {
+        std::string url;
+        std::string token;
+    };
+    std::string id_json;
+    bool modern = false;
+    std::optional<VisionConfig> vision;
+};
+
 // Pointer alternatives transfer ownership to McpTool::Call.
 using ReturnValue = std::variant<bool, int, std::string, cJSON*, ImageContent*>;
 using ToolResult = std::expected<ReturnValue, std::string>;
 using ToolCallback = std::function<ToolResult(const PropertyList&)>;
+using ContextToolCallback = ToolResult (*)(const PropertyList&, const McpRequestContext&);
 
 enum PropertyType { kPropertyTypeBoolean, kPropertyTypeInteger, kPropertyTypeString };
 
@@ -263,12 +279,20 @@ private:
     std::string description_;
     PropertyList properties_;
     ToolCallback callback_;
+    ContextToolCallback context_callback_ = nullptr;
     bool user_only_ = false;
 
 public:
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
             ToolCallback callback)
         : name_(name), description_(description), properties_(properties), callback_(callback) {}
+
+    McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
+            ContextToolCallback callback)
+        : name_(name),
+          description_(description),
+          properties_(properties),
+          context_callback_(callback) {}
 
     void set_user_only(bool user_only) { user_only_ = user_only; }
     inline const std::string& name() const { return name_; }
@@ -346,8 +370,10 @@ public:
         return json_str != nullptr ? std::string(json_str.get()) : std::string();
     }
 
-    std::expected<std::string, std::string> Call(const PropertyList& properties) {
-        auto callback_result = callback_(properties);
+    std::expected<std::string, std::string> Call(const PropertyList& properties,
+                                                 const McpRequestContext& context = {}) {
+        auto callback_result = context_callback_ != nullptr ? context_callback_(properties, context)
+                                                            : callback_(properties);
         if (!callback_result) {
             return std::unexpected(std::move(callback_result.error()));
         }
@@ -371,12 +397,15 @@ public:
             if (owned_image == nullptr) {
                 return std::unexpected("MCP tool returned an empty image");
             }
-            CJsonUniquePtr image(cJSON_CreateObject());
+            CJsonUniquePtr image(context.modern ? owned_image->to_json_value()
+                                                : CJsonUniquePtr(cJSON_CreateObject()));
             if (image == nullptr) {
                 return std::unexpected("Failed to allocate MCP image result");
             }
-            cJSON_AddStringToObject(image.get(), "type", "image");
-            cJSON_AddStringToObject(image.get(), "image", owned_image->to_json().c_str());
+            if (!context.modern) {
+                cJSON_AddStringToObject(image.get(), "type", "image");
+                cJSON_AddStringToObject(image.get(), "image", owned_image->to_json().c_str());
+            }
             if (!cJSON_AddItemToArray(content.get(), image.get())) {
                 return std::unexpected("Failed to create MCP image result");
             }
@@ -430,9 +459,16 @@ public:
 
     void AddCommonTools();
     void AddUserOnlyTools();
+    // Print the inventory once registration is complete. Deliberately states the counts and
+    // nothing else: how many a server will accept is the server's policy, not something the
+    // firmware should hardcode a number for. The counts are enough - whoever adds a tool can
+    // see what the total became.
+    void LogToolInventory() const;
     void AddTool(std::unique_ptr<McpTool> tool);
     void AddTool(const std::string& name, const std::string& description,
                  const PropertyList& properties, ToolCallback callback);
+    void AddTool(const std::string& name, const std::string& description,
+                 const PropertyList& properties, ContextToolCallback callback);
     void AddUserOnlyTool(const std::string& name, const std::string& description,
                          const PropertyList& properties, ToolCallback callback);
     void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
@@ -445,14 +481,16 @@ private:
     void ParseCapabilities(const cJSON* capabilities);
 
     void SendResponse(const std::string& payload, const ResponseSender& response_sender);
-    void ReplyResult(int id, const std::string& result, const ResponseSender& response_sender);
-    void ReplyError(int id, const std::string& message, const ResponseSender& response_sender);
-    void ReplyError(int id, int code, const std::string& message,
+    void ReplyResult(const McpRequestContext& context, const std::string& result,
+                     const ResponseSender& response_sender);
+    void ReplyError(const McpRequestContext& context, const std::string& message,
                     const ResponseSender& response_sender);
+    void ReplyError(const McpRequestContext& context, int code, const std::string& message,
+                    const ResponseSender& response_sender, const std::string& data = {});
 
-    void GetToolsList(int id, const std::string& cursor, bool list_user_only_tools,
-                      const ResponseSender& response_sender);
-    void DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments,
+    void GetToolsList(const McpRequestContext& context, const std::string& cursor,
+                      bool list_user_only_tools, const ResponseSender& response_sender);
+    void DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
                     ResponseSender response_sender);
 
     std::vector<std::unique_ptr<McpTool>> tools_;

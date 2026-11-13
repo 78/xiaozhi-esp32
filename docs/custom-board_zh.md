@@ -425,6 +425,22 @@ python scripts/build.py --list-wake-words --json
 - 默认生成 `build/merged-binary.bin`，不创建 ZIP；指定 `--zip` 时会重新生成
   `releases/v<版本>_<名称>.zip`
 
+#### Windows：命令行过长
+
+如果 Windows 编译时因编译器命令超过 32,767 字符上限而出现 Ninja
+`CreateProcess` 错误，可启用 CMake/Ninja 的 response file。在刚才编译失败的
+同一个工程目录、同一个 ESP-IDF 终端中执行：
+
+```powershell
+idf.py -D CMAKE_NINJA_FORCE_RESPONSE_FILE=ON reconfigure
+idf.py build
+```
+
+这样会通过 `@文件名` 传递编译参数，而不是在命令行中展开。执行
+`idf.py fullclean` 或清空 CMake 缓存后，需要重新执行上述 reconfigure 命令。
+将工程移到较短的路径（例如 `E:\xz`）也可能缓解问题；Windows 的“启用长路径”
+设置不会提高整条命令行的长度上限。参见 [#2340 中的解决方法](https://github.com/78/xiaozhi-esp32/issues/2340#issuecomment-6317383781)。
+
 ### 6. 创建README.md
 
 在README.md中说明开发板的特性、硬件要求、编译和烧录步骤：

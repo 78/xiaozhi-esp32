@@ -18,6 +18,7 @@
         "SWITCH_TO_WIFI_NETWORK": "Przełączanie na Wi-Fi...",
         "SWITCH_TO_4G_NETWORK": "Przełączanie na 4G...",
         "STANDBY": "Gotowość",
+        "WAKE_WORD_HINT": "Powiedz „%s”, aby mnie obudzić.",
         "CONNECT_TO": "Połącz z ",
         "CONNECTING": "Łączenie...",
         "CONNECTED_TO": "Połączono z ",

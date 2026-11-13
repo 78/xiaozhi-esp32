@@ -278,6 +278,8 @@ std::string Nt26Board::GetDeviceStatusJson() {
     }
     cJSON_AddItemToObject(root, "network", network);
 
+    AddSystemStatus(root);
+
     auto json_str = cJSON_PrintUnformatted(root);
     std::string json(json_str);
     cJSON_free(json_str);

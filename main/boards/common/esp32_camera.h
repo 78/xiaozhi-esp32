@@ -39,4 +39,7 @@ public:
     virtual bool SetVFlip(bool enabled) override;
     virtual bool SetSwapBytes(bool enabled) override;
     virtual std::expected<std::string, std::string> Explain(const std::string& question) override;
+    std::expected<std::string, std::string> Explain(const std::string& question,
+                                                    const std::string& url,
+                                                    const std::string& token) override;
 };

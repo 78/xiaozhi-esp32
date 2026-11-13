@@ -115,6 +115,21 @@ size_t EspWakeWord::GetFeedSize() {
     return wakenet_iface_->get_samp_chunksize(wakenet_data_);
 }
 
+std::vector<std::string> EspWakeWord::GetWakeWords() const {
+    std::vector<std::string> words;
+    if (wakenet_data_ == nullptr || wakenet_iface_ == nullptr) {
+        return words;
+    }
+    const int count = wakenet_iface_->get_word_num(wakenet_data_);
+    for (int i = 1; i <= count; ++i) {
+        const char* word = wakenet_iface_->get_word_name(wakenet_data_, i);
+        if (word != nullptr && word[0] != '\0') {
+            words.emplace_back(word);
+        }
+    }
+    return words;
+}
+
 void EspWakeWord::EncodeWakeWordData() {
 }
 

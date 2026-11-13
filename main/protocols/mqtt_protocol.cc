@@ -4,8 +4,10 @@
 #include "settings.h"
 
 #include <esp_log.h>
+#include <esp_random.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <algorithm>
 #include <charconv>
 #include <cstring>
 #include <system_error>
@@ -51,7 +53,14 @@ MqttProtocol::~MqttProtocol() {
     std::shared_ptr<Udp> udp;
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
+        ++channel_generation_;
+        probe_channel_.reset();
         udp = std::move(udp_);
+        if (probe_timer_ != nullptr) {
+            esp_timer_stop(probe_timer_);
+            esp_timer_delete(probe_timer_);
+            probe_timer_ = nullptr;
+        }
     }
     udp.reset();
     mqtt_.reset();
@@ -216,8 +225,7 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
             return false;
         }
         if (aes_nonce_.size() != kAudioHeaderSize || packet->payload.size() > UINT16_MAX) {
-            ESP_LOGE(TAG, "Invalid AES nonce or audio payload length: %zu",
-                     packet->payload.size());
+            ESP_LOGE(TAG, "Invalid AES nonce or audio payload length: %zu", packet->payload.size());
             return false;
         }
         udp = udp_;
@@ -232,7 +240,7 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     memcpy(nonce.data() + 12, &sequence, sizeof(sequence));
 
     std::string encrypted;
-    encrypted.resize(aes_nonce_.size() + packet->payload.size());
+    encrypted.resize(nonce.size() + packet->payload.size());
     memcpy(encrypted.data(), nonce.data(), nonce.size());
 
     if (!CryptAesCtr(reinterpret_cast<const uint8_t*>(packet->payload.data()),
@@ -247,9 +255,15 @@ bool MqttProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
 }
 
 void MqttProtocol::CloseAudioChannel(bool send_goodbye) {
+    awaiting_hello_ = false;
     std::shared_ptr<Udp> udp;
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
+        ++channel_generation_;
+        probe_channel_.reset();
+        if (probe_timer_ != nullptr) {
+            esp_timer_stop(probe_timer_);
+        }
         udp = std::move(udp_);
     }
     udp.reset();
@@ -281,25 +295,63 @@ bool MqttProtocol::OpenAudioChannel() {
 
     error_occurred_ = false;
     session_id_ = "";
+    uint64_t generation;
+    std::shared_ptr<Udp> previous_udp;
+    {
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        generation = ++channel_generation_;
+        probe_channel_.reset();
+        previous_udp = std::move(udp_);
+    }
+    previous_udp.reset();
+    if (probe_timer_ != nullptr) {
+        esp_timer_stop(probe_timer_);
+    }
+    hello_valid_ = false;
+    awaiting_hello_ = true;
     xEventGroupClearBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
 
     auto message = GetHelloMessage();
     if (!SendText(message)) {
+        awaiting_hello_ = false;
         return false;
     }
 
     // 等待服务器响应
     EventBits_t bits = xEventGroupWaitBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT,
                                            pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+    awaiting_hello_ = false;
     if (!(bits & MQTT_PROTOCOL_SERVER_HELLO_EVENT)) {
         ESP_LOGE(TAG, "Failed to receive server hello");
         SetError(Lang::Strings::SERVER_TIMEOUT);
         return false;
     }
 
+    if (!hello_valid_) {
+        SetError(Lang::Strings::SERVER_ERROR, "udp_probe negotiation failed");
+        return false;
+    }
     auto network = Board::GetInstance().GetNetwork();
     auto udp = network->CreateUdp(2);
-    udp->OnMessage([this](const std::string& data) {
+    std::shared_ptr<ProbeChannel> probe;
+    {
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        probe = probe_channel_;
+    }
+    udp->OnMessage([this, generation, probe](const std::string& data) {
+        // Record/claim PONG reception before any channel-lock wait. ReceivePong
+        // checks the captured channel identity under that lock, including after
+        // close/reopen, so the audio generation gate must not precede it.
+        if (!data.empty() && static_cast<uint8_t>(data[0]) == 0x03) {
+            ReceivePong(probe, data);
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lock(channel_mutex_);
+            if (generation != channel_generation_) {
+                return;
+            }
+        }
         /*
          * UDP Encrypted OPUS Packet Format:
          * |type 1u|flags 1u|payload_len 2u|ssrc 4u|timestamp 4u|sequence 4u|
@@ -377,7 +429,29 @@ bool MqttProtocol::OpenAudioChannel() {
         std::lock_guard<std::mutex> lock(channel_mutex_);
         udp_ = std::move(udp);
     }
-
+    if (probe != nullptr) {
+        if (probe_timer_ == nullptr) {
+            const esp_timer_create_args_t args = {
+                .callback =
+                    [](void*) {
+                        // No protocol pointer escapes: an in-flight callback after close
+                        // can only set a coalesced event on the application singleton.
+                        Application::GetInstance().NotifyProtocolPending();
+                    },
+                .name = "udp_probe",
+            };
+            if (esp_timer_create(&args, &probe_timer_) != ESP_OK) {
+                CloseAudioChannel();
+                SetError(Lang::Strings::SERVER_ERROR, "udp_probe timer creation failed");
+                return false;
+            }
+        }
+        // First PING is sent once at socket readiness; do not wait for PONG.
+        ProcessPending();
+        if (error_occurred_) {
+            return false;
+        }
+    }
     if (on_audio_channel_opened_ != nullptr) {
         on_audio_channel_opened_();
     }
@@ -390,13 +464,7 @@ std::string MqttProtocol::GetHelloMessage() {
     cJSON_AddStringToObject(root, "type", "hello");
     cJSON_AddNumberToObject(root, "version", 3);
     cJSON_AddStringToObject(root, "transport", "udp");
-    cJSON* features = cJSON_CreateObject();
-#if CONFIG_USE_SERVER_AEC
-    cJSON_AddBoolToObject(features, "aec", true);
-#endif
-    cJSON_AddBoolToObject(features, "mcp", true);
-    cJSON_AddItemToObject(root, "features", features);
-    AddTextFontCapabilities(root);
+    AddClientCapabilities(root);
     cJSON* audio_params = cJSON_CreateObject();
     cJSON_AddStringToObject(audio_params, "format", "opus");
     cJSON_AddNumberToObject(audio_params, "sample_rate", 16000);
@@ -411,6 +479,22 @@ std::string MqttProtocol::GetHelloMessage() {
 }
 
 void MqttProtocol::ParseServerHello(const cJSON* root) {
+    if (!awaiting_hello_.exchange(false)) {
+        return;
+    }
+    // Always wake the opener, including malformed or unsupported responses.
+    struct HelloCompletion {
+        EventGroupHandle_t events;
+        ~HelloCompletion() { xEventGroupSetBits(events, MQTT_PROTOCOL_SERVER_HELLO_EVENT); }
+    } completion{event_group_handle_};
+    auto features = cJSON_GetObjectItem(root, "features");
+    auto capability = cJSON_GetObjectItem(features, "udp_probe");
+    if ((features != nullptr && !cJSON_IsObject(features)) ||
+        (capability != nullptr && !cJSON_IsBool(capability))) {
+        ESP_LOGE(TAG, "Invalid udp_probe capability");
+        return;
+    }
+    const bool enable_probe = cJSON_IsTrue(capability);
     auto transport = cJSON_GetObjectItem(root, "transport");
     if (!cJSON_IsString(transport) || strcmp(transport->valuestring, "udp") != 0) {
         ESP_LOGE(TAG, "Unsupported or missing transport");
@@ -465,12 +549,33 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
         return;
     }
 
+    std::shared_ptr<ProbeChannel> probe;
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         ESP_LOGE(TAG, "Failed to initialize PSA Crypto, status: %ld", static_cast<long>(status));
         return;
     }
 
+    if (enable_probe) {
+        probe =
+            std::make_shared<ProbeChannel>(reinterpret_cast<const uint8_t*>(aes_nonce.data() + 4));
+        psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+        psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+        psa_set_key_bits(&attributes, 128);
+        psa_set_key_usage_flags(&attributes,
+                                PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_VERIFY_MESSAGE);
+        psa_set_key_algorithm(&attributes,
+                              PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16));
+        status = psa_import_key(&attributes, reinterpret_cast<const uint8_t*>(aes_key.data()),
+                                aes_key.size(), &probe->key);
+        psa_reset_key_attributes(&attributes);
+        if (status != PSA_SUCCESS) {
+            ESP_LOGE(TAG, "Failed to import UDP HMAC key: %ld", static_cast<long>(status));
+            return;
+        }
+    } else {
+        ESP_LOGI(TAG, "Server has no udp_probe support; using legacy UDP channel");
+    }
     {
         std::lock_guard<std::mutex> lock(crypto_mutex_);
         if (aes_key_id_ != PSA_KEY_ID_NULL) {
@@ -493,13 +598,14 @@ void MqttProtocol::ParseServerHello(const cJSON* root) {
     }
     {
         std::lock_guard<std::mutex> lock(channel_mutex_);
+        probe_channel_ = std::move(probe);
         udp_server_ = udp_server;
         udp_port_ = udp_port;
         aes_nonce_ = std::move(aes_nonce);
         local_sequence_ = 0;
         remote_sequence_ = 0;
     }
-    xEventGroupSetBits(event_group_handle_, MQTT_PROTOCOL_SERVER_HELLO_EVENT);
+    hello_valid_ = true;
 }
 
 bool MqttProtocol::CryptAesCtr(const uint8_t* input, size_t input_size, const uint8_t* nonce,
@@ -565,5 +671,112 @@ bool MqttProtocol::DecodeHexString(const std::string& hex_string, std::string& d
 
 bool MqttProtocol::IsAudioChannelOpened() const {
     std::lock_guard<std::mutex> lock(channel_mutex_);
-    return udp_ != nullptr && !error_occurred_ && !IsTimeout();
+    return udp_ != nullptr && !error_occurred_ && !IsTimeout() &&
+           (probe_channel_ == nullptr || !probe_channel_->probe.Failed());
+}
+
+void MqttProtocol::ReceivePong(const std::shared_ptr<ProbeChannel>& channel,
+                               const std::string& data) {
+    if (channel == nullptr || data.size() != 32) {
+        return;
+    }
+    int64_t elapsed_us;
+    unsigned attempts;
+    {
+        // Claim reception before taking the state lock so deadline processing cannot
+        // overtake an already arriving response while its authentication is pending.
+        channel->receiving_pong = true;
+        const int64_t now = esp_timer_get_time();
+        struct Reception {
+            std::atomic<bool>& active;
+            ~Reception() { active = false; }
+        } reception{channel->receiving_pong};
+        // Authentication and timeout completion share the same short critical section.
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        if (probe_channel_ != channel ||
+            !channel->probe.Matches(reinterpret_cast<const uint8_t*>(data.data()), now)) {
+            return;
+        }
+        const auto algorithm = PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16);
+        if (psa_mac_verify(channel->key, algorithm, reinterpret_cast<const uint8_t*>(data.data()),
+                           16, reinterpret_cast<const uint8_t*>(data.data() + 16),
+                           16) != PSA_SUCCESS) {
+            return;
+        }
+        elapsed_us = channel->probe.ElapsedUs(now);
+        attempts = channel->probe.Attempts();
+        channel->probe.Complete(now, esp_random() % (UdpProbe::kIntervalUs / 10 + 1));
+        // Timer operations are non-blocking; the receive task never sends a PING.
+        ArmProbeTimer(channel->probe.NextActionAt());
+    }
+    // Serial logging must not hold up channel state or timeout processing.
+    if (attempts == 1) {
+        ESP_LOGI(TAG, "UDP RTT: %lld.%03lld ms", static_cast<long long>(elapsed_us / 1000),
+                 static_cast<long long>(elapsed_us % 1000));
+    } else {
+        ESP_LOGI(TAG, "UDP RTT: unknown after retransmission (attempts=%u, elapsed=%lld.%03lld ms)",
+                 attempts, static_cast<long long>(elapsed_us / 1000),
+                 static_cast<long long>(elapsed_us % 1000));
+    }
+}
+
+void MqttProtocol::ArmProbeTimer(int64_t due) {
+    if (probe_timer_ == nullptr) {
+        return;
+    }
+    esp_timer_stop(probe_timer_);
+    esp_timer_start_once(probe_timer_, std::max<int64_t>(1, due - esp_timer_get_time()));
+}
+
+void MqttProtocol::ProcessPending() {
+    // Socket readiness and timer events are the only callers. Both run in the
+    // application's existing send context, so no additional sender lock is needed.
+    std::shared_ptr<Udp> udp;
+    std::string packet;
+    bool failed = false;
+    bool crypto_error = false;
+    {
+        std::lock_guard<std::mutex> lock(channel_mutex_);
+        const auto channel = probe_channel_;
+        if (channel == nullptr || udp_ == nullptr) {
+            return;
+        }
+        const auto now = esp_timer_get_time();
+        if (channel->receiving_pong.load()) {
+            // Give an already arriving PONG the opportunity to finish validation.
+            ArmProbeTimer(now + 10000);
+            return;
+        }
+        auto action = channel->probe.Poll(now);
+        failed = action == UdpProbe::Action::Failed;
+        if (action == UdpProbe::Action::Send) {
+            auto& bytes = channel->probe.Packet();
+            size_t length = 0;
+            const auto algorithm = PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16);
+            if (psa_mac_compute(channel->key, algorithm, bytes.data(), 16, bytes.data() + 16, 16,
+                                &length) != PSA_SUCCESS ||
+                length != 16) {
+                failed = true;
+                crypto_error = true;
+            } else {
+                udp = udp_;
+                packet.assign(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            }
+        }
+        if (failed) {
+            esp_timer_stop(probe_timer_);
+        } else {
+            // Arm before Send: a fast PONG may replace this with the next-period timer.
+            ArmProbeTimer(channel->probe.NextActionAt());
+        }
+    }
+    if (failed) {
+        // Already on the main task; report and close directly, without another Schedule.
+        SetError(crypto_error ? Lang::Strings::SERVER_ERROR : Lang::Strings::SERVER_TIMEOUT,
+                 crypto_error ? "udp_probe_auth_error" : "udp_probe_timeout");
+        CloseAudioChannel();
+    } else if (udp != nullptr) {
+        // A modem send may wait for AT, but never retain channel_mutex_ or wait for PONG.
+        udp->Send(packet);
+    }
 }

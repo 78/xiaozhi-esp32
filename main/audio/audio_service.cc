@@ -650,6 +650,10 @@ const std::string& AudioService::GetLastWakeWord() const {
     return audio_engine_ ? audio_engine_->GetLastDetectedWakeWord() : empty;
 }
 
+std::vector<std::string> AudioService::GetWakeWords() const {
+    return audio_engine_initialized_ ? audio_engine_->GetWakeWords() : std::vector<std::string>{};
+}
+
 std::unique_ptr<AudioStreamPacket> AudioService::PopWakeWordPacket() {
     auto packet = std::make_unique<AudioStreamPacket>();
     if (audio_engine_ && audio_engine_->GetWakeWordOpus(packet->payload)) {

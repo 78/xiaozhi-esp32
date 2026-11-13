@@ -384,6 +384,27 @@ bool LcdDisplay::Lock(int timeout_ms) { return lvgl_port_lock(timeout_ms); }
 
 void LcdDisplay::Unlock() { lvgl_port_unlock(); }
 
+void LcdDisplay::ShowEmotion() {
+    // Message cleanup must restore the selected renderer, not the boot logo.
+    if (emoji_label_ != nullptr) {
+        if (emotion_uses_image_) {
+            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (emoji_image_ != nullptr) {
+        if (emotion_uses_image_) {
+            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (emotion_uses_image_ && gif_controller_ && !gif_controller_->IsPlaying()) {
+        gif_controller_->Start();
+    }
+}
+
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
     // Prevent duplicate calls - if already called, return early
@@ -526,6 +547,7 @@ void LcdDisplay::SetupUI() {
     emoji_image_ = lv_img_create(screen);
     lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0,
                  text_font->line_height + lvgl_theme->spacing(8));
+    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
 
     // Display AI logo while booting
     emoji_label_ = lv_label_create(screen);
@@ -831,6 +853,38 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     lv_obj_scroll_to_view_recursive(img_bubble, LV_ANIM_ON);
 }
 
+void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (content_ == nullptr || role == nullptr || content == nullptr) {
+        return;
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(content_); ++i) {
+        auto container = lv_obj_get_child(content_, i);
+        auto bubble = container;
+        auto bubble_role = static_cast<const char*>(lv_obj_get_user_data(bubble));
+        if (bubble_role == nullptr && lv_obj_get_child_cnt(bubble) > 0) {
+            bubble = lv_obj_get_child(bubble, 0);
+            bubble_role = static_cast<const char*>(lv_obj_get_user_data(bubble));
+        }
+        if (bubble_role == nullptr || strcmp(bubble_role, role) != 0 ||
+            lv_obj_get_child_cnt(bubble) == 0) {
+            continue;
+        }
+        auto label = lv_obj_get_child(bubble, 0);
+        if (strcmp(lv_label_get_text(label), content) != 0) {
+            continue;
+        }
+        if (chat_message_label_ == label) {
+            chat_message_label_ = nullptr;
+        }
+        lv_obj_del(container);
+        if (lv_obj_get_child_cnt(content_) == 0) {
+            ShowEmotion();
+        }
+        return;
+    }
+}
+
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
     if (content_ == nullptr) {
@@ -843,10 +897,7 @@ void LcdDisplay::ClearChatMessages() {
     // Reset chat_message_label_ as it has been deleted
     chat_message_label_ = nullptr;
 
-    // Show the centered AI logo (emoji_label_) again
-    if (emoji_label_ != nullptr) {
-        lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-    }
+    ShowEmotion();
 
     ESP_LOGI(TAG, "Chat messages cleared");
 }
@@ -1117,6 +1168,20 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
 #endif
 }
 
+void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr || content == nullptr ||
+        strcmp(lv_label_get_text(chat_message_label_), content) != 0) {
+        return;
+    }
+    // The classic layout has one text slot and does not distinguish message roles.
+    lv_anim_delete(chat_message_label_, nullptr);
+    lv_label_set_text(chat_message_label_, "");
+    if (bottom_bar_ != nullptr) {
+        lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
     // In non-wechat mode, just clear the chat message label and hide the bar
@@ -1129,7 +1194,7 @@ void LcdDisplay::ClearChatMessages() {
 }
 #endif
 
-void LcdDisplay::SetEmotion(const char* emotion) {
+bool LcdDisplay::SetEmotion(const char* emotion) {
     if (!setup_ui_called_) {
         ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!",
                  emotion);
@@ -1141,7 +1206,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
                      "emoji image not created)",
                      emotion);
         }
-        return;
+        return false;
     }
 
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
@@ -1154,18 +1219,22 @@ void LcdDisplay::SetEmotion(const char* emotion) {
             utf8 = material_symbols_get_utf8(emotion);
             emotion_font = lvgl_theme->large_icon_font()->font();
         }
-        if (utf8 != nullptr && emoji_label_ != nullptr) {
-            DisplayLockGuard lock(this);
-            if (gif_controller_) {
-                gif_controller_->Stop();
-                gif_controller_.reset();
-            }
-            lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
-            lv_label_set_text(emoji_label_, utf8);
-            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        if (utf8 == nullptr || emoji_label_ == nullptr) {
+            // No image and no glyph for this name: nothing was shown for the request.
+            return false;
         }
-        return;
+        DisplayLockGuard lock(this);
+        if (gif_controller_) {
+            gif_controller_->Stop();
+            gif_controller_.reset();
+        }
+        lv_obj_set_style_text_font(emoji_label_, emotion_font, 0);
+        lv_label_set_text(emoji_label_, utf8);
+        emotion_uses_image_ = false;
+        ShowEmotion();
+        // The glyph is this emotion's own, from noto_emoji or material_symbols, not a
+        // stand-in - so the request was honoured.
+        return true;
     }
 
     DisplayLockGuard lock(this);
@@ -1175,6 +1244,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_->Stop();
         gif_controller_.reset();
     }
+    bool shown = false;
     if (image->IsGif()) {
         // Create new GIF controller
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
@@ -1188,33 +1258,39 @@ void LcdDisplay::SetEmotion(const char* emotion) {
             lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
             gif_controller_->Start();
 
-            // Show GIF, hide others
-            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+            emotion_uses_image_ = true;
+            ShowEmotion();
+            shown = true;
         } else {
+            // Keep a valid label fallback instead of a freed GIF descriptor.
             ESP_LOGE(TAG, "Failed to load GIF for emotion: %s", emotion);
             gif_controller_.reset();
+            emotion_uses_image_ = false;
+            ShowEmotion();
         }
     } else {
         lv_image_set_src(emoji_image_, image->image_dsc());
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        emotion_uses_image_ = true;
+        ShowEmotion();
+        shown = true;
     }
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     // In WeChat message style, if emotion is neutral, don't display it
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (strcmp(emotion, "neutral") == 0 && child_count > 0) {
-        // Stop GIF animation if running
+        // Keep the descriptor alive so clearing the last bubble can show it again.
         if (gif_controller_) {
-            gif_controller_->Stop();
-            gif_controller_.reset();
+            gif_controller_->Pause();
         }
 
         lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
     }
 #endif
+    // The WeChat style deliberately hides a neutral emotion. That is a choice about
+    // presentation, not a failure to honour the request, so `shown` stands as it was.
+    return shown;
 }
 
 void LcdDisplay::SetTheme(Theme* theme) {

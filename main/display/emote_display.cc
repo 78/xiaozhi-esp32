@@ -2,6 +2,7 @@
 
 // Standard C++ headers
 #include <algorithm>
+#include <atomic>
 #include <cinttypes>
 #include <cstring>
 #include <memory>
@@ -56,13 +57,59 @@ static bool OnFlushIoReady(const esp_lcd_panel_io_handle_t panel_io,
     return true;
 }
 
+// Flush bookkeeping, so that a display which has stopped flushing can be noticed.
+//
+// Nothing in the tree watches the render task: no task is subscribed to the task watchdog and
+// CONFIG_ESP_TASK_WDT_PANIC is off, and a task blocked on an event group yields the CPU, so the
+// idle-task watchdog sees nothing wrong. These two values are the minimum a board needs to tell
+// a live display from a wedged one.
+static std::atomic<uint32_t> s_flush_count{0};
+static std::atomic<int64_t> s_last_flush_us{0};
+
 // Flush callback for emote
 static void OnFlushCallback(int x_start, int y_start, int x_end, int y_end, const void* data,
                             emote_handle_t handle) {
     esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)emote_get_user_data(handle);
-    if (panel != nullptr) {
-        esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, data);
+
+    // Every exit from here must end in a flush-finished report, one way or the other.
+    //
+    // The renderer clears the flush-done bit, calls this, then waits on that bit with
+    // portMAX_DELAY (esp_emote_gfx, gfx_render.c) - and the only thing that sets it is
+    // emote_notify_flush_finished, which is reached only from the panel's on_color_trans_done
+    // callback. So a block that never reaches the bus is not a dropped frame: the render task
+    // waits for it forever, holding the graphics lock, and every caller of gfx_emote_lock
+    // queues up behind it. The device keeps answering pings and WebSocket pongs the whole
+    // time, because those are other tasks - so it looks alive and the screen is simply frozen
+    // on one frame. Reporting completion here is safe: the bit is set before the renderer
+    // reaches its wait, and a pre-set bit makes that wait return at once.
+    if (panel == nullptr) {
+        emote_notify_flush_finished(handle);
+        return;
     }
+
+    esp_err_t err = esp_lcd_panel_draw_bitmap(panel, x_start, y_start, x_end, y_end, data);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "draw_bitmap failed (%s) for (%d,%d)-(%d,%d); reporting flush done so the "
+                      "render task is not left waiting for a transfer that never started",
+                 esp_err_to_name(err), x_start, y_start, x_end, y_end);
+        emote_notify_flush_finished(handle);
+        return;
+    }
+
+    s_flush_count.fetch_add(1, std::memory_order_relaxed);
+    s_last_flush_us.store(esp_timer_get_time(), std::memory_order_relaxed);
+}
+
+uint32_t GetFlushCount() {
+    return s_flush_count.load(std::memory_order_relaxed);
+}
+
+int64_t GetMicrosecondsSinceLastFlush() {
+    int64_t last = s_last_flush_us.load(std::memory_order_relaxed);
+    if (last == 0) {
+        return -1;  // nothing has been flushed yet; not the same as "a long time ago"
+    }
+    return esp_timer_get_time() - last;
 }
 
 // ============================================================================
@@ -135,11 +182,21 @@ EmoteDisplay::~EmoteDisplay() {
     }
 }
 
-void EmoteDisplay::SetEmotion(const char* const emotion) {
+bool EmoteDisplay::SetEmotion(const char* const emotion) {
     ESP_LOGI(TAG, "SetEmotion: %s", emotion);
-    if (emote_handle_ && emotion && strlen(emotion) > 0) {
-        emote_set_anim_emoji(emote_handle_, emotion);
+    if (emote_handle_ == nullptr || emotion == nullptr || strlen(emotion) == 0) {
+        return false;
     }
+    // The result was already being produced and discarded. An emotion the mounted asset pack
+    // does not carry fails inside emote_set_emoji_animation, and callers had no way to find
+    // out: an MCP tool, a server-driven emotion or a board's own avatar mapping all saw the
+    // same silence as a success.
+    esp_err_t err = emote_set_anim_emoji(emote_handle_, emotion);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "emotion \"%s\" not set: %s", emotion, esp_err_to_name(err));
+        return false;
+    }
+    return true;
 }
 
 void EmoteDisplay::SetChatMessage(const char* const role, const char* const content) {
@@ -250,7 +307,9 @@ void EmoteDisplay::Unlock() {}
 bool EmoteDisplay::StopAnimDialog() {
     ESP_LOGI(TAG, "StopAnimDialog");
     if (emote_handle_) {
-        return emote_stop_anim_dialog(emote_handle_);
+        // esp_err_t, where ESP_OK is 0: returned as bool it reports false on success and true on
+        // failure. GetAssetData and SetEmotion compare against ESP_OK for the same reason.
+        return emote_stop_anim_dialog(emote_handle_) == ESP_OK;
     }
     return false;
 }
@@ -258,7 +317,7 @@ bool EmoteDisplay::StopAnimDialog() {
 bool EmoteDisplay::InsertAnimDialog(const char* emoji_name, uint32_t duration_ms) {
     ESP_LOGI(TAG, "InsertAnimDialog: %s, %" PRIu32, emoji_name, duration_ms);
     if (emote_handle_ && emoji_name) {
-        return emote_insert_anim_dialog(emote_handle_, emoji_name, duration_ms);
+        return emote_insert_anim_dialog(emote_handle_, emoji_name, duration_ms) == ESP_OK;
     }
     return false;
 }

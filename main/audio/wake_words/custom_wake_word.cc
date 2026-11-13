@@ -139,6 +139,19 @@ void CustomWakeWord::OnWakeWordDetected(std::function<void(const std::string& wa
     wake_word_detected_callback_ = callback;
 }
 
+std::vector<std::string> CustomWakeWord::GetWakeWords() const {
+    std::vector<std::string> words;
+    if (multinet_model_data_ == nullptr) {
+        return words;
+    }
+    for (const auto& command : commands_) {
+        if (command.action == "wake" && !command.text.empty()) {
+            words.push_back(command.text);
+        }
+    }
+    return words;
+}
+
 void CustomWakeWord::Start() {
     running_ = true;
 }

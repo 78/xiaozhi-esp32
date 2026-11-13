@@ -71,11 +71,14 @@ void Cst816x::touchpad_daemon(void* arg) {
 
         const auto& config = cst816x->getThresholdConfig(tp.x, tp.y);
         if (tp.num > 0) {
-            ESP_LOGD(TAG, "Touch at (%d,%d) → SingleThresh:%lldms, DoubleWindow:%lldms, LongThresh:%lldms",
+            // %lld would be a 64-bit conversion, which newlib-nano's printf does not
+            // have - and CONFIG_NEWLIB_NANO_FORMAT=y is in this project's sdkconfig.defaults,
+            // so every board is built that way. These are millisecond thresholds; int is ample.
+            ESP_LOGD(TAG, "Touch at (%d,%d) → SingleThresh:%dms, DoubleWindow:%dms, LongThresh:%dms",
                 tp.x, tp.y,
-                config.single_click_thresh_us / 1000,
-                config.double_click_window_us / 1000,
-                config.long_press_thresh_us / 1000);
+                (int)(config.single_click_thresh_us / 1000),
+                (int)(config.double_click_window_us / 1000),
+                (int)(config.long_press_thresh_us / 1000));
         }
 
         TouchEvent current_event;  
