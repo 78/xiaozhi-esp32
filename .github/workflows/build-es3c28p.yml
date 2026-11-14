@@ -1,0 +1,109 @@
+name: Build Terra firmware
+# Default = Thai wake word "เทอร่า" (MultiNet pinyin approximation, validated on
+# hardware 2569-10-08 as terra-wwtest-4). Leave wake_word EMPTY to build the
+# legacy "Hi,ESP" (wn9_hiesp) firmware instead.
+# Wake-word options go into a throw-away config file inside the CI checkout only;
+# the board's committed config.json is not modified (docs/custom-board.md).
+on:
+  workflow_dispatch:
+    inputs:
+      wake_word:
+        description: "Pinyin phrase(s), alternatives separated by |. EMPTY = legacy Hi,ESP (wn9_hiesp)"
+        default: "te er la|hei te er la|te e la"
+      display:
+        description: "Text sent to the server after wake word detection"
+        default: "เทอร่า"
+      threshold:
+        description: "Threshold 1-99 (smaller = more sensitive)"
+        default: "3"
+      log_floor:
+        description: "Tuning aid: also LOG weaker matches down to this % (0 = off). Never wakes below threshold."
+        default: "2"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select wake word mode
+        id: mode
+        env:
+          WW: ${{ inputs.wake_word }}
+          WW_DISPLAY: ${{ inputs.display }}
+          WW_THRESHOLD: ${{ inputs.threshold }}
+          WW_LOG_FLOOR: ${{ inputs.log_floor }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          ww = os.environ.get("WW", "").strip()
+          out = open(os.environ["GITHUB_OUTPUT"], "a")
+          if not ww:
+              out.write("cmd=python scripts/build.py es3c28p-terra --language th-TH --wake-word wn9_hiesp\n")
+              out.write("label=hiesp\n")
+              print("Legacy Hi,ESP build")
+          else:
+              src = "main/boards/es3c28p-terra/config.json"
+              dst = "main/boards/es3c28p-terra/config.wwtest.json"
+              cfg = json.load(open(src, encoding="utf-8"))
+              threshold = int(os.environ["WW_THRESHOLD"])
+              assert 1 <= threshold <= 99
+              floor = int(os.environ.get("WW_LOG_FLOOR") or 0)
+              assert 0 <= floor <= 99
+              extra = [
+                  "CONFIG_WAKE_WORD_DISABLED=n",
+                  "CONFIG_USE_ESP_WAKE_WORD=n",
+                  "CONFIG_USE_AFE_WAKE_WORD=n",
+                  "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+                  "CONFIG_SR_MN_CN_NONE=n",
+                  "CONFIG_SR_MN_CN_MULTINET7_QUANT=y",
+                  'CONFIG_CUSTOM_WAKE_WORD="%s"' % ww,
+                  'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="%s"' % os.environ["WW_DISPLAY"],
+                  "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=%d" % threshold,
+                  "CONFIG_CUSTOM_WAKE_WORD_LOG_FLOOR=%d" % floor,
+              ]
+              for b in cfg["builds"]:
+                  b["sdkconfig_append"] = list(b.get("sdkconfig_append", [])) + extra
+              json.dump(cfg, open(dst, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+              print(open(dst, encoding="utf-8").read())
+              out.write("cmd=python scripts/build.py es3c28p-terra -c config.wwtest.json --language th-TH\n")
+              out.write("label=terra\n")
+          PY
+
+      - name: Build firmware (ESP-IDF v6.1)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          command: ${{ steps.mode.outputs.cmd }}
+
+      - name: Show effective wake-word config
+        run: |
+          grep -E "CONFIG_(USE_CUSTOM_WAKE_WORD|USE_AFE_WAKE_WORD|CUSTOM_WAKE_WORD|SR_MN_|SR_WN_)" sdkconfig || true
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: terra-firmware
+          path: |
+            build/**/*.bin
+            releases/*.zip
+            output/**/*.bin
+          if-no-files-found: error
+
+      - name: Publish merged-binary.bin as a pre-release (direct download link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ steps.mode.outputs.label }}
+        run: |
+          TAG="terra-fw-${{ github.run_number }}"
+          cp build/merged-binary.bin merged-binary.bin
+          gh release create "$TAG" merged-binary.bin \
+            --target "${{ github.sha }}" \
+            --title "Terra firmware $TAG ($LABEL)" \
+            --notes "es3c28p-terra build ($LABEL) from ${{ github.sha }}. Defaults = validated wake word settings of terra-wwtest-4." \
+            --prerelease
