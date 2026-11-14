@@ -74,7 +74,8 @@
 
 // GT1151 触摸，与 codec 共享 I2C 总线（无复位/中断线）
 
-// OV3660 摄像头，DVP 接口（SCCB 与 codec 共享 I2C 总线，地址 0x78）。
+// OV3660 / SC101IOT 摄像头，DVP 接口（SCCB 与 codec 共享 I2C 总线）。
+// OV3660 的 SCCB 7-bit 地址为 0x3c，SC101IOT 为 0x68；启动时自动探测。
 // 参数以官方 factory demo 的 BSP 实测值为准：XCLK 20MHz，SCCB 10kHz。
 #define CAMERA_PIN_XCLK GPIO_NUM_55
 #define CAMERA_PIN_PCLK GPIO_NUM_54

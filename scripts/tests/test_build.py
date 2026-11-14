@@ -1401,6 +1401,50 @@ class BuildOptionTests(unittest.TestCase):
         self.assertIn("CONFIG_XIAOZHI_CAMERA_HMIRROR=n", options)
         self.assertIn("CONFIG_XIAOZHI_CAMERA_VFLIP=y", options)
 
+    def test_s31_camera_orientation_defaults_to_auto_and_preserves_manual_overrides(self):
+        config = json.loads(
+            (ROOT / "main/boards/espressif/esp32-s31-korvo-1/config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        build_config = config["builds"][0]
+        definitions = build._build_option_definitions(
+            "espressif/esp32-s31-korvo-1",
+            config["target"],
+            "CONFIG_BOARD_TYPE_ESP32_S31_KORVO_1",
+            build_config,
+        )
+        # Returning to auto must clear a previous build's explicit override.
+        base = {"CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED": "y"}
+        for requested, expected in (
+            ({}, {"CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=n"}),
+            ({"camera_hmirror": True}, {
+                "CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y",
+                "CONFIG_XIAOZHI_CAMERA_HMIRROR=y",
+                "CONFIG_XIAOZHI_CAMERA_VFLIP=n",
+            }),
+            ({"camera_orientation": "manual"}, {
+                "CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y",
+                "CONFIG_XIAOZHI_CAMERA_HMIRROR=n",
+                "CONFIG_XIAOZHI_CAMERA_VFLIP=n",
+            }),
+            ({"camera_hmirror": False, "camera_vflip": False}, {
+                "CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=y",
+                "CONFIG_XIAOZHI_CAMERA_HMIRROR=n",
+                "CONFIG_XIAOZHI_CAMERA_VFLIP=n",
+            }),
+            ({"camera_orientation": "auto", "camera_hmirror": True}, {
+                "CONFIG_XIAOZHI_CAMERA_MIRROR_CONFIGURED=n",
+            }),
+        ):
+            with self.subTest(requested=requested):
+                normalized = build._normalize_build_options(definitions, requested)
+                options = build._build_options_sdkconfig(definitions, normalized, base)
+                mirror_options = {
+                    option for option in options if option.startswith("CONFIG_XIAOZHI_CAMERA_")
+                }
+                self.assertEqual(mirror_options, expected)
+
     def test_blufi_expansion_disables_hotspot(self):
         definitions = [{
             "key": "wifi_provisioning",
