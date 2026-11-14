@@ -248,10 +248,26 @@ int NoAudioCodec::Read(int16_t* dest, int samples) {
     }
 
     samples = bytes_read / sizeof(int32_t);
+    int32_t peak = 0;
+    int64_t sum = 0;
+
     for (int i = 0; i < samples; i++) {
         int32_t value = bit32_buffer[i] >> 12;
         dest[i] = (value > INT16_MAX) ? INT16_MAX : (value < -INT16_MAX) ? -INT16_MAX : (int16_t)value;
+
+        int32_t magnitude = dest[i] < 0 ? -static_cast<int32_t>(dest[i]) : dest[i];
+        if (magnitude > peak) {
+            peak = magnitude;
+        }
+        sum += magnitude;
     }
+
+    static int log_count = 0;
+    if (samples > 0 && ++log_count >= 50) {
+        ESP_LOGI(TAG, "Mic PCM peak=%ld avg=%ld", (long)peak, (long)(sum / samples));
+        log_count = 0;
+    }
+
     return samples;
 }
 
