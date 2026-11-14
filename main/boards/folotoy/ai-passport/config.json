@@ -11,7 +11,7 @@
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
                 "CONFIG_WAKE_WORD_DISABLED=y",
                 "CONFIG_PM_ENABLE=y",
-                "CONFIG_USE_MULTILINE_CHAT_MESSAGE=y"
+                "CONFIG_USE_READING_MESSAGE_STYLE=y"
             ]
         }
     ]
