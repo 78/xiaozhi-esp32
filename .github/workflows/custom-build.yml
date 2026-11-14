@@ -1,0 +1,112 @@
+name: Custom build (WakeNet9 Jarvis + activation code)
+
+# Builds a separate test firmware with WakeNet9 Jarvis and the existing
+# activation-code display patch. Uses XiaoZhi v2.5.2 and ESP-IDF 6.1,
+# matching the upstream v2.5.2 release toolchain. The original workflow
+# is left unchanged. Run manually from the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Upstream git tag or branch to build (v2.2.2 = known-good, main = latest)
+        required: true
+        default: v2.5.2
+      idf_image:
+        description: ESP-IDF docker image for XiaoZhi v2.5.2
+        required: true
+        default: espressif/idf:release-v6.1
+      board:
+        description: Board directory under main/boards/
+        required: true
+        default: bread-compact-wifi
+      variant:
+        description: Variant name (bread-compact-wifi = 128x32 OLED, bread-compact-wifi-128x64 = 128x64 OLED)
+        required: true
+        default: bread-compact-wifi
+      bootloader_logs:
+        description: Print bootloader messages on the serial port (diagnostic)
+        type: boolean
+        default: false
+      wake_word:
+        description: ESP-SR WakeNet model to test
+        required: true
+        default: wn9_jarvis_tts
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.variant }} @ ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.idf_image }}
+    steps:
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          repository: 78/xiaozhi-esp32
+          ref: ${{ inputs.ref }}
+
+      - name: Patch - show activation code on screen
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          import pathlib, sys
+
+          path = pathlib.Path("main/application.cc")
+          src = path.read_text()
+
+          old = r'''    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);'''
+          new = r'''    // The server's message usually does not contain the code itself, and the code is otherwise
+              // only spoken. Show it on screen too (code first, so it stays visible on small/scrolling
+              // displays). It is cleared by HandleActivationDoneEvent() once pairing succeeds.
+              std::string screen_message = message;
+              if (!code.empty() && message.find(code) == std::string::npos) {
+                  screen_message = "Code: " + code + "\n" + message;
+              }
+
+              // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+              Alert(Lang::Strings::ACTIVATION, screen_message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);'''
+
+          if src.count(old) != 1:
+              sys.exit("ERROR: expected code not found in main/application.cc (upstream changed?)")
+          path.write_text(src.replace(old, new))
+          print("Patched main/application.cc")
+          PY
+          grep -n "screen_message" main/application.cc
+
+      - name: Enable bootloader logs (diagnostic)
+        if: ${{ inputs.bootloader_logs }}
+        shell: bash
+        run: |
+          sed -i 's/^CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y/CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y/' sdkconfig.defaults
+          grep -n "BOOTLOADER_LOG_LEVEL" sdkconfig.defaults
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ inputs.board }}
+          VARIANT: ${{ inputs.variant }}
+          WAKE_WORD: ${{ inputs.wake_word }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          idf.py --version
+          if [ -f scripts/build.py ]; then
+            python scripts/build.py "$BOARD" --name "$VARIANT" --language en-US --wake-word "$WAKE_WORD"
+          else
+            echo "ERROR: this ref does not provide scripts/build.py with --wake-word support."
+            echo "Choose XiaoZhi v2.5.2 or another ref that supports --wake-word."
+            exit 1
+          fi
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi_${{ inputs.variant }}_${{ inputs.ref }}
+          path: build/merged-binary.bin
+          if-no-files-found: error
+          

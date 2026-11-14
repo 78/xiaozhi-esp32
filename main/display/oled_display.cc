@@ -5,6 +5,7 @@
 #include "settings.h"
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 
 #include <esp_err.h>
@@ -14,6 +15,8 @@
 #include <noto_emoji.h>
 
 #define TAG "OledDisplay"
+#include "oled_eyes.h"
+static OledEyes g_oled_eyes;
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
@@ -37,9 +40,21 @@ OledDisplay::OledDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handl
     dark_theme->set_large_icon_font(large_icon_font);
     dark_theme->set_emoji_font(emoji_font);
 
+    // Light theme: same fonts, colors are applied in ApplyPalette().
+    auto light_theme = new LvglTheme("light");
+    light_theme->set_text_font(text_font);
+    light_theme->set_icon_font(icon_font);
+    light_theme->set_large_icon_font(large_icon_font);
+    light_theme->set_emoji_font(emoji_font);
+
     auto& theme_manager = LvglThemeManager::GetInstance();
     theme_manager.RegisterTheme("dark", dark_theme);
-    current_theme_ = dark_theme;
+    theme_manager.RegisterTheme("light", light_theme);
+
+    // Restore the theme saved by the last `self.screen.set_theme` call.
+    Settings display_settings("display", false);
+    light_ = display_settings.GetString("theme", "dark") == "light";
+    current_theme_ = light_ ? static_cast<Theme*>(light_theme) : static_cast<Theme*>(dark_theme);
 
     ESP_LOGI(TAG, "Initialize LVGL");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
@@ -103,6 +118,11 @@ void OledDisplay::SetupUI() {
 }
 
 OledDisplay::~OledDisplay() {
+    g_oled_eyes.Destroy();
+    if (alert_box_ != nullptr) {
+        chat_message_label_ = nullptr;
+        lv_obj_del(alert_box_);
+    }
     if (content_ != nullptr) {
         lv_obj_del(content_);
     }
@@ -148,7 +168,7 @@ void OledDisplay::Unlock() { lvgl_port_unlock(); }
 
 void OledDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
+    if (chat_message_label_ == nullptr || content == nullptr) {
         return;
     }
 
@@ -156,17 +176,25 @@ void OledDisplay::SetChatMessage(const char* role, const char* content) {
     std::string content_str = content;
     std::replace(content_str.begin(), content_str.end(), '\n', ' ');
 
-    lv_anim_delete(chat_message_label_, nullptr);
-    if (content_right_ == nullptr) {
-        lv_label_set_text(chat_message_label_, content_str.c_str());
-    } else {
-        if (content == nullptr || content[0] == '\0') {
-            lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+    if (alert_box_ != nullptr) {
+        // 128x64: the eyes own the whole screen. Chat subtitles are not drawn; only system
+        // messages (activation code, Wi-Fi setup, errors) temporarily replace the eyes.
+        if (role == nullptr || strcmp(role, "system") != 0) {
+            return;
+        }
+        if (content_str.empty()) {
+            lv_obj_add_flag(alert_box_, LV_OBJ_FLAG_HIDDEN);
+            g_oled_eyes.SetHidden(false);
         } else {
             lv_label_set_text(chat_message_label_, content_str.c_str());
-            lv_obj_remove_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(alert_box_, LV_OBJ_FLAG_HIDDEN);
+            g_oled_eyes.SetHidden(true);
         }
+        return;
     }
+
+    lv_anim_delete(chat_message_label_, nullptr);
+    lv_label_set_text(chat_message_label_, content_str.c_str());
 }
 
 void OledDisplay::RemoveChatMessage(const char* role, const char* content) {
@@ -182,9 +210,28 @@ void OledDisplay::RemoveChatMessage(const char* role, const char* content) {
     }
     lv_anim_delete(chat_message_label_, nullptr);
     lv_label_set_text(chat_message_label_, "");
-    if (content_right_ != nullptr) {
-        lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
+    if (alert_box_ != nullptr) {
+        lv_obj_add_flag(alert_box_, LV_OBJ_FLAG_HIDDEN);
+        g_oled_eyes.SetHidden(false);
     }
+}
+
+// The eyes follow the device state: standby = full-frame eyes, listening = eyes + closed mouth,
+// speaking = eyes + talking mouth. The text (clock, "Listening...") is never drawn on 128x64.
+void OledDisplay::SetStatus(const char* status) {
+    LvglDisplay::SetStatus(status);
+    if (status == nullptr || !g_oled_eyes.IsReady()) {
+        return;
+    }
+    OledEyes::Mode mode = OledEyes::Mode::Idle;
+    if (strcmp(status, Lang::Strings::SPEAKING) == 0) {
+        mode = OledEyes::Mode::Speaking;
+    } else if (strcmp(status, Lang::Strings::LISTENING) == 0 ||
+               strcmp(status, Lang::Strings::CONNECTING) == 0) {
+        mode = OledEyes::Mode::Listening;
+    }
+    DisplayLockGuard lock(this);
+    g_oled_eyes.SetMode(mode);
 }
 
 void OledDisplay::SetupUI_128x64() {
@@ -193,7 +240,6 @@ void OledDisplay::SetupUI_128x64() {
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
-    auto large_icon_font = lvgl_theme->large_icon_font()->font();
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
@@ -205,6 +251,7 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
+    lv_obj_set_style_outline_width(container_, 0, 0);
     lv_obj_set_style_pad_row(container_, 0, 0);
 
     /* Layer 1: Top bar - for status icons */
@@ -265,49 +312,34 @@ void OledDisplay::SetupUI_128x64() {
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
 
-    /* Content */
-    content_ = lv_obj_create(container_);
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_radius(content_, 0, 0);
-    lv_obj_set_style_pad_all(content_, 0, 0);
-    lv_obj_set_width(content_, LV_HOR_RES);
-    lv_obj_set_flex_grow(content_, 1);
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_flex_main_place(content_, LV_FLEX_ALIGN_CENTER, 0);
+    // Wi-Fi / mute / battery icons and the clock/status text are not shown: the eyes use the
+    // whole screen. The widgets stay alive so the shared status code keeps working.
+    lv_obj_add_flag(top_bar_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
 
-    content_left_ = lv_obj_create(content_);
-    lv_obj_set_size(content_left_, 32, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(content_left_, 0, 0);
-    lv_obj_set_style_border_width(content_left_, 0, 0);
+    /* Eyes: full-screen layer above everything except alerts */
+    g_oled_eyes.Create(screen, LV_HOR_RES, LV_VER_RES);
 
-    emotion_label_ = lv_label_create(content_left_);
-    lv_obj_set_style_text_font(emotion_label_, large_icon_font, 0);
-    lv_label_set_text(emotion_label_, MATERIAL_SYMBOLS_ROBOT_2);
-    lv_obj_center(emotion_label_);
-    lv_obj_set_style_pad_top(emotion_label_, 8, 0);
+    /* Alert layer: only used for system messages such as the activation code */
+    alert_box_ = lv_obj_create(screen);
+    lv_obj_set_size(alert_box_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_pos(alert_box_, 0, 0);
+    lv_obj_set_scrollbar_mode(alert_box_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_remove_flag(alert_box_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_radius(alert_box_, 0, 0);
+    lv_obj_set_style_border_width(alert_box_, 0, 0);
+    lv_obj_set_style_outline_width(alert_box_, 0, 0);
+    lv_obj_set_style_shadow_width(alert_box_, 0, 0);
+    lv_obj_set_style_pad_all(alert_box_, 2, 0);
+    lv_obj_set_style_bg_opa(alert_box_, LV_OPA_COVER, 0);
 
-    content_right_ = lv_obj_create(content_);
-    lv_obj_set_size(content_right_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(content_right_, 0, 0);
-    lv_obj_set_style_border_width(content_right_, 0, 0);
-    lv_obj_set_flex_grow(content_right_, 1);
-    lv_obj_add_flag(content_right_, LV_OBJ_FLAG_HIDDEN);
-
-    chat_message_label_ = lv_label_create(content_right_);
+    chat_message_label_ = lv_label_create(alert_box_);
     lv_label_set_text(chat_message_label_, "");
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_width(chat_message_label_, width_ - 32);
-    lv_obj_set_style_pad_top(chat_message_label_, 14, 0);
-
-    // Start scrolling subtitle after a delay
-    static lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_delay(&a, 1000);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
-    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000),
-                                   LV_PART_MAIN);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES - 4);
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(alert_box_, LV_OBJ_FLAG_HIDDEN);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
@@ -320,6 +352,8 @@ void OledDisplay::SetupUI_128x64() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+
+    ApplyPalette(light_);
 }
 
 void OledDisplay::SetupUI_128x32() {
@@ -408,9 +442,40 @@ void OledDisplay::SetupUI_128x32() {
     lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
     lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000),
                                    LV_PART_MAIN);
+
+    ApplyPalette(light_);
+}
+
+// Dark: black background, white eyes / Wi-Fi / time / text.
+// Light: white background, black eyes / Wi-Fi / time / text.
+// Caller must hold the display lock.
+void OledDisplay::ApplyPalette(bool light) {
+    light_ = light;
+    lv_color_t bg = light ? lv_color_white() : lv_color_black();
+    lv_color_t fg = light ? lv_color_black() : lv_color_white();
+
+    auto screen = lv_screen_active();
+    lv_obj_set_style_bg_color(screen, bg, 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(screen, fg, 0);
+
+    lv_obj_t* panels[] = {container_,     top_bar_,       status_bar_, content_,
+                          content_left_, content_right_, side_bar_,   alert_box_};
+    for (lv_obj_t* o : panels) {
+        if (o != nullptr) {
+            lv_obj_set_style_bg_color(o, bg, 0);
+            lv_obj_set_style_text_color(o, fg, 0);
+        }
+    }
+    g_oled_eyes.SetLight(light);
+    lv_obj_invalidate(screen);
 }
 
 bool OledDisplay::SetEmotion(const char* emotion) {
+  if (g_oled_eyes.IsReady()) {
+    DisplayLockGuard lock(this);
+    return g_oled_eyes.SetEmotion(emotion);
+  }
     auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     const char* utf8 = noto_emoji_get_utf8(emotion);
     const lv_font_t* emotion_font = lvgl_theme->emoji_font()->font();
@@ -442,6 +507,10 @@ void OledDisplay::SetTheme(Theme* theme) {
 
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
+
+    // Switch between the dark and light palette, and remember the choice across reboots.
+    ApplyPalette(theme->name() == "light");
+    Display::SetTheme(theme);
 }
 
 void OledDisplay::SetPowerSaveMode(bool on) {
