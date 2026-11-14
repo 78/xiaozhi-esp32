@@ -1,5 +1,6 @@
 #include "audio_service.h"
 #include <esp_log.h>
+#include <cmath>
 #include <cstring>
 
 #define RATE_CVT_CFG(_src_rate, _dest_rate, _channel)                                        \
@@ -311,6 +312,7 @@ void AudioService::AudioInputTask() {
             int samples = 160;  // 10ms
             std::vector<int16_t> data;
             if (ReadAudioData(data, 16000, samples)) {
+                AccumulateInputLevel(data);
                 audio_engine_->Feed(std::move(data));
                 continue;
             }
@@ -881,5 +883,112 @@ bool AudioService::InitializeAudioEngine() {
     }
     audio_engine_initialized_ = true;
     audio_engine_->EnableDeviceAec(device_aec_enabled_);
+    if (wake_word_threshold_ != 0.0f) {
+        audio_engine_->SetWakeWordThreshold(wake_word_threshold_);
+    }
     return true;
+}
+
+bool AudioService::SetWakeWordThreshold(float threshold) {
+    if (threshold != 0.0f && (threshold < 0.4f || threshold > 0.9999f)) {
+        return false;
+    }
+    // Stored whether or not an engine exists yet, so a value set during board initialisation
+    // is still applied once InitializeAudioEngine runs.
+    wake_word_threshold_ = threshold;
+    if (!audio_engine_) {
+        return true;
+    }
+    return audio_engine_->SetWakeWordThreshold(threshold);
+}
+
+void AudioService::AccumulateInputLevel(const std::vector<int16_t>& data) {
+    if (data.empty()) {
+        return;
+    }
+    // With a reference channel the frames are interleaved mic/reference, and the reference is
+    // the speaker's own signal: measuring it would report what the robot said, not what it heard.
+    const size_t stride = codec_ != nullptr && codec_->input_channels() == 2 ? 2 : 1;
+    int32_t peak = 0;
+    int64_t sum_squares = 0;
+    size_t counted = 0;
+    for (size_t i = 0; i < data.size(); i += stride) {
+        const int32_t sample = data[i];
+        const int32_t magnitude = sample < 0 ? -sample : sample;
+        if (magnitude > peak) {
+            peak = magnitude;
+        }
+        sum_squares += static_cast<int64_t>(sample) * sample;
+        ++counted;
+    }
+    const int32_t rms = counted == 0 ? 0 : static_cast<int32_t>(
+        std::sqrt(static_cast<double>(sum_squares / static_cast<int64_t>(counted))));
+
+    if (input_level_frames_.fetch_add(1, std::memory_order_relaxed) == 0) {
+        input_level_window_start_ms_.store(esp_timer_get_time() / 1000, std::memory_order_relaxed);
+    }
+    if (peak > input_level_peak_.load(std::memory_order_relaxed)) {
+        input_level_peak_.store(peak, std::memory_order_relaxed);
+    }
+    if (rms > input_level_peak_rms_.load(std::memory_order_relaxed)) {
+        input_level_peak_rms_.store(rms, std::memory_order_relaxed);
+    }
+}
+
+AudioService::InputLevel AudioService::TakeInputLevel() {
+    InputLevel level;
+    level.frames = input_level_frames_.exchange(0, std::memory_order_relaxed);
+    level.peak = input_level_peak_.exchange(0, std::memory_order_relaxed);
+    const int32_t rms = input_level_peak_rms_.exchange(0, std::memory_order_relaxed);
+    level.loudest_frame_rms = rms;
+    const int64_t started = input_level_window_start_ms_.load(std::memory_order_relaxed);
+    if (level.frames > 0 && started > 0) {
+        level.window_ms = static_cast<uint32_t>((esp_timer_get_time() / 1000) - started);
+    }
+    // Full scale is 32768 for a signed 16-bit sample, so 0 dBFS is a sample that just clips.
+    // A window with no signal at all reports the floor instead of negative infinity.
+    if (level.peak > 0) {
+        level.peak_dbfs = 20.0f * std::log10(static_cast<float>(level.peak) / 32768.0f);
+    }
+    if (rms > 0) {
+        level.loudest_frame_rms_dbfs = 20.0f * std::log10(static_cast<float>(rms) / 32768.0f);
+    }
+    {
+        std::lock_guard<std::mutex> lock(input_level_mutex_);
+        last_input_level_ = level;
+        last_input_level_closed_ms_ = esp_timer_get_time() / 1000;
+    }
+    return level;
+}
+
+AudioService::InputLevel AudioService::LastInputLevel() const {
+    std::lock_guard<std::mutex> lock(input_level_mutex_);
+    InputLevel level = last_input_level_;
+    if (last_input_level_closed_ms_ > 0) {
+        level.age_ms =
+            static_cast<uint32_t>((esp_timer_get_time() / 1000) - last_input_level_closed_ms_);
+    }
+    return level;
+}
+
+void AudioService::LogInputWatch() {
+    const InputLevel level = TakeInputLevel();
+    // frames counts what was handed to the engine, which is upstream of its processing side: a
+    // full thousand frames says the feed is healthy, not that anything came out the other end.
+    // fetches and drops say that, and the pair is why this line can take the second fork in the
+    // diagnosis - measured on u21, frames=1000 with a signal twenty times the noise floor while
+    // the wake word never fired, which ruled the feed side out and left only this.
+    //
+    // Log-only, not in the status block: they are read-and-cleared and the ten-second line owns
+    // that clock. A second consumer would starve it, which is the mistake u21 fixed.
+    const uint32_t fetches = audio_engine_ ? audio_engine_->TakeFetchCount() : 0;
+    const uint32_t drops = audio_engine_ ? audio_engine_->TakeFetchDropCount() : 0;
+    // Raw sample magnitudes, not dB: an integer cannot be misread, and 0 means silence rather
+    // than a floor value someone has to recognise.
+    ESP_LOGI(TAG,
+             "input: wake_word=%d processor=%d frames=%u fetches=%u drops=%u peak=%d rms=%d "
+             "win=%ums",
+             IsWakeWordRunning() ? 1 : 0, IsAudioProcessorRunning() ? 1 : 0,
+             (unsigned)level.frames, (unsigned)fetches, (unsigned)drops, (int)level.peak,
+             (int)level.loudest_frame_rms, (unsigned)level.window_ms);
 }
