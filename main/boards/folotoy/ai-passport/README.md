@@ -39,6 +39,14 @@ The three physical keys map to XiaoZhi's voice-assistant actions:
 - **UP** — single click: volume +10; long press: max volume
 - **DOWN** — single click: volume -10; long press: mute
 
+With the reading message style (`CONFIG_USE_READING_MESSAGE_STYLE`) the
+transcript on screen can be paged, so UP and DOWN change roles:
+
+- **UP** — single click: page back through the conversation; hold: volume up
+  in steps of 5 every 150 ms until the key is released
+- **DOWN** — single click: page forward (the view follows new text again once
+  it is back at the end); hold: volume down the same way, down to mute
+
 Because the ladder shares one ADC pin, XiaoZhi reads it as three
 independent ADC buttons (the same pattern as the ESP-BOX-Lite).
 
