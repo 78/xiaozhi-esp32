@@ -151,6 +151,7 @@
 - [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) 百问科技提供的 Linux 客户端
 - [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技的蓝牙芯片固件
 - [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移远提供的 QuecPython 固件
+- [M5Stack ATOM Echo](https://github.com/qiaohaoforever/xiaozhi-esp32/tree/atom-echo-client) 适用于初代 M5Stack ATOM Echo（ESP32-PICO-D4）的 PlatformIO 语音客户端
 
 ## 关于项目
 

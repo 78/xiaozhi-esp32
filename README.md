@@ -151,6 +151,7 @@ Other client projects using the XiaoZhi communication protocol:
 - [100askTeam/xiaozhi-linux](http://github.com/100askTeam/xiaozhi-linux) Linux client by 100ask
 - [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) Bluetooth chip firmware by Sichuan
 - [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) QuecPython firmware by Quectel
+- [M5Stack ATOM Echo](https://github.com/qiaohaoforever/xiaozhi-esp32/tree/atom-echo-client) PlatformIO voice client for the original M5Stack ATOM Echo (ESP32-PICO-D4)
 
 Custom Assets Tools:
 
