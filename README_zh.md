@@ -4,6 +4,8 @@
 
 ## 介绍
 
+📖 [小智 AI 教程与帮助](https://docs.xiaozhi.me/zh/)
+
 👉 [人类：给 AI 装摄像头 vs AI：当场发现主人三天没洗头【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [手工打造你的 AI 女友，新手入门教程【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
@@ -39,9 +41,9 @@
 
 ### 面包板手工制作实践
 
-详见飞书文档教程：
+按步骤搭建请参考：
 
-👉 [《小智 AI 聊天机器人百科全书》](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
+👉 [ESP32-S3 面包板教程](https://docs.xiaozhi.me/zh/hardware/breadboard-esp32-s3.html)
 
 面包板效果图如下：
 
@@ -109,7 +111,7 @@
 
 固件默认接入 [xiaozhi.me](https://xiaozhi.me) 官方服务器，个人用户注册账号可以免费使用 Qwen 实时模型。
 
-👉 [新手烧录固件教程](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
+👉 [新手烧录固件教程](https://docs.xiaozhi.me/zh/firmware/flashing.html)
 
 ### 开发环境
 

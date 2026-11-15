@@ -4,6 +4,8 @@
 
 ## Introduction
 
+📖 [XiaoZhi AI Guides & Help](https://docs.xiaozhi.me/en/)
+
 👉 [Human: Give AI a camera vs AI: Instantly finds out the owner hasn't washed hair for three days【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [Handcraft your AI girlfriend, beginner's guide【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
@@ -39,9 +41,9 @@ As a voice interaction entry, the XiaoZhi AI chatbot leverages the AI capabiliti
 
 ### Breadboard DIY Practice
 
-See the Feishu document tutorial:
+Follow the step-by-step breadboard tutorial:
 
-👉 ["XiaoZhi AI Chatbot Encyclopedia"](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
+👉 [ESP32-S3 Breadboard Tutorial](https://docs.xiaozhi.me/en/hardware/breadboard-esp32-s3.html)
 
 Breadboard demo:
 
@@ -109,7 +111,7 @@ For beginners, it is recommended to use the firmware that can be flashed without
 
 The firmware connects to the official [xiaozhi.me](https://xiaozhi.me) server by default. Personal users can register an account to use the Qwen real-time model for free.
 
-👉 [Beginner's Firmware Flashing Guide](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
+👉 [Beginner's Firmware Flashing Guide](https://docs.xiaozhi.me/en/firmware/flashing.html)
 
 ### Development Environment
 
