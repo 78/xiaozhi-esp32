@@ -130,6 +130,131 @@ void McpServer::AddCommonTools() {
     }
 #endif
 
+    // Web search tool using Tavily API (https://tavily.com)
+    // Configure in the WiFi portal (192.168.4.1 -> Advanced): enter your Tavily API key.
+    AddTool("self.web_search",
+        "Search the internet for real-time information. Use this tool when:\n"
+        "1. The user asks about current events, news, or recent information\n"
+        "2. You need to look up facts, definitions, or explanations\n"
+        "3. The user asks about weather, stocks, sports scores, etc.\n"
+        "4. Any question that requires up-to-date information from the internet\n"
+        "Args:\n"
+        "  `query`: The search query string\n"
+        "Return:\n"
+        "  Search results including titles, URLs, and snippets.",
+        PropertyList({
+            Property("query", kPropertyTypeString)
+        }),
+        [&board](const PropertyList& properties) -> ToolResult {
+            auto query = properties["query"].value<std::string>();
+
+            // Settings come from NVS (web config portal) and are checked live,
+            // so checkbox/key changes apply without a reboot
+            Settings settings("wifi", false);
+            if (!settings.GetBool("web_search_on", true)) {
+                return std::unexpected(
+                    "Web search is disabled in device settings (192.168.4.1 -> Advanced)");
+            }
+            std::string api_key = settings.GetString("tavily_api_key", "");
+            if (api_key.empty()) {
+                return std::unexpected(
+                    "Web search is not configured. Set Tavily API key in device settings "
+                    "(192.168.4.1 -> Advanced). Get free key at https://tavily.com");
+            }
+
+            cJSON *request = cJSON_CreateObject();
+            cJSON_AddStringToObject(request, "api_key", api_key.c_str());
+            cJSON_AddStringToObject(request, "query", query.c_str());
+            cJSON_AddNumberToObject(request, "max_results", 3);
+            cJSON_AddBoolToObject(request, "include_answer", true);
+            char *request_str = cJSON_PrintUnformatted(request);
+            cJSON_Delete(request);
+
+            auto network = board.GetNetwork();
+            if (!network) {
+                free(request_str);
+                return std::unexpected("Network not available");
+            }
+
+            auto http = network->CreateHttp(10);
+            http->SetHeader("Content-Type", "application/json");
+            http->SetHeader("Authorization", "Bearer " + api_key);
+            http->SetContent(std::string(request_str));
+            free(request_str);
+            if (auto opened = http->Open("POST", "https://api.tavily.com/search"); !opened) {
+                http->Close();
+                return std::unexpected("Failed to connect to Tavily API: " + opened.error().ToString());
+            }
+            auto status_code = http->GetStatusCode();
+            if (!status_code) {
+                http->Close();
+                return std::unexpected("Failed to read Tavily API status: " +
+                                       status_code.error().ToString());
+            }
+            int status = *status_code;
+            std::string response = http->ReadAll();
+            http->Close();
+            if (status != 200) {
+                ESP_LOGE(TAG, "Tavily API error: status=%d body=%s", status, response.c_str());
+                return std::unexpected("Tavily API returned error (status: " + std::to_string(status) + ")");
+            }
+            ESP_LOGI(TAG, "Web search '%s': %u bytes", query.c_str(), (unsigned)response.size());
+
+            cJSON *resp_json = cJSON_Parse(response.c_str());
+            if (!resp_json) {
+                return std::unexpected("Failed to parse Tavily response");
+            }
+            std::string result;
+
+            cJSON *answer = cJSON_GetObjectItem(resp_json, "answer");
+            if (cJSON_IsString(answer) && answer->valuestring) {
+                result += "Answer: ";
+                result += answer->valuestring;
+                result += "\n\n";
+            }
+            cJSON *results = cJSON_GetObjectItem(resp_json, "results");
+            if (cJSON_IsArray(results)) {
+                int count = cJSON_GetArraySize(results);
+                for (int i = 0; i < count; i++) {
+                    cJSON *item = cJSON_GetArrayItem(results, i);
+                    cJSON *title = cJSON_GetObjectItem(item, "title");
+                    cJSON *url = cJSON_GetObjectItem(item, "url");
+                    cJSON *content = cJSON_GetObjectItem(item, "content");
+                    if (i > 0) result += "\n---\n";
+                    result += std::to_string(i + 1) + ". ";
+                    if (cJSON_IsString(title) && title->valuestring) {
+                        result += title->valuestring;
+                    }
+                    result += "\n";
+                    if (cJSON_IsString(url) && url->valuestring) {
+                        result += "   URL: ";
+                        result += url->valuestring;
+                        result += "\n";
+                    }
+                    if (cJSON_IsString(content) && content->valuestring) {
+                        result += "   ";
+                        std::string content_str = content->valuestring;
+                        if (content_str.length() > 300) {
+                            content_str = content_str.substr(0, 300);
+                            content_str += "...";
+                        }
+                        result += content_str;
+                        result += "\n";
+                    }
+                }
+            }
+            cJSON_Delete(resp_json);
+
+            if (result.empty()) {
+                result = "No results found for: " + query;
+            }
+            if (result.length() > 5000) {
+                result = result.substr(0, 5000);
+                result += "\n... (truncated)";
+            }
+            return result;
+        });
+
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), std::make_move_iterator(original_tools.begin()),
                   std::make_move_iterator(original_tools.end()));
