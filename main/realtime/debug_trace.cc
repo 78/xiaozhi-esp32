@@ -1,5 +1,7 @@
 #include "debug_trace.h"
 
+#include <esp_app_desc.h>
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_random.h>
 #include <esp_timer.h>
@@ -18,24 +20,27 @@
 
 namespace {
 constexpr char kTag[] = "RealtimeTrace";
-#if CONFIG_SPIRAM_USE_MALLOC
+#if CONFIG_SPIRAM
 constexpr size_t kMaxQueuedBytes = 512 * 1024;
+constexpr uint32_t kFrameCaps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
 #else
-constexpr size_t kMaxQueuedBytes = 128 * 1024;
+constexpr size_t kMaxQueuedBytes = 32 * 1024;
+constexpr uint32_t kFrameCaps = MALLOC_CAP_8BIT;
 #endif
+constexpr size_t kMaxQueuedFrames = 256;
 constexpr size_t kChunkSize = 8192;
 constexpr uint32_t kTaskStackBytes = 8192;
 
-void Write16(std::vector<uint8_t>& bytes, uint16_t value) {
-    bytes.push_back(value >> 8);
-    bytes.push_back(value);
+void Write16(uint8_t* bytes, uint16_t value) {
+    bytes[0] = value >> 8;
+    bytes[1] = value;
 }
 
-void Write32(std::vector<uint8_t>& bytes, uint32_t value) {
-    bytes.push_back(value >> 24);
-    bytes.push_back(value >> 16);
-    bytes.push_back(value >> 8);
-    bytes.push_back(value);
+void Write32(uint8_t* bytes, uint32_t value) {
+    bytes[0] = value >> 24;
+    bytes[1] = value >> 16;
+    bytes[2] = value >> 8;
+    bytes[3] = value;
 }
 
 std::string RandomId() {
@@ -61,6 +66,11 @@ void DebugTrace::Configure(const AliyunRealtimeConfig& config) {
         if (started_)
             return;
         enabled_ = true;
+        if (config.debug_input_pcm && config.debug_level >= 2) {
+            raw_queue_ = xQueueCreate(8, sizeof(RawBlock));
+            if (raw_queue_ && xTaskCreate(RawTask, "rt_raw", 4096, this, 1, nullptr) == pdPASS)
+                input_enabled_.store(true);
+        }
         level_ = config.debug_level;
         address_ = config.debug_address;
         started_ = true;
@@ -78,10 +88,12 @@ void DebugTrace::Open(const char* mode) {
         return;
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        raw_generation_.fetch_add(1);
         trace_id_ = RandomId();
         mode_ = mode;
     }
     Queue(2, "session_open", "", nullptr, 0);
+    trace_active_.store(true);
 }
 
 void DebugTrace::SetMode(const char* mode) {
@@ -92,6 +104,7 @@ void DebugTrace::SetMode(const char* mode) {
 void DebugTrace::Close() {
     if (!enabled_)
         return;
+    trace_active_.store(false);
     Queue(3, "session_close", "", nullptr, 0);
     std::lock_guard<std::mutex> lock(mutex_);
     trace_id_.clear();
@@ -141,15 +154,18 @@ void DebugTrace::Pcm(bool uplink, const uint8_t* data, size_t length, int sample
 
 void DebugTrace::Queue(uint16_t kind, const char* type, const char* detail, const uint8_t* payload,
                        size_t length, int sample_rate, int part_index, int part_count,
-                       size_t total_length, const char* message_id) {
-    if (length > kChunkSize)
+                       size_t total_length, const char* message_id, uint64_t sample_index,
+                       int64_t sample_start_us, uint32_t raw_generation) {
+    if (length > kChunkSize || (length && !payload))
         return;
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!enabled_ || trace_id_.empty())
+    if (!enabled_ || trace_id_.empty() || (kind == 14 && raw_generation != raw_generation_.load()))
         return;
     cJSON* meta = cJSON_CreateObject();
-    if (!meta)
+    if (!meta) {
+        ++allocation_drops_;
         return;
+    }
     cJSON_AddStringToObject(meta, "boot_id", boot_id_.c_str());
     cJSON_AddStringToObject(meta, "trace_session_id", trace_id_.c_str());
     cJSON_AddStringToObject(meta, "mode", mode_.c_str());
@@ -169,6 +185,12 @@ void DebugTrace::Queue(uint16_t kind, const char* type, const char* detail, cons
         cJSON_AddStringToObject(meta, "sample_format", "signed_int");
         cJSON_AddStringToObject(meta, "byte_order", "little");
     }
+    if (sample_start_us > 0) {
+        char index[24];
+        snprintf(index, sizeof(index), "%llu", static_cast<unsigned long long>(sample_index));
+        cJSON_AddStringToObject(meta, "sample_index", index);
+        cJSON_AddNumberToObject(meta, "sample_start_us", static_cast<double>(sample_start_us));
+    }
     if (part_count > 1) {
         cJSON_AddNumberToObject(meta, "part_index", part_index);
         cJSON_AddNumberToObject(meta, "part_count", part_count);
@@ -176,6 +198,7 @@ void DebugTrace::Queue(uint16_t kind, const char* type, const char* detail, cons
     }
     char* json = cJSON_PrintUnformatted(meta);
     if (!json) {
+        ++allocation_drops_;
         cJSON_Delete(meta);
         return;
     }
@@ -185,54 +208,88 @@ void DebugTrace::Queue(uint16_t kind, const char* type, const char* detail, cons
         cJSON_Delete(meta);
         return;
     }
-    std::vector<uint8_t> frame;
-    frame.reserve(12 + meta_length + length);
-    Write32(frame, 8 + meta_length + length);
-    Write16(frame, 1);
-    Write16(frame, kind);
-    Write32(frame, meta_length);
-    frame.insert(frame.end(), json, json + meta_length);
-    cJSON_free(json);
-    if (length)
-        frame.insert(frame.end(), payload, payload + length);
-    if (queued_bytes_ + frame.size() > kMaxQueuedBytes) {
+    // Bound memory BEFORE allocating/copying payloads. Diagnostic frames must
+    // never throw through the WebSocket/audio callback when memory is scarce.
+    size_t frame_size = 12 + meta_length + length;
+    if (allocation_drops_ || queued_bytes_ + sizeof(Frame) + frame_size > kMaxQueuedBytes ||
+        queued_frames_ >= kMaxQueuedFrames) {
+        cJSON_free(json);
+        char detail_buffer[96];
+        snprintf(detail_buffer, sizeof(detail_buffer),
+                 "trace queue overflow or allocation failure; allocation_drops=%lu",
+                 static_cast<unsigned long>(allocation_drops_));
         cJSON_ReplaceItemInObjectCaseSensitive(meta, "event_type", cJSON_CreateString("trace_gap"));
         if (cJSON_GetObjectItemCaseSensitive(meta, "detail")) {
             cJSON_ReplaceItemInObjectCaseSensitive(meta, "detail",
-                                                   cJSON_CreateString("trace queue overflow"));
+                                                   cJSON_CreateString(detail_buffer));
         } else {
-            cJSON_AddStringToObject(meta, "detail", "trace queue overflow");
+            cJSON_AddStringToObject(meta, "detail", detail_buffer);
         }
         cJSON_DeleteItemFromObjectCaseSensitive(meta, "part_index");
         cJSON_DeleteItemFromObjectCaseSensitive(meta, "part_count");
         cJSON_DeleteItemFromObjectCaseSensitive(meta, "total_length");
         json = cJSON_PrintUnformatted(meta);
         if (!json) {
+            ++allocation_drops_;
             cJSON_Delete(meta);
             return;
         }
         meta_length = strlen(json);
-        frame.clear();
-        Write32(frame, 8 + meta_length);
-        Write16(frame, 1);
-        Write16(frame, 10);
-        Write32(frame, meta_length);
-        frame.insert(frame.end(), json, json + meta_length);
-        cJSON_free(json);
-        while (queued_bytes_ + frame.size() > kMaxQueuedBytes && !queue_.empty()) {
-            queued_bytes_ -= queue_.front().bytes.size();
-            queue_.pop_front();
+        kind = 10;
+        length = 0;
+        frame_size = 12 + meta_length;
+        while (queue_head_ && (queued_bytes_ + sizeof(Frame) + frame_size > kMaxQueuedBytes ||
+                               queued_frames_ >= kMaxQueuedFrames)) {
+            DropFront();
         }
     }
     cJSON_Delete(meta);
-    queued_bytes_ += frame.size();
-    queue_.push_back({std::move(frame)});
+    auto* frame = static_cast<Frame*>(heap_caps_malloc(sizeof(Frame) + frame_size, kFrameCaps));
+    if (!frame) {
+        cJSON_free(json);
+        ++allocation_drops_;
+        const int64_t now = esp_timer_get_time();
+        if (now - last_allocation_warning_us_ >= 5000000) {
+            last_allocation_warning_us_ = now;
+            ESP_LOGW(kTag, "Dropping trace frame: allocation failed, size=%u queued=%u",
+                     static_cast<unsigned>(frame_size), static_cast<unsigned>(queued_bytes_));
+        }
+        return;
+    }
+    frame->next = nullptr;
+    frame->length = frame_size;
+    Write32(frame->Data(), frame_size - 4);
+    Write16(frame->Data() + 4, 1);
+    Write16(frame->Data() + 6, kind);
+    Write32(frame->Data() + 8, meta_length);
+    memcpy(frame->Data() + 12, json, meta_length);
+    cJSON_free(json);
+    if (length)
+        memcpy(frame->Data() + 12 + meta_length, payload, length);
+    if (queue_tail_)
+        queue_tail_->next = frame;
+    else
+        queue_head_ = frame;
+    queue_tail_ = frame;
+    queued_bytes_ += sizeof(Frame) + frame_size;
+    ++queued_frames_;
+    allocation_drops_ = 0;
 }
 
-bool DebugTrace::SendFrame(int socket, const std::vector<uint8_t>& frame) {
+void DebugTrace::DropFront() {
+    Frame* frame = queue_head_;
+    queue_head_ = frame->next;
+    if (!queue_head_)
+        queue_tail_ = nullptr;
+    queued_bytes_ -= sizeof(Frame) + frame->length;
+    --queued_frames_;
+    heap_caps_free(frame);
+}
+
+bool DebugTrace::SendFrame(int socket, const uint8_t* data, size_t length) {
     size_t offset = 0;
-    while (offset < frame.size()) {
-        int sent = send(socket, frame.data() + offset, frame.size() - offset, 0);
+    while (offset < length) {
+        int sent = send(socket, data + offset, length - offset, 0);
         if (sent <= 0)
             return false;
         offset += sent;
@@ -264,36 +321,44 @@ void DebugTrace::Run() {
             cJSON* meta = cJSON_CreateObject();
             cJSON_AddStringToObject(meta, "boot_id", boot_id_.c_str());
             cJSON_AddStringToObject(meta, "device_id", SystemInfo::GetMacAddress().c_str());
-            cJSON_AddStringToObject(meta, "firmware_version", "dev");
+            cJSON_AddStringToObject(meta, "firmware_version", esp_app_get_description()->version);
             char* json = cJSON_PrintUnformatted(meta);
             cJSON_Delete(meta);
             if (json) {
                 size_t size = strlen(json);
-                std::vector<uint8_t> hello;
+                uint8_t hello[12];
                 Write32(hello, 8 + size);
-                Write16(hello, 1);
-                Write16(hello, 1);
-                Write32(hello, size);
-                hello.insert(hello.end(), json, json + size);
+                Write16(hello + 4, 1);
+                Write16(hello + 6, 1);
+                Write32(hello + 8, size);
+                const bool hello_sent =
+                    SendFrame(socket, hello, sizeof(hello)) &&
+                    SendFrame(socket, reinterpret_cast<const uint8_t*>(json), size);
                 cJSON_free(json);
-                if (SendFrame(socket, hello)) {
+                if (hello_sent) {
                     for (;;) {
-                        Frame frame;
+                        Frame* frame = nullptr;
                         {
                             std::lock_guard<std::mutex> lock(mutex_);
-                            if (!queue_.empty()) {
-                                frame.bytes.swap(queue_.front().bytes);
-                                queued_bytes_ -= frame.bytes.size();
-                                queue_.pop_front();
+                            if (queue_head_) {
+                                frame = queue_head_;
+                                queue_head_ = frame->next;
+                                if (!queue_head_)
+                                    queue_tail_ = nullptr;
+                                queued_bytes_ -= sizeof(Frame) + frame->length;
+                                --queued_frames_;
                             }
                         }
-                        if (frame.bytes.empty()) {
+                        if (!frame) {
                             vTaskDelay(pdMS_TO_TICKS(30));
                             continue;
                         }
-                        const bool sent = SendFrame(socket, frame.bytes);
-                        if (!sent)
+                        const bool sent = SendFrame(socket, frame->Data(), frame->length);
+                        heap_caps_free(frame);
+                        if (!sent) {
+                            Queue(10, "trace_gap", "diagnostic socket write failed", nullptr, 0);
                             break;
+                        }
                     }
                 }
             }
@@ -302,3 +367,55 @@ void DebugTrace::Run() {
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
+
+std::string DebugTrace::BootId() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return boot_id_;
+}
+std::string DebugTrace::TraceId() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return trace_id_;
+}
+
+void DebugTrace::PcmInput(const int16_t* data, size_t samples, int sample_rate) {
+    if (!IsInputPcmEnabled() || !data || !samples || sample_rate <= 0)
+        return;
+    const int64_t start =
+        esp_timer_get_time() - static_cast<int64_t>(samples) * 1000000 / sample_rate;
+    for (size_t offset = 0; offset < samples;) {
+        RawBlock block;
+        block.generation = raw_generation_.load();
+        block.rate = sample_rate;
+        block.samples = std::min(samples - offset, size_t(1024));
+        block.index = raw_index_;
+        block.start_us = start + static_cast<int64_t>(offset) * 1000000 / sample_rate;
+        std::copy_n(data + offset, block.samples, block.data);
+        if (xQueueSend(raw_queue_, &block, 0) != pdTRUE)
+            raw_dropped_.fetch_add(1);
+        offset += block.samples;
+        raw_index_ += block.samples;
+    }
+}
+
+void DebugTrace::RawTask(void* arg) {
+    auto* trace = static_cast<DebugTrace*>(arg);
+    RawBlock block;
+    while (true) {
+        if (xQueueReceive(trace->raw_queue_, &block, portMAX_DELAY) != pdTRUE)
+            continue;
+        if (!trace->trace_active_.load() || block.generation != trace->raw_generation_.load())
+            continue;
+        const auto dropped = trace->raw_dropped_.exchange(0);
+        if (dropped) {
+            char detail[64];
+            snprintf(detail, sizeof(detail), "raw_dropped_blocks=%lu",
+                     static_cast<unsigned long>(dropped));
+            trace->Queue(10, "trace_gap", detail, nullptr, 0);
+        }
+        trace->Queue(14, "pcm_input", "ES8311 before software processing",
+                     reinterpret_cast<const uint8_t*>(block.data), block.samples * sizeof(int16_t),
+                     block.rate, 0, 0, 0, "", block.index, block.start_us, block.generation);
+    }
+}
+
+void DebugTrace::Gap(const char* detail) { Queue(10, "trace_gap", detail, nullptr, 0); }

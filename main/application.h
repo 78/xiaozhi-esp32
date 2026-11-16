@@ -6,6 +6,7 @@
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -37,6 +38,7 @@
 #define MAIN_EVENT_STATE_CHANGED (1 << 12)
 #define MAIN_EVENT_PLAYBACK_DRAINED (1 << 13)
 #define MAIN_EVENT_STARTUP_HINT_TIMEOUT (1 << 14)
+#define MAIN_EVENT_CYCLE_LISTENING_MODE (1 << 15)
 
 enum AecMode {
     kAecOff,
@@ -96,6 +98,9 @@ public:
      * Sends MAIN_EVENT_TOGGLE_CHAT to be handled in Run()
      */
     void ToggleChatState();
+    void CycleListeningMode();
+    void EndConversation();
+    ListeningMode GetListeningMode() const { return displayed_listening_mode_.load(); }
 
     /**
      * Start listening (event-based, thread-safe)
@@ -119,8 +124,6 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
-#if CONFIG_ALIYUN_REALTIME
-#endif
 
     /**
      * Reset protocol resources (thread-safe)
@@ -135,12 +138,15 @@ private:
 
     std::mutex mutex_;
     std::deque<std::function<void()>> main_tasks_;
-    std::unique_ptr<Protocol> protocol_;
+    std::shared_ptr<Protocol> protocol_;
     EventGroupHandle_t event_group_ = nullptr;
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     esp_timer_handle_t startup_wake_word_hint_timer_ = nullptr;
     DeviceStateMachine state_machine_;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
+    ListeningMode preferred_listening_mode_ = kListeningModeAutoStop;
+    bool listening_mode_selected_ = false;
+    std::atomic<ListeningMode> displayed_listening_mode_{kListeningModeAutoStop};
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     std::string startup_wake_word_hint_message_;
@@ -163,6 +169,8 @@ private:
 #if CONFIG_ALIYUN_REALTIME
     bool aliyun_mode_ = false;
     bool aliyun_response_done_ = false;
+    bool aliyun_connecting_ = false;
+    bool pending_manual_commit_ = false;
 #endif
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
@@ -170,6 +178,8 @@ private:
     // Event handlers
     void HandleStateChangedEvent();
     void HandleToggleChatEvent();
+    void HandleCycleListeningModeEvent();
+    void UpdateConversationStatus();
     void HandleStartListeningEvent();
     void HandleStopListeningEvent();
     void HandleNetworkConnectedEvent();

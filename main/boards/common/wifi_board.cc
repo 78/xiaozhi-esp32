@@ -1,40 +1,44 @@
 #include "wifi_board.h"
+#if CONFIG_ALIYUN_REALTIME
+#include "realtime/config_web.h"
+#endif
 
-#include "display.h"
 #include "application.h"
-#include "system_info.h"
-#include "settings.h"
 #include "assets/lang_config.h"
+#include "display.h"
+#include "settings.h"
+#include "system_info.h"
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <esp_network.h>
 #include <esp_log.h>
 #include <esp_mac.h>
+#include <esp_network.h>
+#ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
+#include <esp_wifi.h>
+#endif
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <utility>
 
 #include <material_symbols.h>
+#include <ssid_manager.h>
 #include <wifi_manager.h>
 #include <wifi_station.h>
-#include <ssid_manager.h>
 #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
 #include "blufi.h"
 #endif
 
-static const char *TAG = "WifiBoard";
+static const char* TAG = "WifiBoard";
 
 // Connection timeout in seconds
 static constexpr int CONNECT_TIMEOUT_SEC = 60;
 
 WifiBoard::WifiBoard() {
     // Create connection timeout timer
-    esp_timer_create_args_t timer_args = {
-        .callback = OnWifiConnectTimeout,
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "wifi_connect_timer",
-        .skip_unhandled_events = true
-    };
+    esp_timer_create_args_t timer_args = {.callback = OnWifiConnectTimeout,
+                                          .arg = this,
+                                          .dispatch_method = ESP_TIMER_TASK,
+                                          .name = "wifi_connect_timer",
+                                          .skip_unhandled_events = true};
     esp_timer_create(&timer_args, &connect_timer_);
 }
 
@@ -45,9 +49,7 @@ WifiBoard::~WifiBoard() {
     }
 }
 
-std::string WifiBoard::GetBoardType() {
-    return "wifi";
-}
+std::string WifiBoard::GetBoardType() { return "wifi"; }
 
 void WifiBoard::StartNetwork() {
     auto& wifi_manager = WifiManager::GetInstance();
@@ -64,7 +66,8 @@ void WifiBoard::StartNetwork() {
     uint8_t mac[6];
     if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
         char hostname[32];
-        snprintf(hostname, sizeof(hostname), "%s-%02X%02X", config.ssid_prefix.c_str(), mac[4], mac[5]);
+        snprintf(hostname, sizeof(hostname), "%s-%02X%02X", config.ssid_prefix.c_str(), mac[4],
+                 mac[5]);
         config.station_hostname = hostname;
     }
     wifi_manager.Initialize(config);
@@ -93,6 +96,9 @@ void WifiBoard::StartNetwork() {
         }
     });
 
+#if CONFIG_ALIYUN_REALTIME
+    SetWifiConfigAction([this]() { EnterWifiConfigMode(); });
+#endif
     // Try to connect or enter config mode
     TryWifiConnect();
 }
@@ -174,7 +180,36 @@ void WifiBoard::StartWifiConfigMode() {
 #ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
     auto& wifi_manager = WifiManager::GetInstance();
 
+#if CONFIG_ALIYUN_REALTIME
+    StartAliyunConfigWeb(true);
+#endif
     wifi_manager.StartConfigAp();
+
+    // Reapply the AP home channel after switching from a connected station.
+    // With IDF 6.1 on ESP32-S3, a warm STA -> APSTA transition can report the
+    // correct channel while the hotspot remains intermittently undiscoverable.
+    // Stop the initial scan before retuning, then restart it so provisioning
+    // keeps its normal network list and periodic refresh. Do not change NVS.
+#if CONFIG_IDF_TARGET_ESP32S3
+    wifi_config_t ap_config = {};
+    const auto config_result = esp_wifi_get_config(WIFI_IF_AP, &ap_config);
+    if (config_result == ESP_OK) {
+        const auto stop_result = esp_wifi_scan_stop();
+        if (stop_result == ESP_OK) {
+            const auto channel_result =
+                esp_wifi_set_channel(ap_config.ap.channel, WIFI_SECOND_CHAN_NONE);
+            const auto scan_result = esp_wifi_scan_start(nullptr, false);
+            ESP_LOGI(TAG, "Provisioning AP channel=%u restore=%s scan=%s", ap_config.ap.channel,
+                     esp_err_to_name(channel_result), esp_err_to_name(scan_result));
+        } else {
+            ESP_LOGW(TAG, "Cannot stop initial provisioning scan: %s",
+                     esp_err_to_name(stop_result));
+        }
+    } else {
+        ESP_LOGW(TAG, "Cannot read provisioning AP configuration: %s",
+                 esp_err_to_name(config_result));
+    }
+#endif
 
     // Show config prompt after a short delay
     Application::GetInstance().Schedule([&wifi_manager]() {
@@ -183,10 +218,11 @@ void WifiBoard::StartWifiConfigMode() {
         hint += Lang::Strings::ACCESS_VIA_BROWSER;
         hint += wifi_manager.GetApWebUrl();
 
-        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear",
+                                         Lang::Sounds::OGG_WIFICONFIG);
     });
 #elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
-    auto &blufi = Blufi::GetInstance();
+    auto& blufi = Blufi::GetInstance();
     // initialize esp-blufi protocol
     blufi.init();
 #endif
@@ -204,26 +240,31 @@ void WifiBoard::EnterWifiConfigMode() {
         // Reset protocol (close audio channel, reset protocol)
         Application::GetInstance().ResetProtocol();
 
-        xTaskCreate([](void* arg) {
-            auto* board = static_cast<WifiBoard*>(arg);
+        xTaskCreate(
+            [](void* arg) {
+                auto* board = static_cast<WifiBoard*>(arg);
 
-            // Wait for 1 second to allow speaking to finish gracefully
-            vTaskDelay(pdMS_TO_TICKS(1000));
+                // Wait for 1 second to allow speaking to finish gracefully
+                vTaskDelay(pdMS_TO_TICKS(1000));
 
-            // Stop any ongoing connection attempt
-            esp_timer_stop(board->connect_timer_);
-            WifiManager::GetInstance().StopStation();
+                // Stop any ongoing connection attempt
+                esp_timer_stop(board->connect_timer_);
+                WifiManager::GetInstance().StopStation();
 
-            // Enter config mode
-            board->StartWifiConfigMode();
+                // Enter config mode
+                board->StartWifiConfigMode();
 
-            vTaskDelete(NULL);
-        }, "wifi_cfg_delay", 4096, this, 2, NULL);
+                vTaskDelete(NULL);
+            },
+            "wifi_cfg_delay", 4096, this, 2, NULL);
         return;
     }
 
     if (state != kDeviceStateStarting) {
-        ESP_LOGE(TAG, "EnterWifiConfigMode called but device state is not starting or speaking, device state: %d", state);
+        ESP_LOGE(TAG,
+                 "EnterWifiConfigMode called but device state is not starting or speaking, device "
+                 "state: %d",
+                 state);
         return;
     }
 
@@ -234,9 +275,7 @@ void WifiBoard::EnterWifiConfigMode() {
     StartWifiConfigMode();
 }
 
-bool WifiBoard::IsInWifiConfigMode() const {
-    return WifiManager::GetInstance().IsConfigMode();
-}
+bool WifiBoard::IsInWifiConfigMode() const { return WifiManager::GetInstance().IsConfigMode(); }
 
 NetworkInterface* WifiBoard::GetNetwork() {
     static EspNetwork network;

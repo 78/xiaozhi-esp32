@@ -1,4 +1,5 @@
 #include "aliyun_protocol.h"
+#include "audio_base64.h"
 
 #include <esp_log.h>
 #include <cJSON.h>
@@ -11,6 +12,7 @@
 #include "application.h"
 #include "board.h"
 #include "debug_trace.h"
+#include "system_info.h"
 
 namespace {
 constexpr char kTag[] = "AliyunRealtime";
@@ -35,6 +37,7 @@ std::string SessionUpdate(bool manual) {
     } else {
         cJSON* vad = cJSON_AddObjectToObject(session, "turn_detection");
         cJSON_AddStringToObject(vad, "type", "server_vad");
+        cJSON_AddNumberToObject(vad, "threshold", 0.5);
         cJSON_AddNumberToObject(vad, "silence_duration_ms", 800);
     }
     cJSON* transcription = cJSON_AddObjectToObject(session, "input_audio_transcription");
@@ -83,38 +86,47 @@ bool AliyunProtocol::OpenAudioChannel() {
     DebugTrace::Instance().Open("manual");
     trace_open_.store(true);
     const uint32_t generation = ++connection_generation_;
-    websocket_ = Board::GetInstance().GetNetwork()->CreateWebSocket(1);
-    if (!websocket_) {
+    manual_.store(true);
+    std::shared_ptr<WebSocket> socket = Board::GetInstance().GetNetwork()->CreateWebSocket(1);
+    std::atomic_store(&websocket_, socket);
+    if (!socket) {
         CloseAudioChannel();
         return false;
     }
     std::string authorization = "Bearer " + config_.api_key;
-    websocket_->SetHeader("Authorization", authorization.c_str());
-    websocket_->OnData([this](const char* data, size_t len, bool binary) {
-        if (!binary && len <= 256 * 1024) {
-            DebugTrace::Instance().WebSocketRx(data, len);
-            HandleEvent(data, len);
+    socket->SetHeader("Authorization", authorization.c_str());
+    socket->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+    socket->SetHeader("X-Trace-Boot-Id", DebugTrace::Instance().BootId().c_str());
+    socket->SetHeader("X-Trace-Session-Id", DebugTrace::Instance().TraceId().c_str());
+    socket->OnData([this, generation](const char* data, size_t len, bool binary) {
+        if (generation == connection_generation_.load() && !binary && len <= 256 * 1024) {
+            HandleEvent(data, len, generation);
         }
     });
-    std::weak_ptr<WebSocket> weak = websocket_;
-    websocket_->OnPing([weak](const char* data, size_t len) {
+    std::weak_ptr<WebSocket> weak = socket;
+    socket->OnPing([weak](const char* data, size_t len) {
         Application::GetInstance().Schedule([weak, value = std::string(data, len)]() {
             if (auto socket = weak.lock())
                 socket->SendPong(value.data(), value.size());
         });
     });
-    websocket_->OnDisconnected([this, generation]() {
+    socket->OnDisconnected([this, generation]() {
         if (generation != connection_generation_.load())
             return;
         xEventGroupSetBits(ready_events_, kError);
         listening_.store(false);
+        ++connection_generation_;
+        {
+            std::lock_guard<std::mutex> lock(response_mutex_);
+            response_.Invalidate();
+        }
         if (trace_open_.exchange(false))
             DebugTrace::Instance().Close();
         if (on_audio_channel_closed_)
             on_audio_channel_closed_();
     });
     const auto url = config_.WebSocketUrl();
-    auto connected = websocket_->Connect(url.c_str());
+    auto connected = socket->Connect(url.c_str());
     if (!connected) {
         ESP_LOGE(kTag, "WebSocket connect failed: %s", connected.error().ToString().c_str());
         CloseAudioChannel();
@@ -122,7 +134,7 @@ bool AliyunProtocol::OpenAudioChannel() {
     }
     auto bits = xEventGroupWaitBits(ready_events_, kCreated | kError, pdTRUE, pdFALSE,
                                     pdMS_TO_TICKS(10000));
-    if (!(bits & kCreated) || (bits & kError)) {
+    if (generation != connection_generation_.load() || !(bits & kCreated) || (bits & kError)) {
         CloseAudioChannel();
         return false;
     }
@@ -132,7 +144,7 @@ bool AliyunProtocol::OpenAudioChannel() {
     }
     bits = xEventGroupWaitBits(ready_events_, kUpdated | kError, pdTRUE, pdFALSE,
                                pdMS_TO_TICKS(10000));
-    if (!(bits & kUpdated) || (bits & kError)) {
+    if (generation != connection_generation_.load() || !(bits & kUpdated) || (bits & kError)) {
         CloseAudioChannel();
         return false;
     }
@@ -142,21 +154,32 @@ bool AliyunProtocol::OpenAudioChannel() {
 }
 
 void AliyunProtocol::CloseAudioChannel(bool) {
+    ++connection_generation_;
     listening_.store(false);
     waiting_commit_.store(false);
-    response_active_.store(false);
-    websocket_.reset();
+    {
+        std::lock_guard<std::mutex> lock(response_mutex_);
+        response_.Invalidate();
+    }
+    auto socket = std::atomic_exchange(&websocket_, std::shared_ptr<WebSocket>{});
+    const bool was_open = static_cast<bool>(socket);
+    socket.reset();
     if (trace_open_.exchange(false)) {
         DebugTrace::Instance().Close();
+    }
+    if (was_open && on_audio_channel_closed_) {
+        on_audio_channel_closed_();
     }
 }
 
 bool AliyunProtocol::IsAudioChannelOpened() const {
-    return websocket_ && websocket_->IsConnected() && !error_occurred_;
+    auto socket = std::atomic_load(&websocket_);
+    return socket && socket->IsConnected() && !error_occurred_;
 }
 
 bool AliyunProtocol::SendText(const std::string& text) {
-    bool sent = IsAudioChannelOpened() && websocket_->Send(text);
+    auto socket = std::atomic_load(&websocket_);
+    bool sent = socket && socket->IsConnected() && !error_occurred_ && socket->Send(text);
     DebugTrace::Instance().WebSocketTx(text.data(), text.size(), sent);
     return sent;
 }
@@ -184,10 +207,10 @@ void AliyunProtocol::SendStartListening(ListeningMode mode) {
             return;
         manual_.store(manual);
     }
-    response_active_.store(false);
     listening_.store(true);
-    DebugTrace::Instance().SetMode(manual ? "manual" : "auto");
-    DebugTrace::Instance().Event("listening_start", manual ? "manual" : "auto");
+    const char* name = manual ? "manual" : "auto";
+    DebugTrace::Instance().SetMode(name);
+    DebugTrace::Instance().Event("listening_start", name);
 }
 
 void AliyunProtocol::SendStopListening() {
@@ -200,20 +223,51 @@ void AliyunProtocol::SendStopListening() {
 }
 
 void AliyunProtocol::SendAbortSpeaking(AbortReason) {
+    bool active;
+    uint64_t token;
+    {
+        std::lock_guard<std::mutex> lock(response_mutex_);
+        active = response_.active();
+        response_.Invalidate();
+        token = ResponseToken();
+    }
     listening_.store(false);
-    if (response_active_.load())
-        SendText("{\"type\":\"response.cancel\"}");
+    if (active)
+        CancelResponse(token);
+}
+
+void AliyunProtocol::CancelResponse(uint64_t token) {
+    std::lock_guard<std::mutex> lock(response_mutex_);
+    if (token != ResponseToken())
+        return;
+    cancel_event_id_ = "cancel_" + std::to_string(token);
+    SendText("{\"type\":\"response.cancel\",\"event_id\":\"" + cancel_event_id_ + "\"}");
+}
+
+uint64_t AliyunProtocol::ResponseToken() const {
+    return (static_cast<uint64_t>(connection_generation_.load()) << 32) | response_.generation();
+}
+
+bool AliyunProtocol::IsCurrentResponse(uint64_t token) const {
+    std::lock_guard<std::mutex> lock(response_mutex_);
+    return token == ResponseToken();
 }
 
 void AliyunProtocol::SendWakeWordDetected(const std::string&) {}
 void AliyunProtocol::SendMcpMessage(const std::string&) {}
 
-void AliyunProtocol::HandleEvent(const char* data, size_t size) {
+void AliyunProtocol::HandleEvent(const char* data, size_t size, uint32_t generation) {
     cJSON* root = cJSON_ParseWithLength(data, size);
     if (!root)
         return;
     const char* type = StringValue(root, "type");
     if (!type) {
+        cJSON_Delete(root);
+        return;
+    }
+    DebugTrace::Instance().WebSocketRx(data, size);
+    std::lock_guard<std::mutex> lock(response_mutex_);
+    if (generation != connection_generation_.load()) {
         cJSON_Delete(root);
         return;
     }
@@ -227,38 +281,58 @@ void AliyunProtocol::HandleEvent(const char* data, size_t size) {
         xEventGroupSetBits(ready_events_, kUpdated);
     } else if (strcmp(type, "input_audio_buffer.committed") == 0) {
         if (waiting_commit_.exchange(false)) {
-            Application::GetInstance().Schedule(
-                [this]() { SendText("{\"type\":\"response.create\"}"); });
+            Application::GetInstance().Schedule([weak = weak_from_this(), generation]() {
+                if (auto protocol = weak.lock();
+                    protocol && generation == protocol->connection_generation_.load())
+                    protocol->SendText("{\"type\":\"response.create\"}");
+            });
         }
     } else if (strcmp(type, "response.created") == 0) {
         const char* id = StringValue(cJSON_GetObjectItemCaseSensitive(root, "response"), "id");
-        if (id)
-            response_id_ = id;
-        response_active_.store(true);
-        listening_.store(false);
-        if (on_response_started_)
-            on_response_started_();
+        if (id) {
+            response_.Start(id);
+            listening_.store(false);
+            if (on_response_started_)
+                on_response_started_(ResponseToken());
+        }
     } else if (strcmp(type, "response.audio.delta") == 0) {
-        ESP_LOGI(kTag, "PCM delta received");
+        // Audio deltas can arrive several times per second. Keep this at
+        // debug level so normal realtime playback does not spend UART time
+        // formatting and transmitting one log line per audio chunk.
+        ESP_LOGD(kTag, "PCM delta received");
         const char* delta = StringValue(root, "delta");
         const char* id = StringValue(root, "response_id");
-        if (delta && id && response_id_ == id && on_incoming_audio_) {
+        if (delta && response_.Accepts(id) && on_incoming_audio_) {
             size_t length = strlen(delta);
             if (length <= 128 * 1024) {
                 std::vector<uint8_t> pcm(length * 3 / 4 + 4);
                 size_t count = 0;
-                if (mbedtls_base64_decode(pcm.data(), pcm.size(), &count,
-                                          reinterpret_cast<const unsigned char*>(delta),
-                                          length) == 0 &&
+                if ((realtime_audio::DecodeBase64(delta, length, pcm.data(), pcm.size(), count) ||
+                     mbedtls_base64_decode(pcm.data(), pcm.size(), &count,
+                                           reinterpret_cast<const unsigned char*>(delta),
+                                           length) == 0) &&
                     count % 2 == 0) {
+                    pcm.resize(count);
                     DebugTrace::Instance().Pcm(false, pcm.data(), count, 24000);
-                    for (size_t offset = 0; offset < count; offset += 4800) {
+                    // Preserve normal cloud deltas (typically 320 ms) as one
+                    // packet. Splitting them into 100 ms pieces exhausted the
+                    // packet-count queue during long, faster-than-playback replies.
+#if CONFIG_SPIRAM_USE_MALLOC
+                    constexpr size_t kMaxPcmPacketBytes = 24000;
+#else
+                    constexpr size_t kMaxPcmPacketBytes = 4800;
+#endif
+                    for (size_t offset = 0; offset < count; offset += kMaxPcmPacketBytes) {
                         auto packet = std::make_unique<AudioStreamPacket>();
                         packet->pcm = true;
                         packet->sample_rate = 24000;
-                        packet->frame_duration = 100;
-                        size_t end = std::min(offset + 4800, count);
-                        packet->payload.assign(pcm.begin() + offset, pcm.begin() + end);
+                        size_t end = std::min(offset + kMaxPcmPacketBytes, count);
+                        packet->frame_duration = (end - offset) * 1000 / (24000 * sizeof(int16_t));
+                        if (offset == 0 && end == count) {
+                            packet->payload = std::move(pcm);
+                        } else {
+                            packet->payload.assign(pcm.begin() + offset, pcm.begin() + end);
+                        }
                         on_incoming_audio_(std::move(packet));
                     }
                 }
@@ -267,18 +341,27 @@ void AliyunProtocol::HandleEvent(const char* data, size_t size) {
     } else if (strcmp(type, "conversation.item.input_audio_transcription.completed") == 0 ||
                strcmp(type, "response.audio_transcript.done") == 0) {
         const char* value = StringValue(root, "transcript");
-        if (value && on_transcript_)
+        if (value && on_transcript_ &&
+            (type[0] == 'c' || response_.Accepts(StringValue(root, "response_id"))))
             on_transcript_(type[0] == 'c', value);
     } else if (strcmp(type, "response.done") == 0) {
         const char* id = StringValue(cJSON_GetObjectItemCaseSensitive(root, "response"), "id");
-        if (id && response_id_ == id) {
-            response_active_.store(false);
+        if (response_.Finish(id)) {
             if (on_response_done_)
-                on_response_done_();
+                on_response_done_(ResponseToken());
         }
     } else if (strcmp(type, "error") == 0) {
         const cJSON* error = cJSON_GetObjectItemCaseSensitive(root, "error");
         const char* code = StringValue(error, "code");
+        const char* event_id = StringValue(error, "event_id");
+        const char* message = StringValue(error, "message");
+        // Server VAD can win the race with our explicit cancel. Only ignore
+        // the matching cancellation's no-active-response error.
+        if (event_id && cancel_event_id_ == event_id && message &&
+            (strstr(message, "no active response") || strstr(message, "No active response"))) {
+            cJSON_Delete(root);
+            return;
+        }
         ESP_LOGE(kTag, "Cloud error: %s", code ? code : "unknown");
         xEventGroupSetBits(ready_events_, kError);
         SetError(code ? code : "Aliyun realtime error");

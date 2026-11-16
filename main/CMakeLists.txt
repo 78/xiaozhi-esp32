@@ -1583,3 +1583,19 @@ if ("${size}" AND "${offset}")
 else()
     message(STATUS "Assets partition not found, using v1 partition table")
 endif()
+
+# Replace only the embedded portal page through the build graph. Wi-Fi vendor
+# sources, connection logic, and generated files remain component-owned.
+if(CONFIG_ALIYUN_REALTIME AND CONFIG_USE_HOTSPOT_WIFI_PROVISIONING)
+    idf_component_get_property(wifi_portal_lib 78__esp-wifi-connect COMPONENT_LIB)
+    get_target_property(wifi_portal_sources ${wifi_portal_lib} SOURCES)
+    list(FILTER wifi_portal_sources EXCLUDE REGEX "[/\\]wifi_configuration\\.html\\.S$")
+    set_property(TARGET ${wifi_portal_lib} PROPERTY SOURCES "${wifi_portal_sources}")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/realtime/config.html"
+                   "${CMAKE_CURRENT_BINARY_DIR}/wifi_configuration_v1.html" COPYONLY)
+    target_add_binary_data(${wifi_portal_lib} "${CMAKE_CURRENT_BINARY_DIR}/wifi_configuration_v1.html"
+                           TEXT RENAME_TO wifi_configuration_html)
+    idf_build_get_property(portal_build_dir BUILD_DIR)
+    add_custom_target(unified_portal_embed DEPENDS "${portal_build_dir}/wifi_configuration_v1.html.S")
+    add_dependencies(${wifi_portal_lib} unified_portal_embed)
+endif()

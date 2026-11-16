@@ -40,7 +40,13 @@
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
 #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
+#if CONFIG_SPIRAM_USE_MALLOC
+#define MAX_DECODE_PACKETS_IN_QUEUE 256
+#define MAX_DECODE_BYTES (3 * 1024 * 1024)
+#else
 #define MAX_DECODE_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)
+#define MAX_DECODE_BYTES (48 * 1024)
+#endif
 #define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
 #define AUDIO_TESTING_MAX_DURATION_MS 10000
 #define MAX_TIMESTAMPS_IN_QUEUE 3
@@ -51,6 +57,7 @@
 #define AS_EVENT_AUDIO_TESTING_RUNNING (1 << 0)
 #define AS_EVENT_WAKE_WORD_RUNNING (1 << 1)
 #define AS_EVENT_AUDIO_PROCESSOR_RUNNING (1 << 2)
+#define AS_EVENT_RAW_CAPTURE (1 << 5)
 #define AS_EVENT_AUDIO_INPUT_STOP_REQUEST (1 << 4)
 
 #define AS_OPUS_GET_FRAME_DRU_ENUM(duration_ms)                  \
@@ -101,6 +108,8 @@ struct AudioTask {
     uint32_t timestamp = 0;
     uint32_t playback_id = 0;
     uint32_t media_position_ms = 0;
+    uint32_t uplink_generation = 0;
+    uint32_t playback_generation = 0;
 };
 
 struct DebugStatistics {
@@ -139,12 +148,16 @@ public:
     void EnableVoiceProcessing(bool enable);
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
+    void EnableRawCapture(bool enable);
     void SetPcmTransport(bool enabled) { pcm_transport_.store(enabled); }
 
     void SetCallbacks(AudioServiceCallbacks& callbacks);
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
+    bool HasPendingSendAudio();
+    bool IsEncodeIdle();
+    void DiscardUplink();
     bool WaitForEncodeIdle(int timeout_ms);
     void PlaySound(const std::string_view& sound);
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
@@ -186,18 +199,22 @@ private:
     // Testing records up to AUDIO_TESTING_MAX_DURATION_MS, then swaps into the
     // decode queue. Both queues must share this capacity so swap() is valid.
     static constexpr size_t kAudioTestingPacketCapacity =
-        AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS;
+        (MAX_DECODE_PACKETS_IN_QUEUE > AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS
+             ? MAX_DECODE_PACKETS_IN_QUEUE
+             : AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS);
     FixedQueue<std::unique_ptr<AudioStreamPacket>, kAudioTestingPacketCapacity> audio_decode_queue_;
     FixedQueue<std::unique_ptr<AudioStreamPacket>, MAX_SEND_PACKETS_IN_QUEUE> audio_send_queue_;
     FixedQueue<std::unique_ptr<AudioStreamPacket>, kAudioTestingPacketCapacity>
         audio_testing_queue_;
     FixedQueue<AudioTask, MAX_ENCODE_TASKS_IN_QUEUE> audio_encode_queue_;
     FixedQueue<AudioTask, MAX_PLAYBACK_TASKS_IN_QUEUE> audio_playback_queue_;
+    size_t decode_queued_bytes_ = 0;
     bool decode_in_flight_ = false;
     bool encode_in_flight_ = false;
     bool output_in_flight_ = false;
     bool playback_drained_notified_ = true;
     uint32_t playback_generation_ = 0;
+    uint32_t uplink_generation_ = 0;
     // For server AEC
     FixedQueue<uint32_t, MAX_TIMESTAMPS_IN_QUEUE> timestamp_queue_;
 

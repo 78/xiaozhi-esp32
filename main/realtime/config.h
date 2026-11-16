@@ -8,9 +8,12 @@ struct AliyunRealtimeConfig {
     std::string region = "cn-beijing";
     std::string workspace_id;
     std::string api_key;
+    // Empty keeps the generated Aliyun URL; ws:// selects the Debug Proxy.
+    std::string websocket_url;
     bool debug_enabled = false;
     std::string debug_address;
     int debug_level = 0;
+    bool debug_input_pcm = false;
 
     bool IsReady() const;
     std::string WebSocketUrl() const;

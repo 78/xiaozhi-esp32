@@ -57,6 +57,14 @@ bool ValidDebugAddress(const std::string& value) {
     const int number = std::stoi(port);
     return number > 0 && number <= 65535;
 }
+
+bool ValidWebSocketUrl(const std::string& value) {
+    if (value.empty())
+        return true;
+    if (value.size() > 256 || value.find_first_of(" \r\n\t") != std::string::npos)
+        return false;
+    return value.rfind("ws://", 0) == 0 || value.rfind("wss://", 0) == 0;
+}
 }  // namespace
 
 bool AliyunRealtimeConfig::IsReady() const {
@@ -65,6 +73,8 @@ bool AliyunRealtimeConfig::IsReady() const {
 }
 
 std::string AliyunRealtimeConfig::WebSocketUrl() const {
+    if (!websocket_url.empty())
+        return websocket_url;
     const char* domain = region == "ap-southeast-1" ? "ap-southeast-1" : "cn-beijing";
     return "wss://" + workspace_id + "." + domain +
            ".maas.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-omni-flash-realtime";
@@ -86,11 +96,16 @@ AliyunRealtimeConfig LoadAliyunRealtimeConfig() {
     }
     config.workspace_id = ReadString(handle, "workspace");
     config.api_key = ReadString(handle, "api_key");
+    config.websocket_url = ReadString(handle, "url");
+    enabled = 0;
     nvs_get_u8(handle, "dbg_enable", &enabled);
     config.debug_enabled = enabled != 0;
     config.debug_address = ReadString(handle, "dbg_addr");
     nvs_get_i32(handle, "dbg_level", &level);
     config.debug_level = level;
+    enabled = 0;
+    nvs_get_u8(handle, "dbg_input", &enabled);
+    config.debug_input_pcm = enabled != 0;
     nvs_close(handle);
     return config;
 }
@@ -107,6 +122,8 @@ bool ValidateAliyunRealtimeConfig(const AliyunRealtimeConfig& config) {
                      [](unsigned char ch) { return ch >= 33 && ch <= 126; })) {
         return false;
     }
+    if (!ValidWebSocketUrl(config.websocket_url))
+        return false;
     if (config.selected && !config.IsReady()) {
         return false;
     }
@@ -131,11 +148,15 @@ bool SaveAliyunRealtimeConfig(const AliyunRealtimeConfig& config) {
     if (result == ESP_OK)
         result = nvs_set_str(handle, "api_key", config.api_key.c_str());
     if (result == ESP_OK)
+        result = nvs_set_str(handle, "url", config.websocket_url.c_str());
+    if (result == ESP_OK)
         result = nvs_set_u8(handle, "dbg_enable", config.debug_enabled ? 1 : 0);
     if (result == ESP_OK)
         result = nvs_set_str(handle, "dbg_addr", config.debug_address.c_str());
     if (result == ESP_OK)
         result = nvs_set_i32(handle, "dbg_level", config.debug_level);
+    if (result == ESP_OK)
+        result = nvs_set_u8(handle, "dbg_input", config.debug_input_pcm ? 1 : 0);
     if (result == ESP_OK)
         result = nvs_commit(handle);
     nvs_close(handle);
