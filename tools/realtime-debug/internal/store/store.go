@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,19 +21,22 @@ import (
 )
 
 type Summary struct {
-	ID          string    `json:"id"`
-	BootID      string    `json:"boot_id"`
-	TraceID     string    `json:"trace_session_id"`
-	DeviceID    string    `json:"device_id,omitempty"`
-	Mode        string    `json:"mode,omitempty"`
-	StartedAt   time.Time `json:"started_at"`
-	EndedAt     time.Time `json:"ended_at,omitempty"`
-	Events      uint64    `json:"events"`
-	Gaps        uint64    `json:"gaps"`
-	Bytes       int64     `json:"bytes"`
-	Truncated   bool      `json:"truncated"`
-	Interrupted bool      `json:"interrupted"`
-	Live        bool      `json:"live"`
+	ID            string    `json:"id"`
+	BootID        string    `json:"boot_id"`
+	TraceID       string    `json:"trace_session_id"`
+	DeviceID      string    `json:"device_id,omitempty"`
+	Mode          string    `json:"mode,omitempty"`
+	RequestID     string    `json:"request_id,omitempty"`
+	DeviceBootID  string    `json:"device_boot_id,omitempty"`
+	DeviceTraceID string    `json:"device_trace_id,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	EndedAt       time.Time `json:"ended_at,omitempty"`
+	Events        uint64    `json:"events"`
+	Gaps          uint64    `json:"gaps"`
+	Bytes         int64     `json:"bytes"`
+	Truncated     bool      `json:"truncated"`
+	Interrupted   bool      `json:"interrupted"`
+	Live          bool      `json:"live"`
 }
 
 type Event struct {
@@ -48,40 +52,55 @@ type Event struct {
 }
 
 type Segment struct {
-	Track         string `json:"track"`
-	Index         int    `json:"index"`
-	Offset        int64  `json:"offset"`
-	Length        int64  `json:"length"`
-	SampleRate    int    `json:"sample_rate"`
-	Channels      int    `json:"channels"`
-	BitsPerSample int    `json:"bits_per_sample"`
+	ResponseID    string    `json:"response_id,omitempty"`
+	RequestID     string    `json:"request_id,omitempty"`
+	MonoUS        int64     `json:"mono_us,omitempty"`
+	ReceivedAt    time.Time `json:"received_at"`
+	GapBefore     bool      `json:"gap_before,omitempty"`
+	Track         string    `json:"track"`
+	Index         int       `json:"index"`
+	Offset        int64     `json:"offset"`
+	Length        int64     `json:"length"`
+	SampleRate    int       `json:"sample_rate"`
+	Channels      int       `json:"channels"`
+	BitsPerSample int       `json:"bits_per_sample"`
 }
 
 type DeviceStatus struct {
-	Connected bool      `json:"connected"`
-	DeviceID  string    `json:"device_id,omitempty"`
-	BootID    string    `json:"boot_id,omitempty"`
-	Remote    string    `json:"remote,omitempty"`
-	Since     time.Time `json:"since,omitempty"`
+	Source             string    `json:"source,omitempty"`
+	ProxyConnected     bool      `json:"proxy_connected"`
+	CollectorConnected bool      `json:"collector_connected"`
+	Connected          bool      `json:"connected"`
+	DeviceID           string    `json:"device_id,omitempty"`
+	BootID             string    `json:"boot_id,omitempty"`
+	Remote             string    `json:"remote,omitempty"`
+	Since              time.Time `json:"since,omitempty"`
 }
 
 type session struct {
-	summary   Summary
-	dir       string
-	events    *os.File
-	payloads  *os.File
-	uplink    *os.File
-	playback  *os.File
+	summary  Summary
+	dir      string
+	events   *os.File
+	payloads *os.File
+	uplink   *os.File
+	playback *os.File
+	input    *os.File
+	aecMic   *os.File
+	aecRef   *os.File
+	aecOut   *os.File
 }
 
 type Store struct {
 	mu              sync.Mutex
 	root            string
 	maxSessionBytes int64
+	maxTotalBytes   int64
+	totalBytes      int64
 	sessions        map[string]*session
 	byKey           map[string]string
 	subscribers     map[chan string]struct{}
 	device          DeviceStatus
+	devices         map[string]DeviceStatus
 }
 
 func Open(root string, maxSessionBytes int64) (*Store, error) {
@@ -109,6 +128,7 @@ func Open(root string, maxSessionBytes int64) (*Store, error) {
 			return fmt.Errorf("recover session %s: %w", summary.ID, err)
 		}
 		s.sessions[summary.ID] = loaded
+		s.totalBytes += loaded.summary.Bytes
 		if err := s.writeManifest(loaded); err != nil {
 			return err
 		}
@@ -126,7 +146,7 @@ func (s *Store) recoverSession(entry *session) error {
 	reader := bufio.NewReaderSize(file, 64*1024)
 	var offset int64
 	var ended bool
-	var payloadEnd, uplinkEnd, playbackEnd int64
+	ends := map[string]int64{"payloads.dat": 0, "pcm-uplink.dat": 0, "pcm-playback.dat": 0, "pcm-input.dat": 0, "pcm-aec_mic.dat": 0, "pcm-aec_ref.dat": 0, "pcm-aec_out.dat": 0}
 	entry.summary.Events = 0
 	entry.summary.Gaps = 0
 	entry.summary.Bytes = 0
@@ -150,20 +170,25 @@ func (s *Store) recoverSession(entry *session) error {
 		offset += int64(len(line))
 		entry.summary.Events++
 		entry.summary.Bytes += int64(len(line) + event.PayloadLength + event.AudioLength)
-		if end := event.PayloadOffset + int64(event.PayloadLength); end > payloadEnd {
-			payloadEnd = end
+		if end := event.PayloadOffset + int64(event.PayloadLength); end > ends["payloads.dat"] {
+			ends["payloads.dat"] = end
 		}
-		if event.AudioTrack == "uplink" {
-			if end := event.AudioOffset + int64(event.AudioLength); end > uplinkEnd {
-				uplinkEnd = end
-			}
-		} else if event.AudioTrack == "playback" {
-			if end := event.AudioOffset + int64(event.AudioLength); end > playbackEnd {
-				playbackEnd = end
+		if audioFile := audioFilename(event.AudioTrack); audioFile != "" {
+			if end := event.AudioOffset + int64(event.AudioLength); end > ends[audioFile] {
+				ends[audioFile] = end
 			}
 		}
 		if event.Kind == "trace_gap" {
 			entry.summary.Gaps++
+		}
+		if event.Meta.RequestID != "" {
+			entry.summary.RequestID = event.Meta.RequestID
+		}
+		if event.Meta.DeviceBootID != "" {
+			entry.summary.DeviceBootID = event.Meta.DeviceBootID
+		}
+		if event.Meta.DeviceTraceID != "" {
+			entry.summary.DeviceTraceID = event.Meta.DeviceTraceID
 		}
 		if event.Meta.Mode != "" {
 			entry.summary.Mode = event.Meta.Mode
@@ -176,10 +201,13 @@ func (s *Store) recoverSession(entry *session) error {
 			ended = true
 		}
 	}
-	for name, end := range map[string]int64{"payloads.dat": payloadEnd, "pcm-uplink.dat": uplinkEnd, "pcm-playback.dat": playbackEnd} {
+	for name, end := range ends {
 		path := filepath.Join(entry.dir, name)
 		info, err := os.Stat(path)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) && end == 0 && (name == "pcm-input.dat" || name == "pcm-aec_mic.dat" || name == "pcm-aec_ref.dat" || name == "pcm-aec_out.dat") {
+				continue
+			}
 			return err
 		}
 		if info.Size() < end {
@@ -247,7 +275,7 @@ func (s *Store) openFiles(entry *session) error {
 	files := []struct {
 		name string
 		dest **os.File
-	}{{"events.jsonl", &entry.events}, {"payloads.dat", &entry.payloads}, {"pcm-uplink.dat", &entry.uplink}, {"pcm-playback.dat", &entry.playback}}
+	}{{"events.jsonl", &entry.events}, {"payloads.dat", &entry.payloads}, {"pcm-uplink.dat", &entry.uplink}, {"pcm-playback.dat", &entry.playback}, {"pcm-input.dat", &entry.input}, {"pcm-aec_mic.dat", &entry.aecMic}, {"pcm-aec_ref.dat", &entry.aecRef}, {"pcm-aec_out.dat", &entry.aecOut}}
 	for _, item := range files {
 		file, err := openAppend(filepath.Join(entry.dir, item.name))
 		if err != nil {
@@ -260,12 +288,12 @@ func (s *Store) openFiles(entry *session) error {
 }
 
 func (entry *session) closeFiles() {
-	for _, file := range []*os.File{entry.events, entry.payloads, entry.uplink, entry.playback} {
+	for _, file := range []*os.File{entry.events, entry.payloads, entry.uplink, entry.playback, entry.input, entry.aecMic, entry.aecRef, entry.aecOut} {
 		if file != nil {
 			file.Close()
 		}
 	}
-	entry.events, entry.payloads, entry.uplink, entry.playback = nil, nil, nil, nil
+	entry.events, entry.payloads, entry.uplink, entry.playback, entry.input, entry.aecMic, entry.aecRef, entry.aecOut = nil, nil, nil, nil, nil, nil, nil, nil
 }
 
 func (s *Store) writeManifest(entry *session) error {
@@ -294,6 +322,15 @@ func appendBytes(file *os.File, payload []byte) (int64, error) {
 	return offset, err
 }
 
+func audioFilename(track string) string {
+	switch track {
+	case "uplink", "playback", "input", "aec_mic", "aec_ref", "aec_out":
+		return "pcm-" + track + ".dat"
+	default:
+		return ""
+	}
+}
+
 func (s *Store) Append(frame trace.Frame) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -306,12 +343,20 @@ func (s *Store) Append(frame trace.Frame) (string, error) {
 	}
 	event := Event{Kind: trace.KindName(frame.Kind), Meta: frame.Meta, RawMeta: frame.RawMeta, ReceivedAt: time.Now().UTC()}
 	var payloadFile *os.File
-	if frame.Kind == trace.PCMUplink || frame.Kind == trace.PCMPlayback {
-		payloadFile = entry.uplink
-		event.AudioTrack = "uplink"
-		if frame.Kind == trace.PCMPlayback {
-			payloadFile = entry.playback
-			event.AudioTrack = "playback"
+	if frame.Kind == trace.PCMUplink || frame.Kind == trace.PCMPlayback || frame.Kind == trace.AECMic || frame.Kind == trace.AECRef || frame.Kind == trace.AECOut || frame.Kind == trace.PCMInput {
+		switch frame.Kind {
+		case trace.PCMUplink:
+			payloadFile, event.AudioTrack = entry.uplink, "uplink"
+		case trace.PCMPlayback:
+			payloadFile, event.AudioTrack = entry.playback, "playback"
+		case trace.PCMInput:
+			payloadFile, event.AudioTrack = entry.input, "input"
+		case trace.AECMic:
+			payloadFile, event.AudioTrack = entry.aecMic, "aec_mic"
+		case trace.AECRef:
+			payloadFile, event.AudioTrack = entry.aecRef, "aec_ref"
+		case trace.AECOut:
+			payloadFile, event.AudioTrack = entry.aecOut, "aec_out"
 		}
 		event.AudioOffset, err = payloadFile.Seek(0, io.SeekEnd)
 		event.AudioLength = len(frame.Payload)
@@ -328,7 +373,7 @@ func (s *Store) Append(frame trace.Frame) (string, error) {
 		return entry.summary.ID, err
 	}
 	storedBytes := int64(len(frame.Payload) + len(encoded) + 1)
-	if s.maxSessionBytes > 0 && entry.summary.Bytes+storedBytes > s.maxSessionBytes {
+	if (s.maxSessionBytes > 0 && entry.summary.Bytes+storedBytes > s.maxSessionBytes) || (s.maxTotalBytes > 0 && s.totalBytes+storedBytes > s.maxTotalBytes) {
 		entry.summary.Truncated = true
 		if err := s.writeManifest(entry); err != nil {
 			return entry.summary.ID, err
@@ -345,8 +390,18 @@ func (s *Store) Append(frame trace.Frame) (string, error) {
 	}
 	entry.summary.Events++
 	entry.summary.Bytes += storedBytes
+	s.totalBytes += storedBytes
 	if frame.Kind == trace.TraceGap {
 		entry.summary.Gaps++
+	}
+	if frame.Meta.RequestID != "" {
+		entry.summary.RequestID = frame.Meta.RequestID
+	}
+	if frame.Meta.DeviceBootID != "" {
+		entry.summary.DeviceBootID = frame.Meta.DeviceBootID
+	}
+	if frame.Meta.DeviceTraceID != "" {
+		entry.summary.DeviceTraceID = frame.Meta.DeviceTraceID
 	}
 	if frame.Meta.Mode != "" {
 		entry.summary.Mode = frame.Meta.Mode
@@ -394,13 +449,27 @@ func (s *Store) SetDevice(status DeviceStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.device = status
+	if s.devices == nil {
+		s.devices = make(map[string]DeviceStatus)
+	}
+	source := status.Source
+	if source == "" {
+		source = "collector"
+	}
+	s.devices[source] = status
 	s.notify("status")
 }
 
 func (s *Store) Device() DeviceStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.device
+	status := s.devices["proxy"]
+	if !status.Connected {
+		status = s.devices["collector"]
+	}
+	status.ProxyConnected = s.devices["proxy"].Connected
+	status.CollectorConnected = s.devices["collector"].Connected
+	return status
 }
 
 func (s *Store) EndBoot(bootID string) {
@@ -451,18 +520,26 @@ func (s *Store) eachEvent(id string, visit func(Event) bool) error {
 		return err
 	}
 	defer file.Close()
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 4096), 64*1024)
-	for scanner.Scan() {
+	reader := bufio.NewReaderSize(file, 64*1024)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if errors.Is(err, io.EOF) {
+			return nil
+		} // A live append may not have committed its final newline.
+		if err != nil {
+			return err
+		}
+		if len(line) > 64*1024 {
+			return errors.New("event metadata exceeds index limit")
+		}
 		var event Event
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+		if err := json.Unmarshal(line, &event); err != nil {
 			return fmt.Errorf("corrupt event index: %w", err)
 		}
 		if !visit(event) {
 			return nil
 		}
 	}
-	return scanner.Err()
 }
 
 func (s *Store) Events(id, after string, limit int) ([]Event, error) {
@@ -569,23 +646,40 @@ func (s *Store) readPayload(id string, event Event) ([]byte, error) {
 }
 
 func (s *Store) Segments(id, track string) ([]Segment, error) {
-	if track != "uplink" && track != "playback" {
+	if audioFilename(track) == "" {
 		return nil, os.ErrNotExist
 	}
 	var segments []Segment
+	boundary := false
+	var nextSample uint64
+	haveSample := false
 	err := s.eachEvent(id, func(event Event) bool {
+		if event.Kind == "trace_gap" || (track == "uplink" && event.Meta.EventType == "response.created") {
+			boundary = true
+		}
 		if event.AudioTrack != track || event.AudioLength == 0 {
 			return true
 		}
 		meta := event.Meta
+		if meta.SampleIndex != "" {
+			index, err := strconv.ParseUint(meta.SampleIndex, 10, 64)
+			if err == nil {
+				if haveSample && index != nextSample {
+					boundary = true
+				}
+				nextSample = index + uint64(event.AudioLength/(meta.Channels*meta.BitsPerSample/8))
+				haveSample = true
+			}
+		}
 		if len(segments) > 0 {
 			last := &segments[len(segments)-1]
-			if last.Offset+last.Length == event.AudioOffset && last.SampleRate == meta.SampleRate && last.Channels == meta.Channels && last.BitsPerSample == meta.BitsPerSample {
+			if !boundary && last.ResponseID == meta.ResponseID && last.Offset+last.Length == event.AudioOffset && last.SampleRate == meta.SampleRate && last.Channels == meta.Channels && last.BitsPerSample == meta.BitsPerSample {
 				last.Length += int64(event.AudioLength)
 				return true
 			}
 		}
-		segments = append(segments, Segment{Track: track, Index: len(segments), Offset: event.AudioOffset, Length: int64(event.AudioLength), SampleRate: meta.SampleRate, Channels: meta.Channels, BitsPerSample: meta.BitsPerSample})
+		segments = append(segments, Segment{ResponseID: meta.ResponseID, RequestID: meta.RequestID, MonoUS: meta.MonoUS, ReceivedAt: event.ReceivedAt, GapBefore: boundary, Track: track, Index: len(segments), Offset: event.AudioOffset, Length: int64(event.AudioLength), SampleRate: meta.SampleRate, Channels: meta.Channels, BitsPerSample: meta.BitsPerSample})
+		boundary = false
 		return true
 	})
 	return segments, err
@@ -596,10 +690,10 @@ func (s *Store) OpenAudio(id, track string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	if track != "uplink" && track != "playback" {
+	if audioFilename(track) == "" {
 		return nil, os.ErrNotExist
 	}
-	return os.Open(filepath.Join(dir, "pcm-"+track+".dat"))
+	return os.Open(filepath.Join(dir, audioFilename(track)))
 }
 
 func (s *Store) Export(id string, output io.Writer) error {
@@ -608,9 +702,12 @@ func (s *Store) Export(id string, output io.Writer) error {
 		return err
 	}
 	archive := zip.NewWriter(output)
-	for _, name := range []string{"manifest.json", "events.jsonl", "payloads.dat", "pcm-uplink.dat", "pcm-playback.dat"} {
+	for _, name := range []string{"manifest.json", "events.jsonl", "payloads.dat", "pcm-uplink.dat", "pcm-playback.dat", "pcm-input.dat", "pcm-aec_mic.dat", "pcm-aec_ref.dat", "pcm-aec_out.dat"} {
 		file, err := os.Open(filepath.Join(dir, name))
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) && (name == "pcm-input.dat" || name == "pcm-aec_mic.dat" || name == "pcm-aec_ref.dat" || name == "pcm-aec_out.dat") {
+				continue
+			}
 			archive.Close()
 			return err
 		}
@@ -656,4 +753,82 @@ func (s *Store) Close() error {
 		entry.closeFiles()
 	}
 	return first
+}
+
+// Related uses only explicit boot/session identity, never timing proximity.
+func (s *Store) Related(id string) (Summary, bool) {
+	source, ok := s.Get(id)
+	if !ok {
+		return Summary{}, false
+	}
+	for _, candidate := range s.List() {
+		if source.DeviceBootID != "" && candidate.BootID == source.DeviceBootID && candidate.TraceID == source.DeviceTraceID {
+			return candidate, true
+		}
+		if candidate.DeviceBootID == source.BootID && candidate.DeviceTraceID == source.TraceID {
+			return candidate, true
+		}
+	}
+	return Summary{}, false
+}
+
+func (s *Store) ExportBundle(id string, destination io.Writer) error {
+	related, ok := s.Related(id)
+	if !ok {
+		return s.Export(id, destination)
+	}
+	archive := zip.NewWriter(destination)
+	for _, sourceID := range []string{id, related.ID} {
+		entry, err := archive.Create(sourceID + ".zip")
+		if err != nil {
+			return err
+		}
+		if err = s.Export(sourceID, entry); err != nil {
+			return err
+		}
+	}
+	return archive.Close()
+}
+
+func (s *Store) Conversation(id string) ([]Event, error) {
+	events := make([]Event, 0)
+	err := s.eachEvent(id, func(event Event) bool {
+		if event.Meta.Transcript != "" {
+			events = append(events, event)
+		}
+		return true
+	})
+	return events, err
+}
+
+func (s *Store) SetTotalLimit(bytes int64) { s.mu.Lock(); defer s.mu.Unlock(); s.maxTotalBytes = bytes }
+
+// Pruning is opt-in. Callers choose the retention window explicitly.
+func (s *Store) Prune(before time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := filepath.Abs(s.root)
+	if err != nil {
+		return err
+	}
+	for id, entry := range s.sessions {
+		if entry.summary.Live || entry.summary.EndedAt.IsZero() || !entry.summary.EndedAt.Before(before) {
+			continue
+		}
+		target, err := filepath.Abs(entry.dir)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, target)
+		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) || filepath.Base(target) != id {
+			return errors.New("unsafe retention path")
+		}
+		entry.closeFiles()
+		if err := os.RemoveAll(target); err != nil {
+			return err
+		}
+		s.totalBytes -= entry.summary.Bytes
+		delete(s.sessions, id)
+	}
+	return nil
 }

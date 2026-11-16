@@ -55,3 +55,17 @@ h1, h2 { font-size: 15px; font-weight: 650; }
 .load-more:hover { background: #e7f2ed; }
 @media (max-width: 900px) { .layout { grid-template-columns: 210px minmax(0, 1fr); } .detail-pane { grid-column: 1 / -1; height: 280px; border-top: 1px solid #dbe2df; } .layout { height: auto; min-height: calc(100vh - 64px); } .sessions, .timeline-pane { height: 55vh; min-height: 380px; } }
 @media (max-width: 600px) { .topbar { padding: 0 12px; } .brand small, #session-count { display: none !important; } .layout { display: block; } .sessions { height: 200px; min-height: 0; } .timeline-pane { height: 52vh; min-height: 360px; } .detail-pane { height: 320px; } .event-item { grid-template-columns: 58px 86px 1fr; gap: 5px; } .event-size { display: none; } }
+
+[hidden]{display:none!important}
+.layout{grid-template-columns:250px minmax(0,1fr);position:relative}
+.detail-pane{position:absolute;right:0;top:0;bottom:0;width:min(440px,95vw);z-index:3;box-shadow:-12px 0 40px #16333b20;border-left:1px solid #dbe2df}
+.topbar{background:#fff;color:#183b3e;border-bottom:1px solid #dbe2df}
+.brand small,.status{color:#647c80}.mark{border-radius:10px;background:#176b66;color:white;border:0}
+.conversation{overflow:auto;max-height:38vh;padding:18px 24px;border-bottom:1px solid #dbe2df}
+.bubble{max-width:80%;padding:12px 16px;background:white;border:1px solid #dfe8e7;border-radius:14px;margin:0 0 12px}.bubble.user{margin-left:auto;background:#edf7f4}.bubble small{color:#637f80;font-size:11px}.bubble p{white-space:pre-wrap;margin-top:5px}
+.raw-toggle{padding:10px 18px;color:#637f80;font-size:12px}.raw-toggle summary{cursor:pointer}.audio-row{grid-template-columns:190px 1fr}
+@media(max-width:720px){.layout{grid-template-columns:1fr;height:auto}.sessions{max-height:230px}.timeline-pane{min-height:70vh}.audio-row{grid-template-columns:1fr}.topbar{padding:0 14px}.status #session-count{display:none}.bubble{max-width:95%}.event-item{grid-template-columns:60px 80px 1fr}.event-size{display:none}}
+
+.raw-toggle{min-height:0;overflow:auto}.raw-toggle .event-list{max-height:42vh}.raw-toggle .filters{padding-left:0;padding-right:0}
+
+.audio-row{grid-template-columns:minmax(120px,190px) minmax(120px,1fr) 68px}.audio-row canvas{grid-column:1/-1}.wave-button{border:1px solid #dbe2df;border-radius:6px;background:white;color:#176b66;padding:5px}@media(max-width:720px){.audio-row{grid-template-columns:1fr 68px}.audio-row span{grid-column:1/-1}}
