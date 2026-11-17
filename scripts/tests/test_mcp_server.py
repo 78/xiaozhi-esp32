@@ -64,6 +64,10 @@ class McpServerTest(unittest.TestCase):
                 public:
                     Settings(const std::string&, bool = false) {}
                     int GetInt(const std::string&, int fallback) { return fallback; }
+                    bool GetBool(const std::string&, bool fallback) { return fallback; }
+                    std::string GetString(const std::string&, const std::string& fallback) {
+                        return fallback;
+                    }
                     void SetInt(const std::string&, int) {}
                     void SetString(const std::string&, const std::string&) {}
                 };
@@ -90,10 +94,28 @@ class McpServerTest(unittest.TestCase):
                 #pragma once
                 #include <cstdint>
                 #include <cstdlib>
+                #include <memory>
                 #include <string>
                 struct AudioCodec { void SetOutputVolume(int) { std::abort(); } };
                 struct Backlight { void SetBrightness(uint8_t, bool) { std::abort(); } };
                 #include "camera.h"
+                struct NetworkError {
+                    std::string ToString() const { return "host-test network error"; }
+                };
+                template <typename T> using NetworkResult = std::expected<T, NetworkError>;
+                class Http {
+                public:
+                    void SetHeader(const std::string&, const std::string&) { std::abort(); }
+                    void SetContent(std::string) { std::abort(); }
+                    NetworkResult<void> Open(const std::string&, const std::string&) { std::abort(); }
+                    NetworkResult<int> GetStatusCode() { std::abort(); }
+                    std::string ReadAll() { std::abort(); }
+                    void Close() { std::abort(); }
+                };
+                class NetworkInterface {
+                public:
+                    std::unique_ptr<Http> CreateHttp(int) { std::abort(); }
+                };
                 struct HostCamera : Camera {
                     std::string legacy_url, legacy_token;
                     int captures = 0;
@@ -122,6 +144,7 @@ class McpServerTest(unittest.TestCase):
                     std::string GetSystemInfoJson() { std::abort(); }
                     AudioCodec* GetAudioCodec() { std::abort(); }
                     Backlight* GetBacklight() { return nullptr; }
+                    NetworkInterface* GetNetwork() { std::abort(); }
                     HostCamera* GetCamera() {
                         static HostCamera camera;
                         return &camera;
