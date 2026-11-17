@@ -189,9 +189,14 @@ private:
 
     static void TouchInputReadCallback(lv_indev_t * indev, lv_indev_data_t *indevData) {
         i2c_master_dev_handle_t i2c_dev = (i2c_master_dev_handle_t)lv_indev_get_user_data(indev);
-        uint8_t read_touchpad_cmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x0e,0x0, 0x0, 0x0};
-        uint8_t buff[32] = {0};
-        i2c_master_transmit_receive(i2c_dev,read_touchpad_cmd,11,buff,32,1000);
+        // Same framing as Espressif's esp_lcd_axs15231b touch driver: request 8 bytes
+        // (1 point), then read them in a separate transaction (no repeated start).
+        uint8_t read_touchpad_cmd[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x08, 0x0, 0x0, 0x0};
+        uint8_t buff[8] = {0};
+        esp_err_t touch_ret = i2c_master_transmit(i2c_dev, read_touchpad_cmd, sizeof(read_touchpad_cmd), 1000);
+        if (touch_ret == ESP_OK) {
+            touch_ret = i2c_master_receive(i2c_dev, buff, sizeof(buff), 1000);
+        }
         uint16_t pointX;
         uint16_t pointY;
         pointX = (((uint16_t)buff[2] & 0x0f) << 8) | (uint16_t)buff[3];
@@ -199,12 +204,14 @@ private:
         if (buff[1]>0 && buff[1]<5) {
             indevData->state = LV_INDEV_STATE_PRESSED;
 #if (DISPLAY_ROTATION_90 == true)
-            // LVGL does not rotate input. Invert LV_DISPLAY_ROTATION_90
-            // (physical_y = HEIGHT - 1 - x, physical_x = y) so touches land in the 640x172 UI.
-            if(pointX > DISPLAY_WIDTH - 1) pointX = DISPLAY_WIDTH - 1;
-            if(pointY > DISPLAY_HEIGHT - 1) pointY = DISPLAY_HEIGHT - 1;
-            indevData->point.x = (DISPLAY_HEIGHT - 1) - pointY;
-            indevData->point.y = pointX;
+            // LVGL does not rotate input. The controller reports X along the long side
+            // (0..HEIGHT) and Y along the short side (0..WIDTH). Composing the portrait mapping
+            // below (x = rawY, y = HEIGHT - rawX) with the inverse of LV_DISPLAY_ROTATION_90
+            // (x = HEIGHT - 1 - phys_y, y = phys_x) gives the raw point unchanged.
+            if(pointX > DISPLAY_HEIGHT - 1) pointX = DISPLAY_HEIGHT - 1;
+            if(pointY > DISPLAY_WIDTH - 1) pointY = DISPLAY_WIDTH - 1;
+            indevData->point.x = pointX;
+            indevData->point.y = pointY;
 #else
             if(pointX > DISPLAY_WIDTH) pointX = DISPLAY_WIDTH;
             if(pointY > DISPLAY_HEIGHT) pointY = DISPLAY_HEIGHT;
