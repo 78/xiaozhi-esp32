@@ -198,11 +198,20 @@ private:
         pointY = (((uint16_t)buff[4] & 0x0f) << 8) | (uint16_t)buff[5];
         if (buff[1]>0 && buff[1]<5) {
             indevData->state = LV_INDEV_STATE_PRESSED;
+#if (DISPLAY_ROTATION_90 == true)
+            // LVGL does not rotate input. Invert LV_DISPLAY_ROTATION_90
+            // (physical_y = HEIGHT - 1 - x, physical_x = y) so touches land in the 640x172 UI.
+            if(pointX > DISPLAY_WIDTH - 1) pointX = DISPLAY_WIDTH - 1;
+            if(pointY > DISPLAY_HEIGHT - 1) pointY = DISPLAY_HEIGHT - 1;
+            indevData->point.x = (DISPLAY_HEIGHT - 1) - pointY;
+            indevData->point.y = pointX;
+#else
             if(pointX > DISPLAY_WIDTH) pointX = DISPLAY_WIDTH;
             if(pointY > DISPLAY_HEIGHT) pointY = DISPLAY_HEIGHT;
             indevData->point.x = pointY;
             indevData->point.y = (DISPLAY_HEIGHT-pointX);
-            ESP_LOGE("Touch","(%ld,%ld)",indevData->point.x,indevData->point.y);
+#endif
+            ESP_LOGD("Touch","raw(%u,%u) -> (%ld,%ld)",pointX,pointY,indevData->point.x,indevData->point.y);
         } else {
             indevData->state = LV_INDEV_STATE_RELEASED;
         }
