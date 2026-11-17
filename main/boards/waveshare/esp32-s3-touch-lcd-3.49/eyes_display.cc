@@ -337,6 +337,8 @@ void EyesDisplay::CreateDecor() {
         lv_obj_add_flag(tears_[i], LV_OBJ_FLAG_HIDDEN);
     }
 
+    // Text labels (Zzz, score) inherit the screen font, which SetTheme rebinds when assets
+    // replace the theme font. Only the icon label holds an explicit font, rebound in SetTheme.
     question_ = lv_label_create(face_);
     lv_obj_set_style_text_font(question_, theme->large_icon_font()->font(), 0);
     lv_obj_set_style_text_color(question_, lv_color_white(), 0);
@@ -347,7 +349,6 @@ void EyesDisplay::CreateDecor() {
     const char* letters[3] = {"z", "Z", "Z"};
     for (int i = 0; i < 3; i++) {
         zzz_[i] = lv_label_create(face_);
-        lv_obj_set_style_text_font(zzz_[i], theme->text_font()->font(), 0);
         lv_obj_set_style_text_color(zzz_[i], lv_color_hex(kStatusText), 0);
         lv_label_set_text(zzz_[i], letters[i]);
         lv_obj_add_flag(zzz_[i], LV_OBJ_FLAG_HIDDEN);
@@ -359,8 +360,6 @@ void EyesDisplay::CreateDecor() {
 }
 
 void EyesDisplay::CreateGame() {
-    auto theme = static_cast<LvglTheme*>(current_theme_);
-
     game_ = lv_obj_create(lv_screen_active());
     lv_obj_set_size(game_, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_style_bg_opa(game_, LV_OPA_TRANSP, 0);
@@ -391,7 +390,6 @@ void EyesDisplay::CreateGame() {
     }
 
     score_label_ = lv_label_create(game_);
-    lv_obj_set_style_text_font(score_label_, theme->text_font()->font(), 0);
     lv_obj_set_style_text_color(score_label_, lv_color_hex(kStatusText), 0);
     lv_label_set_text(score_label_, "0");
     lv_obj_align(score_label_, LV_ALIGN_TOP_RIGHT, -16, 28);
@@ -1093,6 +1091,10 @@ void EyesDisplay::SetTheme(Theme* theme) {
     CustomLcdDisplay::SetTheme(theme);
     DisplayLockGuard lock(this);
     ApplyDarkSurface();
+    if (question_ != nullptr) {
+        auto lvgl_theme = static_cast<LvglTheme*>(theme);
+        lv_obj_set_style_text_font(question_, lvgl_theme->large_icon_font()->font(), 0);
+    }
 }
 
 void EyesDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
