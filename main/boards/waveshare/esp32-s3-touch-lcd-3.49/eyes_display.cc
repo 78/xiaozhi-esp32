@@ -21,7 +21,7 @@ constexpr uint32_t kBackground = 0x000000;
 constexpr uint32_t kStatusText = 0x8A94A6;
 constexpr uint32_t kPink = 0xFF5FA2;
 constexpr uint32_t kBlue = 0x4D8BFF;
-constexpr uint32_t kRed = 0xFF3B3B;
+constexpr uint32_t kAngry = 0xFF5A2E;
 constexpr uint32_t kOrange = 0xFFA040;
 constexpr uint32_t kBlush = 0xFF8FB0;
 constexpr uint32_t kGround = 0x1B6F80;
@@ -167,8 +167,9 @@ EyesDisplay::Expression EyesDisplay::ExpressionFor(const char* name) {
                 .color = kBlue, .motion = Motion::kTremble, .tears = true};
     }
     if (Is(name, "angry")) {
-        return {.width = 120, .height = 90, .top_cover = 380, .top_angle = 240, .offset_y = 4,
-                .color = kRed, .motion = Motion::kShake};
+        // Glare: narrow slits squeezed from above and below, sharp V brow, held-back tremble.
+        return {.width = 130, .height = 92, .top_cover = 420, .top_angle = 300,
+                .bottom_cover = 260, .offset_y = 2, .color = kAngry, .motion = Motion::kTremble};
     }
     if (Is(name, "surprised")) {
         return {.width = 140, .height = 125, .offset_y = -2};
@@ -266,6 +267,16 @@ void EyesDisplay::SetupUI() {
     DisplayLockGuard lock(this);
     ApplyDarkSurface();
     lv_obj_add_flag(emoji_box_, LV_OBJ_FLAG_HIDDEN);
+    // The bars are plain lv_obj (clickable by default) and sit above the face: let touches
+    // through so the whole screen reaches the eyes.
+    for (lv_obj_t* bar : {top_bar_, status_bar_, bottom_bar_}) {
+        if (bar != nullptr) {
+            lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
+            for (uint32_t i = 0; i < lv_obj_get_child_count(bar); i++) {
+                lv_obj_remove_flag(lv_obj_get_child(bar, i), LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
+    }
 
     auto touch_cb = [](lv_event_t* e) {
         static_cast<EyesDisplay*>(lv_event_get_user_data(e))->OnTouchEvent(e);
