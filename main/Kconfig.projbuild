@@ -439,6 +439,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NullLab AI Vox V3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_OLED_2_42_XZ
+        bool "OLIGHKER ESP32-S3 OLED 2.42 XZ"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
