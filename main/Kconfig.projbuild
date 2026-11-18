@@ -442,6 +442,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_PETOI_BITTLE_AI_C3
+        bool "Petoi Bittle AI ESP32-C3 (16MB, NyBoard)"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD
         bool "Quandong ESP32-S3 2.8-inch SPI LCD (全动 2.8寸)"
         depends on IDF_TARGET_ESP32S3

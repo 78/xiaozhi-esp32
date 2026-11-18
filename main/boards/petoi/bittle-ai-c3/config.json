@@ -1,0 +1,13 @@
+{
+    "manufacturer": "petoi",
+    "type": "petoi-bittle-ai-c3",
+    "target": "esp32c3",
+    "builds": [
+        {
+            "name": "petoi-bittle-ai-c3",
+            "sdkconfig_append": [
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+            ]
+        }
+    ]
+}
