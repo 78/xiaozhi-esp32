@@ -37,6 +37,56 @@
 #include "esp_lcd_touch_gt911.h"
 #define TAG "WaveshareEsp32p4"
 
+#if CUSTOM_LCDDISPLAY
+class CustomLcdDisplay : public LcdDisplay {
+public:
+    CustomLcdDisplay(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel)
+        : LcdDisplay(io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT) {
+        lv_init();
+        lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+        ESP_ERROR_CHECK(lvgl_port_init(&port_cfg));
+        const lvgl_port_display_cfg_t disp_cfg = {
+            .io_handle = io,
+            .panel_handle = panel,
+            .buffer_size = static_cast<uint32_t>(DISPLAY_WIDTH * 50),
+            .double_buffer = false,
+            .hres = DISPLAY_WIDTH,
+            .vres = DISPLAY_HEIGHT,
+            .rotation =
+                {
+                    .swap_xy = DISPLAY_SWAP_XY,
+                    .mirror_x = DISPLAY_MIRROR_X,
+                    .mirror_y = DISPLAY_MIRROR_Y,
+                },
+            .flags =
+                {
+                    .buff_dma = true,
+                    .buff_spiram = true,
+                    .sw_rotate = true,
+                },
+        };
+        const lvgl_port_display_dsi_cfg_t dsi_cfg = {};
+        display_ = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
+        ESP_ERROR_CHECK(display_ != nullptr ? ESP_OK : ESP_ERR_NO_MEM);
+#if CUSTOM_DISPLAY_ROTATION == 90
+        constexpr auto rotation = LV_DISPLAY_ROTATION_90;
+#elif CUSTOM_DISPLAY_ROTATION == 180
+        constexpr auto rotation = LV_DISPLAY_ROTATION_180;
+#elif CUSTOM_DISPLAY_ROTATION == 270
+        constexpr auto rotation = LV_DISPLAY_ROTATION_270;
+#else
+        constexpr auto rotation = LV_DISPLAY_ROTATION_0;
+#endif
+        lvgl_port_lock(0);
+        lv_display_set_rotation(display_, rotation);
+        if (DISPLAY_OFFSET_X != 0 || DISPLAY_OFFSET_Y != 0) {
+            lv_display_set_offset(display_, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y);
+        }
+        lvgl_port_unlock();
+    }
+};
+#endif
+
 class WaveshareEsp32p4 : public WifiBoard {
 private:
     i2c_master_bus_handle_t i2c_bus_;
@@ -353,8 +403,12 @@ private:
         esp_lcd_panel_reset(disp_panel);
         esp_lcd_panel_init(disp_panel);
 
+#if CUSTOM_LCDDISPLAY
+        display_ = new CustomLcdDisplay(io, disp_panel);
+#else
         display_ = new MipiLcdDisplay(io, disp_panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                        DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+#endif
     }
     void InitializeTouch()
     {
@@ -462,7 +516,10 @@ public:
             AUDIO_CODEC_PA_PIN, 
             AUDIO_CODEC_ES8311_ADDR, 
             AUDIO_CODEC_ES7210_ADDR, 
-            AUDIO_INPUT_REFERENCE);
+            AUDIO_INPUT_REFERENCE
+            , 30.0f  // Keep default input_gain (30.0f)
+            , 2      // Playback reference channel: physical MIC3 (0:MIC1, 1:MIC2, 2:MIC3, 3:MIC4), default 0.0f gain
+        );
         return &audio_codec;
     }
 
