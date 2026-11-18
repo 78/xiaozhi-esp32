@@ -108,6 +108,7 @@ class McpServerTest(unittest.TestCase):
                     void SetHeader(const std::string&, const std::string&) { std::abort(); }
                     void SetContent(std::string) { std::abort(); }
                     NetworkResult<void> Open(const std::string&, const std::string&) { std::abort(); }
+                    NetworkResult<int> Read(char*, size_t) { std::abort(); }
                     NetworkResult<int> GetStatusCode() { std::abort(); }
                     std::string ReadAll() { std::abort(); }
                     void Close() { std::abort(); }

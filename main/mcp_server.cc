@@ -4,6 +4,7 @@
  */
 
 #include "mcp_server.h"
+#include "web_search_format.h"
 #include <esp_app_desc.h>
 #include <esp_log.h>
 #include <esp_pthread.h>
@@ -192,67 +193,27 @@ void McpServer::AddCommonTools() {
                                        status_code.error().ToString());
             }
             int status = *status_code;
-            std::string response = http->ReadAll();
-            http->Close();
             if (status != 200) {
-                ESP_LOGE(TAG, "Tavily API error: status=%d body=%s", status, response.c_str());
-                return std::unexpected("Tavily API returned error (status: " + std::to_string(status) + ")");
+                // The error body is diagnostics only — never read it in full.
+                auto peek = ReadBounded(*http, 512);
+                http->Close();
+                ESP_LOGE(TAG, "Tavily API error: status=%d body=%s", status,
+                         peek ? peek->c_str() : "<too large or unreadable>");
+                return std::unexpected("Tavily API returned error (status: " +
+                                       std::to_string(status) + ")");
             }
-            ESP_LOGI(TAG, "Web search '%s': %u bytes", query.c_str(), (unsigned)response.size());
+            auto response = ReadBounded(*http, kMaxWebSearchResponseBytes);
+            http->Close();
+            if (!response) {
+                return std::unexpected("Tavily API read failed: " + response.error());
+            }
+            ESP_LOGI(TAG, "Web search '%s': %u bytes", query.c_str(), (unsigned)response->size());
 
-            cJSON *resp_json = cJSON_Parse(response.c_str());
-            if (!resp_json) {
-                return std::unexpected("Failed to parse Tavily response");
+            auto result = FormatWebSearchResults(*response, query);
+            if (!result) {
+                return std::unexpected(result.error());
             }
-            std::string result;
-
-            cJSON *answer = cJSON_GetObjectItem(resp_json, "answer");
-            if (cJSON_IsString(answer) && answer->valuestring) {
-                result += "Answer: ";
-                result += answer->valuestring;
-                result += "\n\n";
-            }
-            cJSON *results = cJSON_GetObjectItem(resp_json, "results");
-            if (cJSON_IsArray(results)) {
-                int count = cJSON_GetArraySize(results);
-                for (int i = 0; i < count; i++) {
-                    cJSON *item = cJSON_GetArrayItem(results, i);
-                    cJSON *title = cJSON_GetObjectItem(item, "title");
-                    cJSON *url = cJSON_GetObjectItem(item, "url");
-                    cJSON *content = cJSON_GetObjectItem(item, "content");
-                    if (i > 0) result += "\n---\n";
-                    result += std::to_string(i + 1) + ". ";
-                    if (cJSON_IsString(title) && title->valuestring) {
-                        result += title->valuestring;
-                    }
-                    result += "\n";
-                    if (cJSON_IsString(url) && url->valuestring) {
-                        result += "   URL: ";
-                        result += url->valuestring;
-                        result += "\n";
-                    }
-                    if (cJSON_IsString(content) && content->valuestring) {
-                        result += "   ";
-                        std::string content_str = content->valuestring;
-                        if (content_str.length() > 300) {
-                            content_str = content_str.substr(0, 300);
-                            content_str += "...";
-                        }
-                        result += content_str;
-                        result += "\n";
-                    }
-                }
-            }
-            cJSON_Delete(resp_json);
-
-            if (result.empty()) {
-                result = "No results found for: " + query;
-            }
-            if (result.length() > 5000) {
-                result = result.substr(0, 5000);
-                result += "\n... (truncated)";
-            }
-            return result;
+            return *result;
         });
 
     // Restore the original tools list to the end of the tools list
