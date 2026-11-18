@@ -6,7 +6,8 @@
         {
             "name": "petoi-bittle-ai-c3",
             "sdkconfig_append": [
-                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y"
             ]
         }
     ]

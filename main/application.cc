@@ -1312,6 +1312,10 @@ void Application::Reboot() {
 }
 
 bool Application::UpgradeFirmware(const std::string& url, const std::string& version) {
+#ifdef CONFIG_DISABLE_DEVICE_FIRMWARE_OTA
+    ESP_LOGW(TAG, "Firmware installation disabled by product configuration");
+    return false;
+#endif
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
 

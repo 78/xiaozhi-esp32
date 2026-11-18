@@ -1,5 +1,13 @@
 menu "Xiaozhi Assistant"
 
+config DISABLE_DEVICE_FIRMWARE_OTA
+    bool "Disable device firmware installation"
+    default n
+    help
+        Keep fetching activation and connection settings, but reject firmware
+        installation, including server-forced and manually requested updates.
+        Enable for controlled product migrations or externally managed firmware.
+
 config OTA_URL
     string "Default OTA URL"
     default "https://api.tenclass.net/xiaozhi/ota/"
