@@ -50,7 +50,7 @@ bool StoreLocale(const char* code, const std::string& ssid) {
 }
 
 std::string ReadCountry(NetworkInterface* network) {
-    if (!network)
+    if (!network || CONFIG_PETOI_COUNTRY_LOOKUP_URL[0] == '\0')
         return {};
     auto http = network->CreateHttp(0);
     if (!http)
@@ -62,9 +62,9 @@ std::string ReadCountry(NetworkInterface* network) {
     http->SetKeepAlive(false);
     http->SetTimeout(3000);
     const int64_t deadline = esp_timer_get_time() + 3000000;
-    // Preserve the original provider; request no location detail, and never
-    // transmit SSIDs, credentials, device identifiers or cached settings.
-    if (!http->Open("GET", "http://ip-api.com/json/?fields=status,countryCode"))
+    // The default preserves the original provider. Never add SSIDs, Wi-Fi
+    // credentials, device identifiers or cached settings to this request.
+    if (!http->Open("GET", CONFIG_PETOI_COUNTRY_LOOKUP_URL))
         return {};
     const auto status = http->GetStatusCode();
     if (!status || *status != 200 || http->GetBodyLength() > kMaximumBody)
@@ -145,7 +145,7 @@ void RuntimeLocale::Prepare(NetworkInterface* network) {
     const bool persisted = StoreLocale(LocaleCode(decision.locale), ssid);
     locale_.store(decision.locale);
     if (!persisted)
-        ESP_LOGW(kTag, "Locale cache unavailable; selection is valid for this boot only");
+        ESP_LOGW(kTag, "Locale cache save failed; a later boot may need another country lookup");
     ESP_LOGI(kTag, "Selected startup locale %s", Code());
 }
 
@@ -168,8 +168,9 @@ std::string_view RuntimeLocale::Sound(std::string_view sound) const {
     if (locale_.load() == ProductLocale::Chinese)
         return sound;
     for (const auto& pair : locale_assets::kSoundPairs)
-        if (sound.data() == pair.source.data() && sound.size() == pair.source.size())
-            return pair.english;
+        if (sound.data() == pair.source_start &&
+            sound.size() == static_cast<size_t>(pair.source_end - pair.source_start))
+            return {pair.english_start, static_cast<size_t>(pair.english_end - pair.english_start)};
     return sound;
 }
 }  // namespace petoi

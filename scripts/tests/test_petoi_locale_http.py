@@ -27,8 +27,10 @@ class PetoiLocaleHttpTests(unittest.TestCase):
 #include <string>
 #include "cJSON.h"
 constexpr size_t kMaximumBody=512;
+#define CONFIG_PETOI_COUNTRY_LOOKUP_URL scenario.endpoint.c_str()
 struct Scenario {
     std::string body, url; size_t cursor=0,declared=0;
+    std::string endpoint="http://ip-api.com/json/?fields=status,countryCode";
     bool open=true,read=true,slow=false; int status=200;
     unsigned closed=0,destroyed=0,read_calls=0; int64_t now=0;
 } scenario;
@@ -63,6 +65,9 @@ struct NetworkInterface { std::unique_ptr<Http> CreateHttp(int) { return std::ma
 int main() {
     NetworkInterface network;
     CHECK(ReadCountry(nullptr).empty());
+    scenario={};scenario.endpoint="";
+    CHECK(ReadCountry(&network).empty());
+    CHECK(scenario.closed==0 && scenario.destroyed==0);
     for(const char* cc:{"CN","US"}) {
         scenario={}; scenario.body=std::string("{\"status\":\"success\",\"countryCode\":\"")+cc+"\"}";
         CHECK(ReadCountry(&network)==cc);

@@ -22,7 +22,8 @@ def generate(assets: Path, output: Path):
         if FORMAT.findall(source) != FORMAT.findall(value):
             raise ValueError('Incompatible translation format: ' + key)
         lines.append('    {' + json.dumps(source, ensure_ascii=False) + ', ' + json.dumps(value) + '},')
-    lines += ['};', 'struct SoundPair { std::string_view source; std::string_view english; };']
+    lines += ['};', 'struct SoundPair { const char* source_start; const char* source_end; '
+              'const char* english_start; const char* english_end; };']
     pairs, copies = [], []
     for sound in sorted((assets / 'locales/en-US').glob('*.ogg')):
         name = sound.stem
@@ -35,9 +36,9 @@ def generate(assets: Path, output: Path):
         symbol = 'petoi_en_' + name
         lines += [f'extern const char {symbol}_start[] asm("_binary_{symbol}_ogg_start");',
                   f'extern const char {symbol}_end[] asm("_binary_{symbol}_ogg_end");']
-        pairs.append(f'    {{Lang::Sounds::OGG_{name.upper()}, '
-                     f'{{{symbol}_start, static_cast<size_t>({symbol}_end - {symbol}_start)}}}},')
-    lines += ['inline const SoundPair kSoundPairs[] = {', *pairs, '};', '}']
+        pairs.append(f'    {{Lang::Sounds::ogg_{name}_start, Lang::Sounds::ogg_{name}_end, '
+                     f'{symbol}_start, {symbol}_end}},')
+    lines += ['inline constexpr SoundPair kSoundPairs[] = {', *pairs, '};', '}']
     header = output / 'petoi_locale_assets.h'
     content = '\n'.join(lines) + '\n'
     if not header.exists() or header.read_text(encoding='utf-8') != content:

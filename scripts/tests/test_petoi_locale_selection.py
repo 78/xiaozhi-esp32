@@ -27,8 +27,8 @@ namespace locale_assets {
 struct TextPair { const char* source; const char* english; };
 const TextPair kTextPairs[]={{"提示 %s","Hint %s"}};
 constexpr char chinese_audio[]="chinese", english_audio[]="english";
-struct SoundPair { std::string_view source; std::string_view english; };
-const SoundPair kSoundPairs[]={{{chinese_audio,7},{english_audio,7}}};
+struct SoundPair { const char* source_start; const char* source_end; const char* english_start; const char* english_end; };
+constexpr SoundPair kSoundPairs[]={{chinese_audio,chinese_audio+7,english_audio,english_audio+7}};
 }
 ''' + methods + r'''
 }
@@ -46,7 +46,7 @@ int main() {
     const char* opaque="SSID 提示 %s";
     CHECK(en.Text(opaque)==opaque);
     CHECK(en.Text(nullptr)==nullptr);
-    auto base=locale_assets::kSoundPairs[0].source;
+    auto base=std::string_view(locale_assets::kSoundPairs[0].source_start,7);
     CHECK(zh.Sound(base).data()==base.data());
     CHECK(en.Sound(base).data()==locale_assets::english_audio);
     std::string unrelated(base);

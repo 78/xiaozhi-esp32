@@ -42,7 +42,7 @@ bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
 #endif
     char* model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, hint);
     if (model_name == nullptr) {
-        ESP_LOGE(TAG, "No WakeNet model found");
+        ESP_LOGE(TAG, "No WakeNet model found for %s", hint ? hint : "default");
         return false;
     }
     wakenet_iface_ = (esp_wn_iface_t*)esp_wn_handle_from_name(model_name);

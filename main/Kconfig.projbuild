@@ -17,6 +17,17 @@ config PETOI_LOCALE_TEST_ENGLISH
     depends on PETOI_RUNTIME_LOCALE
     default n
 
+config PETOI_COUNTRY_LOOKUP_URL
+    string "Petoi startup country JSON provider"
+    depends on PETOI_RUNTIME_LOCALE
+    default "http://ip-api.com/json/?fields=status,countryCode"
+    help
+        Expected JSON fields: status="success" and a two-letter countryCode.
+        The default preserves the legacy development provider. Production
+        builds can configure an authorized HTTP/HTTPS service without changing
+        source code. Failures retain the cached locale; no SSID is sent.
+        An empty URL disables the lookup and retains the cached/default locale.
+
 config MCP_TOOLS_LIST_PAYLOAD_LIMIT
     int "Maximum MCP tools-list response bytes"
     range 2048 8000
