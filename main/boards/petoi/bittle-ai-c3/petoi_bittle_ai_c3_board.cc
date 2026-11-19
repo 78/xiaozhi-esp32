@@ -6,6 +6,12 @@
 #include "mcp_server.h"
 #include "robot_uart.h"
 #include "wifi_board.h"
+#if CONFIG_PETOI_EXPRESSION_UI
+#include "expression_display.h"
+using PetoiBoardDisplay = PetoiExpressionDisplay;
+#else
+using PetoiBoardDisplay = SpiLcdDisplay;
+#endif
 
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
@@ -18,7 +24,7 @@ class PetoiBittleAiC3Board : public WifiBoard {
 private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
-    LcdDisplay* display_ = nullptr;
+    PetoiBoardDisplay* display_ = nullptr;
     petoi::RobotUart robot_uart_;
 
     void InitializeI2c() {
@@ -90,10 +96,60 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, true));
         ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
-        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                     DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
-                                     DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new PetoiBoardDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                         DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                         DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
+
+#if CONFIG_PETOI_EXPRESSION_UI
+    void InitializeExpressionTools() {
+        auto& mcp = McpServer::GetInstance();
+        mcp.AddTool(
+            "self.expression.look",
+            "Move only the LCD eyes, not the robot head. direction: center/up/down/left/right.",
+            PropertyList({Property("direction", kPropertyTypeString).SetMaxLength(16)}),
+            [this](const PropertyList& p) -> ToolResult {
+                display_->Look(p["direction"].value<std::string>());
+                return true;
+            });
+        mcp.AddTool("self.expression.blink", "Blink LCD eyes; times 0=random, 1=once, 2=twice.",
+                    PropertyList({Property("times", kPropertyTypeInteger, 0, 0, 2)}),
+                    [this](const PropertyList& p) -> ToolResult {
+                        display_->Blink(p["times"].value<int>());
+                        return true;
+                    });
+        mcp.AddTool("self.expression.set_mouth_width", "Set LCD mouth width; 0 restores animation.",
+                    PropertyList({Property("width", kPropertyTypeInteger, 0, 0, 240)}),
+                    [this](const PropertyList& p) -> ToolResult {
+                        display_->SetMouthWidth(p["width"].value<int>());
+                        return true;
+                    });
+        mcp.AddTool("self.expression.set_quiet_after_speech",
+                    "Narrow the LCD mouth after speech; does not mute the speaker.",
+                    PropertyList({Property("enabled", kPropertyTypeBoolean, true)}),
+                    [this](const PropertyList& p) -> ToolResult {
+                        display_->SetQuietAfterSpeech(p["enabled"].value<bool>());
+                        return true;
+                    });
+        mcp.AddTool("self.expression.set_mouth_style",
+                    "LCD mouth style: wide/narrow/closed/default.",
+                    PropertyList({Property("style", kPropertyTypeString).SetMaxLength(16)}),
+                    [this](const PropertyList& p) -> ToolResult {
+                        const auto style = p["style"].value<std::string>();
+                        if (style == "closed")
+                            display_->SetQuietAfterSpeech(true);
+                        else if (style == "wide" || style == "narrow" || style == "default") {
+                            display_->SetQuietAfterSpeech(false);
+                            if (style == "default")
+                                display_->SetMouthWidth(0);
+                            else
+                                display_->SetTemporaryMouthWidth(style == "wide" ? 170 : 52);
+                        } else
+                            return std::unexpected(std::string("Unknown mouth style"));
+                        return true;
+                    });
+    }
+#endif
 
     void InitializeRobotTools() {
         ESP_ERROR_CHECK(robot_uart_.Initialize());
@@ -127,6 +183,9 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         InitializeRobotTools();
+#if CONFIG_PETOI_EXPRESSION_UI
+        InitializeExpressionTools();
+#endif
         GetBacklight()->SetBrightness(100);
     }
 

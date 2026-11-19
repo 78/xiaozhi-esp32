@@ -8,6 +8,7 @@
             "sdkconfig_append": [
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
                 "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y",
+                "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_DIALOGUE_RESOURCE_LOGGING=n",
                 "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
                 "CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT=y"
@@ -18,6 +19,7 @@
             "sdkconfig_append": [
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
                 "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y",
+                "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
                 "CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y",
                 "CONFIG_DIALOGUE_RESOURCE_LOGGING=y"

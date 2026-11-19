@@ -1,5 +1,18 @@
 menu "Xiaozhi Assistant"
 
+config AUDIO_PLAYBACK_LEVEL
+    bool "Expose current speaker PCM peak for visual animation"
+    default n
+    help
+        Publish a bounded atomic peak while each PCM buffer is being output.
+        No additional task, queue or PCM copy is created.
+
+config PETOI_EXPRESSION_UI
+    bool "Petoi expression-only product interface"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3
+    select AUDIO_PLAYBACK_LEVEL
+    default n
+
 config DIALOGUE_RESOURCE_LOGGING
     bool "DEBUG per-request and settled-idle resource snapshots"
     depends on LOG_MAXIMUM_LEVEL >= 4

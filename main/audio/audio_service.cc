@@ -1,4 +1,7 @@
 #include "audio_service.h"
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+#include "sample_peak.h"
+#endif
 #include <esp_log.h>
 #include <cstring>
 
@@ -348,7 +351,14 @@ void AudioService::AudioOutputTask() {
             callbacks_.on_playback_progress(task.playback_id, task.media_position_ms);
         }
 
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+        playback_peak_.store(AudioSamplePeak(task.pcm.data(), task.pcm.size()),
+                             std::memory_order_relaxed);
+#endif
         codec_->OutputData(task.pcm);
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+        playback_peak_.store(0, std::memory_order_relaxed);
+#endif
 
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
