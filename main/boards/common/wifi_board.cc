@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "runtime_i18n.h"
 
 #include "display.h"
 #include "application.h"
@@ -55,7 +56,7 @@ void WifiBoard::StartNetwork() {
     // Initialize WiFi manager
     WifiManagerConfig config;
     config.ssid_prefix = "Xiaozhi";
-    config.language = Lang::CODE;
+    config.language = I18n::LanguageCode();
     config.show_ota_config = true;
     config.show_sleep_config = true;
 
@@ -178,12 +179,13 @@ void WifiBoard::StartWifiConfigMode() {
 
     // Show config prompt after a short delay
     Application::GetInstance().Schedule([&wifi_manager]() {
-        std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
+        std::string hint = I18n::Text(Lang::Strings::CONNECT_TO_HOTSPOT);
         hint += wifi_manager.GetApSsid();
-        hint += Lang::Strings::ACCESS_VIA_BROWSER;
+        hint += I18n::Text(Lang::Strings::ACCESS_VIA_BROWSER);
         hint += wifi_manager.GetApWebUrl();
 
-        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+        Application::GetInstance().Alert(I18n::Text(Lang::Strings::WIFI_CONFIG_MODE), hint.c_str(),
+                                         "gear", Lang::Sounds::OGG_WIFICONFIG);
     });
 #elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
     auto &blufi = Blufi::GetInstance();
@@ -194,7 +196,7 @@ void WifiBoard::StartWifiConfigMode() {
 
 void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "EnterWifiConfigMode called");
-    GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
+    GetDisplay()->ShowNotification(I18n::Text(Lang::Strings::ENTERING_WIFI_CONFIG_MODE));
 
     auto& app = Application::GetInstance();
     auto state = app.GetDeviceState();

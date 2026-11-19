@@ -38,6 +38,8 @@ class StartupAssetsTests(unittest.TestCase):
             #include <vector>
             #define TAG "HostApplication"
             #define BOARD_NAME "host-board"
+            // This startup-order fixture exercises the default, untranslated path.
+            namespace I18n { const char* Text(const char* text) { return text; } }
             #define ESP_LOGI(...) ((void)0)
             #define ESP_LOGW(...) ((void)0)
             #define pdMS_TO_TICKS(ms) (ms)

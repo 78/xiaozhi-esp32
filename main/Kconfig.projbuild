@@ -1,5 +1,22 @@
 menu "Xiaozhi Assistant"
 
+config RUNTIME_LOCALE
+    bool "Allow board-provided runtime text, sound and wake-model selection"
+    default n
+
+config PETOI_RUNTIME_LOCALE
+    bool "Petoi cached Chinese/English startup locale policy"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD
+    select RUNTIME_LOCALE
+    select SR_WN_WN9S_NIHAOXIAOZHI
+    select SR_WN_WN9S_HIJASON
+    default n
+
+config PETOI_LOCALE_TEST_ENGLISH
+    bool "Diagnostic: select English without changing persistent locale cache"
+    depends on PETOI_RUNTIME_LOCALE
+    default n
+
 config MCP_TOOLS_LIST_PAYLOAD_LIMIT
     int "Maximum MCP tools-list response bytes"
     range 2048 8000

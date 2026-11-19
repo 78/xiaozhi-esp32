@@ -12,9 +12,11 @@
                 "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_PETOI_ACTION_SEQUENCES=y",
                 "CONFIG_PETOI_LOCAL_ACTIONS=y",
+                "CONFIG_PETOI_RUNTIME_LOCALE=y",
                 "CONFIG_DIALOGUE_RESOURCE_LOGGING=n",
                 "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
-                "CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT=y"
+                "CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT=y",
+                "CONFIG_PETOI_LOCALE_TEST_ENGLISH=n"
             ]
         },
         {
@@ -26,9 +28,27 @@
                 "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_PETOI_ACTION_SEQUENCES=y",
                 "CONFIG_PETOI_LOCAL_ACTIONS=y",
+                "CONFIG_PETOI_RUNTIME_LOCALE=y",
                 "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
                 "CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y",
-                "CONFIG_DIALOGUE_RESOURCE_LOGGING=y"
+                "CONFIG_DIALOGUE_RESOURCE_LOGGING=y",
+                "CONFIG_PETOI_LOCALE_TEST_ENGLISH=n"
+            ]
+        },
+        {
+            "name": "petoi-bittle-ai-c3-locale-english-check",
+            "sdkconfig_append": [
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=1024",
+                "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y",
+                "CONFIG_PETOI_EXPRESSION_UI=y",
+                "CONFIG_PETOI_ACTION_SEQUENCES=y",
+                "CONFIG_PETOI_LOCAL_ACTIONS=y",
+                "CONFIG_PETOI_RUNTIME_LOCALE=y",
+                "CONFIG_DIALOGUE_RESOURCE_LOGGING=n",
+                "CONFIG_LOG_DEFAULT_LEVEL_INFO=y",
+                "CONFIG_LOG_MAXIMUM_EQUALS_DEFAULT=y",
+                "CONFIG_PETOI_LOCALE_TEST_ENGLISH=y"
             ]
         }
     ]

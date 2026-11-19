@@ -1,15 +1,16 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include <http.h>
-#include <web_socket.h>
-#include <mqtt.h>
-#include <udp.h>
-#include <string>
-#include <functional>
-#include <network_interface.h>
 #include <esp_system.h>
 #include <cJSON.h>
+#include <http.h>
+#include <mqtt.h>
+#include <network_interface.h>
+#include <udp.h>
+#include <web_socket.h>
+#include <functional>
+#include <string>
+#include <string_view>
 
 #include "led/led.h"
 #include "backlight.h"
@@ -88,6 +89,13 @@ public:
     // Main application task; board policy must return promptly and never wait
     // for wire transmission or physical actions. Default boards ignore it.
     virtual void OnUserTranscript(const std::string& text) { (void)text; }
+    // Runs on the existing activation worker, before OTA requests or WakeNet
+    // creation. Optional board preparation must use bounded network operations.
+    virtual void PrepareNetwork() {}
+    virtual const char* GetRuntimeLanguage() const { return nullptr; }
+    virtual const char* GetWakeWordModelHint() const { return nullptr; }
+    virtual const char* LocalizeText(const char* text) const { return text; }
+    virtual std::string_view LocalizeSound(std::string_view sound) const { return sound; }
     static const char* ResetReasonName(esp_reset_reason_t reason);
     virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;

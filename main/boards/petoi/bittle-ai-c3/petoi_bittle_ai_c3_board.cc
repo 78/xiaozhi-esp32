@@ -6,6 +6,9 @@
 #include "mcp_server.h"
 #include "robot_uart.h"
 #include "wifi_board.h"
+#if CONFIG_PETOI_RUNTIME_LOCALE
+#include "runtime_locale.h"
+#endif
 #if CONFIG_PETOI_ACTION_SEQUENCES
 #include "robot_controller.h"
 #include "robot_language.h"
@@ -34,6 +37,9 @@ private:
     Button boot_button_;
     PetoiBoardDisplay* display_ = nullptr;
     PetoiRobot robot_uart_;
+#if CONFIG_PETOI_RUNTIME_LOCALE
+    petoi::RuntimeLocale locale_;
+#endif
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -243,6 +249,16 @@ public:
     }
 
     virtual Display* GetDisplay() override { return display_; }
+
+#if CONFIG_PETOI_RUNTIME_LOCALE
+    void PrepareNetwork() override { locale_.Prepare(GetNetwork()); }
+    const char* GetRuntimeLanguage() const override { return locale_.Code(); }
+    const char* GetWakeWordModelHint() const override { return locale_.WakeModelHint(); }
+    const char* LocalizeText(const char* text) const override { return locale_.Text(text); }
+    std::string_view LocalizeSound(std::string_view sound) const override {
+        return locale_.Sound(sound);
+    }
+#endif
 
     void OnUserTranscript(const std::string& text) override {
         (void)text;

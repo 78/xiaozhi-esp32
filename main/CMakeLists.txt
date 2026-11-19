@@ -1136,6 +1136,27 @@ endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
+if(CONFIG_PETOI_RUNTIME_LOCALE)
+    if(NOT LANG_DIR STREQUAL "zh-CN")
+        message(FATAL_ERROR "Petoi runtime locale requires the zh-CN base build")
+    endif()
+    set(PETOI_LOCALE_DIR "${CMAKE_CURRENT_BINARY_DIR}/petoi_runtime_locale")
+    execute_process(COMMAND python "${PROJECT_DIR}/scripts/gen_petoi_locale.py"
+        --assets-dir "${CMAKE_CURRENT_SOURCE_DIR}/assets" --output-dir "${PETOI_LOCALE_DIR}"
+        RESULT_VARIABLE PETOI_LOCALE_RESULT)
+    if(NOT PETOI_LOCALE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Petoi runtime locale resource generation failed")
+    endif()
+    include("${PETOI_LOCALE_DIR}/embed_files.cmake")
+    list(APPEND LANG_SOUNDS ${PETOI_LOCALE_SOUNDS})
+    list(APPEND INCLUDE_DIRS "${PETOI_LOCALE_DIR}")
+    file(GLOB PETOI_LOCALE_INPUT_SOUNDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/*.ogg")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PETOI_LOCALE_INPUT_SOUNDS}
+        "${PROJECT_DIR}/scripts/gen_petoi_locale.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/zh-CN/language.json"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json")
+endif()
+
 # If target chip is ESP32, exclude specific files to avoid build errors
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"

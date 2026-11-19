@@ -1,6 +1,8 @@
 #include "esp_wake_word.h"
 #include <esp_log.h>
-
+#if CONFIG_RUNTIME_LOCALE
+#include "board.h"
+#endif
 
 #define TAG "EspWakeWord"
 
@@ -34,7 +36,11 @@ bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
         ESP_LOGE(TAG, "No model found");
         return false;
     }
-    char *model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, nullptr);
+    const char* hint = nullptr;
+#if CONFIG_RUNTIME_LOCALE
+    hint = Board::GetInstance().GetWakeWordModelHint();
+#endif
+    char* model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, hint);
     if (model_name == nullptr) {
         ESP_LOGE(TAG, "No WakeNet model found");
         return false;
