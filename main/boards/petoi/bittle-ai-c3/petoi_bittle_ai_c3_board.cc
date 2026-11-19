@@ -140,6 +140,12 @@ public:
 
     virtual Display* GetDisplay() override { return display_; }
 
+    void SetPowerSaveLevel(PowerSaveLevel level) override {
+        // Keep modem sleep disabled while qualifying this board's network path.
+        WifiBoard::SetPowerSaveLevel(
+            level == PowerSaveLevel::LOW_POWER ? PowerSaveLevel::PERFORMANCE : level);
+    }
+
     virtual Backlight* GetBacklight() override {
         static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
