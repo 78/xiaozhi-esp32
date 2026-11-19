@@ -12,6 +12,7 @@
 #include <memory>
 #include <functional>
 #include <cstdint>
+#include <atomic>
 #include <vector>
 
 #include "protocol.h"
@@ -123,6 +124,9 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+#if CONFIG_ASYNC_MCP_TOOLS
+    uint32_t GetMcpSessionEpoch() const { return mcp_session_epoch_.load(); }
+#endif
     
     /**
      * Reset protocol resources (thread-safe)
@@ -142,6 +146,9 @@ private:
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     esp_timer_handle_t startup_wake_word_hint_timer_ = nullptr;
     DeviceStateMachine state_machine_;
+#if CONFIG_ASYNC_MCP_TOOLS
+    std::atomic<uint32_t> mcp_session_epoch_{0};
+#endif
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;

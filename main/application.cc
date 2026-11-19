@@ -607,6 +607,9 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
+#if CONFIG_ASYNC_MCP_TOOLS
+        ++mcp_session_epoch_;
+#endif
         board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG,
@@ -617,6 +620,9 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnAudioChannelClosed([this, &board]() {
+#if CONFIG_ASYNC_MCP_TOOLS
+        ++mcp_session_epoch_;
+#endif
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
@@ -734,6 +740,7 @@ void Application::InitializeProtocol() {
                     dialogue_resources_.BeginRequest(
                         GetDeviceState(), protocol_ && protocol_->IsAudioChannelOpened());
 #endif
+                    Board::GetInstance().OnUserTranscript(message);
                     display->AddTextGlyphs(glyphs, bpp);
                     display->SetChatMessage("user", message.c_str());
                 });
@@ -1502,6 +1509,9 @@ void Application::SetAecMode(AecMode mode) {
 void Application::PlaySound(const std::string_view& sound) { audio_service_.PlaySound(sound); }
 
 void Application::ResetProtocol() {
+#if CONFIG_ASYNC_MCP_TOOLS
+    ++mcp_session_epoch_;
+#endif
     Schedule([this]() {
         if (GetDeviceState() == kDeviceStateNotifying) {
             StopNotification();

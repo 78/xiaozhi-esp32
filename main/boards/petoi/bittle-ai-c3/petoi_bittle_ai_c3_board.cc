@@ -6,6 +6,14 @@
 #include "mcp_server.h"
 #include "robot_uart.h"
 #include "wifi_board.h"
+#if CONFIG_PETOI_ACTION_SEQUENCES
+#include "robot_controller.h"
+#include "robot_language.h"
+#include "robot_tool_description.h"
+using PetoiRobot = petoi::RobotController;
+#else
+using PetoiRobot = petoi::RobotUart;
+#endif
 #if CONFIG_PETOI_EXPRESSION_UI
 #include "expression_display.h"
 using PetoiBoardDisplay = PetoiExpressionDisplay;
@@ -25,7 +33,7 @@ private:
     i2c_master_bus_handle_t codec_i2c_bus_;
     Button boot_button_;
     PetoiBoardDisplay* display_ = nullptr;
-    petoi::RobotUart robot_uart_;
+    PetoiRobot robot_uart_;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -154,6 +162,42 @@ private:
     void InitializeRobotTools() {
         ESP_ERROR_CHECK(robot_uart_.Initialize());
         auto& mcp = McpServer::GetInstance();
+#if CONFIG_PETOI_ACTION_SEQUENCES
+        mcp.AddAsyncTool(
+            "self.robot.send_command", petoi::kRobotToolDescription,
+            PropertyList(
+                {Property("text", kPropertyTypeString).SetMaxLength(petoi::kMaxCommandLength)}),
+            [this](const PropertyList& properties, const McpRequestContext& context,
+                   ToolCompletion completion) {
+                robot_uart_.Submit(
+                    properties["text"].value<std::string>(), context.id_json,
+                    context.direct_transport,
+                    [completion = std::move(completion)](petoi::RobotResult result) mutable {
+                        if (result.ok()) {
+                            completion(
+                                std::string(result.code == petoi::RobotResultCode::TokenObserved
+                                                ? "NyBoard completion token observed; commands="
+                                                : "UART transmitted; physical completion not "
+                                                  "tracked; commands=") +
+                                std::to_string(result.completed));
+                        } else {
+                            const char* reason =
+                                result.code == petoi::RobotResultCode::Timeout
+                                    ? "Completion token timeout; the last command may already have "
+                                      "executed"
+                                : result.code == petoi::RobotResultCode::TxError
+                                    ? "UART transmission failed; partial data may have been sent"
+                                : result.code == petoi::RobotResultCode::Cancelled
+                                    ? "Sequence cancelled; no further commands will be sent; an "
+                                      "in-flight action may continue"
+                                    : "Command rejected; no extra transmission was queued";
+                            completion(std::unexpected(
+                                std::string(reason) +
+                                "; remaining actions stopped; do not automatically retry"));
+                        }
+                    });
+            });
+#else
         mcp.AddTool(
             "self.robot.send_command",
             "Send one ASCII Petoi NyBoard command, for example kup (stand), ksit (sit), "
@@ -171,6 +215,7 @@ private:
                 return std::string(
                     "accepted for UART transmission; action completion is not tracked");
             });
+#endif
         mcp.AddTool("self.robot.get_status",
                     "Read the robot UART queue and last transmission error.", PropertyList(),
                     [this](const PropertyList&) -> ToolResult { return robot_uart_.GetStatus(); });
@@ -198,6 +243,19 @@ public:
     }
 
     virtual Display* GetDisplay() override { return display_; }
+
+    void OnUserTranscript(const std::string& text) override {
+        (void)text;
+#if CONFIG_PETOI_ACTION_SEQUENCES
+        std::string commands;
+#if CONFIG_PETOI_LOCAL_ACTIONS
+        petoi::BuildLocalActionText(text, commands);
+#endif
+        robot_uart_.BeginTurn(commands);
+#else
+        (void)text;
+#endif
+    }
 
     void SetPowerSaveLevel(PowerSaveLevel level) override {
         // Keep modem sleep disabled while qualifying this board's network path.

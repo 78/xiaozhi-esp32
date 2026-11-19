@@ -1,5 +1,23 @@
 menu "Xiaozhi Assistant"
 
+config ASYNC_MCP_TOOLS
+    bool "Allow bounded asynchronous device tools"
+    default n
+    help
+        Permit at most four deferred tools. Completion is serialized on the
+        application task; replies from an old audio session are discarded.
+
+config PETOI_ACTION_SEQUENCES
+    bool "Petoi bounded action sequences and deferred results"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3
+    select ASYNC_MCP_TOOLS
+    default n
+
+config PETOI_LOCAL_ACTIONS
+    bool "Petoi legacy local transcript action fallback"
+    depends on PETOI_ACTION_SEQUENCES
+    default n
+
 config AUDIO_PLAYBACK_LEVEL
     bool "Expose current speaker PCM peak for visual animation"
     default n

@@ -18,6 +18,9 @@
 #include <string_view>
 
 #include "application.h"
+#if CONFIG_ASYNC_MCP_TOOLS
+#include "deferred_reply_gate.h"
+#endif
 #include "board.h"
 #include "display.h"
 #include "lvgl_image.h"
@@ -364,6 +367,13 @@ void McpServer::AddTool(std::unique_ptr<McpTool> tool) {
     tools_.push_back(std::move(tool));
 }
 
+#if CONFIG_ASYNC_MCP_TOOLS
+void McpServer::AddAsyncTool(const std::string& name, const std::string& description,
+                             const PropertyList& properties, AsyncToolCallback callback) {
+    AddTool(std::make_unique<McpTool>(name, description, properties, std::move(callback)));
+}
+#endif
+
 void McpServer::AddTool(const std::string& name, const std::string& description,
                         const PropertyList& properties, ToolCallback callback) {
     AddTool(std::make_unique<McpTool>(name, description, properties, std::move(callback)));
@@ -461,6 +471,9 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
 
 void McpServer::ParseMessage(const cJSON* json, ResponseSender response_sender) {
     McpRequestContext context;
+#if CONFIG_ASYNC_MCP_TOOLS
+    context.direct_transport = static_cast<bool>(response_sender);
+#endif
     auto id = cJSON_GetObjectItemCaseSensitive(json, "id");
     if (cJSON_IsString(id)) {
         context.id_json = JsonString(id->valuestring);
@@ -744,19 +757,67 @@ void McpServer::DoToolCall(McpRequestContext context, McpTool* tool, const cJSON
     // Reuse the existing application task. Context owns ID/vision after input JSON is destroyed.
     Application::GetInstance().Schedule([this, context = std::move(context), tool,
                                          arguments = std::move(arguments),
+#if CONFIG_ASYNC_MCP_TOOLS
+                                         epoch = Application::GetInstance().GetMcpSessionEpoch(),
+#endif
                                          response_sender = std::move(response_sender)]() {
-        auto result = tool->Call(arguments, context);
-        if (!result) {
-            if (context.modern) {
-                std::string error = "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":";
-                error += JsonString(result.error().c_str());
-                error += "}]}";
-                ReplyResult(context, error, response_sender);
-            } else {
-                ReplyError(context, result.error(), response_sender);
+#if CONFIG_ASYNC_MCP_TOOLS
+        if (tool->IsAsync()) {
+            if (!response_sender && epoch != Application::GetInstance().GetMcpSessionEpoch())
+                return;
+            if (pending_async_tools_ >= 4) {
+                ReplyError(context, -32000, "Too many pending asynchronous tools", response_sender);
+                return;
             }
+            struct PendingReply {
+                McpRequestContext context;
+                ResponseSender sender;
+                DeferredReplyGate gate;
+                PendingReply(McpRequestContext c, ResponseSender s, uint32_t epoch)
+                    : context(std::move(c)), sender(std::move(s)), gate(epoch, !sender) {}
+            };
+            auto pending = std::make_shared<PendingReply>(std::move(context),
+                                                          std::move(response_sender), epoch);
+            ++pending_async_tools_;
+            // An async owner must copy argument values before this callback returns,
+            // and complete once on success, cancellation, or bounded timeout.
+            tool->CallAsync(
+                arguments, pending->context, [this, pending](AsyncToolResult value) mutable {
+                    if (!pending->gate.Claim())
+                        return;
+                    Application::GetInstance().Schedule(
+                        [this, pending, value = std::move(value)]() mutable {
+                            --pending_async_tools_;
+                            if (!pending->gate.CanReply(
+                                    Application::GetInstance().GetMcpSessionEpoch()))
+                                return;
+                            FinishToolCall(
+                                pending->context,
+                                McpTool::SerializeAsyncResult(std::move(value), pending->context),
+                                pending->sender);
+                        });
+                });
             return;
         }
-        ReplyResult(context, *result, response_sender);
+#endif
+        auto result = tool->Call(arguments, context);
+        FinishToolCall(context, result, response_sender);
     });
+}
+
+void McpServer::FinishToolCall(const McpRequestContext& context,
+                               const std::expected<std::string, std::string>& result,
+                               const ResponseSender& response_sender) {
+    if (!result) {
+        if (context.modern) {
+            std::string error = "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":";
+            error += JsonString(result.error().c_str());
+            error += "}]}";
+            ReplyResult(context, error, response_sender);
+        } else {
+            ReplyError(context, result.error(), response_sender);
+        }
+        return;
+    }
+    ReplyResult(context, *result, response_sender);
 }

@@ -85,6 +85,9 @@ public:
     virtual const char* GetNetworkStateIcon() = 0;
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging);
     virtual std::string GetSystemInfoJson();
+    // Main application task; board policy must return promptly and never wait
+    // for wire transmission or physical actions. Default boards ignore it.
+    virtual void OnUserTranscript(const std::string& text) { (void)text; }
     static const char* ResetReasonName(esp_reset_reason_t reason);
     virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;
