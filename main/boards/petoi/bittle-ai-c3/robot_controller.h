@@ -34,6 +34,19 @@ struct RobotResult {
     }
 };
 
+inline const char* RobotResultName(RobotResultCode code) {
+    switch (code) {
+        case RobotResultCode::Pending: return "pending";
+        case RobotResultCode::Transmitted: return "transmitted";
+        case RobotResultCode::TokenObserved: return "token_observed";
+        case RobotResultCode::Timeout: return "timeout";
+        case RobotResultCode::TxError: return "uart_error";
+        case RobotResultCode::Cancelled: return "cancelled";
+        case RobotResultCode::Rejected: return "rejected";
+    }
+    return "unknown";
+}
+
 // Metadata and completions live only on Application's task. A single UART
 // worker owns transmission/RX and posts bounded progress messages back to it.
 class RobotController {
@@ -187,7 +200,7 @@ public:
                "; transmitting=" + std::to_string(transmitting_.load()) +
                "; waiting_token=" + std::to_string(waiting_.load()) +
                "; action_index=" + std::to_string(action_index_.load()) +
-               "; last_result=" + std::to_string(static_cast<int>(last_result_)) +
+               "; last_result=" + RobotResultName(last_result_) +
                "; UART/token observations do not independently prove physical action completion";
     }
 
@@ -267,6 +280,9 @@ private:
             auto& slot = slots_[root];
             slot.states[index] = result;
             last_result_ = result;
+            ESP_LOGI("PetoiRobot", "turn=%lu action=%u/%u result=%s",
+                     static_cast<unsigned long>(generation), static_cast<unsigned>(index+1),
+                     static_cast<unsigned>(slot.count), RobotResultName(result));
             if (result != RobotResultCode::Transmitted && result != RobotResultCode::TokenObserved)
                 for (size_t i = index + 1; i < slot.count; ++i)
                     slot.states[i] = RobotResultCode::Cancelled;

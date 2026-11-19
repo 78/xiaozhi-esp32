@@ -1,5 +1,14 @@
 menu "Xiaozhi Assistant"
 
+config MCP_TOOLS_LIST_PAYLOAD_LIMIT
+    int "Maximum MCP tools-list response bytes"
+    range 2048 8000
+    default 2048 if BOARD_TYPE_PETOI_BITTLE_AI_C3
+    default 8000
+    help
+        Limit serialized tools-list pages to bound temporary heap usage.
+        Remaining tools are returned using the existing nextCursor mechanism.
+
 config ASYNC_MCP_TOOLS
     bool "Allow bounded asynchronous device tools"
     default n

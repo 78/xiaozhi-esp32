@@ -28,6 +28,7 @@ class McpServerTest(unittest.TestCase):
         stubs = {
             "platform.h": r'''
                 #pragma once
+                #define CONFIG_MCP_TOOLS_LIST_PAYLOAD_LIMIT 8000
                 #define _APPLICATION_H_
                 #define SETTINGS_H
                 #define BOARD_NAME "host-test"

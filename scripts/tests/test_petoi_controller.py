@@ -69,6 +69,7 @@ inline int uart_read_bytes(int,uint8_t* bytes,size_t,int) {
 }
 inline int64_t esp_timer_get_time() { return clock_us; }
 #define ESP_LOGD(...) ((void)0)
+#define ESP_LOGI(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
 #define ESP_LOGW(...) ((void)0)
 struct Application {
