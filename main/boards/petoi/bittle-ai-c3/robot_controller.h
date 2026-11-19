@@ -36,13 +36,20 @@ struct RobotResult {
 
 inline const char* RobotResultName(RobotResultCode code) {
     switch (code) {
-        case RobotResultCode::Pending: return "pending";
-        case RobotResultCode::Transmitted: return "transmitted";
-        case RobotResultCode::TokenObserved: return "token_observed";
-        case RobotResultCode::Timeout: return "timeout";
-        case RobotResultCode::TxError: return "uart_error";
-        case RobotResultCode::Cancelled: return "cancelled";
-        case RobotResultCode::Rejected: return "rejected";
+        case RobotResultCode::Pending:
+            return "pending";
+        case RobotResultCode::Transmitted:
+            return "transmitted";
+        case RobotResultCode::TokenObserved:
+            return "token_observed";
+        case RobotResultCode::Timeout:
+            return "timeout";
+        case RobotResultCode::TxError:
+            return "uart_error";
+        case RobotResultCode::Cancelled:
+            return "cancelled";
+        case RobotResultCode::Rejected:
+            return "rejected";
     }
     return "unknown";
 }
@@ -104,7 +111,8 @@ public:
             slots_[0].count = local_plan_.count;
             slots_[0].mask = (1u << local_plan_.count) - 1;
             slots_[0].text = PlanText(local_plan_);
-            main_job_ = {local_plan_, generation, Application::GetInstance().GetMcpSessionEpoch(), 0, true};
+            main_job_ = {local_plan_, generation, Application::GetInstance().GetMcpSessionEpoch(),
+                         0, true};
             if (xQueueSend(queue_, &main_job_, 0) == pdTRUE) {
                 local_ = true;
             } else
@@ -229,7 +237,7 @@ private:
     std::atomic<unsigned> action_index_{0};
     std::array<Slot, kSlots> slots_{};
     RobotPlan local_plan_{};
-    Job main_job_{}; // Reused only by the main-task producer, not the UART worker.
+    Job main_job_{};  // Reused only by the main-task producer, not the UART worker.
     bool local_ = false;
     size_t local_cursor_ = 0;
     RobotResultCode last_result_ = RobotResultCode::Pending;
@@ -281,7 +289,7 @@ private:
             slot.states[index] = result;
             last_result_ = result;
             ESP_LOGI("PetoiRobot", "turn=%lu action=%u/%u result=%s",
-                     static_cast<unsigned long>(generation), static_cast<unsigned>(index+1),
+                     static_cast<unsigned long>(generation), static_cast<unsigned>(index + 1),
                      static_cast<unsigned>(slot.count), RobotResultName(result));
             if (result != RobotResultCode::Transmitted && result != RobotResultCode::TokenObserved)
                 for (size_t i = index + 1; i < slot.count; ++i)
