@@ -4,6 +4,40 @@
 #include <string_view>
 
 namespace petoi {
+// The country service has a flat object schema. Reject nesting before invoking
+// cJSON so a small but deeply nested response cannot exhaust the worker stack.
+inline bool IsFlatCountryObject(std::string_view body) {
+    const auto first = body.find_first_not_of(" \t\r\n");
+    if (first == std::string_view::npos || body[first] != '{' ||
+        body.find('\0') != std::string_view::npos || body.find("\\u0000") != std::string_view::npos)
+        return false;
+    bool quoted = false, escaped = false;
+    int depth = 0;
+    for (const unsigned char c : body) {
+        if (quoted) {
+            if (escaped)
+                escaped = false;
+            else if (c == '\\')
+                escaped = true;
+            else if (c == '"')
+                quoted = false;
+            else if (c < 32)
+                return false;
+        } else if (c == '"') {
+            quoted = true;
+        } else if (c == '{') {
+            if (++depth > 1)
+                return false;
+        } else if (c == '}') {
+            if (--depth < 0)
+                return false;
+        } else if (c == '[' || c == ']') {
+            return false;
+        }
+    }
+    return !quoted && !escaped && depth == 0;
+}
+
 enum class ProductLocale { Chinese, English };
 
 inline const char* LocaleCode(ProductLocale locale) {

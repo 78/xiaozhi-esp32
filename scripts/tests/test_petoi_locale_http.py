@@ -26,12 +26,14 @@ class PetoiLocaleHttpTests(unittest.TestCase):
 #include <memory>
 #include <string>
 #include "cJSON.h"
+#include "boards/petoi/bittle-ai-c3/runtime_locale_policy.h"
+using petoi::IsFlatCountryObject;
 constexpr size_t kMaximumBody=512;
 #define CONFIG_PETOI_COUNTRY_LOOKUP_URL scenario.endpoint.c_str()
 struct Scenario {
     std::string body, url; size_t cursor=0,declared=0;
     std::string endpoint="http://ip-api.com/json/?fields=status,countryCode";
-    bool open=true,read=true,slow=false; int status=200;
+    bool open=true,read=true,slow=false,fail_after_body=false; int status=200;
     unsigned closed=0,destroyed=0,read_calls=0; int64_t now=0;
 } scenario;
 int64_t esp_timer_get_time() { return scenario.now+=(scenario.slow ? 4000000 : 100); }
@@ -54,6 +56,7 @@ struct Http {
     Result<int> Read(char* data,size_t capacity) {
         ++scenario.read_calls;
         if(!scenario.read) return {false,0};
+        if(scenario.fail_after_body && scenario.cursor==scenario.body.size()) return {false,0};
         size_t count=std::min(capacity,scenario.body.size()-scenario.cursor);
         std::memcpy(data,scenario.body.data()+scenario.cursor,count);scenario.cursor+=count;
         return {true,static_cast<int>(count)};
@@ -78,7 +81,9 @@ int main() {
         "{\"status\":\"fail\",\"countryCode\":\"CN\"}",
         "{\"status\":\"success\",\"countryCode\":12}",
         "{\"status\":\"success\",\"countryCode\":\"CHN\"}",
-        "{\"status\":\"success\",\"countryCode\":\"CN\"}trailing"}) {
+        "{\"status\":\"success\",\"countryCode\":\"CN\"}trailing",
+        "{\"status\":\"success\\u0000ignored\",\"countryCode\":\"CN\"}",
+        "{\"status\":\"success\",\"countryCode\":\"CN\",\"nested\":{}}"}) {
         scenario={};scenario.body=invalid;
         CHECK(ReadCountry(&network).empty());
         CHECK(scenario.closed==1 && scenario.destroyed==1);
@@ -96,6 +101,15 @@ int main() {
     scenario={};scenario.body=std::string(600,'x');
     CHECK(ReadCountry(&network).empty());
     CHECK(scenario.read_calls<=5 && scenario.closed==1 && scenario.destroyed==1);
+    scenario={};scenario.body="{\"status\":\"success\",\"countryCode\":\"CN\"}";
+    scenario.declared=scenario.body.size();scenario.fail_after_body=true;
+    CHECK(ReadCountry(&network)=="CN" && scenario.read_calls==1);
+    scenario={};scenario.body="{\"status\":\"success\",\"countryCode\":\"CN\"}";
+    scenario.declared=scenario.body.size()+1;
+    CHECK(ReadCountry(&network).empty() && scenario.closed==1);
+    scenario={};scenario.body="{\"status\":\"success\",\"countryCode\":\"CN\"}";
+    scenario.declared=1;
+    CHECK(ReadCountry(&network).empty() && scenario.closed==1);
 }
 '''
         with tempfile.TemporaryDirectory() as directory:
@@ -104,7 +118,7 @@ int main() {
             cpp.write_text(driver, encoding='utf-8')
             subprocess.run([c_compiler, '-std=c99', '-I', str(cjson), '-c', str(cjson / 'cJSON.c'), '-o', str(obj)],
                            check=True, capture_output=True, text=True)
-            compiled = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', '-I', str(cjson),
+            compiled = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', '-I', str(cjson), '-I', str(ROOT / 'main'),
                                        str(cpp), str(obj), '-o', str(binary)], capture_output=True, text=True)
             self.assertEqual(compiled.returncode, 0, compiled.stderr)
             subprocess.run([str(binary)], check=True, capture_output=True, text=True)

@@ -837,6 +837,10 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
 
 void Application::Alert(const char* status, const char* message, const char* emotion,
                         const std::string_view& sound) {
+    // Protocol callbacks may supply a compiled-language string rather than a
+    // literal at the call site. Translate known system messages at this boundary.
+    status = I18n::Text(status);
+    message = I18n::Text(message);
     ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
     auto display = Board::GetInstance().GetDisplay();
     display->SetStatus(status);

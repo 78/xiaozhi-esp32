@@ -21,6 +21,13 @@ class PetoiRuntimeLocaleTests(unittest.TestCase):
 int main() {
     using namespace petoi;
     const auto zh=ProductLocale::Chinese, en=ProductLocale::English;
+    CHECK(IsFlatCountryObject("{\"status\":\"success\",\"countryCode\":\"CN\"}"));
+    CHECK(IsFlatCountryObject("{\"text\":\"{}[]\"}"));
+    CHECK(!IsFlatCountryObject("{\"object\":{}}"));
+    CHECK(!IsFlatCountryObject("{\"array\":[]}"));
+    CHECK(!IsFlatCountryObject("null"));
+    CHECK(!IsFlatCountryObject("{\"text\":\"\\u0000\"}"));
+    CHECK(!IsFlatCountryObject(std::string(100,'{')+std::string(100,'}')));
     CHECK(CachedLocale("zh-CN",en)==zh);
     CHECK(CachedLocale("en-US",zh)==en);
     CHECK(CachedLocale("unknown",zh)==zh);

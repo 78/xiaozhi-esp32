@@ -67,7 +67,10 @@ std::string ReadCountry(NetworkInterface* network) {
     if (!http->Open("GET", CONFIG_PETOI_COUNTRY_LOOKUP_URL))
         return {};
     const auto status = http->GetStatusCode();
-    if (!status || *status != 200 || http->GetBodyLength() > kMaximumBody)
+    if (!status || *status != 200)
+        return {};
+    const auto expected_length = http->GetBodyLength();
+    if (expected_length > kMaximumBody)
         return {};
     std::string body;
     std::array<char, 128> buffer;
@@ -81,14 +84,20 @@ std::string ReadCountry(NetworkInterface* network) {
         if (!count || *count < 0 || static_cast<size_t>(*count) > buffer.size())
             return {};
         if (*count == 0) {
-            complete = true;
+            complete = expected_length == 0 || body.size() == expected_length;
             break;
         }
         if (body.size() + static_cast<size_t>(*count) > kMaximumBody)
             return {};
         body.append(buffer.data(), *count);
+        if (expected_length && body.size() > expected_length)
+            return {};
+        if (expected_length && body.size() == expected_length) {
+            complete = true;
+            break;
+        }
     }
-    if (!complete || body.empty())
+    if (!complete || !IsFlatCountryObject(body))
         return {};
     std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(
         cJSON_ParseWithLengthOpts(body.c_str(), body.size() + 1, nullptr, true), cJSON_Delete);
