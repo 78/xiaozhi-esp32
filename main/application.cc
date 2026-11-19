@@ -64,6 +64,9 @@ Application::~Application() {
 bool Application::SetDeviceState(DeviceState state) { return state_machine_.TransitionTo(state); }
 
 void Application::Initialize() {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+    esp_log_level_set("DialogRes", ESP_LOG_DEBUG);
+#endif
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
@@ -311,6 +314,13 @@ void Application::Run() {
             HideStartupWakeWordHint();
         }
         ShowStartupWakeWordHint();
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+        if (!(xEventGroupGetBits(event_group_) & MAIN_EVENT_STATE_CHANGED)) {
+            dialogue_resources_.Poll(GetDeviceState(), audio_service_.IsPlaybackIdle(),
+                                     protocol_ && protocol_->IsAudioChannelOpened(),
+                                     esp_timer_get_time());
+        }
+#endif
     }
 }
 
@@ -669,6 +679,9 @@ void Application::InitializeProtocol() {
                         return;
                     }
                     aborted_ = false;
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                    dialogue_resources_.ResponseStarted();
+#endif
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
@@ -677,6 +690,9 @@ void Application::InitializeProtocol() {
                         return;
                     }
                     if (GetDeviceState() == kDeviceStateSpeaking) {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                        dialogue_resources_.ResponseStopped(aborted_);
+#endif
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
@@ -712,8 +728,12 @@ void Application::InitializeProtocol() {
                     glyphs.clear();
                 }
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                Schedule([display, message = std::string(text->valuestring),
+                Schedule([this, display, message = std::string(text->valuestring),
                           glyphs = std::move(glyphs), bpp]() {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                    dialogue_resources_.BeginRequest(
+                        GetDeviceState(), protocol_ && protocol_->IsAudioChannelOpened());
+#endif
                     display->AddTextGlyphs(glyphs, bpp);
                     display->SetChatMessage("user", message.c_str());
                 });

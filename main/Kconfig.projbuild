@@ -1,5 +1,16 @@
 menu "Xiaozhi Assistant"
 
+config DIALOGUE_RESOURCE_LOGGING
+    bool "DEBUG per-request and settled-idle resource snapshots"
+    depends on LOG_MAXIMUM_LEVEL >= 4
+    default n
+    help
+        Log internal heap, largest block, task count and main-task stack margin
+        after user requests, drained replies, and three seconds of closed-channel
+        idle. Diagnostics only; does not force resource release or retry requests.
+        Requires maximum log level DEBUG or higher. The application enables only
+        the DialogRes tag at DEBUG; other tags retain their configured level.
+
 config DISABLE_DEVICE_FIRMWARE_OTA
     bool "Disable device firmware installation"
     default n

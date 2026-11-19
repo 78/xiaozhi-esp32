@@ -20,6 +20,9 @@
 #include "device_state.h"
 #include "device_state_machine.h"
 #include "notify/notify_player.h"
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+#include "diagnostics/dialogue_resources.h"
+#endif
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -144,6 +147,9 @@ private:
     std::string last_error_message_;
     std::string startup_wake_word_hint_message_;
     AudioService audio_service_;
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+    DialogueResources dialogue_resources_;
+#endif
     NotifyPlayer notify_player_;
     uint32_t notification_playback_id_ = 0;
     std::unique_ptr<Ota> ota_;
