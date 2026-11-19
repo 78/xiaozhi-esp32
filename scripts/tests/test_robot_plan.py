@@ -46,6 +46,10 @@ int main() {
     std::string commands;
     assert(petoi::BuildLocalActionText("先站起来再坐下然后休息",commands));
     assert(commands=="kup,ksit,d");
+    assert(petoi::BuildLocalActionText("先站起来，再坐下，最后休息。",commands));
+    assert(commands=="kup,ksit,d");
+    assert(petoi::BuildLocalActionText("先站起来再坐下最后休息。",commands));
+    assert(commands=="kup,ksit,d");
     assert(petoi::BuildLocalActionText("先坐下再站起来再坐下",commands));
     assert(commands=="ksit,kup,ksit");
     assert(petoi::BuildLocalActionText("向前走三步，然后左转30度",commands));
@@ -54,7 +58,8 @@ int main() {
     assert(commands=="ksit,kup");
     for (const auto& text:{"不要坐下","为什么要坐下","讲个坐下的故事","visit a friend",
                            "向前走二十步","前进999999999999999999999999999步",
-                           "坐下然后讲个故事","坐下然后站起来然后休息然后坐下然后站起来"}) {
+                           "坐下然后讲个故事","坐下然后站起来然后休息然后坐下然后站起来",
+                           "先站起来再做下最后休息。","先站起来再做下，最后休息。"}) {
         assert(!petoi::BuildLocalActionText(text,commands)); assert(commands.empty());
     }
 }

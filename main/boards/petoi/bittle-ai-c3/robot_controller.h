@@ -310,9 +310,10 @@ private:
                     break;
                 }
                 const auto& frame = job.plan.frames[i];
-                ESP_LOGD("PetoiRobot", "TX action=%u/%u bytes=%u", static_cast<unsigned>(i + 1),
-                         static_cast<unsigned>(job.plan.count),
-                         static_cast<unsigned>(frame.length));
+                ESP_LOGI("PetoiRobot", "TX turn=%lu action=%u/%u command=%.*s",
+                         static_cast<unsigned long>(job.generation), static_cast<unsigned>(i + 1),
+                         static_cast<unsigned>(job.plan.count), static_cast<int>(frame.length - 3),
+                         frame.data.data() + 3);
                 uart_flush_input(UART_NUM_1);
                 const int written = uart_write_bytes(UART_NUM_1, frame.data.data(), frame.length);
                 if (written != static_cast<int>(frame.length) ||
@@ -327,14 +328,24 @@ private:
                 }
                 waiting_ = true;
                 bool token_seen = false;
+                size_t received = 0;
+                std::array<char, 33>
+                    rx_hex{};  // At most the first 16 RX bytes, no heap allocation.
                 const int64_t deadline =
                     esp_timer_get_time() + static_cast<int64_t>(CommandTimeoutMs(frame)) * 1000;
                 while (Current(job) && esp_timer_get_time() < deadline && !token_seen) {
                     uint8_t bytes[32];
                     const int count =
                         uart_read_bytes(UART_NUM_1, bytes, sizeof(bytes), pdMS_TO_TICKS(20));
-                    for (int n = 0; n < count; ++n)
+                    for (int n = 0; n < count; ++n) {
+                        if (received < 16) {
+                            constexpr char digits[] = "0123456789abcdef";
+                            rx_hex[received * 2] = digits[bytes[n] >> 4];
+                            rx_hex[received * 2 + 1] = digits[bytes[n] & 15];
+                        }
+                        ++received;
                         token_seen |= bytes[n] == frame.data[3];
+                    }
                 }
                 waiting_ = false;
                 const auto result = !Current(job) ? RobotResultCode::Cancelled
@@ -342,7 +353,10 @@ private:
                                                   : RobotResultCode::Timeout;
                 Progress(job, i, result);
                 if (result == RobotResultCode::Timeout)
-                    ESP_LOGW("PetoiRobot", "Completion token timeout; remaining actions cancelled");
+                    ESP_LOGW("PetoiRobot",
+                             "Completion token timeout expected=%c rx_bytes=%u first16_hex=%s; "
+                             "remaining actions cancelled",
+                             frame.data[3], static_cast<unsigned>(received), rx_hex.data());
                 if (result != RobotResultCode::TokenObserved)
                     break;
             }

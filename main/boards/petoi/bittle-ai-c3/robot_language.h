@@ -260,7 +260,7 @@ inline bool BuildLocalActionText(const std::string& text, std::string& commands)
     size_t begin = 0;
     while (begin < text.size()) {
         size_t end = std::string::npos, skip = 0;
-        for (const char* separator : {"然后", "接着", "随后", "之后", "，", ",", "；", ";",
+        for (const char* separator : {"然后", "接着", "随后", "之后", "最后", "，", ",", "；", ";",
                                       " and then ", " then ", " followed by "}) {
             const auto pos = lower.find(separator, begin);
             if (pos != std::string::npos && (end == std::string::npos || pos < end)) {
