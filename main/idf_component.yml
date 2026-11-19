@@ -56,7 +56,10 @@ dependencies:
     rules:
     - if: target in [esp32c5, esp32p4, esp32s3, esp32s31]
     matches:
-    - if: target in [esp32p4, esp32s3, esp32s31]
+    # esp_video 2.6.x requires esp_ipa 2.5.x with pre-v3 P4 libraries.
+    - if: target == esp32p4
+      version: ^2.6.0
+    - if: target in [esp32s3, esp32s31]
     - if: target == esp32c5 && $CONFIG{BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5} == True
       version: ^2.5.0
 
