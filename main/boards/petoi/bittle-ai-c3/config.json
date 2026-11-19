@@ -7,6 +7,7 @@
             "name": "petoi-bittle-ai-c3",
             "sdkconfig_append": [
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=1024",
                 "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y",
                 "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_PETOI_ACTION_SEQUENCES=y",
@@ -20,6 +21,7 @@
             "name": "petoi-bittle-ai-c3-resource-debug",
             "sdkconfig_append": [
                 "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=1024",
                 "CONFIG_DISABLE_DEVICE_FIRMWARE_OTA=y",
                 "CONFIG_PETOI_EXPRESSION_UI=y",
                 "CONFIG_PETOI_ACTION_SEQUENCES=y",
