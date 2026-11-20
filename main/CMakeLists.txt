@@ -185,6 +185,11 @@ elseif(CONFIG_BOARD_TYPE_QUANDONG_S3_DEV_4_0_LCD)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_128)
+elseif(CONFIG_BOARD_TYPE_PETOI_BITTLE_AI_C3)
+    set(BOARD_DIR "petoi/bittle-ai-c3")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_LICHUANG_DEV_C3)
     set(BOARD_DIR "lckfb/szpi-esp32c3")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -1135,6 +1140,27 @@ if(NOT LANG_DIR STREQUAL "en-US")
 endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
+
+if(CONFIG_PETOI_RUNTIME_LOCALE)
+    set(PETOI_LOCALE_DIR "${CMAKE_CURRENT_BINARY_DIR}/petoi_runtime_locale")
+    execute_process(COMMAND python "${PROJECT_DIR}/scripts/gen_petoi_locale.py"
+        --assets-dir "${CMAKE_CURRENT_SOURCE_DIR}/assets" --output-dir "${PETOI_LOCALE_DIR}"
+        --base-language "${LANG_DIR}"
+        RESULT_VARIABLE PETOI_LOCALE_RESULT)
+    if(NOT PETOI_LOCALE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Petoi runtime locale resource generation failed")
+    endif()
+    include("${PETOI_LOCALE_DIR}/embed_files.cmake")
+    list(APPEND LANG_SOUNDS ${PETOI_LOCALE_SOUNDS})
+    list(APPEND INCLUDE_DIRS "${PETOI_LOCALE_DIR}")
+    file(GLOB PETOI_LOCALE_INPUT_SOUNDS CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/*.ogg"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/zh-CN/*.ogg")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PETOI_LOCALE_INPUT_SOUNDS}
+        "${PROJECT_DIR}/scripts/gen_petoi_locale.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/zh-CN/language.json"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/locales/en-US/language.json")
+endif()
 
 # If target chip is ESP32, exclude specific files to avoid build errors
 if(CONFIG_IDF_TARGET_ESP32)

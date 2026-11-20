@@ -1,4 +1,8 @@
 #include "audio_service.h"
+#include "runtime_i18n.h"
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+#include "sample_peak.h"
+#endif
 #include <esp_log.h>
 #include <cstring>
 
@@ -348,7 +352,14 @@ void AudioService::AudioOutputTask() {
             callbacks_.on_playback_progress(task.playback_id, task.media_position_ms);
         }
 
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+        playback_peak_.store(AudioSamplePeak(task.pcm.data(), task.pcm.size()),
+                             std::memory_order_relaxed);
+#endif
         codec_->OutputData(task.pcm);
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+        playback_peak_.store(0, std::memory_order_relaxed);
+#endif
 
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
@@ -766,14 +777,15 @@ void AudioService::EnableDeviceAec(bool enable) {
 void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) { callbacks_ = callbacks; }
 
 void AudioService::PlaySound(const std::string_view& ogg) {
+    const auto localized = I18n::Sound(ogg);
     if (!codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
         codec_->EnableOutput(true);
     }
 
-    const auto* buf = reinterpret_cast<const uint8_t*>(ogg.data());
-    size_t size = ogg.size();
+    const auto* buf = reinterpret_cast<const uint8_t*>(localized.data());
+    size_t size = localized.size();
 
     auto demuxer = std::make_unique<OggDemuxer>();
     demuxer->OnPacket(

@@ -111,8 +111,13 @@ void Protocol::SendStopListening() {
 }
 
 void Protocol::SendMcpMessage(const std::string& payload) {
-    std::string message =
-        "{\"session_id\":\"" + session_id_ + "\",\"type\":\"mcp\",\"payload\":" + payload + "}";
+    // Avoid doubling a large allocation just to append the final brace.
+    constexpr char prefix[] = "{\"session_id\":\"";
+    constexpr char middle[] = "\",\"type\":\"mcp\",\"payload\":";
+    std::string message;
+    message.reserve(sizeof(prefix) - 1 + session_id_.size() + sizeof(middle) - 1 + payload.size() +
+                    1);
+    message.append(prefix).append(session_id_).append(middle).append(payload).push_back('}');
     SendText(message);
 }
 

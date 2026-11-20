@@ -12,6 +12,7 @@
 #include <memory>
 #include <functional>
 #include <cstdint>
+#include <atomic>
 #include <vector>
 
 #include "protocol.h"
@@ -20,6 +21,9 @@
 #include "device_state.h"
 #include "device_state_machine.h"
 #include "notify/notify_player.h"
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+#include "diagnostics/dialogue_resources.h"
+#endif
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -120,6 +124,9 @@ public:
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
+#if CONFIG_ASYNC_MCP_TOOLS
+    uint32_t GetMcpSessionEpoch() const { return mcp_session_epoch_.load(); }
+#endif
     
     /**
      * Reset protocol resources (thread-safe)
@@ -139,11 +146,17 @@ private:
     esp_timer_handle_t clock_timer_handle_ = nullptr;
     esp_timer_handle_t startup_wake_word_hint_timer_ = nullptr;
     DeviceStateMachine state_machine_;
+#if CONFIG_ASYNC_MCP_TOOLS
+    std::atomic<uint32_t> mcp_session_epoch_{0};
+#endif
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     std::string startup_wake_word_hint_message_;
     AudioService audio_service_;
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+    DialogueResources dialogue_resources_;
+#endif
     NotifyPlayer notify_player_;
     uint32_t notification_playback_id_ = 0;
     std::unique_ptr<Ota> ota_;

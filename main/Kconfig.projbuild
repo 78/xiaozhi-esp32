@@ -1,5 +1,95 @@
 menu "Xiaozhi Assistant"
 
+config RUNTIME_LOCALE
+    bool "Allow board-provided runtime text, sound and wake-model selection"
+    default n
+
+config PETOI_RUNTIME_LOCALE
+    bool "Petoi cached Chinese/English startup locale policy"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD
+    depends on LANGUAGE_ZH_CN || LANGUAGE_EN_US
+    select RUNTIME_LOCALE
+    select SR_WN_WN9S_NIHAOXIAOZHI
+    select SR_WN_WN9S_HIJASON if !SR_WN_WN9S_HIESP
+    default n
+    help
+        Enable runtime switching in English and Simplified Chinese builds.
+        Other build languages use their compile-time locale and wake word.
+
+config PETOI_LOCALE_TEST_ENGLISH
+    bool "Diagnostic: select English without changing persistent locale cache"
+    depends on PETOI_RUNTIME_LOCALE
+    default n
+
+config PETOI_COUNTRY_LOOKUP_URL
+    string "Petoi startup country JSON provider"
+    depends on PETOI_RUNTIME_LOCALE
+    default ""
+    help
+        Expected JSON fields: status="success" and a two-letter countryCode.
+        Set an HTTPS provider to enable lookup. The default empty URL
+        retains the cached/default locale. Failures retain the cached
+        locale; no SSID is sent.
+
+config MCP_TOOLS_LIST_PAYLOAD_LIMIT
+    int "Maximum MCP tools-list response bytes"
+    range 2048 8000
+    default 2048 if BOARD_TYPE_PETOI_BITTLE_AI_C3
+    default 8000
+    help
+        Limit serialized tools-list pages to bound temporary heap usage.
+        Remaining tools are returned using the existing nextCursor mechanism.
+
+config ASYNC_MCP_TOOLS
+    bool "Allow bounded asynchronous device tools"
+    default n
+    help
+        Permit at most four deferred tools. Completion is serialized on the
+        application task; replies from an old audio session are discarded.
+
+config PETOI_ACTION_SEQUENCES
+    bool "Petoi bounded action sequences and deferred results"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3
+    select ASYNC_MCP_TOOLS
+    default n
+
+config PETOI_LOCAL_ACTIONS
+    bool "Petoi legacy local transcript action fallback"
+    depends on PETOI_ACTION_SEQUENCES
+    default n
+
+config AUDIO_PLAYBACK_LEVEL
+    bool "Expose current speaker PCM peak for visual animation"
+    default n
+    help
+        Publish a bounded atomic peak while each PCM buffer is being output.
+        No additional task, queue or PCM copy is created.
+
+config PETOI_EXPRESSION_UI
+    bool "Petoi expression-only product interface"
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3
+    select AUDIO_PLAYBACK_LEVEL
+    default n
+
+config DIALOGUE_RESOURCE_LOGGING
+    bool "DEBUG per-request and settled-idle resource snapshots"
+    depends on LOG_MAXIMUM_LEVEL >= 4
+    default n
+    help
+        Log internal heap, largest block, task count and main-task stack margin
+        after user requests, drained replies, and three seconds of closed-channel
+        idle. Diagnostics only; does not force resource release or retry requests.
+        Requires maximum log level DEBUG or higher. The application enables only
+        the DialogRes tag at DEBUG; other tags retain their configured level.
+
+config DISABLE_DEVICE_FIRMWARE_OTA
+    bool "Disable device firmware installation"
+    default n
+    help
+        Keep fetching activation and connection settings, but reject firmware
+        installation, including server-forced and manually requested updates.
+        Enable for controlled product migrations or externally managed firmware.
+
 config OTA_URL
     string "Default OTA URL"
     default "https://api.tenclass.net/xiaozhi/ota/"
@@ -445,6 +535,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_PETOI_BITTLE_AI_C3
+        bool "Petoi Bittle AI ESP32-C3 (16MB, NyBoard)"
+        depends on IDF_TARGET_ESP32C3
     config BOARD_TYPE_QUANDONG_S3_DEV_2_8_LCD
         bool "Quandong ESP32-S3 2.8-inch SPI LCD (全动 2.8寸)"
         depends on IDF_TARGET_ESP32S3
