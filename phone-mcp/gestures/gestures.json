@@ -1,0 +1,44 @@
+{
+  "_note": "Which gesture runs which tool. 'tool' = any tool on this server (see the tool names in server.py's startup log). 'bot' = message sent to the bot's own HTTP endpoint (needs settings.bot_url).",
+  "settings": {
+    "port": 8770,
+    "bot_url": "http://BOT_IP:8080/gesture",
+    "bot_key": "CHANGE_ME_same_as_firmware_gesture_key"
+  },
+  "actions": {
+    "Open_Palm": {
+      "tool": "local_music_pause"
+    },
+    "Victory": {
+      "tool": "local_music_resume"
+    },
+    "Closed_Fist": {
+      "tool": "local_music_volume",
+      "args": {
+        "level": 0
+      }
+    },
+    "Pointing_Up": {
+      "tool": "local_music_volume",
+      "args": {
+        "change": 10
+      }
+    },
+    "Thumb_Up": {
+      "tool": "local_music_next"
+    },
+    "Thumb_Down": {
+      "tool": "local_music_previous"
+    },
+    "ILoveYou": {
+      "bot": {
+        "emotion": "happy"
+      }
+    },
+    "wave": {
+      "bot": {
+        "action": "wake"
+      }
+    }
+  }
+}
