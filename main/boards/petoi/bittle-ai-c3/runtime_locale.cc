@@ -62,8 +62,8 @@ std::string ReadCountry(NetworkInterface* network) {
     http->SetKeepAlive(false);
     http->SetTimeout(3000);
     const int64_t deadline = esp_timer_get_time() + 3000000;
-    // The default preserves the original provider. Never add SSIDs, Wi-Fi
-    // credentials, device identifiers or cached settings to this request.
+    // Keep SSIDs, Wi-Fi credentials, device identifiers and cached settings
+    // local to the board.
     if (!http->Open("GET", CONFIG_PETOI_COUNTRY_LOOKUP_URL))
         return {};
     const auto status = http->GetStatusCode();
@@ -142,6 +142,8 @@ void RuntimeLocale::Prepare(NetworkInterface* network) {
         ESP_LOGI(kTag, "Using cached locale %s", Code());
         return;
     }
+    if (CONFIG_PETOI_COUNTRY_LOOKUP_URL[0] == '\0')
+        return;
     const auto country = ReadCountry(network);
     // Never cache a result for a network that disappeared during the request.
     if (!wifi.IsConnected() || wifi.GetSsid() != ssid)

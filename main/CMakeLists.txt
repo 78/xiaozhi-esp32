@@ -1142,9 +1142,6 @@ endif()
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
 if(CONFIG_PETOI_RUNTIME_LOCALE)
-    if(NOT LANG_DIR STREQUAL "zh-CN")
-        message(FATAL_ERROR "Petoi runtime locale requires the zh-CN base build")
-    endif()
     set(PETOI_LOCALE_DIR "${CMAKE_CURRENT_BINARY_DIR}/petoi_runtime_locale")
     execute_process(COMMAND python "${PROJECT_DIR}/scripts/gen_petoi_locale.py"
         --assets-dir "${CMAKE_CURRENT_SOURCE_DIR}/assets" --output-dir "${PETOI_LOCALE_DIR}"

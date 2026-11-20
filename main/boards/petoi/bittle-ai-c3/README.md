@@ -1,29 +1,16 @@
 # Petoi Bittle AI ESP32-C3
 
-This cumulative product branch extends the initial board-only contribution
-described below. Its default variant enables expression-only conversation UI,
-bounded action sequences, local command parsing and cached Chinese/English
-system resources with both WakeNet models. It disables firmware OTA installation
-and uses normal INFO logging with dialogue resource sampling off. The separate
-`petoi-bittle-ai-c3-resource-debug` variant enables DEBUG resource snapshots;
-`petoi-bittle-ai-c3-locale-english-check` is a temporary English diagnostic only.
-
-With product action sequences enabled, a single UART worker owns a two-item
-queue. Single-action results report transmission; sequences wait for raw action
-tokens before proceeding and stop on timeout without retry. Tokens do not prove
-mechanical completion. The tested BiBoard V1.0 needs the matching OpenCat
-`260820` patch forwarding `d` as well as `k/m` to its voice UART. Gait values
-below 200 are steps; values from 200 are milliseconds. Cloud reply language is
-independent of local wake/UI language and is not automatically guaranteed.
-
-The following queue and feature exclusions describe the initial public board
-contribution, not the enabled product variants above. Product startup does not
-automatically stand the robot.
-
 This board definition supports the Petoi custom ESP32-C3 voice board with
 16 MB flash, an ES8311 codec, a 240 x 280 ST7789 display and a NyBoard UART
-connection. It has a distinct OTA identity, `petoi-bittle-ai-c3`; do not flash
-the stock `lichuang-c3-dev` firmware onto this hardware.
+connection. Its OTA identity is `petoi-bittle-ai-c3`. Use the Petoi image
+with this board's v2 partition layout.
+
+The product variant displays animated eyes, ears and a mouth driven by
+speaker PCM. Conversation text is hidden while provisioning and system
+alerts remain visible. Five `self.expression.*` MCP tools control the
+display. The product keeps Wi-Fi modem sleep off in low-power mode,
+retains activation and connection configuration fetches, and disables
+firmware installation. Robot motion starts with a command.
 
 ## Connections
 
@@ -42,7 +29,9 @@ the stock `lichuang-c3-dev` firmware onto this hardware.
 
 Use compatible 3.3 V logic and a common ground; connect TX to the NyBoard RX
 and RX to the NyBoard TX. Supply the robot from its own suitable power source.
-BiBoard at 115200 baud without a prefix is not supported by this variant.
+The tested BiBoard V1.0 uses the prefixed 9600-baud voice UART. With OpenCat
+`260820`, sequence support requires forwarding the `d` token alongside
+`k` and `m` on that UART.
 
 ## Build
 
@@ -52,34 +41,43 @@ Activate ESP-IDF `release/v6.1`, then use the canonical build entry point:
 python scripts/build.py petoi/bittle-ai-c3 --name petoi-bittle-ai-c3 --language zh-CN --wake-word nihaoxiaozhi
 ```
 
-English example:
+An explicit Chinese build enables cached Chinese/English system text,
+sounds and the corresponding Nihao Xiaozhi and Hi Jason wake models. An empty
+`CONFIG_PETOI_COUNTRY_LOOKUP_URL` uses the cached language or Chinese on
+a fresh device. Set the URL to an HTTPS country provider to enable automatic
+selection on a new Wi-Fi network. The request contains no SSID. The cloud
+controls the language of conversational replies.
+
+The canonical build defaults to the standard compile-time English locale.
+To choose English explicitly, use:
 
 ```sh
-python scripts/build.py petoi/bittle-ai-c3 --language en-US --wake-word hiesp
+python scripts/build.py petoi/bittle-ai-c3 --name petoi-bittle-ai-c3 --language en-US --wake-word hiesp
 ```
 
-The board uses the project's 16 MB flash and v2 partition defaults. Language
-and wake words are build options, not properties of the board identity.
-Back up existing firmware, partition data and device settings before flashing.
-The older Petoi firmware used a different partition layout: do not migrate by
-flashing only the application or by installing a cross-layout OTA update.
+Use `petoi-bittle-ai-c3-resource-debug` to enable DEBUG dialogue resource
+snapshots. Use `petoi-bittle-ai-c3-locale-english-check` with
+`--language zh-CN` to exercise Hi Jason and the English system resources
+without writing the locale cache. The normal variant uses INFO logging.
+The older Petoi firmware uses a different partition layout. Back up the
+firmware and settings and use application and assets from the same v2 build
+when migrating.
 
 ## Robot MCP tools
 
-`self.robot.send_command` takes the required string `text`, for example
-`{"text":"ksit"}`. Each call sends one printable ASCII command (1–128 bytes),
-preceded by the exact bytes `58 41 15`, with no added newline. Control bytes,
-non-ASCII text and semicolon-separated sequences are rejected. The four-entry
-queue rejects new commands when full; no automatic retry is performed.
+`self.robot.send_command` takes the string `text`. Examples are `ksit`
+and `kup;ksit;d`. The product validates a single printable ASCII command or
+a sequence of up to four supported actions. A two-entry queue feeds one
+UART worker. Each step uses the `58 41 15` prefix without a newline.
+The board can also recognize supported action phrases in Chinese or English
+and use the corresponding result for a matching tool call in that turn.
 
-The tool reports acceptance into the UART queue, **not physical completion**.
-`self.robot.get_status` reports queue depth, transmission state and the last
-UART transmit error. RX bytes are drained and can be logged at debug level;
-they are not interpreted as action-completion acknowledgements. Test one
-action at a time and observe the robot before sending the next action.
-
-Multi-action scheduling, speech keyword fallbacks, expression animation and
-product-specific language policy are outside this initial board contribution.
+Single-action replies report transmission. Sequences wait for each UART
+token and stop on timeout without retry. A token confirms a UART observation.
+Verify physical motion separately. Gait values below 200 specify steps.
+Values from 200 specify milliseconds. `self.robot.get_status` reports
+queue, transmission and token state. With `CONFIG_PETOI_ACTION_SEQUENCES`
+disabled, the basic driver accepts single commands into a four-entry queue.
 
 ## Hardware verification
 

@@ -6,11 +6,14 @@ config RUNTIME_LOCALE
 
 config PETOI_RUNTIME_LOCALE
     bool "Petoi cached Chinese/English startup locale policy"
-    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD && LANGUAGE_ZH_CN
     select RUNTIME_LOCALE
     select SR_WN_WN9S_NIHAOXIAOZHI
     select SR_WN_WN9S_HIJASON
     default n
+    help
+        Build with --language zh-CN to enable runtime switching. Other build
+        languages retain their normal compile-time locale and wake word.
 
 config PETOI_LOCALE_TEST_ENGLISH
     bool "Diagnostic: select English without changing persistent locale cache"
@@ -20,13 +23,12 @@ config PETOI_LOCALE_TEST_ENGLISH
 config PETOI_COUNTRY_LOOKUP_URL
     string "Petoi startup country JSON provider"
     depends on PETOI_RUNTIME_LOCALE
-    default "http://ip-api.com/json/?fields=status,countryCode"
+    default ""
     help
         Expected JSON fields: status="success" and a two-letter countryCode.
-        The default preserves the legacy development provider. Production
-        builds can configure an authorized HTTP/HTTPS service without changing
-        source code. Failures retain the cached locale; no SSID is sent.
-        An empty URL disables the lookup and retains the cached/default locale.
+        Set an HTTPS provider to enable lookup. The default empty URL
+        retains the cached/default locale. Failures retain the cached
+        locale; no SSID is sent.
 
 config MCP_TOOLS_LIST_PAYLOAD_LIMIT
     int "Maximum MCP tools-list response bytes"
