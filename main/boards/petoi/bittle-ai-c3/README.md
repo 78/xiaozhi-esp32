@@ -35,25 +35,27 @@ The tested BiBoard V1.0 uses the prefixed 9600-baud voice UART. With OpenCat
 
 ## Build
 
-Activate ESP-IDF `release/v6.1`, then use the canonical build entry point:
+Activate ESP-IDF `release/v6.1`, then build the default English variant:
+
+```sh
+python scripts/build.py petoi/bittle-ai-c3 --name petoi-bittle-ai-c3
+```
+
+The default English build includes both languages' system text and sounds,
+along with Hi ESP for English and Nihao Xiaozhi for Chinese. To build with
+Chinese as the fallback and Hi Jason as the English wake phrase, use:
 
 ```sh
 python scripts/build.py petoi/bittle-ai-c3 --name petoi-bittle-ai-c3 --language zh-CN --wake-word nihaoxiaozhi
 ```
 
-An explicit Chinese build enables cached Chinese/English system text,
-sounds and the corresponding Nihao Xiaozhi and Hi Jason wake models. An empty
-`CONFIG_PETOI_COUNTRY_LOOKUP_URL` uses the cached language or Chinese on
-a fresh device. Set the URL to an HTTPS country provider to enable automatic
-selection on a new Wi-Fi network. The request contains no SSID. The cloud
+In either build, set `CONFIG_PETOI_COUNTRY_LOOKUP_URL` in your local variant's
+`sdkconfig_append` to an HTTPS country provider to resolve the language on
+first connection or when the SSID changes. A successful response must be a
+JSON object with `status: "success"` and a two-letter `countryCode`. `CN`
+selects Chinese and other countries select English. The device sends no SSID.
+An empty URL uses the cached language or the build's fallback. The cloud
 controls the language of conversational replies.
-
-The canonical build defaults to the standard compile-time English locale.
-To choose English explicitly, use:
-
-```sh
-python scripts/build.py petoi/bittle-ai-c3 --name petoi-bittle-ai-c3 --language en-US --wake-word hiesp
-```
 
 Use `petoi-bittle-ai-c3-resource-debug` to enable DEBUG dialogue resource
 snapshots. Use `petoi-bittle-ai-c3-locale-english-check` with

@@ -20,6 +20,16 @@ namespace petoi {
 namespace {
 constexpr const char* kTag = "PetoiLocale";
 constexpr size_t kMaximumBody = 512;
+#if CONFIG_LANGUAGE_ZH_CN
+constexpr auto kBaseLocale = ProductLocale::Chinese;
+#else
+constexpr auto kBaseLocale = ProductLocale::English;
+#endif
+#if CONFIG_SR_WN_WN9S_HIESP
+constexpr const char* kEnglishWakeModel = "hiesp";
+#else
+constexpr const char* kEnglishWakeModel = "hijason";
+#endif
 #if CONFIG_PETOI_LOCALE_TEST_ENGLISH
 constexpr bool kDiagnosticEnglish = true;
 #else
@@ -119,7 +129,7 @@ RuntimeLocale::RuntimeLocale() {
         return;
     }
     Settings settings("language");
-    locale_.store(CachedLocale(settings.GetString("code"), ProductLocale::Chinese));
+    locale_.store(CachedLocale(settings.GetString("code"), kBaseLocale));
 }
 
 void RuntimeLocale::Prepare(NetworkInterface* network) {
@@ -138,7 +148,7 @@ void RuntimeLocale::Prepare(NetworkInterface* network) {
         cached_ssid = settings.GetString("last_ssid");
     }
     if (!NeedsCountryLookup(code, cached_ssid, ssid)) {
-        locale_.store(CachedLocale(code, ProductLocale::Chinese));
+        locale_.store(CachedLocale(code, kBaseLocale));
         ESP_LOGI(kTag, "Using cached locale %s", Code());
         return;
     }
@@ -148,7 +158,7 @@ void RuntimeLocale::Prepare(NetworkInterface* network) {
     // Never cache a result for a network that disappeared during the request.
     if (!wifi.IsConnected() || wifi.GetSsid() != ssid)
         return;
-    const auto decision = DecideLocale(code, cached_ssid, ssid, country, ProductLocale::Chinese);
+    const auto decision = DecideLocale(code, cached_ssid, ssid, country, kBaseLocale);
     if (!decision.persist) {
         ESP_LOGW(kTag, "Country lookup unavailable; keep locale %s", Code());
         return;
@@ -163,25 +173,26 @@ void RuntimeLocale::Prepare(NetworkInterface* network) {
 const char* RuntimeLocale::Code() const { return LocaleCode(locale_.load()); }
 
 const char* RuntimeLocale::WakeModelHint() const {
-    return locale_.load() == ProductLocale::Chinese ? "nihaoxiaozhi" : "hijason";
+    return locale_.load() == ProductLocale::Chinese ? "nihaoxiaozhi" : kEnglishWakeModel;
 }
 
 const char* RuntimeLocale::Text(const char* text) const {
-    if (!text || locale_.load() == ProductLocale::Chinese)
+    if (!text || locale_.load() == kBaseLocale)
         return text;
     for (const auto& pair : locale_assets::kTextPairs)
         if (text == pair.source || std::strcmp(text, pair.source) == 0)
-            return pair.english;
+            return pair.alternate;
     return text;
 }
 
 std::string_view RuntimeLocale::Sound(std::string_view sound) const {
-    if (locale_.load() == ProductLocale::Chinese)
+    if (locale_.load() == kBaseLocale)
         return sound;
     for (const auto& pair : locale_assets::kSoundPairs)
         if (sound.data() == pair.source_start &&
             sound.size() == static_cast<size_t>(pair.source_end - pair.source_start))
-            return {pair.english_start, static_cast<size_t>(pair.english_end - pair.english_start)};
+            return {pair.alternate_start,
+                    static_cast<size_t>(pair.alternate_end - pair.alternate_start)};
     return sound;
 }
 }  // namespace petoi

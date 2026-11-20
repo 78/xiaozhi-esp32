@@ -14,6 +14,8 @@ class PetoiLocaleSelectionTests(unittest.TestCase):
         if not compiler:
             self.skipTest('requires a host C++17 compiler')
         source = (ROOT / 'main/boards/petoi/bittle-ai-c3/runtime_locale.cc').read_text(encoding='utf-8')
+        defaults = source[source.index('#if CONFIG_LANGUAGE_ZH_CN'):
+                          source.index('#if CONFIG_PETOI_LOCALE_TEST_ENGLISH')]
         methods = source[source.index('const char* RuntimeLocale::Code()'):source.index('}  // namespace petoi')]
         driver = r'''
 #include <cstdio>
@@ -21,48 +23,60 @@ class PetoiLocaleSelectionTests(unittest.TestCase):
 #include <string>
 #include "boards/petoi/bittle-ai-c3/runtime_locale.h"
 namespace petoi {
-ProductLocale initial=ProductLocale::Chinese;
+''' + defaults + r'''
+ProductLocale initial=kBaseLocale;
 RuntimeLocale::RuntimeLocale():locale_(initial) {}
 namespace locale_assets {
-struct TextPair { const char* source; const char* english; };
-const TextPair kTextPairs[]={{"提示 %s","Hint %s"}};
-constexpr char chinese_audio[]="chinese", english_audio[]="english";
-struct SoundPair { const char* source_start; const char* source_end; const char* english_start; const char* english_end; };
-constexpr SoundPair kSoundPairs[]={{chinese_audio,chinese_audio+7,english_audio,english_audio+7}};
+struct TextPair { const char* source; const char* alternate; };
+constexpr bool chinese_base=kBaseLocale==ProductLocale::Chinese;
+constexpr char chinese_text[]="提示 %s", english_text[]="Hint %s";
+constexpr TextPair kTextPairs[]={{chinese_base ? chinese_text : english_text,
+                                 chinese_base ? english_text : chinese_text}};
+constexpr char base_audio[]="base", alternate_audio[]="alternate";
+struct SoundPair { const char* source_start; const char* source_end; const char* alternate_start; const char* alternate_end; };
+constexpr SoundPair kSoundPairs[]={{base_audio,base_audio+4,alternate_audio,alternate_audio+9}};
 }
 ''' + methods + r'''
 }
 #define CHECK(value) do { if(!(value)) { std::fprintf(stderr,"check line %d\n",__LINE__); return 1; } } while(0)
 int main() {
     using namespace petoi;
-    RuntimeLocale zh;
-    CHECK(std::string(zh.Code())=="zh-CN");
-    CHECK(std::string(zh.WakeModelHint())=="nihaoxiaozhi");
-    CHECK(std::string(zh.Text("提示 %s"))=="提示 %s");
-    initial=ProductLocale::English; RuntimeLocale en;
-    CHECK(std::string(en.Code())=="en-US");
-    CHECK(std::string(en.WakeModelHint())=="hijason");
-    CHECK(std::string(en.Text("提示 %s"))=="Hint %s");
-    const char* opaque="SSID 提示 %s";
-    CHECK(en.Text(opaque)==opaque);
-    CHECK(en.Text(nullptr)==nullptr);
-    auto base=std::string_view(locale_assets::kSoundPairs[0].source_start,7);
-    CHECK(zh.Sound(base).data()==base.data());
-    CHECK(en.Sound(base).data()==locale_assets::english_audio);
-    std::string unrelated(base);
-    CHECK(en.Sound(unrelated).data()==unrelated.data());
-    CHECK(en.Sound(base.substr(1)).data()==base.data()+1);
+    using namespace locale_assets;
+    RuntimeLocale base;
+    initial=chinese_base ? ProductLocale::English : ProductLocale::Chinese;
+    RuntimeLocale alternate;
+    CHECK(std::string(base.Code())==(chinese_base ? "zh-CN" : "en-US"));
+    CHECK(std::string(alternate.Code())==(chinese_base ? "en-US" : "zh-CN"));
+    CHECK(std::string(base.WakeModelHint())==(chinese_base ? "nihaoxiaozhi" : "hiesp"));
+    CHECK(std::string(alternate.WakeModelHint())==(chinese_base ? "hijason" : "nihaoxiaozhi"));
+    std::string text=kTextPairs[0].source;
+    CHECK(base.Text(text.c_str())==text.c_str());
+    CHECK(std::string(alternate.Text(text.c_str()))==kTextPairs[0].alternate);
+    const char* opaque="SSID Hint %s";
+    CHECK(alternate.Text(opaque)==opaque);
+    CHECK(alternate.Text(nullptr)==nullptr);
+    auto sound=std::string_view(base_audio,4);
+    CHECK(base.Sound(sound)==sound);
+    CHECK(alternate.Sound(sound)=="alternate");
+    std::string unrelated(sound);
+    CHECK(alternate.Sound(unrelated).data()==unrelated.data());
+    CHECK(alternate.Sound(sound.substr(1)).data()==sound.data()+1);
 }
 '''
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             cpp, binary = path / 'test.cc', path / 'test.exe'
             cpp.write_text(driver, encoding='utf-8')
-            compiled = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                                       '-I', str(ROOT / 'main'), str(cpp), '-o', str(binary)],
-                                      capture_output=True, text=True)
-            self.assertEqual(compiled.returncode, 0, compiled.stderr)
-            subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+            for chinese_base in (0, 1):
+                with self.subTest(chinese_base=chinese_base):
+                    compiled = subprocess.run(
+                        [compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                         f'-DCONFIG_LANGUAGE_ZH_CN={chinese_base}',
+                         f'-DCONFIG_SR_WN_WN9S_HIESP={1 - chinese_base}',
+                         '-I', str(ROOT / 'main'), str(cpp), '-o', str(binary)],
+                        capture_output=True, text=True)
+                    self.assertEqual(compiled.returncode, 0, compiled.stderr)
+                    subprocess.run([str(binary)], check=True, capture_output=True, text=True)
 
     def test_requested_model_is_selected_and_missing_model_is_not_silently_replaced(self):
         compiler = shutil.which('g++') or shutil.which('clang++')

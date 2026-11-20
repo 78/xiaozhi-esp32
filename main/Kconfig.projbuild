@@ -6,14 +6,15 @@ config RUNTIME_LOCALE
 
 config PETOI_RUNTIME_LOCALE
     bool "Petoi cached Chinese/English startup locale policy"
-    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD && LANGUAGE_ZH_CN
+    depends on BOARD_TYPE_PETOI_BITTLE_AI_C3 && USE_ESP_WAKE_WORD
+    depends on LANGUAGE_ZH_CN || LANGUAGE_EN_US
     select RUNTIME_LOCALE
     select SR_WN_WN9S_NIHAOXIAOZHI
-    select SR_WN_WN9S_HIJASON
+    select SR_WN_WN9S_HIJASON if !SR_WN_WN9S_HIESP
     default n
     help
-        Build with --language zh-CN to enable runtime switching. Other build
-        languages retain their normal compile-time locale and wake word.
+        Enable runtime switching in English and Simplified Chinese builds.
+        Other build languages use their compile-time locale and wake word.
 
 config PETOI_LOCALE_TEST_ENGLISH
     bool "Diagnostic: select English without changing persistent locale cache"
