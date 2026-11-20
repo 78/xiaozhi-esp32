@@ -70,11 +70,11 @@ inline uint32_t CommandTimeoutMs(const RobotFrame& frame) {
         return fallback;
     if (command.rfind("kvtL", 0) == 0 || command.rfind("kvtR", 0) == 0)
         return std::clamp<uint64_t>(4000 + static_cast<uint64_t>(value) * 50, 6000, 15000);
-    if (value <= 200 && (command.rfind("kwk", 0) == 0 || command.rfind("kbk", 0) == 0 ||
-                         command.rfind("ktr", 0) == 0 || command.rfind("kcr", 0) == 0))
+    if (value < 200 && (command.rfind("kwk", 0) == 0 || command.rfind("kbk", 0) == 0 ||
+                        command.rfind("ktr", 0) == 0 || command.rfind("kcr", 0) == 0))
         return std::clamp<uint64_t>(2000 + static_cast<uint64_t>(value) * 1000, 4000, 20000);
-    return std::clamp<uint64_t>(value > 200 ? static_cast<uint64_t>(value) + 3000
-                                            : 3000 + static_cast<uint64_t>(value) * 1500,
+    return std::clamp<uint64_t>(value >= 200 ? static_cast<uint64_t>(value) + 3000
+                                             : 3000 + static_cast<uint64_t>(value) * 1500,
                                 fallback, 120000);
 }
 }  // namespace petoi

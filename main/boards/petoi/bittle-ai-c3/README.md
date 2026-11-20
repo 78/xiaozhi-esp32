@@ -1,5 +1,25 @@
 # Petoi Bittle AI ESP32-C3
 
+This cumulative product branch extends the initial board-only contribution
+described below. Its default variant enables expression-only conversation UI,
+bounded action sequences, local command parsing and cached Chinese/English
+system resources with both WakeNet models. It disables firmware OTA installation
+and uses normal INFO logging with dialogue resource sampling off. The separate
+`petoi-bittle-ai-c3-resource-debug` variant enables DEBUG resource snapshots;
+`petoi-bittle-ai-c3-locale-english-check` is a temporary English diagnostic only.
+
+With product action sequences enabled, a single UART worker owns a two-item
+queue. Single-action results report transmission; sequences wait for raw action
+tokens before proceeding and stop on timeout without retry. Tokens do not prove
+mechanical completion. The tested BiBoard V1.0 needs the matching OpenCat
+`260820` patch forwarding `d` as well as `k/m` to its voice UART. Gait values
+below 200 are steps; values from 200 are milliseconds. Cloud reply language is
+independent of local wake/UI language and is not automatically guaranteed.
+
+The following queue and feature exclusions describe the initial public board
+contribution, not the enabled product variants above. Product startup does not
+automatically stand the robot.
+
 This board definition supports the Petoi custom ESP32-C3 voice board with
 16 MB flash, an ES8311 codec, a 240 x 280 ST7789 display and a NyBoard UART
 connection. It has a distinct OTA identity, `petoi-bittle-ai-c3`; do not flash

@@ -6,7 +6,7 @@ inline constexpr const char* kRobotToolDescription =
     "Code only; one call/request, up to 4 comma-separated actions. Never retry transmitted "
     "commands. Single result confirms TX; sequence tokens do not prove physical completion. "
     "Gaits: kwkF walk, kbk back, ktrF run, kcrF crawl, kvtL/kvtR turn left/right. "
-    "Gait number <=200 is steps(default3), >200 is ms; turn number is degrees(default90). "
+    "Gait number <200 is steps(default3), >=200 is ms; turn number is degrees(default90). "
     "Basic: kup stand, ksit sit, d rest, khi greet, kstr stretch, kgdb good, kpu pushup, kjmp "
     "jump. "
     "Emotion: kang angry, khg hug, kfiv highfive, kchr cheer, knd nod, kwh shake head, kzz sleepy. "

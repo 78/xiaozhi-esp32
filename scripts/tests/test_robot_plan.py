@@ -38,6 +38,11 @@ int main() {
     assert(petoi::CommandTimeoutMs(plan.frames[1])==8500);
     assert(petoi::CommandTimeoutMs(plan.frames[2])>=4000);
     assert(petoi::CommandTimeoutMs(plan.frames[3])<=120000);
+    // OpenCat's 200 boundary is already a duration, not 200 gait cycles.
+    assert(petoi::BuildRobotPlan("kwkF 199,kwkF 200,kwkF 201",plan));
+    assert(petoi::CommandTimeoutMs(plan.frames[0])==20000);
+    assert(petoi::CommandTimeoutMs(plan.frames[1])==12000);
+    assert(petoi::CommandTimeoutMs(plan.frames[2])==12000);
     DeferredReplyGate voice(4,true);
     assert(voice.CanReply(4) && !voice.CanReply(5));
     assert(voice.Claim() && !voice.Claim());
