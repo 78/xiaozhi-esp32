@@ -2,6 +2,7 @@
 #include "assets/lang_config.h"
 #include "cjson_utils.h"
 #include "protocols/protocol.h"
+#include "runtime_i18n.h"
 #include "settings.h"
 #include "system_info.h"
 
@@ -82,7 +83,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
         ESP_LOGI(TAG, "Setup HTTP, User-Agent: %s, Serial-Number: %s", user_agent.c_str(), serial_number_.c_str());
     }
     http->SetHeader("User-Agent", user_agent);
-    http->SetHeader("Accept-Language", Lang::CODE);
+    http->SetHeader("Accept-Language", I18n::LanguageCode());
     http->SetHeader("Content-Type", "application/json");
 
     return http;

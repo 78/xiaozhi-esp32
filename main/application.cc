@@ -7,6 +7,7 @@
 #include "display.h"
 #include "mcp_server.h"
 #include "mqtt_protocol.h"
+#include "runtime_i18n.h"
 #include "settings.h"
 #include "system_info.h"
 #include "text_glyph_payload.h"
@@ -64,6 +65,9 @@ Application::~Application() {
 bool Application::SetDeviceState(DeviceState state) { return state_machine_.TransitionTo(state); }
 
 void Application::Initialize() {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+    esp_log_level_set("DialogRes", ESP_LOG_DEBUG);
+#endif
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
@@ -131,16 +135,16 @@ void Application::Initialize() {
 
         switch (event) {
             case NetworkEvent::Scanning:
-                display->ShowNotification(Lang::Strings::SCANNING_WIFI, 30000);
+                display->ShowNotification(I18n::Text(Lang::Strings::SCANNING_WIFI), 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
             case NetworkEvent::Connecting: {
                 if (data.empty()) {
                     // Cellular network - registering without carrier info yet
-                    display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
+                    display->SetStatus(I18n::Text(Lang::Strings::REGISTERING_NETWORK));
                 } else {
                     // WiFi or cellular with carrier info
-                    std::string msg = Lang::Strings::CONNECT_TO;
+                    std::string msg = I18n::Text(Lang::Strings::CONNECT_TO);
                     msg += data;
                     msg += "...";
                     display->ShowNotification(msg.c_str(), 30000);
@@ -148,7 +152,7 @@ void Application::Initialize() {
                 break;
             }
             case NetworkEvent::Connected: {
-                std::string msg = Lang::Strings::CONNECTED_TO;
+                std::string msg = I18n::Text(Lang::Strings::CONNECTED_TO);
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
@@ -165,22 +169,22 @@ void Application::Initialize() {
                 break;
             // Cellular modem specific events
             case NetworkEvent::ModemDetecting:
-                display->SetStatus(Lang::Strings::DETECTING_MODULE);
+                display->SetStatus(I18n::Text(Lang::Strings::DETECTING_MODULE));
                 break;
             case NetworkEvent::ModemErrorNoSim:
-                Alert(Lang::Strings::ERROR, Lang::Strings::PIN_ERROR, "warning",
-                      Lang::Sounds::OGG_ERR_PIN);
+                Alert(I18n::Text(Lang::Strings::ERROR), I18n::Text(Lang::Strings::PIN_ERROR),
+                      "warning", Lang::Sounds::OGG_ERR_PIN);
                 break;
             case NetworkEvent::ModemErrorRegDenied:
-                Alert(Lang::Strings::ERROR, Lang::Strings::REG_ERROR, "warning",
-                      Lang::Sounds::OGG_ERR_REG);
+                Alert(I18n::Text(Lang::Strings::ERROR), I18n::Text(Lang::Strings::REG_ERROR),
+                      "warning", Lang::Sounds::OGG_ERR_REG);
                 break;
             case NetworkEvent::ModemErrorInitFailed:
-                Alert(Lang::Strings::ERROR, Lang::Strings::MODEM_INIT_ERROR, "warning",
-                      Lang::Sounds::OGG_EXCLAMATION);
+                Alert(I18n::Text(Lang::Strings::ERROR), I18n::Text(Lang::Strings::MODEM_INIT_ERROR),
+                      "warning", Lang::Sounds::OGG_EXCLAMATION);
                 break;
             case NetworkEvent::ModemErrorTimeout:
-                display->SetStatus(Lang::Strings::REGISTERING_NETWORK);
+                display->SetStatus(I18n::Text(Lang::Strings::REGISTERING_NETWORK));
                 break;
         }
     });
@@ -212,7 +216,7 @@ void Application::Run() {
                 StopNotification();
             }
             SetDeviceState(kDeviceStateIdle);
-            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "cancel",
+            Alert(I18n::Text(Lang::Strings::ERROR), last_error_message_.c_str(), "cancel",
                   Lang::Sounds::OGG_EXCLAMATION);
         }
 
@@ -311,6 +315,13 @@ void Application::Run() {
             HideStartupWakeWordHint();
         }
         ShowStartupWakeWordHint();
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+        if (!(xEventGroupGetBits(event_group_) & MAIN_EVENT_STATE_CHANGED)) {
+            dialogue_resources_.Poll(GetDeviceState(), audio_service_.IsPlaybackIdle(),
+                                     protocol_ && protocol_->IsAudioChannelOpened(),
+                                     esp_timer_get_time());
+        }
+#endif
     }
 }
 
@@ -376,7 +387,8 @@ void Application::HandleActivationDoneEvent() {
     }
     if (!has_error) {
         auto display = Board::GetInstance().GetDisplay();
-        std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();
+        std::string message =
+            std::string(I18n::Text(Lang::Strings::VERSION)) + ota_->GetCurrentVersion();
         display->ShowNotification(message.c_str());
         display->SetChatMessage("system", "");
     }
@@ -395,6 +407,8 @@ void Application::HandleActivationDoneEvent() {
 }
 
 void Application::ActivationTask() {
+    // Optional board policy runs off the main/audio/network callback tasks.
+    Board::GetInstance().PrepareNetwork();
     // Create OTA object for activation process
     ota_ = std::make_unique<Ota>();
 
@@ -435,14 +449,16 @@ void Application::CheckAssetsVersion() {
         settings.EraseKey("download_url");
 
         char message[256];
-        snprintf(message, sizeof(message), Lang::Strings::FOUND_NEW_ASSETS, download_url.c_str());
-        Alert(Lang::Strings::LOADING_ASSETS, message, "cloud_download", Lang::Sounds::OGG_UPGRADE);
+        snprintf(message, sizeof(message), I18n::Text(Lang::Strings::FOUND_NEW_ASSETS),
+                 download_url.c_str());
+        Alert(I18n::Text(Lang::Strings::LOADING_ASSETS), message, "cloud_download",
+              Lang::Sounds::OGG_UPGRADE);
 
         // Wait for the audio service to be idle for 3 seconds
         vTaskDelay(pdMS_TO_TICKS(3000));
         SetDeviceState(kDeviceStateUpgrading);
         board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
-        display->SetChatMessage("system", Lang::Strings::PLEASE_WAIT);
+        display->SetChatMessage("system", I18n::Text(Lang::Strings::PLEASE_WAIT));
 
         bool success =
             assets.Download(download_url, [this, display](int progress, size_t speed) -> void {
@@ -457,7 +473,8 @@ void Application::CheckAssetsVersion() {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
         if (!success) {
-            Alert(Lang::Strings::ERROR, Lang::Strings::DOWNLOAD_ASSETS_FAILED, "cancel",
+            Alert(I18n::Text(Lang::Strings::ERROR),
+                  I18n::Text(Lang::Strings::DOWNLOAD_ASSETS_FAILED), "cancel",
                   Lang::Sounds::OGG_EXCLAMATION);
             vTaskDelay(pdMS_TO_TICKS(2000));
             SetDeviceState(kDeviceStateActivating);
@@ -486,7 +503,7 @@ void Application::CheckNewVersion() {
     auto& board = Board::GetInstance();
     while (true) {
         auto display = board.GetDisplay();
-        display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
+        display->SetStatus(I18n::Text(Lang::Strings::CHECKING_NEW_VERSION));
 
         auto check = ota_->CheckVersion();
         if (!check) {
@@ -506,14 +523,15 @@ void Application::CheckNewVersion() {
             }
 
             char buffer[320];
-            int alert_message_length =
-                snprintf(buffer, sizeof(buffer), Lang::Strings::CHECK_NEW_VERSION_FAILED,
-                         retry_delay, error_message);
+            int alert_message_length = snprintf(buffer, sizeof(buffer),
+                                                I18n::Text(Lang::Strings::CHECK_NEW_VERSION_FAILED),
+                                                retry_delay, error_message);
             if (alert_message_length < 0 ||
                 alert_message_length >= static_cast<int>(sizeof(buffer))) {
                 snprintf(buffer, sizeof(buffer), "%s", err.Message());
             }
-            Alert(Lang::Strings::ERROR, buffer, "cloud_off", Lang::Sounds::OGG_EXCLAMATION);
+            Alert(I18n::Text(Lang::Strings::ERROR), buffer, "cloud_off",
+                  Lang::Sounds::OGG_EXCLAMATION);
 
             ESP_LOGW(TAG, "Check new version failed, retry in %d seconds (%d/%d)", retry_delay,
                      retry_count, MAX_RETRY);
@@ -543,7 +561,7 @@ void Application::CheckNewVersion() {
             break;
         }
 
-        display->SetStatus(Lang::Strings::ACTIVATION);
+        display->SetStatus(I18n::Text(Lang::Strings::ACTIVATION));
         // Activation code is shown to the user and waiting for the user to input
         if (ota_->HasActivationCode()) {
             ShowActivationCode(ota_->GetActivationCode(), ota_->GetActivationMessage());
@@ -572,7 +590,7 @@ void Application::InitializeProtocol() {
     auto display = board.GetDisplay();
     auto codec = board.GetAudioCodec();
 
-    display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
+    display->SetStatus(I18n::Text(Lang::Strings::LOADING_PROTOCOL));
 
     if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
@@ -597,6 +615,9 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnAudioChannelOpened([this, codec, &board]() {
+#if CONFIG_ASYNC_MCP_TOOLS
+        ++mcp_session_epoch_;
+#endif
         board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
         if (protocol_->server_sample_rate() != codec->output_sample_rate()) {
             ESP_LOGW(TAG,
@@ -607,6 +628,9 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnAudioChannelClosed([this, &board]() {
+#if CONFIG_ASYNC_MCP_TOOLS
+        ++mcp_session_epoch_;
+#endif
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);
         Schedule([this]() {
             auto display = Board::GetInstance().GetDisplay();
@@ -662,12 +686,27 @@ void Application::InitializeProtocol() {
             }
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
+                    // Recheck on the main task: the channel may have closed
+                    // after this control message arrived or while it was queued.
+                    if (!protocol_ || !protocol_->IsAudioChannelOpened()) {
+                        ESP_LOGW(TAG, "Ignoring TTS start on a closed audio channel");
+                        return;
+                    }
                     aborted_ = false;
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                    dialogue_resources_.ResponseStarted();
+#endif
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
                 Schedule([this]() {
+                    if (!protocol_ || !protocol_->IsAudioChannelOpened()) {
+                        return;
+                    }
                     if (GetDeviceState() == kDeviceStateSpeaking) {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                        dialogue_resources_.ResponseStopped(aborted_);
+#endif
                         if (listening_mode_ == kListeningModeManualStop) {
                             SetDeviceState(kDeviceStateIdle);
                         } else {
@@ -684,8 +723,11 @@ void Application::InitializeProtocol() {
                         glyphs.clear();
                     }
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
-                    Schedule([display, message = std::string(text->valuestring),
+                    Schedule([this, display, message = std::string(text->valuestring),
                               glyphs = std::move(glyphs), bpp]() {
+                        if (!protocol_ || !protocol_->IsAudioChannelOpened()) {
+                            return;
+                        }
                         display->AddTextGlyphs(glyphs, bpp);
                         display->SetChatMessage("assistant", message.c_str());
                     });
@@ -700,8 +742,13 @@ void Application::InitializeProtocol() {
                     glyphs.clear();
                 }
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
-                Schedule([display, message = std::string(text->valuestring),
+                Schedule([this, display, message = std::string(text->valuestring),
                           glyphs = std::move(glyphs), bpp]() {
+#if CONFIG_DIALOGUE_RESOURCE_LOGGING
+                    dialogue_resources_.BeginRequest(
+                        GetDeviceState(), protocol_ && protocol_->IsAudioChannelOpened());
+#endif
+                    Board::GetInstance().OnUserTranscript(message);
                     display->AddTextGlyphs(glyphs, bpp);
                     display->SetChatMessage("user", message.c_str());
                 });
@@ -776,7 +823,8 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
          digit_sound{'8', Lang::Sounds::OGG_8}, digit_sound{'9', Lang::Sounds::OGG_9}}};
 
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-    Alert(Lang::Strings::ACTIVATION, message.c_str(), "link", Lang::Sounds::OGG_ACTIVATION);
+    Alert(I18n::Text(Lang::Strings::ACTIVATION), message.c_str(), "link",
+          Lang::Sounds::OGG_ACTIVATION);
 
     for (const auto& digit : code) {
         auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
@@ -789,6 +837,10 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
 
 void Application::Alert(const char* status, const char* message, const char* emotion,
                         const std::string_view& sound) {
+    // Protocol callbacks may supply a compiled-language string rather than a
+    // literal at the call site. Translate known system messages at this boundary.
+    status = I18n::Text(status);
+    message = I18n::Text(message);
     ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
     auto display = Board::GetInstance().GetDisplay();
     display->SetStatus(status);
@@ -803,7 +855,7 @@ void Application::DismissAlert() {
     last_error_message_.clear();
     if (GetDeviceState() == kDeviceStateIdle) {
         auto display = Board::GetInstance().GetDisplay();
-        display->SetStatus(Lang::Strings::STANDBY);
+        display->SetStatus(I18n::Text(Lang::Strings::STANDBY));
         display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
     }
@@ -1049,7 +1101,7 @@ void Application::HandleStateChangedEvent() {
             // queues STATE_CHANGED after Alert(), and the idle handler would
             // otherwise wipe the status, emotion, and chat message.
             if (last_error_message_.empty()) {
-                display->SetStatus(Lang::Strings::STANDBY);
+                display->SetStatus(I18n::Text(Lang::Strings::STANDBY));
                 display->ClearChatMessages();  // Clear messages first
                 display->SetEmotion(
                     "neutral");  // Then set emotion (wechat mode checks child count)
@@ -1058,12 +1110,12 @@ void Application::HandleStateChangedEvent() {
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
-            display->SetStatus(Lang::Strings::CONNECTING);
+            display->SetStatus(I18n::Text(Lang::Strings::CONNECTING));
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
-            display->SetStatus(Lang::Strings::LISTENING);
+            display->SetStatus(I18n::Text(Lang::Strings::LISTENING));
             display->SetEmotion("neutral");
 
             // Make sure the audio processor is running
@@ -1082,7 +1134,7 @@ void Application::HandleStateChangedEvent() {
             }
             break;
         case kDeviceStateSpeaking:
-            display->SetStatus(Lang::Strings::SPEAKING);
+            display->SetStatus(I18n::Text(Lang::Strings::SPEAKING));
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
@@ -1092,7 +1144,7 @@ void Application::HandleStateChangedEvent() {
             audio_service_.ResetDecoder();
             break;
         case kDeviceStateNotifying:
-            display->SetStatus(Lang::Strings::SPEAKING);
+            display->SetStatus(I18n::Text(Lang::Strings::SPEAKING));
             audio_service_.EnableVoiceProcessing(false);
             audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             break;
@@ -1137,7 +1189,7 @@ void Application::ShowStartupWakeWordHint() {
         ESP_LOGW(TAG, "Startup wake word hint skipped: no available wake words");
         return;
     }
-    std::string message = Lang::Strings::WAKE_WORD_HINT;
+    std::string message = I18n::Text(Lang::Strings::WAKE_WORD_HINT);
     const auto placeholder = message.find("%s");
     if (placeholder == std::string::npos) {
         ESP_LOGE(TAG, "Startup wake word hint skipped: invalid message template");
@@ -1312,6 +1364,10 @@ void Application::Reboot() {
 }
 
 bool Application::UpgradeFirmware(const std::string& url, const std::string& version) {
+#ifdef CONFIG_DISABLE_DEVICE_FIRMWARE_OTA
+    ESP_LOGW(TAG, "Firmware installation disabled by product configuration");
+    return false;
+#endif
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
 
@@ -1329,13 +1385,13 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
     }
     ESP_LOGI(TAG, "Starting firmware upgrade from URL: %s", upgrade_url.c_str());
 
-    Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "download",
+    Alert(I18n::Text(Lang::Strings::OTA_UPGRADE), I18n::Text(Lang::Strings::UPGRADING), "download",
           Lang::Sounds::OGG_UPGRADE);
     vTaskDelay(pdMS_TO_TICKS(3000));
 
     SetDeviceState(kDeviceStateUpgrading);
 
-    std::string message = std::string(Lang::Strings::NEW_VERSION) + version_info;
+    std::string message = std::string(I18n::Text(Lang::Strings::NEW_VERSION)) + version_info;
     display->SetChatMessage("system", message.c_str());
 
     board.SetPowerSaveLevel(PowerSaveLevel::PERFORMANCE);
@@ -1356,7 +1412,7 @@ bool Application::UpgradeFirmware(const std::string& url, const std::string& ver
                  "Firmware upgrade failed, restarting audio service and continuing operation...");
         audio_service_.Start();                              // Restart audio service
         board.SetPowerSaveLevel(PowerSaveLevel::LOW_POWER);  // Restore power save level
-        Alert(Lang::Strings::ERROR, Lang::Strings::UPGRADE_FAILED, "cancel",
+        Alert(I18n::Text(Lang::Strings::ERROR), I18n::Text(Lang::Strings::UPGRADE_FAILED), "cancel",
               Lang::Sounds::OGG_EXCLAMATION);
         vTaskDelay(pdMS_TO_TICKS(3000));
         return false;
@@ -1444,15 +1500,15 @@ void Application::SetAecMode(AecMode mode) {
         switch (aec_mode_) {
             case kAecOff:
                 audio_service_.EnableDeviceAec(false);
-                display->ShowNotification(Lang::Strings::RTC_MODE_OFF);
+                display->ShowNotification(I18n::Text(Lang::Strings::RTC_MODE_OFF));
                 break;
             case kAecOnServerSide:
                 audio_service_.EnableDeviceAec(false);
-                display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+                display->ShowNotification(I18n::Text(Lang::Strings::RTC_MODE_ON));
                 break;
             case kAecOnDeviceSide:
                 audio_service_.EnableDeviceAec(true);
-                display->ShowNotification(Lang::Strings::RTC_MODE_ON);
+                display->ShowNotification(I18n::Text(Lang::Strings::RTC_MODE_ON));
                 break;
         }
 
@@ -1466,6 +1522,9 @@ void Application::SetAecMode(AecMode mode) {
 void Application::PlaySound(const std::string_view& sound) { audio_service_.PlaySound(sound); }
 
 void Application::ResetProtocol() {
+#if CONFIG_ASYNC_MCP_TOOLS
+    ++mcp_session_epoch_;
+#endif
     Schedule([this]() {
         if (GetDeviceState() == kDeviceStateNotifying) {
             StopNotification();

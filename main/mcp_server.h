@@ -65,6 +65,9 @@ struct McpRequestContext {
     };
     std::string id_json;
     bool modern = false;
+#if CONFIG_ASYNC_MCP_TOOLS
+    bool direct_transport = false;
+#endif
     std::optional<VisionConfig> vision;
 };
 
@@ -73,6 +76,14 @@ using ReturnValue = std::variant<bool, int, std::string, cJSON*, ImageContent*>;
 using ToolResult = std::expected<ReturnValue, std::string>;
 using ToolCallback = std::function<ToolResult(const PropertyList&)>;
 using ContextToolCallback = ToolResult (*)(const PropertyList&, const McpRequestContext&);
+#if CONFIG_ASYNC_MCP_TOOLS
+// Deferred results own text/error strings; raw cJSON/image ownership stays on
+// the synchronous API and cannot leak when a deferred reply is discarded.
+using AsyncToolResult = std::expected<std::string, std::string>;
+using ToolCompletion = std::function<void(AsyncToolResult)>;
+using AsyncToolCallback =
+    std::function<void(const PropertyList&, const McpRequestContext&, ToolCompletion)>;
+#endif
 
 enum PropertyType { kPropertyTypeBoolean, kPropertyTypeInteger, kPropertyTypeString };
 
@@ -280,12 +291,34 @@ private:
     PropertyList properties_;
     ToolCallback callback_;
     ContextToolCallback context_callback_ = nullptr;
+#if CONFIG_ASYNC_MCP_TOOLS
+    std::unique_ptr<AsyncToolCallback> async_callback_;
+#endif
     bool user_only_ = false;
 
 public:
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
             ToolCallback callback)
         : name_(name), description_(description), properties_(properties), callback_(callback) {}
+#if CONFIG_ASYNC_MCP_TOOLS
+    McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
+            AsyncToolCallback callback)
+        : name_(name),
+          description_(description),
+          properties_(properties),
+          async_callback_(std::make_unique<AsyncToolCallback>(std::move(callback))) {}
+    bool IsAsync() const { return async_callback_ != nullptr; }
+    void CallAsync(const PropertyList& properties, const McpRequestContext& context,
+                   ToolCompletion completion) {
+        (*async_callback_)(properties, context, std::move(completion));
+    }
+    static std::expected<std::string, std::string> SerializeAsyncResult(
+        AsyncToolResult result, const McpRequestContext& context) {
+        if (!result)
+            return std::unexpected(std::move(result.error()));
+        return SerializeResult(ToolResult(std::move(*result)), context);
+    }
+#endif
 
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
             ContextToolCallback callback)
@@ -372,8 +405,17 @@ public:
 
     std::expected<std::string, std::string> Call(const PropertyList& properties,
                                                  const McpRequestContext& context = {}) {
+#if CONFIG_ASYNC_MCP_TOOLS
+        if (IsAsync())
+            return std::unexpected("Async tool requires the MCP dispatcher");
+#endif
         auto callback_result = context_callback_ != nullptr ? context_callback_(properties, context)
                                                             : callback_(properties);
+        return SerializeResult(std::move(callback_result), context);
+    }
+
+    static std::expected<std::string, std::string> SerializeResult(
+        ToolResult callback_result, const McpRequestContext& context) {
         if (!callback_result) {
             return std::unexpected(std::move(callback_result.error()));
         }
@@ -469,6 +511,10 @@ public:
                  const PropertyList& properties, ToolCallback callback);
     void AddTool(const std::string& name, const std::string& description,
                  const PropertyList& properties, ContextToolCallback callback);
+#if CONFIG_ASYNC_MCP_TOOLS
+    void AddAsyncTool(const std::string& name, const std::string& description,
+                      const PropertyList& properties, AsyncToolCallback callback);
+#endif
     void AddUserOnlyTool(const std::string& name, const std::string& description,
                          const PropertyList& properties, ToolCallback callback);
     void ParseMessage(const cJSON* json, ResponseSender response_sender = nullptr);
@@ -492,6 +538,12 @@ private:
                       bool list_user_only_tools, const ResponseSender& response_sender);
     void DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
                     ResponseSender response_sender);
+    void FinishToolCall(const McpRequestContext& context,
+                        const std::expected<std::string, std::string>& result,
+                        const ResponseSender& response_sender);
+#if CONFIG_ASYNC_MCP_TOOLS
+    unsigned pending_async_tools_ = 0;  // Application-task-only admission count.
+#endif
 
     std::vector<std::unique_ptr<McpTool>> tools_;
 };

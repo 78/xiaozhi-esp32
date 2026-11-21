@@ -1,6 +1,7 @@
 #include "board.h"
 #include "assets/lang_config.h"
 #include "display/display.h"
+#include "runtime_i18n.h"
 #include "settings.h"
 #include "system_info.h"
 
@@ -132,7 +133,7 @@ std::string Board::GetSystemInfoJson() {
             }
         }
     */
-    std::string json = R"({"version":2,"language":")" + std::string(Lang::CODE) + R"(",)";
+    std::string json = R"({"version":2,"language":")" + std::string(I18n::LanguageCode()) + R"(",)";
     json += R"("flash_size":)" + std::to_string(SystemInfo::GetFlashSize()) + R"(,)";
     json += R"("minimum_free_heap_size":")" + std::to_string(SystemInfo::GetMinimumFreeHeapSize()) +
             R"(",)";

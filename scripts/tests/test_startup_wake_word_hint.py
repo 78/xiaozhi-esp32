@@ -65,6 +65,8 @@ class StartupWakeWordHintTests(unittest.TestCase):
             #include <utility>
             #include <vector>
             #define TAG "HostApplication"
+            // This fixture supplies the compiled-language strings directly.
+            namespace I18n { const char* Text(const char* text) { return text; } }
             #define ESP_LOGI(...) ((void)0)
             #define ESP_LOGW(...) ((void)0)
             #define ESP_LOGE(...) ((void)0)

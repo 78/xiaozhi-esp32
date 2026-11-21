@@ -123,9 +123,16 @@ public:
     std::unique_ptr<AudioStreamPacket> PopWakeWordPacket();
     const std::string& GetLastWakeWord() const;
     std::vector<std::string> GetWakeWords() const;
-    bool IsVoiceDetected() const { return voice_detected_; }
+    bool IsVoiceDetected() const { return voice_detected_.load(std::memory_order_relaxed); }
     bool IsIdle();
     bool IsPlaybackIdle();
+    float GetPlaybackLevel() const {
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+        return playback_peak_.load(std::memory_order_relaxed) / 32768.0f;
+#else
+        return 0.0f;
+#endif
+    }
     bool IsWakeWordRunning() const {
         return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING;
     }
@@ -199,13 +206,16 @@ private:
     FixedQueue<uint32_t, MAX_TIMESTAMPS_IN_QUEUE> timestamp_queue_;
 
     bool audio_engine_initialized_ = false;
-    bool voice_detected_ = false;
+    std::atomic<bool> voice_detected_{false};
 #if CONFIG_USE_DEVICE_AEC
     bool device_aec_enabled_ = true;
 #else
     bool device_aec_enabled_ = false;
 #endif
     std::atomic<bool> service_stopped_{true};
+#if CONFIG_AUDIO_PLAYBACK_LEVEL
+    std::atomic<uint32_t> playback_peak_{0};
+#endif
     std::atomic<bool> audio_input_need_warmup_{false};
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
