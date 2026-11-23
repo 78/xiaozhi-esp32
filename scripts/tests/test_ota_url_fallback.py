@@ -18,22 +18,25 @@ class OtaUrlFallbackTests(unittest.TestCase):
         source = (ROOT / 'main/ota.cc').read_text()
         start = source.index('std::string Ota::GetCheckVersionUrl()')
         end = source.index('std::unique_ptr<Http> Ota::SetupHttp()', start)
-        # Validation itself is covered by the component tests. Control its result here
+        # Validation itself is covered by the OTA URL tests. Control its result here
         # to check that the firmware honors rejection without modifying saved settings.
         driver = r'''
 #include <cassert>
 #include <iostream>
 #include <string>
+#include <string_view>
 #define CONFIG_OTA_URL "https://default.example/ota/"
 #define ESP_LOGW(...) ((void)0)
 std::string saved;
 bool valid;
-namespace wifi_config { bool IsValidOtaUrl(const std::string&) {return valid;} }
 struct Settings {
     Settings(const char*, bool write) {assert(!write);}
     std::string GetString(const char*) {return saved;}
 };
-struct Ota { std::string GetCheckVersionUrl(); };
+struct Ota {
+    static bool IsValidUrl(std::string_view) { return valid; }
+    std::string GetCheckVersionUrl();
+};
 ''' + source[start:end] + r'''
 int main(int argc, char** argv) {
     assert(argc == 3);

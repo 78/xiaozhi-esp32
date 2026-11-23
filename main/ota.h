@@ -1,9 +1,11 @@
 #ifndef _OTA_H
 #define _OTA_H
 
+#include <cstddef>
 #include <expected>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <esp_err.h>
@@ -12,6 +14,13 @@
 
 class Ota {
 public:
+    // The maximum URL length in bytes, shared with the config portal.
+    static constexpr std::size_t kMaxUrlLength = 255;
+
+    // Accept an absolute HTTP(S) URL, or an empty value to use the default.
+    // URLs must be ASCII; non-ASCII characters must be percent-encoded.
+    static bool IsValidUrl(std::string_view url);
+
     Ota();
     ~Ota();
 
