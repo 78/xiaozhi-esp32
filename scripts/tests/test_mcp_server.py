@@ -23,8 +23,8 @@ class McpServerTest(unittest.TestCase):
         cls.directory = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.directory.cleanup)
         build = Path(cls.directory.name)
-        # Only platform dependencies are replaced. Compile mcp_server.cc and the
-        # press-to-talk tool unchanged, using the real cJSON parser/serializer.
+        # Compile the firmware's dispatcher and tools with host platform stubs
+        # and the real cJSON parser/serializer.
         stubs = {
             "platform.h": r'''
                 #pragma once
@@ -32,6 +32,7 @@ class McpServerTest(unittest.TestCase):
                 #define SETTINGS_H
                 #define BOARD_NAME "host-test"
                 #include <cstdlib>
+                #include <cstring>
                 #include <functional>
                 #include <iostream>
                 #include <string>
@@ -64,6 +65,10 @@ class McpServerTest(unittest.TestCase):
                 public:
                     Settings(const std::string&, bool = false) {}
                     int GetInt(const std::string&, int fallback) { return fallback; }
+                    bool GetBool(const std::string&, bool fallback) { return fallback; }
+                    std::string GetString(const std::string&, const std::string& fallback) {
+                        return fallback;
+                    }
                     void SetInt(const std::string&, int) {}
                     void SetString(const std::string&, const std::string&) {}
                 };
@@ -75,10 +80,45 @@ class McpServerTest(unittest.TestCase):
                 #include <cstdlib>
                 [[noreturn]] inline void esp_system_abort(const char*) { std::abort(); }
             ''',
+            "esp_err.h": r'''
+                #pragma once
+                using esp_err_t = int;
+                constexpr esp_err_t ESP_OK = 0, ESP_ERR_INVALID_ARG = 1, ESP_ERR_NVS_NOT_FOUND = 2;
+            ''',
             "esp_log.h": "\n".join(
                 f"#define ESP_LOG{level}(...) ((void)0)" for level in "EWID"
             ),
-            "esp_pthread.h": "",
+            "esp_heap_caps.h": "",
+            "nvs.h": r'''
+                #pragma once
+                #include "esp_err.h"
+                using nvs_handle_t = unsigned;
+                constexpr int NVS_READONLY = 0, NVS_READWRITE = 1;
+                inline std::string saved_tavily_key;
+                inline int nvs_open(const char*, int, nvs_handle_t* nvs) {
+                    *nvs = 1;
+                    return ESP_OK;
+                }
+                inline int nvs_get_str(nvs_handle_t, const char* key, char* buffer, size_t* size) {
+                    if (std::string_view(key) != "tavily_api_key" || saved_tavily_key.empty() ||
+                        saved_tavily_key.size() >= *size) return 1;
+                    std::memcpy(buffer, saved_tavily_key.c_str(), saved_tavily_key.size() + 1);
+                    *size = saved_tavily_key.size() + 1;
+                    return ESP_OK;
+                }
+                inline void nvs_close(nvs_handle_t) {}
+                inline int nvs_set_str(nvs_handle_t, const char* key, const char* value) {
+                    if (std::string_view(key) != "tavily_api_key") std::abort();
+                    saved_tavily_key = value;
+                    return ESP_OK;
+                }
+                inline int nvs_erase_key(nvs_handle_t, const char* key) {
+                    if (std::string_view(key) != "tavily_api_key") std::abort();
+                    saved_tavily_key.clear();
+                    return ESP_OK;
+                }
+                inline int nvs_commit(nvs_handle_t) { return ESP_OK; }
+            ''',
             "esp_app_desc.h": r'''
                 struct esp_app_desc_t { const char* version; };
                 inline const esp_app_desc_t* esp_app_get_description() {
@@ -90,10 +130,48 @@ class McpServerTest(unittest.TestCase):
                 #pragma once
                 #include <cstdint>
                 #include <cstdlib>
+                #include <memory>
                 #include <string>
                 struct AudioCodec { void SetOutputVolume(int) { std::abort(); } };
                 struct Backlight { void SetBrightness(uint8_t, bool) { std::abort(); } };
                 #include "camera.h"
+                struct NetworkError {
+                    std::string ToString() const { return "host-test network error"; }
+                };
+                template <typename T> using NetworkResult = std::expected<T, NetworkError>;
+                class Http {
+                public:
+                    void SetTimeout(int value) { if (value != 8000) std::abort(); }
+                    void SetHeader(const std::string& name, const std::string& value) {
+                        if (name == "Authorization") authorization = value;
+                    }
+                    void SetContent(std::string value) { body = std::move(value); }
+                    NetworkResult<void> Open(const std::string& method, const std::string& url) {
+                        if (method != "POST" || url != "https://api.tavily.com/search" ||
+                            authorization != "Bearer tvly-host-test" ||
+                            body.find("tvly-host-test") != std::string::npos ||
+                            body.find("\"query\":\"sample\"") == std::string::npos) std::abort();
+                        return {};
+                    }
+                    NetworkResult<int> Read(char* buffer, size_t size) {
+                        if (read) return 0;
+                        read = true;
+                        if (kSample.size() > size) std::abort();
+                        std::memcpy(buffer, kSample.data(), kSample.size());
+                        return kSample.size();
+                    }
+                    NetworkResult<int> GetStatusCode() { return 200; }
+                    void Close() {}
+                private:
+                    static constexpr std::string_view kSample =
+                        R"({"answer":"host Tavily result","results":[]})";
+                    bool read = false;
+                    std::string authorization, body;
+                };
+                class NetworkInterface {
+                public:
+                    std::unique_ptr<Http> CreateHttp(int) { return std::make_unique<Http>(); }
+                };
                 struct HostCamera : Camera {
                     std::string legacy_url, legacy_token;
                     int captures = 0;
@@ -122,6 +200,10 @@ class McpServerTest(unittest.TestCase):
                     std::string GetSystemInfoJson() { std::abort(); }
                     AudioCodec* GetAudioCodec() { std::abort(); }
                     Backlight* GetBacklight() { return nullptr; }
+                    NetworkInterface* GetNetwork() {
+                        static NetworkInterface network;
+                        return &network;
+                    }
                     HostCamera* GetCamera() {
                         static HostCamera camera;
                         return &camera;
@@ -137,8 +219,10 @@ class McpServerTest(unittest.TestCase):
         driver = build / "driver.cc"
         driver.write_text(textwrap.dedent(r'''
             #include "mcp_server.h"
+            #include "mcp_tools.h"
             #include "press_to_talk_mcp_tool.h"
             #include "board.h"
+            #include "nvs.h"
             int main(int argc, char** argv) {
                 auto& server = McpServer::GetInstance();
                 const std::string mode = argc > 2 ? argv[2] : "";
@@ -190,6 +274,10 @@ class McpServerTest(unittest.TestCase):
                     server.AddTool("oversize", std::string(9000, 'x'), PropertyList(),
                         [](const PropertyList&) -> ToolResult { return true; });
                 }
+                if (mode == "tavily" || mode == "tavily-boot") {
+                    if (mode == "tavily-boot") saved_tavily_key = "tvly-host-test";
+                    server.AddCommonTools();
+                }
                 McpServer::ResponseSender sender;
                 if (argc > 1 && std::string(argv[1]) == "custom-sender") {
                     sender = [](const std::string& payload) {
@@ -198,7 +286,12 @@ class McpServerTest(unittest.TestCase):
                 }
                 std::string request;
                 while (std::getline(std::cin, request)) {
-                    server.ParseMessage(request, sender);
+                    if (request == ":set-key" || request == ":clear-key") {
+                        if (McpTools::SaveTavilyApiKey(request == ":set-key" ? "tvly-host-test" : "") !=
+                            ESP_OK) std::abort();
+                    } else {
+                        server.ParseMessage(request, sender);
+                    }
                     if (mode != "deferred") Application::GetInstance().Drain();
                 }
                 Application::GetInstance().Drain();
@@ -225,6 +318,7 @@ class McpServerTest(unittest.TestCase):
                         f"-I{ROOT / 'main/boards/common'}",
                         "-include", str(build / "platform.h"), str(driver),
                         str(ROOT / "main/mcp_server.cc"),
+                        str(ROOT / "main/mcp_tools.cc"),
                         str(ROOT / "main/boards/common/press_to_talk_mcp_tool.cc"),
                         *libs, "-o", str(cls.executable)],
             capture_output=True, text=True,
@@ -290,6 +384,31 @@ class McpServerTest(unittest.TestCase):
     def test_missing_argument_keeps_error_code(self):
         response, = self.responses([self.call(7, "self.set_press_to_talk", {})])
         self.assert_error(response, 7, -32602, "Missing required argument: mode")
+
+    def test_tavily_registration_tracks_key(self):
+        name = "self.tavily.web_search"
+
+        def search(request_id):
+            return self.call(request_id, name, {"query": "sample"})
+
+        responses = self.responses([
+            self.modern(1), search(2), ":set-key", self.modern(3),
+            search(4), ":clear-key", self.modern(5), search(6),
+        ], mode="tavily", expected_count=6)
+        by_id = {reply["id"]: reply for reply in responses}
+        self.assertNotIn(name, [tool["name"] for tool in by_id[1]["result"]["tools"]])
+        self.assert_error(by_id[2], 2, -32602, "Unknown tool: " + name)
+        self.assertIn(name, [tool["name"] for tool in by_id[3]["result"]["tools"]])
+        self.assertNotIn("tvly-host-test", json.dumps(by_id[3]))
+        self.assertEqual(by_id[4]["result"]["content"][0]["text"], "Answer: host Tavily result\n\n")
+        self.assertNotIn(name, [tool["name"] for tool in by_id[5]["result"]["tools"]])
+        self.assert_error(by_id[6], 6, -32602, "Unknown tool: " + name)
+
+    def test_tavily_is_registered_at_boot_with_a_saved_key(self):
+        response, = self.responses([self.modern(1)], mode="tavily-boot")
+        names = [tool["name"] for tool in response["result"]["tools"]]
+        self.assertIn("self.tavily.web_search", names)
+        self.assertNotIn("self.web_search", names)
 
     @staticmethod
     def modern(request_id, method="tools/list", params=None, capabilities=None):

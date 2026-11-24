@@ -4,8 +4,10 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -465,6 +467,7 @@ public:
     // see what the total became.
     void LogToolInventory() const;
     void AddTool(std::unique_ptr<McpTool> tool);
+    void RemoveTool(std::string_view name);
     void AddTool(const std::string& name, const std::string& description,
                  const PropertyList& properties, ToolCallback callback);
     void AddTool(const std::string& name, const std::string& description,
@@ -490,10 +493,12 @@ private:
 
     void GetToolsList(const McpRequestContext& context, const std::string& cursor,
                       bool list_user_only_tools, const ResponseSender& response_sender);
-    void DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
-                    ResponseSender response_sender);
+    std::shared_ptr<McpTool> FindTool(std::string_view name) const;
+    void DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> tool,
+                    const cJSON* tool_arguments, ResponseSender response_sender);
 
-    std::vector<std::unique_ptr<McpTool>> tools_;
+    mutable std::mutex tools_mutex_;
+    std::vector<std::shared_ptr<McpTool>> tools_;
 };
 
 #endif  // MCP_SERVER_H
