@@ -80,6 +80,7 @@ ToolResult SearchTavily(const PropertyList& properties) {
         return std::unexpected("Could not create Tavily request");
     }
     CJsonStringUniquePtr body(cJSON_PrintUnformatted(request.get()));
+    request.reset();
     if (!body) {
         return std::unexpected("Could not encode Tavily request");
     }
@@ -93,6 +94,7 @@ ToolResult SearchTavily(const PropertyList& properties) {
     http->SetHeader("Content-Type", "application/json");
     http->SetHeader("Authorization", "Bearer " + key);
     http->SetContent(std::string(body.get()));
+    body.reset();
     if (auto opened = http->Open("POST", "https://api.tavily.com/search"); !opened) {
         return std::unexpected("Could not connect to Tavily: " + opened.error().ToString());
     }
@@ -104,12 +106,17 @@ ToolResult SearchTavily(const PropertyList& properties) {
     if (*status != 200) {
         return std::unexpected("Tavily returned HTTP " + std::to_string(*status));
     }
-    auto response = ReadBounded(*http, kMaxWebSearchResponseBytes);
+    const size_t body_length = http->GetBodyLength();
+    if (body_length > kMaxWebSearchResponseBytes) {
+        return std::unexpected("Tavily response exceeds the size limit");
+    }
+    auto response = ReadBounded(*http, body_length ? body_length : kMaxWebSearchResponseBytes);
     http->Close();
+    http.reset();
     if (!response) {
         return std::unexpected(std::move(response.error()));
     }
-    auto result = FormatWebSearchResults(*response, query);
+    auto result = FormatWebSearchResults(response->get(), query);
     if (!result) {
         return std::unexpected(std::move(result.error()));
     }

@@ -185,14 +185,16 @@ class McpServerTest(unittest.TestCase):
                     NetworkResult<int> Read(char* buffer, size_t size) {
                         if (read) return 0;
                         read = true;
-                        constexpr std::string_view sample = R"({"answer":"host Tavily result","results":[]})";
-                        if (sample.size() > size) std::abort();
-                        std::memcpy(buffer, sample.data(), sample.size());
-                        return sample.size();
+                        if (kSample.size() > size) std::abort();
+                        std::memcpy(buffer, kSample.data(), kSample.size());
+                        return kSample.size();
                     }
                     NetworkResult<int> GetStatusCode() { return 200; }
+                    size_t GetBodyLength() { return kSample.size(); }
                     void Close() {}
                 private:
+                    static constexpr std::string_view kSample =
+                        R"({"answer":"host Tavily result","results":[]})";
                     bool read = false;
                     std::string authorization, body;
                 };

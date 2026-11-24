@@ -72,7 +72,7 @@ int main() {
     StubHttp chunks;
     chunks.chunks = {"abc", "def"};
     auto read_chunks = ReadBounded(chunks, 100);
-    cJSON_AddStringToObject(out, "read_chunks", read_chunks ? read_chunks->c_str() : "<err>");
+    cJSON_AddStringToObject(out, "read_chunks", read_chunks ? read_chunks->get() : "<err>");
 
     StubHttp overflow;
     overflow.chunks = {"1234567890", "1234567890"};
@@ -83,12 +83,12 @@ int main() {
 
     StubHttp empty;
     auto read_empty = ReadBounded(empty, 15);
-    cJSON_AddStringToObject(out, "read_empty", read_empty ? read_empty->c_str() : "<err>");
+    cJSON_AddStringToObject(out, "read_empty", read_empty ? read_empty->get() : "<err>");
 
     StubHttp exact;
     exact.chunks = {"1234567890", "1234567890"};
     auto read_exact = ReadBounded(exact, 20);
-    cJSON_AddStringToObject(out, "read_exact", read_exact ? read_exact->c_str() : "<err>");
+    cJSON_AddStringToObject(out, "read_exact", read_exact ? read_exact->get() : "<err>");
 
     StubHttp broken;
     broken.chunks = {"abc"};
