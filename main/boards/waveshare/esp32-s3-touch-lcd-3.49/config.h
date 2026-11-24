@@ -31,6 +31,13 @@
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 #define PWR_BUTTON_GPIO         GPIO_NUM_16
 
+// Battery voltage on GPIO4 (ADC1 channel 3) through a 1:3 divider, per Waveshare's
+// 01_ADC_Test demo (battery = pin voltage * 3). Only the resistor ratio matters.
+#define BATTERY_ADC_UNIT        ADC_UNIT_1
+#define BATTERY_ADC_CHANNEL     ADC_CHANNEL_3
+#define BATTERY_UPPER_RESISTOR  200000.0f
+#define BATTERY_LOWER_RESISTOR  100000.0f
+
 #define LCD_CS       GPIO_NUM_9
 #define LCD_PCLK     GPIO_NUM_10
 #define LCD_D0       GPIO_NUM_11

@@ -21,6 +21,7 @@
 
 #include "custom_lcd_display.h"
 #include "eyes_display.h"
+#include "adc_battery_monitor.h"
 
 #include <lvgl.h>
 
@@ -42,6 +43,7 @@ private:
     i2c_master_dev_handle_t disp_touch_dev_handle = NULL;
     lv_indev_t *touch_indev = NULL;    //touch
     bool is_PwrControlEn = false;
+    AdcBatteryMonitor* battery_monitor_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -241,7 +243,19 @@ public:
         InitializeButtons();
         InitializeTouch();
         GetPwrCurrentState();
+        battery_monitor_ = new AdcBatteryMonitor(BATTERY_ADC_UNIT, BATTERY_ADC_CHANNEL,
+                                                 BATTERY_UPPER_RESISTOR, BATTERY_LOWER_RESISTOR);
         GetBacklight()->RestoreBrightness();
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        if (battery_monitor_ == nullptr) {
+            return false;
+        }
+        charging = battery_monitor_->IsCharging();
+        discharging = battery_monitor_->IsDischarging();
+        level = battery_monitor_->GetBatteryLevel();
+        return true;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
