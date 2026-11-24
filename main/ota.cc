@@ -15,12 +15,14 @@
 #include <esp_efuse.h>
 #include <esp_efuse_table.h>
 #include <esp_heap_caps.h>
-#include <ota_url.h>
+#include <http_parser.h>
+#include <strings.h>
 #ifdef SOC_HMAC_SUPPORTED
 #include <esp_hmac.h>
 #endif
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cstring>
 #include <expected>
@@ -28,6 +30,35 @@
 #include <vector>
 
 #define TAG "Ota"
+
+bool Ota::IsValidUrl(std::string_view url) {
+    if (url.empty()) {
+        return true;
+    }
+    if (url.size() > kMaxUrlLength ||
+        !((url.size() >= 7 && strncasecmp(url.data(), "http://", 7) == 0) ||
+          (url.size() >= 8 && strncasecmp(url.data(), "https://", 8) == 0))) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < url.size(); ++i) {
+        const auto c = static_cast<unsigned char>(url[i]);
+        if (c <= ' ' || c >= 0x7f || c == '\\') {
+            return false;
+        }
+        if (c == '%' &&
+            (i + 2 >= url.size() || !std::isxdigit(static_cast<unsigned char>(url[i + 1])) ||
+             !std::isxdigit(static_cast<unsigned char>(url[i + 2])))) {
+            return false;
+        }
+    }
+
+    http_parser_url parsed{};
+    return http_parser_parse_url(url.data(), url.size(), 0, &parsed) == 0 &&
+           (parsed.field_set & (1 << UF_SCHEMA)) && (parsed.field_set & (1 << UF_HOST)) &&
+           parsed.field_data[UF_HOST].len > 0 &&
+           (!(parsed.field_set & (1 << UF_PORT)) || parsed.port > 0);
+}
 
 Ota::Ota() {
 #ifdef ESP_EFUSE_BLOCK_USR_DATA
@@ -59,7 +90,7 @@ Ota::~Ota() {
 std::string Ota::GetCheckVersionUrl() {
     Settings settings("wifi", false);
     std::string url = settings.GetString("ota_url");
-    if (!wifi_config::IsValidOtaUrl(url)) {
+    if (!IsValidUrl(url)) {
         ESP_LOGW(TAG, "Ignoring invalid saved OTA URL; using the default");
         url.clear();
     }
@@ -98,7 +129,7 @@ NetworkResult<> Ota::CheckVersion() {
     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
 
     std::string url = GetCheckVersionUrl();
-    if (url.empty() || !wifi_config::IsValidOtaUrl(url)) {
+    if (url.empty() || !IsValidUrl(url)) {
         ESP_LOGE(TAG, "Check version URL is not properly set");
         return std::unexpected(NetworkError::InvalidArgument());
     }
@@ -531,7 +562,7 @@ esp_err_t Ota::Activate() {
     }
 
     std::string url = GetCheckVersionUrl();
-    if (url.empty() || !wifi_config::IsValidOtaUrl(url)) {
+    if (url.empty() || !IsValidUrl(url)) {
         ESP_LOGE(TAG, "Activation URL is not properly set");
         return ESP_ERR_INVALID_ARG;
     }
