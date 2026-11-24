@@ -447,7 +447,10 @@ void OledDisplay::SetTheme(Theme* theme) {
 void OledDisplay::SetPowerSaveMode(bool on) {
     if (panel_) {
         Settings settings("wifi", false);
-        if (settings.GetBool("power_save_display_off", false)) {
+        // NVS keys are limited to 15 characters (NVS_KEY_NAME_MAX_SIZE - 1). The
+        // previous "power_save_display_off" spelling is 22, so nvs_set_* and
+        // nvs_get_* rejected it and the option could never be enabled.
+        if (settings.GetBool("display_off", false)) {
             esp_lcd_panel_disp_on_off(panel_, !on);
         }
     }
