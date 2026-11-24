@@ -89,6 +89,21 @@ class McpServerTest(unittest.TestCase):
             "esp_log.h": "\n".join(
                 f"#define ESP_LOG{level}(...) ((void)0)" for level in "EWID"
             ),
+            "sdkconfig.h": "",
+            "esp_heap_caps.h": r'''
+                #pragma once
+                constexpr unsigned MALLOC_CAP_INTERNAL = 1, MALLOC_CAP_8BIT = 2;
+                inline size_t free_internal = 96 * 1024;
+                inline size_t largest_internal = 64 * 1024;
+                inline size_t heap_caps_get_free_size(unsigned caps) {
+                    if (caps != (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)) std::abort();
+                    return free_internal;
+                }
+                inline size_t heap_caps_get_largest_free_block(unsigned caps) {
+                    if (caps != (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)) std::abort();
+                    return largest_internal;
+                }
+            ''',
             "freertos/FreeRTOS.h": "#pragma once\nconstexpr int pdPASS = 1;\n",
             "freertos/task.h": r'''
                 #pragma once
@@ -235,6 +250,7 @@ class McpServerTest(unittest.TestCase):
             #include "mcp_tools.h"
             #include "press_to_talk_mcp_tool.h"
             #include "board.h"
+            #include "esp_heap_caps.h"
             #include "freertos/FreeRTOS.h"
             #include "freertos/task.h"
             #include "nvs.h"
@@ -310,6 +326,15 @@ class McpServerTest(unittest.TestCase):
                         task();
                     } else if (request == ":fail-background-start") {
                         fail_background_start = true;
+                    } else if (request == ":small-internal-heap") {
+                        free_internal = 10 * 1024;
+                        largest_internal = 9 * 1024;
+                    } else if (request == ":fragmented-internal-heap") {
+                        free_internal = 96 * 1024;
+                        largest_internal = 8 * 1024;
+                    } else if (request == ":restore-internal-heap") {
+                        free_internal = 96 * 1024;
+                        largest_internal = 64 * 1024;
                     } else {
                         server.ParseMessage(request, sender);
                     }
@@ -436,6 +461,22 @@ class McpServerTest(unittest.TestCase):
         names = [tool["name"] for tool in response["result"]["tools"]]
         self.assertIn("self.tavily.web_search", names)
         self.assertNotIn("self.web_search", names)
+
+    def test_tavily_declines_low_or_fragmented_sram_and_recovers(self):
+        def search(request_id):
+            return self.call(request_id, "self.tavily.web_search", {"query": "sample"})
+
+        replies = self.responses([
+            ":small-internal-heap", search(1), self.call(2, "test.integer", {"value": 23}),
+            ":fragmented-internal-heap", search(3), ":restore-internal-heap", search(4),
+            ":small-internal-heap", ":run-background", ":restore-internal-heap", search(5),
+            ":run-background",
+        ], mode="tavily-boot", expected_count=5)
+        self.assert_error(replies[0], 1, -32603, "Not enough memory for background tool")
+        self.assertEqual(replies[1]["result"]["content"][0]["text"], "23")
+        self.assert_error(replies[2], 3, -32603, "Not enough memory for background tool")
+        self.assert_error(replies[3], 4, -32603, "Not enough memory for Tavily search")
+        self.assertEqual(replies[4]["result"]["content"][0]["text"], "Answer: host Tavily result\n\n")
 
     @staticmethod
     def modern(request_id, method="tools/list", params=None, capabilities=None):

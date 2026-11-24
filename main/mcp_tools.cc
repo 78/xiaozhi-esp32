@@ -1,7 +1,9 @@
 #include "mcp_tools.h"
 
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <nvs.h>
+#include <sdkconfig.h>
 
 #include <algorithm>
 #include <iterator>
@@ -22,6 +24,24 @@ namespace {
 constexpr char kTavilyToolName[] = "self.tavily.web_search";
 constexpr char kTavilyApiKeyNvsKey[] = "tavily_api_key";
 
+bool HasTavilySearchMemory(size_t stack_bytes) {
+    constexpr uint32_t kInternal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    // Allow for the HTTPS handshake, receive buffers and response processing.
+    constexpr size_t kSearchHeap = 58 * 1024;
+    constexpr size_t kLargestSearchBlock = 20 * 1024;
+#if defined(CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC) && defined(CONFIG_SPIRAM_USE_MALLOC)
+    constexpr uint32_t kExternal = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    // The worker and socket receive stacks still need internal RAM.
+    return heap_caps_get_free_size(kInternal) >= 18 * 1024 + stack_bytes &&
+           heap_caps_get_largest_free_block(kInternal) >= std::max<size_t>(8 * 1024, stack_bytes) &&
+           heap_caps_get_free_size(kExternal) >= kSearchHeap &&
+           heap_caps_get_largest_free_block(kExternal) >= kLargestSearchBlock;
+#else
+    return heap_caps_get_free_size(kInternal) >= kSearchHeap + stack_bytes &&
+           heap_caps_get_largest_free_block(kInternal) >= kLargestSearchBlock;
+#endif
+}
+
 bool IsValidTavilyApiKey(std::string_view key) {
     return key.size() <= McpTools::kTavilyApiKeyMaxLength &&
            std::all_of(key.begin(), key.end(), [](unsigned char c) { return c > ' ' && c < 0x7f; });
@@ -40,6 +60,10 @@ std::string LoadTavilyApiKey() {
 }
 
 ToolResult SearchTavily(const PropertyList& properties) {
+    // Account for other allocations between admission and worker startup.
+    if (!HasTavilySearchMemory(0)) {
+        return std::unexpected("Not enough memory for Tavily search");
+    }
     auto key = LoadTavilyApiKey();
     if (key.empty()) {
         return std::unexpected("Tavily API key has been cleared");
@@ -102,7 +126,7 @@ void SetTavilyToolEnabled(McpServer& server, bool enabled) {
         "Search the web from this device using the configured Tavily account. "
         "Provide a concise search query. Returns an answer and source URLs with snippets.",
         PropertyList({Property("query", kPropertyTypeString).SetMaxLength(400)}), SearchTavily);
-    tool->set_runs_in_background(true);
+    tool->set_background_memory_check(HasTavilySearchMemory);
     server.AddTool(std::move(tool));
 }
 

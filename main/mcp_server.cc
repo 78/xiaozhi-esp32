@@ -408,6 +408,12 @@ void McpServer::GetToolsList(const McpRequestContext& context, const std::string
 
 void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> tool,
                            const cJSON* tool_arguments, ResponseSender response_sender) {
+    constexpr size_t kBackgroundStackBytes = 6 * 1024;
+    const bool background = tool->runs_in_background();
+    if (background && !tool->has_background_memory(kBackgroundStackBytes)) {
+        ReplyError(context, "Not enough memory for background tool", response_sender);
+        return;
+    }
     PropertyList arguments = tool->properties();
     for (auto& argument : arguments) {
         bool found = false;
@@ -443,7 +449,6 @@ void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> t
             return;
         }
     }
-    const bool background = tool->runs_in_background();
     if (background && background_tool_busy_.exchange(true)) {
         ReplyError(context, "A background tool is already running", response_sender);
         return;
@@ -477,18 +482,18 @@ void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> t
         return;
     }
 
-    auto* work = new (std::nothrow) std::function<void()>(std::move(execute));
+    using BackgroundCall = decltype(execute);
+    auto* work = new (std::nothrow) BackgroundCall(std::move(execute));
     if (work && xTaskCreate(
                     [](void* arg) {
                         {
-                            std::unique_ptr<std::function<void()>> work(
-                                static_cast<std::function<void()>*>(arg));
+                            std::unique_ptr<BackgroundCall> work(static_cast<BackgroundCall*>(arg));
                             (*work)();
                         }
                         McpServer::GetInstance().background_tool_busy_.store(false);
                         vTaskDelete(nullptr);
                     },
-                    "mcp_tool", 6144, work, 2, nullptr) == pdPASS) {
+                    "mcp_tool", kBackgroundStackBytes, work, 2, nullptr) == pdPASS) {
         return;
     }
     delete work;
