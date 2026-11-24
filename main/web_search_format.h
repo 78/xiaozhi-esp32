@@ -3,10 +3,7 @@
 
 #include <cstddef>
 #include <expected>
-#include <memory>
-#include <new>
 #include <string>
-#include <string_view>
 
 #include "cJSON.h"
 
@@ -33,26 +30,21 @@ inline std::string TruncateUtf8(std::string text, size_t max_bytes) {
 // responses without a Content-Length because it consumes the stream. Returns
 // an error instead of the data when the ceiling is exceeded.
 template <typename HttpT>
-std::expected<std::unique_ptr<char[]>, std::string> ReadBounded(HttpT& http, size_t max_bytes) {
-    // Include one extra byte to distinguish a full response from an overflow.
-    auto body = std::unique_ptr<char[]>(new (std::nothrow) char[max_bytes + 1]);
-    if (!body) {
-        return std::unexpected("Not enough memory for Tavily response");
-    }
-    size_t used = 0;
+std::expected<std::string, std::string> ReadBounded(HttpT& http, size_t max_bytes) {
+    std::string body;
+    char buffer[1024];
     while (true) {
-        auto read = http.Read(body.get() + used, max_bytes + 1 - used);
+        auto read = http.Read(buffer, sizeof(buffer));
         if (!read) {
             return std::unexpected("Failed to read response body: " + read.error().ToString());
         }
         if (*read == 0) {
-            body[used] = '\0';
             return body;
         }
-        if (static_cast<size_t>(*read) > max_bytes - used) {
+        if (body.size() + static_cast<size_t>(*read) > max_bytes) {
             return std::unexpected("Response body exceeds " + std::to_string(max_bytes) + " bytes");
         }
-        used += static_cast<size_t>(*read);
+        body.append(buffer, static_cast<size_t>(*read));
     }
 }
 
@@ -60,10 +52,10 @@ std::expected<std::unique_ptr<char[]>, std::string> ReadBounded(HttpT& http, siz
 // and result truncation happen on UTF-8 character boundaries so the MCP reply
 // always decodes.
 inline std::expected<std::string, std::string> FormatWebSearchResults(
-    std::string_view response_json, const std::string& query) {
+    const std::string& response_json, const std::string& query) {
     constexpr size_t kSnippetMaxBytes = 300;
     constexpr size_t kResultMaxBytes = 5000;
-    cJSON* resp_json = cJSON_ParseWithLength(response_json.data(), response_json.size());
+    cJSON *resp_json = cJSON_Parse(response_json.c_str());
     if (!resp_json) {
         return std::unexpected("Failed to parse Tavily response");
     }

@@ -6,15 +6,12 @@
 #include "mcp_server.h"
 #include <esp_app_desc.h>
 #include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <algorithm>
 #include <cctype>
 #include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <new>
 #include <optional>
 #include <string_view>
 
@@ -408,12 +405,6 @@ void McpServer::GetToolsList(const McpRequestContext& context, const std::string
 
 void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> tool,
                            const cJSON* tool_arguments, ResponseSender response_sender) {
-    constexpr size_t kBackgroundStackBytes = 6 * 1024;
-    const bool background = tool->runs_in_background();
-    if (background && !tool->has_background_memory(kBackgroundStackBytes)) {
-        ReplyError(context, "Not enough memory for background tool", response_sender);
-        return;
-    }
     PropertyList arguments = tool->properties();
     for (auto& argument : arguments) {
         bool found = false;
@@ -449,11 +440,10 @@ void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> t
             return;
         }
     }
-    if (background && background_tool_busy_.exchange(true)) {
-        ReplyError(context, "A background tool is already running", response_sender);
-        return;
-    }
-    auto reply = [this, context, response_sender](const auto& result) {
+    Application::GetInstance().Schedule([this, context = std::move(context), tool = std::move(tool),
+                                         arguments = std::move(arguments),
+                                         response_sender = std::move(response_sender)]() {
+        auto result = tool->Call(arguments, context);
         if (!result) {
             if (context.modern) {
                 std::string error = "{\"isError\":true,\"content\":[{\"type\":\"text\",\"text\":";
@@ -466,37 +456,5 @@ void McpServer::DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> t
             return;
         }
         ReplyResult(context, *result, response_sender);
-    };
-    auto execute = [tool = std::move(tool), context, arguments = std::move(arguments),
-                    reply = std::move(reply), background]() mutable {
-        auto result = tool->Call(arguments, context);
-        if (background) {
-            Application::GetInstance().Schedule(
-                [reply = std::move(reply), result = std::move(result)]() { reply(result); });
-        } else {
-            reply(result);
-        }
-    };
-    if (!background) {
-        Application::GetInstance().Schedule(std::move(execute));
-        return;
-    }
-
-    using BackgroundCall = decltype(execute);
-    auto* work = new (std::nothrow) BackgroundCall(std::move(execute));
-    if (work && xTaskCreate(
-                    [](void* arg) {
-                        {
-                            std::unique_ptr<BackgroundCall> work(static_cast<BackgroundCall*>(arg));
-                            (*work)();
-                        }
-                        McpServer::GetInstance().background_tool_busy_.store(false);
-                        vTaskDelete(nullptr);
-                    },
-                    "mcp_tool", kBackgroundStackBytes, work, 2, nullptr) == pdPASS) {
-        return;
-    }
-    delete work;
-    background_tool_busy_.store(false);
-    ReplyError(context, "Could not start background tool", response_sender);
+    });
 }

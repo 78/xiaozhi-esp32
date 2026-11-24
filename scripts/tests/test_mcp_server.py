@@ -25,7 +25,6 @@ class McpServerTest(unittest.TestCase):
         build = Path(cls.directory.name)
         # Compile the firmware's dispatcher and tools with host platform stubs
         # and the real cJSON parser/serializer.
-        (build / "freertos").mkdir()
         stubs = {
             "platform.h": r'''
                 #pragma once
@@ -89,35 +88,7 @@ class McpServerTest(unittest.TestCase):
             "esp_log.h": "\n".join(
                 f"#define ESP_LOG{level}(...) ((void)0)" for level in "EWID"
             ),
-            "sdkconfig.h": "",
-            "esp_heap_caps.h": r'''
-                #pragma once
-                constexpr unsigned MALLOC_CAP_INTERNAL = 1, MALLOC_CAP_8BIT = 2;
-                inline size_t free_internal = 96 * 1024;
-                inline size_t largest_internal = 64 * 1024;
-                inline size_t heap_caps_get_free_size(unsigned caps) {
-                    if (caps != (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)) std::abort();
-                    return free_internal;
-                }
-                inline size_t heap_caps_get_largest_free_block(unsigned caps) {
-                    if (caps != (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)) std::abort();
-                    return largest_internal;
-                }
-            ''',
-            "freertos/FreeRTOS.h": "#pragma once\nconstexpr int pdPASS = 1;\n",
-            "freertos/task.h": r'''
-                #pragma once
-                inline std::function<void()> background_task;
-                inline bool fail_background_start = false;
-                inline void vTaskDelete(void*) {}
-                inline int xTaskCreate(void (*task)(void*), const char*, unsigned, void* arg,
-                                       unsigned, void*) {
-                    if (std::exchange(fail_background_start, false)) return 0;
-                    if (background_task) std::abort();
-                    background_task = [task, arg] { task(arg); };
-                    return pdPASS;
-                }
-            ''',
+            "esp_heap_caps.h": "",
             "nvs.h": r'''
                 #pragma once
                 #include "esp_err.h"
@@ -190,7 +161,6 @@ class McpServerTest(unittest.TestCase):
                         return kSample.size();
                     }
                     NetworkResult<int> GetStatusCode() { return 200; }
-                    size_t GetBodyLength() { return kSample.size(); }
                     void Close() {}
                 private:
                     static constexpr std::string_view kSample =
@@ -252,9 +222,6 @@ class McpServerTest(unittest.TestCase):
             #include "mcp_tools.h"
             #include "press_to_talk_mcp_tool.h"
             #include "board.h"
-            #include "esp_heap_caps.h"
-            #include "freertos/FreeRTOS.h"
-            #include "freertos/task.h"
             #include "nvs.h"
             int main(int argc, char** argv) {
                 auto& server = McpServer::GetInstance();
@@ -322,21 +289,6 @@ class McpServerTest(unittest.TestCase):
                     if (request == ":set-key" || request == ":clear-key") {
                         if (McpTools::SaveTavilyApiKey(request == ":set-key" ? "tvly-host-test" : "") !=
                             ESP_OK) std::abort();
-                    } else if (request == ":run-background") {
-                        auto task = std::exchange(background_task, {});
-                        if (!task) std::abort();
-                        task();
-                    } else if (request == ":fail-background-start") {
-                        fail_background_start = true;
-                    } else if (request == ":small-internal-heap") {
-                        free_internal = 10 * 1024;
-                        largest_internal = 9 * 1024;
-                    } else if (request == ":fragmented-internal-heap") {
-                        free_internal = 96 * 1024;
-                        largest_internal = 8 * 1024;
-                    } else if (request == ":restore-internal-heap") {
-                        free_internal = 96 * 1024;
-                        largest_internal = 64 * 1024;
                     } else {
                         server.ParseMessage(request, sender);
                     }
@@ -433,7 +385,7 @@ class McpServerTest(unittest.TestCase):
         response, = self.responses([self.call(7, "self.set_press_to_talk", {})])
         self.assert_error(response, 7, -32602, "Missing required argument: mode")
 
-    def test_tavily_registration_tracks_key_and_runs_off_the_application_task(self):
+    def test_tavily_registration_tracks_key(self):
         name = "self.tavily.web_search"
 
         def search(request_id):
@@ -441,44 +393,22 @@ class McpServerTest(unittest.TestCase):
 
         responses = self.responses([
             self.modern(1), search(2), ":set-key", self.modern(3),
-            ":fail-background-start", search(4), search(5), search(6),
-            ":run-background", search(7), ":clear-key", self.modern(8), search(9),
-            ":run-background",
-        ], mode="tavily", expected_count=9)
+            search(4), ":clear-key", self.modern(5), search(6),
+        ], mode="tavily", expected_count=6)
         by_id = {reply["id"]: reply for reply in responses}
         self.assertNotIn(name, [tool["name"] for tool in by_id[1]["result"]["tools"]])
         self.assert_error(by_id[2], 2, -32602, "Unknown tool: " + name)
         self.assertIn(name, [tool["name"] for tool in by_id[3]["result"]["tools"]])
         self.assertNotIn("tvly-host-test", json.dumps(by_id[3]))
-        self.assert_error(by_id[4], 4, -32603, "Could not start background tool")
-        self.assertEqual(by_id[5]["result"]["content"][0]["text"], "Answer: host Tavily result\n\n")
-        self.assert_error(by_id[6], 6, -32603, "A background tool is already running")
-        self.assert_error(by_id[7], 7, -32603, "Tavily API key has been cleared")
-        self.assertNotIn(name, [tool["name"] for tool in by_id[8]["result"]["tools"]])
-        self.assert_error(by_id[9], 9, -32602, "Unknown tool: " + name)
-        self.assertEqual([reply["id"] for reply in responses], [1, 2, 3, 4, 6, 5, 8, 9, 7])
+        self.assertEqual(by_id[4]["result"]["content"][0]["text"], "Answer: host Tavily result\n\n")
+        self.assertNotIn(name, [tool["name"] for tool in by_id[5]["result"]["tools"]])
+        self.assert_error(by_id[6], 6, -32602, "Unknown tool: " + name)
 
     def test_tavily_is_registered_at_boot_with_a_saved_key(self):
         response, = self.responses([self.modern(1)], mode="tavily-boot")
         names = [tool["name"] for tool in response["result"]["tools"]]
         self.assertIn("self.tavily.web_search", names)
         self.assertNotIn("self.web_search", names)
-
-    def test_tavily_declines_low_or_fragmented_sram_and_recovers(self):
-        def search(request_id):
-            return self.call(request_id, "self.tavily.web_search", {"query": "sample"})
-
-        replies = self.responses([
-            ":small-internal-heap", search(1), self.call(2, "test.integer", {"value": 23}),
-            ":fragmented-internal-heap", search(3), ":restore-internal-heap", search(4),
-            ":small-internal-heap", ":run-background", ":restore-internal-heap", search(5),
-            ":run-background",
-        ], mode="tavily-boot", expected_count=5)
-        self.assert_error(replies[0], 1, -32603, "Not enough memory for background tool")
-        self.assertEqual(replies[1]["result"]["content"][0]["text"], "23")
-        self.assert_error(replies[2], 3, -32603, "Not enough memory for background tool")
-        self.assert_error(replies[3], 4, -32603, "Not enough memory for Tavily search")
-        self.assertEqual(replies[4]["result"]["content"][0]["text"], "Answer: host Tavily result\n\n")
 
     @staticmethod
     def modern(request_id, method="tools/list", params=None, capabilities=None):

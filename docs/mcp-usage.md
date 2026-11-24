@@ -112,8 +112,6 @@ Board-specific tools are appended after these by each board's `InitializeTools()
 
 On devices with a Wi-Fi provisioning page, open **Advanced → Tavily** and save a **Tavily API Key** to enable the tool. Clear and save the field to disable it. The gateway can discover the updated tool list when the device reconnects after provisioning.
 
-Tavily searches require enough free heap and a sufficiently large contiguous block for the worker and HTTPS connection. If memory is low, the tool returns an error before starting the request.
-
 ### User-only tools - from `AddUserOnlyTools`
 
 These tools are hidden by default. The backend must pass `withUserTools=true` to `tools/list` to see them. They are intended for companion apps / end users rather than the AI model.

@@ -1,7 +1,6 @@
 #ifndef MCP_SERVER_H
 #define MCP_SERVER_H
 
-#include <atomic>
 #include <expected>
 #include <functional>
 #include <memory>
@@ -284,7 +283,6 @@ private:
     ToolCallback callback_;
     ContextToolCallback context_callback_ = nullptr;
     bool user_only_ = false;
-    bool (*background_memory_check_)(size_t stack_bytes) = nullptr;
 
 public:
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
@@ -299,13 +297,6 @@ public:
           context_callback_(callback) {}
 
     void set_user_only(bool user_only) { user_only_ = user_only; }
-    void set_background_memory_check(bool (*check)(size_t stack_bytes)) {
-        background_memory_check_ = check;
-    }
-    bool runs_in_background() const { return background_memory_check_ != nullptr; }
-    bool has_background_memory(size_t stack_bytes) const {
-        return background_memory_check_(stack_bytes);
-    }
     inline const std::string& name() const { return name_; }
     inline const std::string& description() const { return description_; }
     inline const PropertyList& properties() const { return properties_; }
@@ -508,7 +499,6 @@ private:
 
     mutable std::mutex tools_mutex_;
     std::vector<std::shared_ptr<McpTool>> tools_;
-    std::atomic<bool> background_tool_busy_{false};
 };
 
 #endif  // MCP_SERVER_H
