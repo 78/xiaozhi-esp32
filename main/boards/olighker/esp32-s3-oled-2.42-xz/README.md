@@ -12,7 +12,7 @@ Custom ESP32-S3 voice-assistant board using an ESP32-S3-WROOM-1-N16R8 module.
 - BOOT/TALK, VOL+, VOL- buttons: GPIO 0, 10, 39
 - BQ24074 status: CHG# GPIO 1, PGOOD# GPIO 8
 - Battery ADC: GPIO 2, 100 kOhm / 100 kOhm divider
-- microSD SPI: CS 14, SCK 12, MOSI 11, MISO 13, mounted at `/sd`
+- microSD SPI: CS 14, SCK 40, MOSI 9, MISO 13, mounted at `/sd`
 - Native USB: D- 19, D+ 20
 
 The SSD1309 is initialized through ESP-IDF's SSD1306-compatible panel driver.
@@ -22,7 +22,9 @@ The SSD1309 is initialized through ESP-IDF's SSD1306-compatible panel driver.
 Activate the ESP-IDF v6.1 environment, then run:
 
 ```powershell
-python scripts\build.py olighker/esp32-s3-oled-2.42-xz --name esp32-s3-oled-2.42-xz --language zh-CN
+python scripts/build.py olighker/esp32-s3-oled-2.42-xz --name esp32-s3-oled-2.42-xz --language en-US
 ```
+
+The default firmware locale is English (`en-US`), with the “Hi ESP” wake word.
 
 The build script produces `build/merged-binary.bin`. Add `--zip` to create a release package.
