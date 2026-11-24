@@ -1,6 +1,8 @@
 #include "eyes_display.h"
 
 #include "assets/lang_config.h"
+#include "audio_codec.h"
+#include "board.h"
 #include "display/lvgl_display/lvgl_theme.h"
 
 #include <material_symbols.h>
@@ -40,6 +42,14 @@ constexpr uint32_t kSleepAfterNightMs = 5 * 60 * 1000;
 constexpr uint32_t kAnnoyanceDecayMs = 3000;  // one tap is forgiven every 3 s
 constexpr int32_t kAnnoyedTaps = 3;
 constexpr int32_t kAngryTaps = 6;
+
+// Volume swipe: vertical drag on the half of the screen holding the Wi-Fi icon
+constexpr int32_t kSwipeStartPx = 14;     // vertical travel before a press becomes a swipe
+constexpr int32_t kVolumeTravelPx = 120;  // finger travel for the full 0-100 range
+constexpr int32_t kVolumeStep = 5;
+constexpr uint32_t kVolumeShowMs = 1500;
+constexpr int32_t kVolumeBarW = 10;
+constexpr int32_t kVolumeBarH = 110;
 
 // Runner game
 constexpr uint32_t kGameDurationMs = 45 * 1000;
@@ -298,6 +308,7 @@ void EyesDisplay::SetupUI() {
     CreateDecor();
     CreateGame();
     lv_obj_add_event_cb(game_, touch_cb, LV_EVENT_ALL, this);
+    CreateVolumeOverlay();
 
     uint32_t now = lv_tick_get();
     last_interaction_ = now;
@@ -404,6 +415,51 @@ void EyesDisplay::CreateGame() {
     lv_obj_set_style_text_color(score_label_, lv_color_hex(kStatusText), 0);
     lv_label_set_text(score_label_, "0");
     lv_obj_align(score_label_, LV_ALIGN_TOP_RIGHT, -16, 28);
+}
+
+void EyesDisplay::CreateVolumeOverlay() {
+    // Lives on the screen (not the face) so it stays visible over the runner game.
+    volume_box_ = lv_obj_create(lv_screen_active());
+    MakePlain(volume_box_);
+    lv_obj_set_size(volume_box_, 60, kVolumeBarH);
+    lv_obj_set_style_bg_opa(volume_box_, LV_OPA_TRANSP, 0);
+    lv_obj_align(volume_box_, LV_ALIGN_LEFT_MID, 16, 10);
+
+    lv_obj_t* track = lv_obj_create(volume_box_);
+    MakePlain(track);
+    lv_obj_set_size(track, kVolumeBarW, kVolumeBarH);
+    lv_obj_set_style_radius(track, kVolumeBarW / 2, 0);
+    lv_obj_set_style_bg_color(track, lv_color_hex(0x2A2F3A), 0);
+    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+    lv_obj_align(track, LV_ALIGN_LEFT_MID, 0, 0);
+
+    volume_fill_ = lv_obj_create(track);
+    MakePlain(volume_fill_);
+    lv_obj_set_width(volume_fill_, kVolumeBarW);
+    lv_obj_set_style_radius(volume_fill_, kVolumeBarW / 2, 0);
+    lv_obj_set_style_bg_color(volume_fill_, lv_color_hex(kBlue), 0);
+    lv_obj_set_style_bg_opa(volume_fill_, LV_OPA_COVER, 0);
+
+    // Inherits the screen font, like the other text labels.
+    volume_label_ = lv_label_create(volume_box_);
+    lv_obj_set_style_text_color(volume_label_, lv_color_white(), 0);
+    lv_obj_align(volume_label_, LV_ALIGN_LEFT_MID, kVolumeBarW + 8, 0);
+
+    lv_obj_add_flag(volume_box_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void EyesDisplay::ShowVolume(int volume, uint32_t now) {
+    if (volume_box_ == nullptr) {
+        return;
+    }
+    int32_t fill = std::max<int32_t>(kVolumeBarW, kVolumeBarH * volume / 100);
+    lv_obj_set_height(volume_fill_, fill);
+    lv_obj_align(volume_fill_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_opa(volume_fill_, volume == 0 ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
+    lv_label_set_text_fmt(volume_label_, "%d%%", volume);
+    lv_obj_remove_flag(volume_box_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(volume_box_);
+    volume_hide_at_ = now + kVolumeShowMs;
 }
 
 void EyesDisplay::ApplyDarkSurface() {
@@ -671,6 +727,10 @@ void EyesDisplay::Tick() {
         return;
     }
     uint32_t now = lv_tick_get();
+    if (volume_hide_at_ != 0 && !volume_swipe_ && static_cast<int32_t>(now - volume_hide_at_) >= 0) {
+        lv_obj_add_flag(volume_box_, LV_OBJ_FLAG_HIDDEN);
+        volume_hide_at_ = 0;
+    }
     UpdateIdle(now);
     if (activity_ == Activity::kGame) {
         UpdateGame(now);
@@ -790,6 +850,15 @@ void EyesDisplay::OnTouchEvent(lv_event_t* e) {
     switch (lv_event_get_code(e)) {
         case LV_EVENT_PRESSED: {
             pressing_ = true;
+            volume_swipe_ = false;
+            annoyance_before_press_ = annoyance_;
+            lv_indev_t* indev = lv_indev_active();
+            press_in_volume_zone_ = indev != nullptr;
+            if (indev != nullptr) {
+                lv_indev_get_point(indev, &press_point_);
+                // The Wi-Fi icon (network_label_) sits at the start of the top bar.
+                press_in_volume_zone_ = press_point_.x < LV_HOR_RES / 2;
+            }
             if (asleep_ || activity_ != Activity::kNone) {
                 // Woken up or interrupted while playing.
                 NoteInteraction(now, true);
@@ -816,6 +885,7 @@ void EyesDisplay::OnTouchEvent(lv_event_t* e) {
             }
             lv_point_t point;
             lv_indev_get_point(indev, &point);
+            UpdateVolumeSwipe(point, now);
             touch_x_ = std::clamp<int32_t>((point.x - LV_HOR_RES / 2) / 8, -40, 40);
             touch_y_ = std::clamp<int32_t>((point.y - LV_VER_RES / 2) / 8, -14, 14);
             lv_anim_delete(&gaze_x_, nullptr);
@@ -825,6 +895,9 @@ void EyesDisplay::OnTouchEvent(lv_event_t* e) {
             break;
         }
         case LV_EVENT_LONG_PRESSED:
+            if (volume_swipe_) {
+                break;
+            }
             // Petting calms it down.
             petting_ = true;
             annoyance_ = 0;
@@ -834,6 +907,8 @@ void EyesDisplay::OnTouchEvent(lv_event_t* e) {
         case LV_EVENT_RELEASED:
         case LV_EVENT_PRESS_LOST:
             pressing_ = false;
+            volume_swipe_ = false;
+            press_in_volume_zone_ = false;
             touch_x_ = 0;
             touch_y_ = 0;
             if (petting_) {
@@ -846,6 +921,38 @@ void EyesDisplay::OnTouchEvent(lv_event_t* e) {
             return;
     }
     RefreshExpression(now);
+}
+
+void EyesDisplay::UpdateVolumeSwipe(const lv_point_t& point, uint32_t now) {
+    if (!press_in_volume_zone_) {
+        return;
+    }
+    int32_t dx = point.x - press_point_.x;
+    int32_t dy = point.y - press_point_.y;
+    auto codec = Board::GetInstance().GetAudioCodec();
+    if (codec == nullptr) {
+        return;
+    }
+    if (!volume_swipe_) {
+        if (std::abs(dy) < kSwipeStartPx || std::abs(dy) <= std::abs(dx)) {
+            return;
+        }
+        // It was a swipe, not a tap: take back the tap reaction.
+        volume_swipe_ = true;
+        volume_start_ = codec->output_volume();
+        annoyance_ = annoyance_before_press_;
+        petting_ = false;
+        reaction_ = nullptr;
+        queued_reaction_ = nullptr;
+    }
+    // Swiping up raises the volume.
+    int32_t delta = -dy * 100 / kVolumeTravelPx;
+    int32_t volume = (volume_start_ + delta + kVolumeStep / 2) / kVolumeStep * kVolumeStep;
+    volume = std::clamp<int32_t>(volume, 0, 100);
+    if (volume != codec->output_volume()) {
+        codec->SetOutputVolume(volume);
+    }
+    ShowVolume(volume, now);
 }
 
 void EyesDisplay::StartActivity(Activity activity, uint32_t now) {

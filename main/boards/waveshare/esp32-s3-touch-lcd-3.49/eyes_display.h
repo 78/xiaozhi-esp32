@@ -14,6 +14,7 @@
 // Local triggers (independent of the server):
 //   - touch: tap = surprised then happy, repeated taps = annoyed then angry,
 //     long press = petted (loving), drag = eyes follow the finger
+//   - vertical swipe on the Wi-Fi icon half of the screen = speaker volume up/down
 //   - idle: bored, random activities (jump, chase, read, sneeze, runner game), then asleep
 //   - wake word / touch while asleep or playing = startled
 class EyesDisplay : public CustomLcdDisplay {
@@ -98,6 +99,9 @@ private:
     void SetReaction(const char* name, uint32_t duration_ms, uint32_t now);
     void QueueReaction(const char* name, uint32_t duration_ms);
     void OnTouchEvent(lv_event_t* e);
+    void CreateVolumeOverlay();
+    void UpdateVolumeSwipe(const lv_point_t& point, uint32_t now);
+    void ShowVolume(int volume, uint32_t now);
     void StartActivity(Activity activity, uint32_t now);
     void StopActivity(uint32_t now);
     void UpdateActivity(uint32_t now);
@@ -117,6 +121,9 @@ private:
     lv_obj_t* game_ = nullptr;
     lv_obj_t* runner_ = nullptr;
     lv_obj_t* score_label_ = nullptr;
+    lv_obj_t* volume_box_ = nullptr;
+    lv_obj_t* volume_fill_ = nullptr;
+    lv_obj_t* volume_label_ = nullptr;
     Obstacle obstacles_[kObstacleCount];
 
     lv_timer_t* blink_timer_ = nullptr;
@@ -162,6 +169,14 @@ private:
     uint32_t last_tap_ = 0;
     bool pressing_ = false;
     bool petting_ = false;
+
+    // Volume swipe state
+    lv_point_t press_point_{};
+    bool press_in_volume_zone_ = false;
+    bool volume_swipe_ = false;
+    int32_t volume_start_ = 0;
+    int32_t annoyance_before_press_ = 0;
+    uint32_t volume_hide_at_ = 0;
 
     // Runner game state
     int32_t runner_h10_ = 0;  // height above the ground, x10 fixed point
