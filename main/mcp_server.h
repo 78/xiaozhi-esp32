@@ -1,11 +1,14 @@
 #ifndef MCP_SERVER_H
 #define MCP_SERVER_H
 
+#include <atomic>
 #include <expected>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -281,6 +284,7 @@ private:
     ToolCallback callback_;
     ContextToolCallback context_callback_ = nullptr;
     bool user_only_ = false;
+    bool runs_in_background_ = false;
 
 public:
     McpTool(const std::string& name, const std::string& description, const PropertyList& properties,
@@ -295,6 +299,8 @@ public:
           context_callback_(callback) {}
 
     void set_user_only(bool user_only) { user_only_ = user_only; }
+    void set_runs_in_background(bool enabled) { runs_in_background_ = enabled; }
+    bool runs_in_background() const { return runs_in_background_; }
     inline const std::string& name() const { return name_; }
     inline const std::string& description() const { return description_; }
     inline const PropertyList& properties() const { return properties_; }
@@ -465,6 +471,7 @@ public:
     // see what the total became.
     void LogToolInventory() const;
     void AddTool(std::unique_ptr<McpTool> tool);
+    void RemoveTool(std::string_view name);
     void AddTool(const std::string& name, const std::string& description,
                  const PropertyList& properties, ToolCallback callback);
     void AddTool(const std::string& name, const std::string& description,
@@ -490,10 +497,13 @@ private:
 
     void GetToolsList(const McpRequestContext& context, const std::string& cursor,
                       bool list_user_only_tools, const ResponseSender& response_sender);
-    void DoToolCall(McpRequestContext context, McpTool* tool, const cJSON* tool_arguments,
-                    ResponseSender response_sender);
+    std::shared_ptr<McpTool> FindTool(std::string_view name) const;
+    void DoToolCall(McpRequestContext context, std::shared_ptr<McpTool> tool,
+                    const cJSON* tool_arguments, ResponseSender response_sender);
 
-    std::vector<std::unique_ptr<McpTool>> tools_;
+    mutable std::mutex tools_mutex_;
+    std::vector<std::shared_ptr<McpTool>> tools_;
+    std::atomic<bool> background_tool_busy_{false};
 };
 
 #endif  // MCP_SERVER_H

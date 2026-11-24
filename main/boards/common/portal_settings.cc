@@ -1,5 +1,6 @@
 #include "portal_settings.h"
 
+#include "mcp_tools.h"
 #include "ota.h"
 #include "settings.h"
 
@@ -381,6 +382,34 @@ SaveResult StorageError(esp_err_t error) {
     return {"", "Could not save settings.", "save_failed"};
 }
 
+// The released portal compares the returned value with the edited text.
+// A placeholder lets Clear submit an empty value without disclosing the saved key.
+constexpr char kTavilyKeyPlaceholder[] = "••••••••";
+constexpr Translation kTavilyTranslations[] = {
+    {"zh-CN", "api_key.label", "Tavily API 密钥"},
+    {"zh-CN", "api_key.help", "填写密钥以启用 Tavily 搜索，清除密钥即可停用。"},
+    {"zh-CN", "api_key.invalid", "请输入有效的 Tavily API 密钥，或清空此字段。"},
+    {"zh-TW", "api_key.label", "Tavily API 金鑰"},
+    {"zh-TW", "api_key.help", "填寫金鑰以啟用 Tavily 搜尋，清除金鑰即可停用。"},
+    {"zh-TW", "api_key.invalid", "請輸入有效的 Tavily API 金鑰，或清空此欄位。"},
+};
+
+SaveResult SaveTavilyKey(const Values& values) {
+    const auto entry = values.find("api_key");
+    if (entry == values.end()) {
+        return {};
+    }
+    const auto& key = std::get<std::string>(entry->second);
+    if (key == kTavilyKeyPlaceholder) {
+        return {};
+    }
+    auto result = McpTools::SaveTavilyApiKey(key);
+    if (result == ESP_ERR_INVALID_ARG) {
+        return {"api_key", "Enter a valid Tavily API key or clear the field.", "api_key.invalid"};
+    }
+    return StorageError(result);
+}
+
 SaveResult SaveOta(const Values& values) {
     const auto entry = values.find("ota_url");
     if (entry == values.end()) {
@@ -489,5 +518,19 @@ std::vector<wifi_config::Group> MakeXiaozhiPortalSettings() {
          .translations = kSleepTranslations,
          .load = LoadSleep,
          .save = SaveSleep},
+        {.id = "tavily",
+         .title = "Tavily",
+         .fields = {{.id = "api_key",
+                     .label = "Tavily API Key",
+                     .help = "Enter a key to enable Tavily search. Clear the key to disable it.",
+                     .max_length = McpTools::kTavilyApiKeyMaxLength,
+                     .clearable = true}},
+         .translations = kTavilyTranslations,
+         .load =
+             [] {
+                 const bool configured = McpTools::HasTavilyApiKey();
+                 return Values{{"api_key", std::string(configured ? kTavilyKeyPlaceholder : "")}};
+             },
+         .save = SaveTavilyKey},
     };
 }

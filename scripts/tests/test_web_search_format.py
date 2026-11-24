@@ -179,10 +179,11 @@ class WebSearchFormatTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             cjson_flags = shlex.split(os.environ.get("MCP_CJSON_CFLAGS", "-I/usr/include/cjson"))
+            libs = shlex.split(os.environ.get("MCP_CJSON_LIBS", "-lcjson"))
             (tmp_path / "probe.cc").write_text(textwrap.dedent(PROBE))
             probe = subprocess.run(
                 compiler + ["-std=c++23", *cjson_flags, "-I", str(REPO_ROOT / "main"),
-                            str(tmp_path / "probe.cc"), "-lcjson", "-o", str(tmp_path / "probe")],
+                            str(tmp_path / "probe.cc"), *libs, "-o", str(tmp_path / "probe")],
                 capture_output=True, text=True)
             if probe.returncode != 0:
                 raise unittest.SkipTest(
@@ -190,7 +191,7 @@ class WebSearchFormatTest(unittest.TestCase):
             (tmp_path / "driver.cc").write_text(textwrap.dedent(DRIVER))
             build = subprocess.run(
                 compiler + ["-std=c++23", *cjson_flags, "-I", str(REPO_ROOT / "main"),
-                            str(tmp_path / "driver.cc"), "-lcjson", "-o", str(tmp_path / "driver")],
+                            str(tmp_path / "driver.cc"), *libs, "-o", str(tmp_path / "driver")],
                 capture_output=True, text=True)
             if build.returncode != 0:
                 raise AssertionError("driver failed to build: " + build.stderr)
