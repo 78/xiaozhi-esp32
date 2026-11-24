@@ -14,6 +14,7 @@
 #include <src/misc/cache/lv_cache.h>
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "board.h"
@@ -24,6 +25,28 @@ LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 LV_FONT_DECLARE(font_material_symbols_30_4);
 LV_FONT_DECLARE(font_noto_emoji_30_4);
+
+#if !CONFIG_USE_WECHAT_MESSAGE_STYLE && !CONFIG_USE_MULTILINE_CHAT_MESSAGE
+// Explicit line breaks make a circular-scroll label taller than the subtitle bar.
+static std::string SingleLineSubtitle(const char* content) {
+    std::string text;
+    if (content == nullptr) {
+        return text;
+    }
+    text.reserve(strlen(content));
+    for (const char* p = content; *p != '\0'; ++p) {
+        if (*p == '\r' || *p == '\n') {
+            text.push_back(' ');
+            if (*p == '\r' && p[1] == '\n') {
+                ++p;
+            }
+        } else {
+            text.push_back(*p);
+        }
+    }
+    return text;
+}
+#endif
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
@@ -1061,7 +1084,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_left(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_pad_right(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(bottom_bar_, 0, 0);
-    lv_obj_set_scrollbar_mode(bottom_bar_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
     /* chat_message_label_ placed in bottom_bar_, single-line horizontal scroll */
@@ -1150,7 +1173,18 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         return;
     }
     lv_anim_delete(chat_message_label_, nullptr);
+#if CONFIG_USE_MULTILINE_CHAT_MESSAGE
     lv_label_set_text(chat_message_label_, content);
+#else
+    multiline_subtitle_source_.clear();
+    if (content != nullptr && strpbrk(content, "\r\n") != nullptr) {
+        multiline_subtitle_source_ = content;
+        const auto text = SingleLineSubtitle(content);
+        lv_label_set_text(chat_message_label_, text.c_str());
+    } else {
+        lv_label_set_text(chat_message_label_, content != nullptr ? content : "");
+    }
+#endif
     // Show bottom_bar_ only when there is content (and subtitle is not globally hidden)
     if (bottom_bar_ != nullptr) {
         if (content == nullptr || content[0] == '\0') {
@@ -1170,11 +1204,17 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
 
 void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr || content == nullptr ||
-        strcmp(lv_label_get_text(chat_message_label_), content) != 0) {
+    if (chat_message_label_ == nullptr || content == nullptr) {
+        return;
+    }
+    const char* original = multiline_subtitle_source_.empty()
+                               ? lv_label_get_text(chat_message_label_)
+                               : multiline_subtitle_source_.c_str();
+    if (strcmp(original, content) != 0) {
         return;
     }
     // The classic layout has one text slot and does not distinguish message roles.
+    multiline_subtitle_source_.clear();
     lv_anim_delete(chat_message_label_, nullptr);
     lv_label_set_text(chat_message_label_, "");
     if (bottom_bar_ != nullptr) {
@@ -1185,6 +1225,7 @@ void LcdDisplay::RemoveChatMessage(const char* role, const char* content) {
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
     // In non-wechat mode, just clear the chat message label and hide the bar
+    multiline_subtitle_source_.clear();
     if (chat_message_label_ != nullptr) {
         lv_label_set_text(chat_message_label_, "");
     }
