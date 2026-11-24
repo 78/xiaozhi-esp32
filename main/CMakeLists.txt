@@ -37,6 +37,7 @@ set(SOURCES "audio/audio_codec.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
+            "boards/common/portal_settings.cc"
             "settings.cc"
             "device_state_machine.cc"
             "assets.cc"
@@ -243,6 +244,11 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
     set(BOARD_DIR "m5stack/stopwatch")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CHAIN_CAPTAIN)
+    set(BOARD_DIR "m5stack/chain-captain")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4X)
     set(BOARD_DIR "m5stack/corep4x")
@@ -1219,6 +1225,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_driver_tsens
                         esp_app_format
                         app_update
+                        http_parser
                         spi_flash
                         mbedtls
                         console
