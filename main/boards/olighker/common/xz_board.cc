@@ -66,16 +66,9 @@ private:
     int64_t battery_level_update_time_us_ = 0;
 
     int UpdateReportedBatteryLevel(int measured_level, BatteryPowerState power_state) {
-        measured_level = std::clamp(measured_level, 0, 100);
+        constexpr int kFullLevel = 100;
+        constexpr int kUnconfirmedMaxLevel = kFullLevel - 1;
         const int64_t now_us = esp_timer_get_time();
-
-        if (reported_battery_level_ < 0) {
-            reported_battery_level_ =
-                power_state == BatteryPowerState::kChargeComplete ? 100 : measured_level;
-            battery_power_state_ = power_state;
-            battery_level_update_time_us_ = now_us;
-            return reported_battery_level_;
-        }
 
         if (power_state != battery_power_state_) {
             battery_power_state_ = power_state;
@@ -83,10 +76,24 @@ private:
         }
 
         if (power_state == BatteryPowerState::kChargeComplete) {
-            reported_battery_level_ = 100;
+            reported_battery_level_ = kFullLevel;
             battery_level_update_time_us_ = now_us;
             return reported_battery_level_;
         }
+
+        // Reserve 100% for charge termination. Retain a confirmed 100% when unplugged and let
+        // the discharge filter bring it down. A new charge cycle must show at most 99%.
+        const bool discharging = power_state == BatteryPowerState::kDischarging;
+        const int max_level = discharging && reported_battery_level_ == kFullLevel
+                                  ? kFullLevel
+                                  : kUnconfirmedMaxLevel;
+        measured_level = std::clamp(measured_level, 0, max_level);
+        if (reported_battery_level_ < 0) {
+            reported_battery_level_ = measured_level;
+            battery_level_update_time_us_ = now_us;
+            return reported_battery_level_;
+        }
+        reported_battery_level_ = std::min(reported_battery_level_, max_level);
 
         int step_interval_ms = 0;
         int direction = 0;
@@ -94,8 +101,7 @@ private:
             measured_level > reported_battery_level_) {
             step_interval_ms = BATTERY_CHARGE_STEP_INTERVAL_MS;
             direction = 1;
-        } else if (power_state == BatteryPowerState::kDischarging &&
-                   measured_level < reported_battery_level_) {
+        } else if (discharging && measured_level < reported_battery_level_) {
             step_interval_ms = BATTERY_DISCHARGE_STEP_INTERVAL_MS;
             direction = -1;
         }
