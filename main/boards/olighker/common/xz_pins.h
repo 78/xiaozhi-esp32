@@ -17,7 +17,7 @@
 #define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7
 #define AUDIO_I2S_SPK_SLOT I2S_STD_SLOT_LEFT
 
-#ifndef DISPLAY_USE_ST7789
+#if !defined(DISPLAY_USE_ST7789) && !defined(DISPLAY_USE_XZ_EPAPER)
 // 128x64 OLED. The board probes both common I2C addresses.
 #define DISPLAY_SDA_PIN GPIO_NUM_41
 #define DISPLAY_SCL_PIN GPIO_NUM_42
@@ -29,7 +29,7 @@
 #ifndef DISPLAY_MIRROR_Y
 #define DISPLAY_MIRROR_Y true
 #endif
-#endif  // DISPLAY_USE_ST7789
+#endif
 
 // User interface.
 #define BUILTIN_LED_GPIO GPIO_NUM_48

@@ -9,6 +9,8 @@
 #ifdef DISPLAY_USE_ST7789
 #include "backlight.h"
 #include "display/lcd_display.h"
+#elif defined(DISPLAY_USE_XZ_EPAPER)
+#include "xz_epaper_display.h"
 #else
 #include "display/oled_display.h"
 #endif
@@ -45,11 +47,13 @@ private:
         kDischarging,
     };
 
-#ifndef DISPLAY_USE_ST7789
+#if !defined(DISPLAY_USE_ST7789) && !defined(DISPLAY_USE_XZ_EPAPER)
     i2c_master_bus_handle_t display_i2c_bus_ = nullptr;
 #endif
+#ifndef DISPLAY_USE_XZ_EPAPER
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
     esp_lcd_panel_handle_t panel_ = nullptr;
+#endif
     Display* display_ = nullptr;
     sdmmc_card_t* sd_card_ = nullptr;
     esp_err_t sd_mount_result_ = ESP_ERR_INVALID_STATE;
@@ -164,7 +168,7 @@ private:
                                      DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
         GetBacklight()->RestoreBrightness();
     }
-#else
+#elif !defined(DISPLAY_USE_XZ_EPAPER)
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {};
         bus_config.i2c_port = I2C_NUM_0;
@@ -391,6 +395,15 @@ public:
           volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
 #ifdef DISPLAY_USE_ST7789
         InitializeLcdDisplay();
+#elif defined(DISPLAY_USE_XZ_EPAPER)
+        auto* epaper = new XzEpaperDisplay();
+        if (epaper->Initialize()) {
+            display_ = epaper;
+        } else {
+            ESP_LOGE(TAG, "E-paper interface setup failed");
+            delete epaper;
+            display_ = new NoDisplay();
+        }
 #else
         InitializeDisplayI2c();
         InitializeOledDisplay();

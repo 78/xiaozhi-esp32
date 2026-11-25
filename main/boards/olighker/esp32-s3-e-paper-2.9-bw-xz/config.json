@@ -1,0 +1,14 @@
+{
+    "manufacturer": "olighker",
+    "type": "esp32-s3-e-paper-2.9-bw-xz",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32-s3-e-paper-2.9-bw-xz",
+            "sdkconfig_append": [
+                "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y",
+                "CONFIG_LV_DRAW_SW_SUPPORT_I1=y"
+            ]
+        }
+    ]
+}
