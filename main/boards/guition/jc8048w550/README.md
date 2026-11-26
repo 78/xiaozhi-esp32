@@ -44,13 +44,15 @@ fixed at `#18181C`.
 
 While the device is idle the right side shows:
 
-- a card with the solar date, the Vietnamese lunar date (day and month, `nhuận`
-  for a leap month, year, day and month in can chi, and the current solar term
-  `tiết khí`), the city, today's weather and the next seven days. A line on the
-  right of the bottom row names today's holiday or giỗ when there is one: mùng 1
-  and rằm, Tết Nguyên Đán and Giao thừa, Tết Nguyên Tiêu, Giỗ Tổ Hùng Vương,
-  Phật Đản, Tết Đoan Ngọ, Vu Lan, Tết Trung Thu, Ông Công Ông Táo, Tết Dương
-  lịch, 30/4, 1/5 and 2/9. Lunar observances are not shown in a leap month;
+- a card with three blocks side by side: a solar date tile (weekday, a large
+  day number, month and year); the Vietnamese lunar facts, one colour each
+  (day and month with `nhuận` for a leap month, year in can chi, day and month
+  in can chi, and the current solar term `tiết khí`) and, only on days that
+  have one, today's holiday or giỗ: mùng 1 and rằm, Tết Nguyên Đán and Giao
+  thừa, Tết Nguyên Tiêu, Giỗ Tổ Hùng Vương, Phật Đản, Tết Đoan Ngọ, Vu Lan,
+  Tết Trung Thu, Ông Công Ông Táo, Tết Dương lịch, 30/4, 1/5 and 2/9 (lunar
+  observances are not shown in a leap month); and today's weather with the
+  city under it. Below them, the next seven days;
 - the top five GitHub repositories about AI (tagged `llm`, created in the last
   seven days, most starred first). Tapping a repo opens a detail card with its
   full description, language, stars, forks, topics and last update; tap outside

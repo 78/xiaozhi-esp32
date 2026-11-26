@@ -12,7 +12,8 @@ struct DashboardFonts {
     const lv_font_t* small;   // list rows, secondary text
     const lv_font_t* normal;  // detail title
     const lv_font_t* temp;    // current temperature
-    const lv_font_t* solar;   // solar date line (Vietnamese letters, 20 px)
+    const lv_font_t* day;     // big solar day number (digits only)
+    const lv_font_t* solar;   // weekday name (Vietnamese letters, 20 px)
     const lv_font_t* lunar;   // lunar lines, solar term, event (Vietnamese letters, 16 px)
     const lv_font_t* icon;    // Material Symbols (star, location)
     // Text that comes from a web service (repo names and descriptions, the
@@ -65,16 +66,16 @@ private:
 
     DashboardFonts fonts_;
 
-    lv_obj_t* solar_ = nullptr;        // "Thứ Sáu, 27/11/2026"
-    lv_obj_t* lunar_row1_ = nullptr;  // "Âm lịch: <date> năm <year>"
-    lv_obj_t* lunar_row2_ = nullptr;  // "Ngày <can chi> · Tháng <can chi>"
-    lv_obj_t* term_row_ = nullptr;    // "Tiết <term>"
-    lv_obj_t* lunar_date_ = nullptr;  // "18/10", "15/6 nhuận"
-    lv_obj_t* lunar_year_ = nullptr;  // "Bính Ngọ"
-    lv_obj_t* day_name_ = nullptr;    // day can chi
-    lv_obj_t* month_name_ = nullptr;  // month can chi
-    lv_obj_t* term_ = nullptr;        // solar term name
-    lv_obj_t* event_ = nullptr;        // today's holiday or giỗ, hidden when there is none
+    lv_obj_t* weekday_ = nullptr;       // "Thứ Sáu"
+    lv_obj_t* day_ = nullptr;           // "27"
+    lv_obj_t* month_year_ = nullptr;    // "Tháng 11/2026"
+    lv_obj_t* lunar_column_ = nullptr;  // the five lunar rows, hidden until the clock is set
+    lv_obj_t* lunar_date_ = nullptr;    // "18/10", "15/6 nhuận"
+    lv_obj_t* lunar_year_ = nullptr;    // "Bính Ngọ"
+    lv_obj_t* day_name_ = nullptr;      // day can chi
+    lv_obj_t* month_name_ = nullptr;    // month can chi
+    lv_obj_t* term_ = nullptr;          // solar term name
+    lv_obj_t* event_ = nullptr;         // today's holiday or giỗ, hidden when there is none
     lv_obj_t* city_icon_ = nullptr;
     lv_obj_t* city_ = nullptr;
     lv_obj_t* weather_box_ = nullptr;  // icon + temperature block, dimmed when stale

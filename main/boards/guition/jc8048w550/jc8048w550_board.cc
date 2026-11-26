@@ -328,7 +328,7 @@ private:
         // The idle view takes over info_panel_ (flex column) and hosts its
         // detail overlay on the whole right panel.
         DashboardFonts fonts = {&lv_font_montserrat_16, &lv_font_montserrat_20,
-                                &lv_font_montserrat_28, &font_vi_20, &font_vi_16,
+                                &lv_font_montserrat_28, &lv_font_montserrat_40, &font_vi_20, &font_vi_16,
                                 theme->icon_font()->font(), nullptr};
         dashboard_ =
             std::make_unique<IdleDashboard>(info_panel_, right_panel_, panel_width_, fonts);

@@ -30,9 +30,14 @@ const lv_color_t kLunarYear = lv_color_hex(0xff8a65);
 const lv_color_t kDayName = lv_color_hex(0x4dd0e1);
 const lv_color_t kMonthName = lv_color_hex(0x81c784);
 const lv_color_t kTerm = lv_color_hex(0xba9cff);
+const lv_color_t kSolarDay = lv_color_hex(0xff6b6b);
+const lv_color_t kTile = lv_color_hex(0x2e2e3a);
+constexpr int32_t kSolarTileWidth = 124;
+constexpr int32_t kRightColumnWidth = 190;  // weather block and city
+constexpr int32_t kEventMaxWidth = 170;
 
 constexpr int32_t kCardPadding = 8;
-constexpr int32_t kRowHeight = 34;
+constexpr int32_t kRowHeight = 33;
 constexpr int32_t kStatsWidth = 72;  // star icon + star count, right-aligned
 constexpr int32_t kRowPadding = 8;   // left/right padding and gap inside a repo row
 constexpr int32_t kBadgeSize = 22;
@@ -161,29 +166,53 @@ void IdleDashboard::BuildSummaryCard(lv_obj_t* parent, int32_t width) {
     lv_obj_set_style_pad_row(card, 4, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
-    // Top row: the solar and lunar date on the left, today's weather on the right.
+    // Top row, three blocks: the solar date tile, the lunar facts, and today's
+    // weather with the city and the day's holiday under it.
     lv_obj_t* top = Box(card);
     lv_obj_set_size(top, lv_pct(100), LV_SIZE_CONTENT);
     Row(top, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t* left = Box(top);
-    lv_obj_set_size(left, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    Column(left, LV_FLEX_ALIGN_START);
-    solar_ = Label(left, fonts_.solar, kText, "--/--/----");
-    lunar_row1_ = InlineRow(left);
-    Label(lunar_row1_, fonts_.lunar, kMuted, "Âm lịch:");
-    lunar_date_ = Label(lunar_row1_, fonts_.lunar, kLunarDate);
-    Label(lunar_row1_, fonts_.lunar, kMuted, "năm");
-    lunar_year_ = Label(lunar_row1_, fonts_.lunar, kLunarYear);
-    lunar_row2_ = InlineRow(left);
-    Label(lunar_row2_, fonts_.lunar, kMuted, "Ngày");
-    day_name_ = Label(lunar_row2_, fonts_.lunar, kDayName);
-    Label(lunar_row2_, fonts_.lunar, kMuted, "· Tháng");
-    month_name_ = Label(lunar_row2_, fonts_.lunar, kMonthName);
+    lv_obj_t* tile = Box(top);
+    lv_obj_set_size(tile, kSolarTileWidth, LV_SIZE_CONTENT);
+    Column(tile, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_color(tile, kTile, 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(tile, 10, 0);
+    lv_obj_set_style_pad_all(tile, 6, 0);
+    lv_obj_set_style_pad_row(tile, 0, 0);
+    weekday_ = Label(tile, fonts_.solar, kText);
+    day_ = Label(tile, fonts_.day, kSolarDay, "--");
+    month_year_ = Label(tile, fonts_.lunar, kText, "--/----");
+
+    lunar_column_ = Box(top);
+    lv_obj_set_size(lunar_column_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    Column(lunar_column_, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(lunar_column_, 0, 0);
+    lv_obj_t* row = InlineRow(lunar_column_);
+    Label(row, fonts_.lunar, kMuted, "Âm lịch");
+    lunar_date_ = Label(row, fonts_.lunar, kLunarDate);
+    row = InlineRow(lunar_column_);
+    Label(row, fonts_.lunar, kMuted, "Năm");
+    lunar_year_ = Label(row, fonts_.lunar, kLunarYear);
+    row = InlineRow(lunar_column_);
+    Label(row, fonts_.lunar, kMuted, "Ngày");
+    day_name_ = Label(row, fonts_.lunar, kDayName);
+    row = InlineRow(lunar_column_);
+    Label(row, fonts_.lunar, kMuted, "Tháng");
+    month_name_ = Label(row, fonts_.lunar, kMonthName);
+    row = InlineRow(lunar_column_);
+    Label(row, fonts_.lunar, kMuted, "Tiết");
+    term_ = Label(row, fonts_.lunar, kTerm);
+    // Today's holiday or giỗ: only on days that have one, clipped if very long.
+    event_ = Label(lunar_column_, fonts_.lunar, kWarning);
+    lv_obj_set_style_max_width(event_, kEventMaxWidth, 0);
+    lv_label_set_long_mode(event_, LV_LABEL_LONG_MODE_CLIP);
+    SetHidden(lunar_column_, true);
 
     lv_obj_t* right = Box(top);
-    lv_obj_set_size(right, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_size(right, kRightColumnWidth, LV_SIZE_CONTENT);
     Column(right, LV_FLEX_ALIGN_END);
+    lv_obj_set_style_pad_row(right, 2, 0);
     weather_box_ = Box(right);
     lv_obj_set_size(weather_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     Row(weather_box_, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
@@ -196,21 +225,15 @@ void IdleDashboard::BuildSummaryCard(lv_obj_t* parent, int32_t width) {
     condition_ = Label(temps, fonts_.small, kText);
     range_ = Label(temps, fonts_.small, kMuted);
     weather_status_ = Label(right, fonts_.small, kWarning, "loading...");
-
-    // Meta row: solar term and city on the left, today's holiday on the right.
-    lv_obj_t* meta = Box(card);
-    lv_obj_set_size(meta, lv_pct(100), LV_SIZE_CONTENT);
-    Row(meta, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(meta, 8, 0);
-    term_row_ = InlineRow(meta);
-    Label(term_row_, fonts_.lunar, kMuted, "Tiết");
-    term_ = Label(term_row_, fonts_.lunar, kTerm);
-    city_icon_ = Label(meta, fonts_.icon, kMuted, MATERIAL_SYMBOLS_LOCATION_ON);
-    city_ = Label(meta, fonts_.text, kMuted, "--");
-    event_ = Label(meta, fonts_.lunar, kWarning);
-    lv_obj_set_flex_grow(event_, 1);
-    lv_obj_set_style_text_align(event_, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_long_mode(event_, LV_LABEL_LONG_MODE_CLIP);
+    // The city is web text of unknown length: it gets a bounded width and clips.
+    lv_obj_t* city_row = Box(right);
+    lv_obj_set_size(city_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    Row(city_row, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(city_row, 4, 0);
+    city_icon_ = Label(city_row, fonts_.icon, kMuted, MATERIAL_SYMBOLS_LOCATION_ON);
+    city_ = Label(city_row, fonts_.text, kMuted, "--");
+    lv_obj_set_style_max_width(city_, kRightColumnWidth - 30, 0);
+    lv_label_set_long_mode(city_, LV_LABEL_LONG_MODE_CLIP);
     SetHidden(city_icon_, true);
     SetHidden(city_, true);
     SetHidden(event_, true);
@@ -437,10 +460,10 @@ void IdleDashboard::RefreshClock() {
     struct tm local;
     localtime_r(&now, &local);
     if (local.tm_year < 2025 - 1900) {
-        SetText(solar_, "--/--/----");
-        SetHidden(lunar_row1_, true);
-        SetHidden(lunar_row2_, true);
-        SetHidden(term_row_, true);
+        SetText(weekday_, "");
+        SetText(day_, "--");
+        SetText(month_year_, "--/----");
+        SetHidden(lunar_column_, true);
         SetHidden(event_, true);
         return;
     }
@@ -451,9 +474,12 @@ void IdleDashboard::RefreshClock() {
     const int year = local.tm_year + 1900;
     const lunar::LunarDate lunar_date = lunar::SolarToLunar(day, month, year);
 
-    char text[128];
-    snprintf(text, sizeof(text), "%s, %02d/%02d/%04d", kWeekdays[local.tm_wday], day, month, year);
-    SetText(solar_, text);
+    char text[64];
+    SetText(weekday_, kWeekdays[local.tm_wday]);
+    snprintf(text, sizeof(text), "%d", day);
+    SetText(day_, text);
+    snprintf(text, sizeof(text), "Tháng %d/%04d", month, year);
+    SetText(month_year_, text);
     snprintf(text, sizeof(text), "%d/%d%s", lunar_date.day, lunar_date.month,
              lunar_date.leap ? " nhuận" : "");
     SetText(lunar_date_, text);
@@ -461,9 +487,7 @@ void IdleDashboard::RefreshClock() {
     SetText(day_name_, lunar::DayCanChi(lunar::JulianDay(day, month, year)).c_str());
     SetText(month_name_, lunar::MonthCanChi(lunar_date).c_str());
     SetText(term_, lunar::SolarTerm(day, month, year));
-    SetHidden(lunar_row1_, false);
-    SetHidden(lunar_row2_, false);
-    SetHidden(term_row_, false);
+    SetHidden(lunar_column_, false);
 
     std::string events;
     for (const std::string& event : dashboard::EventsFor(day, month, year)) {
