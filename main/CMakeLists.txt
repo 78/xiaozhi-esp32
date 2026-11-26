@@ -65,6 +65,7 @@ list(APPEND SOURCES
     "boards/common/sleep_timer.cc"
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
+    "boards/common/radio_player.cc"
 )
 if(CONFIG_XIAOZHI_NETWORK_ETHERNET)
     list(APPEND SOURCES "boards/common/ethernet_board.cc")
@@ -665,6 +666,11 @@ elseif(CONFIG_BOARD_TYPE_ESP_MOSAICO)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_ILI9341)
+    set(BOARD_DIR "bread-compact-wifi-ili9341")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD)
     set(BOARD_DIR "bread-compact-wifi-lcd")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
