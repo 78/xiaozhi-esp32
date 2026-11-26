@@ -44,12 +44,22 @@ fixed at `#18181C`.
 
 While the device is idle the right side shows:
 
-- a card with the clock, the date, the city, today's weather and the next seven
-  days;
+- a card with the solar date, the Vietnamese lunar date (day and month, `nhuận`
+  for a leap month, year, day and month in can chi, and the current solar term
+  `tiết khí`), the city, today's weather and the next seven days. A line on the
+  right of the bottom row names today's holiday or giỗ when there is one: mùng 1
+  and rằm, Tết Nguyên Đán and Giao thừa, Tết Nguyên Tiêu, Giỗ Tổ Hùng Vương,
+  Phật Đản, Tết Đoan Ngọ, Vu Lan, Tết Trung Thu, Ông Công Ông Táo, Tết Dương
+  lịch, 30/4, 1/5 and 2/9. Lunar observances are not shown in a leap month;
 - the top five GitHub repositories about AI (tagged `llm`, created in the last
   seven days, most starred first). Tapping a repo opens a detail card with its
   full description, language, stars, forks, topics and last update; tap outside
   the card or the close button to dismiss it.
+
+The calendar is computed on the device (no network) for the device's local
+date, with the Vietnamese lunar rules (UTC+7); it shows `--/--/----` until the
+clock is set. It uses the embedded Vietnamese fonts (see below), not the assets
+font.
 
 The data is fetched by the device itself, only while it is idle, the clock is
 set and enough internal RAM is free:
@@ -80,13 +90,14 @@ The idle calendar card uses two fonts compiled into the firmware, `font_vi_16.c`
 and `font_vi_20.c`, because the assets font lacks some Vietnamese letters
 (for example `ỵ` in the year name Tỵ). They are Noto Sans Regular (SIL Open
 Font License 1.1) with ASCII, Latin-1 and the Vietnamese letters, generated
-files: do not edit them by hand. To regenerate (Node.js required), with
+files: do not edit them by hand. Keep `--no-compress`: this project builds LVGL
+without `LV_USE_FONT_COMPRESSED`, and a compressed font renders blank. To regenerate (Node.js required), with
 `NotoSans-Regular.ttf` from `https://github.com/notofonts/notofonts.github.io`
 (`fonts/NotoSans/full/ttf/`):
 
 ```sh
 for N in 16 20; do
-  npx --yes lv_font_conv@1.5.3 --font NotoSans-Regular.ttf --size $N --bpp 4 \
+  npx --yes lv_font_conv@1.5.3 --font NotoSans-Regular.ttf --size $N --bpp 4 --no-compress \
     --format lvgl --lv-include lvgl.h --lv-font-name font_vi_$N \
     -r 0x20-0x7E,0xC0-0xFD,0x102-0x103,0x110-0x111,0x128-0x129,0x168-0x169,0x1A0-0x1A1,0x1AF-0x1B0,0x1EA0-0x1EF9,0xB7 \
     -o font_vi_$N.c
