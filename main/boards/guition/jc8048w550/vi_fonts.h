@@ -9,8 +9,8 @@
 extern "C" {
 #endif
 
+extern const lv_font_t font_vi_16;
 extern const lv_font_t font_vi_20;
-extern const lv_font_t font_vi_28;
 
 #ifdef __cplusplus
 }

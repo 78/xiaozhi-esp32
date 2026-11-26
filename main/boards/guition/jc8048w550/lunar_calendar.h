@@ -14,8 +14,7 @@ struct LunarDate {
     bool leap = false;  // the month is a leap month (thang nhuan)
 
     bool operator==(const LunarDate& other) const {
-        return day == other.day && month == other.month && year == other.year &&
-               leap == other.leap;
+        return day == other.day && month == other.month && year == other.year && leap == other.leap;
     }
 };
 

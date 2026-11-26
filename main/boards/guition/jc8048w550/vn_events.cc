@@ -19,7 +19,7 @@ struct SolarEvent {
 
 constexpr LunarEvent kLunarEvents[] = {
     {1, 1, "Tết Nguyên Đán"}, {15, 1, "Tết Nguyên Tiêu"},   {10, 3, "Giỗ Tổ Hùng Vương"},
-    {15, 4, "Phật Đản"},      {5, 5, "Tết Đoan Ngọ"},        {15, 7, "Vu Lan"},
+    {15, 4, "Phật Đản"},      {5, 5, "Tết Đoan Ngọ"},       {15, 7, "Vu Lan"},
     {15, 8, "Tết Trung Thu"}, {23, 12, "Ông Công Ông Táo"},
 };
 
@@ -30,9 +30,7 @@ constexpr SolarEvent kSolarEvents[] = {
     {2, 9, "Quốc khánh"},
 };
 
-bool IsLeapYear(int year) {
-    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-}
+bool IsLeapYear(int year) { return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0; }
 
 int DaysInMonth(int month, int year) {
     constexpr int kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};

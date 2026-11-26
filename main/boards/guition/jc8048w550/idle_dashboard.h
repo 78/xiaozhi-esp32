@@ -12,7 +12,8 @@ struct DashboardFonts {
     const lv_font_t* small;   // list rows, secondary text
     const lv_font_t* normal;  // detail title
     const lv_font_t* temp;    // current temperature
-    const lv_font_t* clock;   // HH:MM
+    const lv_font_t* solar;   // solar date line (Vietnamese letters, 20 px)
+    const lv_font_t* lunar;   // lunar lines, solar term, event (Vietnamese letters, 16 px)
     const lv_font_t* icon;    // Material Symbols (star, location)
     // Text that comes from a web service (repo names and descriptions, the
     // city). nullptr inherits the screen's font, which is the theme's text font
@@ -20,10 +21,10 @@ struct DashboardFonts {
     const lv_font_t* text;
 };
 
-// What the display shows while idle: a card with the clock and the weather
-// (today plus seven days), the top GitHub AI repos, and a detail card for a
-// repo the user taps. Every method must be called with the LVGL lock held (or
-// from an LVGL timer or event callback, which already holds it).
+// What the display shows while idle: a card with the solar and lunar date, the
+// day's holiday and the weather (today plus seven days), the top GitHub AI repos, and a detail card
+// for a repo the user taps. Every method must be called with the LVGL lock held (or from an LVGL
+// timer or event callback, which already holds it).
 class IdleDashboard {
 public:
     static constexpr int kRepoRows = 5;
@@ -64,8 +65,11 @@ private:
 
     DashboardFonts fonts_;
 
-    lv_obj_t* clock_ = nullptr;
-    lv_obj_t* date_ = nullptr;
+    lv_obj_t* solar_ = nullptr;        // "Thứ Sáu, 27/11/2026"
+    lv_obj_t* lunar_line1_ = nullptr;  // "Âm lịch: 18/10 năm Bính Ngọ"
+    lv_obj_t* lunar_line2_ = nullptr;  // "Ngày ... · Tháng ..."
+    lv_obj_t* term_ = nullptr;         // "Tiết Tiểu thử"
+    lv_obj_t* event_ = nullptr;        // today's holiday or giỗ, hidden when there is none
     lv_obj_t* city_icon_ = nullptr;
     lv_obj_t* city_ = nullptr;
     lv_obj_t* weather_box_ = nullptr;  // icon + temperature block, dimmed when stale

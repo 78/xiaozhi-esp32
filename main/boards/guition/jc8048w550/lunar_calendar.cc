@@ -10,9 +10,7 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kTimeZone = 7.0;
 
-int Floor(double value) {
-    return static_cast<int>(std::floor(value));
-}
+int Floor(double value) { return static_cast<int>(std::floor(value)); }
 
 // Julian day number of the k-th new moon after 1900-01-01 (fractional).
 double NewMoon(int k) {
@@ -32,9 +30,9 @@ double NewMoon(int k) {
     c1 -= 0.0074 * std::sin(dr * (m - mpr)) - 0.0004 * std::sin(dr * (2 * f + m));
     c1 -= 0.0004 * std::sin(dr * (2 * f - m)) + 0.0006 * std::sin(dr * (2 * f + mpr));
     c1 += 0.0010 * std::sin(dr * (2 * f - mpr)) + 0.0005 * std::sin(dr * (2 * mpr + m));
-    const double delta_t = t < -11 ? 0.001 + 0.000839 * t + 0.0002261 * t2 - 0.00000845 * t3 -
-                                         0.000000081 * t * t3
-                                   : -0.000278 + 0.000265 * t + 0.000262 * t2;
+    const double delta_t =
+        t < -11 ? 0.001 + 0.000839 * t + 0.0002261 * t2 - 0.00000845 * t3 - 0.000000081 * t * t3
+                : -0.000278 + 0.000265 * t + 0.000262 * t2;
     return jd1 + c1 - delta_t;
 }
 
@@ -57,9 +55,7 @@ int SunSector(int day_number) {
     return Floor(SunLongitude(day_number - 0.5 - kTimeZone / 24.0) / kPi * 6);
 }
 
-int NewMoonDay(int k) {
-    return Floor(NewMoon(k) + 0.5 + kTimeZone / 24.0);
-}
+int NewMoonDay(int k) { return Floor(NewMoon(k) + 0.5 + kTimeZone / 24.0); }
 
 // Day number of the start of lunar month 11 of the given solar year.
 int LunarMonth11(int year) {
@@ -86,20 +82,18 @@ int LeapMonthOffset(int a11) {
     return i - 1;
 }
 
-const char* const kCan[10] = {"Giáp", "Ất", "Bính", "Đinh", "Mậu",
-                              "Kỷ",   "Canh", "Tân", "Nhâm", "Quý"};
+const char* const kCan[10] = {"Giáp", "Ất",   "Bính", "Đinh", "Mậu",
+                              "Kỷ",   "Canh", "Tân",  "Nhâm", "Quý"};
 const char* const kChi[12] = {"Tý",  "Sửu", "Dần",  "Mão", "Thìn", "Tỵ",
                               "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"};
 // Indexed by floor(sun longitude / 15 degrees), starting at the March equinox.
-const char* const kTerms[24] = {
-    "Xuân phân", "Thanh minh", "Cốc vũ",   "Lập hạ",     "Tiểu mãn", "Mang chủng",
-    "Hạ chí",    "Tiểu thử",   "Đại thử",  "Lập thu",    "Xử thử",   "Bạch lộ",
-    "Thu phân",  "Hàn lộ",     "Sương giáng", "Lập đông", "Tiểu tuyết", "Đại tuyết",
-    "Đông chí",  "Tiểu hàn",   "Đại hàn",  "Lập xuân",   "Vũ thủy",  "Kinh trập"};
+const char* const kTerms[24] = {"Xuân phân",  "Thanh minh", "Cốc vũ",    "Lập hạ",   "Tiểu mãn",
+                                "Mang chủng", "Hạ chí",     "Tiểu thử",  "Đại thử",  "Lập thu",
+                                "Xử thử",     "Bạch lộ",    "Thu phân",  "Hàn lộ",   "Sương giáng",
+                                "Lập đông",   "Tiểu tuyết", "Đại tuyết", "Đông chí", "Tiểu hàn",
+                                "Đại hàn",    "Lập xuân",   "Vũ thủy",   "Kinh trập"};
 
-int Mod(int value, int divisor) {
-    return ((value % divisor) + divisor) % divisor;
-}
+int Mod(int value, int divisor) { return ((value % divisor) + divisor) % divisor; }
 
 std::string CanChi(int can, int chi) {
     return std::string(kCan[Mod(can, 10)]) + " " + kChi[Mod(chi, 12)];
@@ -156,17 +150,13 @@ LunarDate SolarToLunar(int day, int month, int year) {
     return result;
 }
 
-std::string YearCanChi(int lunar_year) {
-    return CanChi(lunar_year + 6, lunar_year + 8);
-}
+std::string YearCanChi(int lunar_year) { return CanChi(lunar_year + 6, lunar_year + 8); }
 
 std::string MonthCanChi(const LunarDate& date) {
     return CanChi(date.year * 12 + date.month + 3, date.month + 1);
 }
 
-std::string DayCanChi(int jdn) {
-    return CanChi(jdn + 9, jdn + 1);
-}
+std::string DayCanChi(int jdn) { return CanChi(jdn + 9, jdn + 1); }
 
 const char* SolarTerm(int day, int month, int year) {
     const int jd = JulianDay(day, month, year);
