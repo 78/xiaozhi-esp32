@@ -74,6 +74,22 @@ has: the default assets carry the Noto `common` set (Latin, Cyrillic, kana,
 hangul and about 5,000 Chinese characters). A character the font lacks shows as
 a blank or a box. Emoji are removed because that font has no glyph for them.
 
+## Vietnamese fonts
+
+The idle calendar card uses two fonts compiled into the firmware, `font_vi_20.c`
+and `font_vi_28.c`, because the assets font lacks some Vietnamese letters
+(for example `ỵ` in the year name Tỵ). They are Noto Sans Regular (SIL Open
+Font License 1.1) with ASCII, Latin-1 and the Vietnamese letters, generated
+files: do not edit them by hand. To regenerate (Node.js required), with
+`NotoSans-Regular.ttf` from `https://github.com/notofonts/notofonts.github.io`
+(`fonts/NotoSans/full/ttf/`):
+
+```sh
+for N in 20 28; do
+  npx --yes lv_font_conv@1.5.3 --font NotoSans-Regular.ttf --size $N --bpp 4     --format lvgl --lv-include lvgl.h --lv-font-name font_vi_$N     -r 0x20-0x7E,0xC0-0xFD,0x102-0x103,0x110-0x111,0x128-0x129,0x168-0x169,0x1A0-0x1A1,0x1AF-0x1B0,0x1EA0-0x1EF9,0xB7     -o font_vi_$N.c
+done
+```
+
 ## Build
 
 ```sh
