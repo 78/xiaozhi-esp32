@@ -3,6 +3,19 @@
  * Revisions: 2024-11-05 (legacy) and 2026-07-28 (per-request metadata)
  */
 
+static std::string g_answer_mode = "simple";
+
+ToolResult SetAnswerMode(const PropertyList& props)
+{
+    std::string mode = props["mode"].value<std::string>();
+    if (mode == "professional" || mode == "simple")
+    {
+        g_answer_mode = mode;
+        ESP_LOGI("MY_MODE", "模式已切换为：%s", g_answer_mode.c_str());
+        return "切换成功，当前模式:" + g_answer_mode;
+    }
+    return std::unexpected("模式错误，仅支持 professional / simple");
+}
 #include "mcp_server.h"
 #include <esp_app_desc.h>
 #include <esp_log.h>
