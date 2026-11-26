@@ -34,9 +34,11 @@ set(SOURCES "audio/audio_codec.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
             "mcp_server.cc"
+            "mcp_tools.cc"
             "system_info.cc"
             "application.cc"
             "ota.cc"
+            "boards/common/portal_settings.cc"
             "settings.cc"
             "device_state_machine.cc"
             "assets.cc"
@@ -244,8 +246,13 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_STOPWATCH)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
-elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4)
-    set(BOARD_DIR "m5stack/corep4")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CHAIN_CAPTAIN)
+    set(BOARD_DIR "m5stack/chain-captain")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_P4X)
+    set(BOARD_DIR "m5stack/corep4x")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
@@ -291,6 +298,15 @@ elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE)
     set(BOARD_DIR "m5stack/atoms3r-cam-m12-echo-base")
 elseif(CONFIG_BOARD_TYPE_M5STACK_ATOM_ECHOS3R)
     set(BOARD_DIR "m5stack/atom-echos3r")
+elseif(CONFIG_BOARD_TYPE_M5STACK_CARDPUTER)
+    set(BOARD_DIR "m5stack/cardputer")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_32)
+    # Shared with m5stack/cardputer-adv rather than copied: same 4x14 key layout and screen,
+    # so the keyboard WiFi/server setup UI and key types are reused as-is.
+    list(APPEND SOURCES "boards/m5stack/cardputer-adv/wifi_config_ui.cc")
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/m5stack/cardputer-adv)
 elseif(CONFIG_BOARD_TYPE_M5STACK_CARDPUTER_ADV)
     set(BOARD_DIR "m5stack/cardputer-adv")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -389,6 +405,11 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8)
     set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_30_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8_V2)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.8-v2")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_30_4)
     set(BUILTIN_ICON_FONT font_material_symbols_30_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
@@ -521,6 +542,16 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69)
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
     set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8)
+    set(BOARD_DIR "waveshare/esp32-c5-touch-lcd-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5)
+    set(BOARD_DIR "waveshare/esp32-c5-touch-lcd-3.5")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54)
     set(BOARD_DIR "waveshare/esp32-c6-epaper-1.54")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
@@ -534,6 +565,11 @@ elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_83)
     set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-1.83")
     set(BUILTIN_TEXT_FONT font_noto_sans_basic_16_4)
     set(BUILTIN_ICON_FONT font_material_symbols_16_4)
+    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8)
+    set(BOARD_DIR "waveshare/esp32-c6-touch-lcd-2.8")
+    set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+    set(BUILTIN_ICON_FONT font_material_symbols_20_4)
     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
 elseif(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_43)
     set(BOARD_DIR "waveshare/esp32-c6-touch-amoled-1.43")
@@ -1134,6 +1170,10 @@ if(CONFIG_IDF_TARGET_ESP32S31)
     list(APPEND SOURCES "boards/common/esp_video.cc")
 endif()
 
+if(CONFIG_BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5)
+    list(APPEND SOURCES "boards/common/esp_video.cc")
+endif()
+
 # Include Esp32Camera if target is ESP32S3
 if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "boards/common/esp32_camera.cc")
@@ -1165,6 +1205,12 @@ if(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)
         sdmmc
     )
 endif()
+# The Otto camera board uses the USB Serial/JTAG host connection to detect
+# charging from a USB port. The board is ESP32-S3 only, so require the driver
+# on that target and keep other target builds unchanged.
+if(IDF_TARGET STREQUAL "esp32s3")
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA esp_driver_usb_serial_jtag)
+endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
@@ -1174,6 +1220,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_psram
                         esp_netif
                         esp_eth
+                        esp_adc
                         esp_driver_gpio
                         esp_driver_uart
                         esp_driver_spi
@@ -1185,6 +1232,7 @@ idf_component_register(SRCS ${SOURCES}
                         esp_driver_tsens
                         esp_app_format
                         app_update
+                        http_parser
                         spi_flash
                         mbedtls
                         console
@@ -1199,6 +1247,13 @@ idf_component_register(SRCS ${SOURCES}
 # dialect; pin the baseline so main/ does not depend on it.
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     target_compile_options(${COMPONENT_LIB} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++23>)
+    # Bound individual frames in project-owned code; task call chains still need runtime checks.
+    target_compile_options(${COMPONENT_LIB} PRIVATE
+        -Werror=frame-larger-than=1536
+        -Werror=vla
+        -Werror=alloca
+        $<$<COMPILE_LANG_AND_ID:C,GNU>:-fstack-usage>
+        $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-fstack-usage>)
 endif()
 
 # Use target_compile_definitions to define the reported board identity

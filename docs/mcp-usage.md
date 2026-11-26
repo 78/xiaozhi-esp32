@@ -95,7 +95,7 @@ A tool registered this way will not appear in a regular `tools/list` response. T
 
 ## Built-in Tools
 
-`McpServer::AddCommonTools` and `McpServer::AddUserOnlyTools` register a number of tools automatically:
+`McpServer::AddCommonTools` and `McpServer::AddUserOnlyTools` in `main/mcp_tools.cc` register the built-in tools.
 
 ### Default (AI-callable) tools - from `AddCommonTools`
 
@@ -106,8 +106,11 @@ A tool registered this way will not appear in a regular `tools/list` response. T
 | `self.screen.set_brightness` | Set screen brightness when a backlight is available (`brightness`: 0-100). |
 | `self.screen.set_theme` | Switch UI theme (`theme`: `"light"` or `"dark"`), when LVGL is enabled. |
 | `self.camera.take_photo` | Take a picture with the on-board camera (when the board has one) and answer the given `question` about it. |
+| `self.tavily.web_search` | Search with Tavily using a `query`. Available when a Tavily API key is configured on the device. |
 
 Board-specific tools are appended after these by each board's `InitializeTools()`.
+
+On devices with a Wi-Fi provisioning page, open **Advanced → Tavily** and save a **Tavily API Key** to enable the tool. Clear and save the field to disable it. The gateway can discover the updated tool list when the device reconnects after provisioning.
 
 ### User-only tools - from `AddUserOnlyTools`
 

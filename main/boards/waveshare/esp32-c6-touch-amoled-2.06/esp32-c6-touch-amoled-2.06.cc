@@ -1,3 +1,5 @@
+#include "boards/waveshare/amoled_2_06_touch.h"
+
 #include "wifi_board.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_sh8601.h"
@@ -273,6 +275,7 @@ public:
         InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
+        ESP_ERROR_CHECK_WITHOUT_ABORT(AddAmoled206Touch(i2c_bus_, GPIO_NUM_10, GPIO_NUM_15));
         InitializeButtons();
         InitializeTools();
     }

@@ -799,7 +799,12 @@ def get_wakenet_model_paths(model_names, esp_sr_model_path):
     valid_paths = []
     for model_name in model_names:
         wakenet_model_path = os.path.join(esp_sr_model_path, 'wakenet_model', model_name)
-        if os.path.exists(wakenet_model_path):
+        # ESP-SR 2.4.7 names the GiGi Kconfig option wn9l_heygigi_tts3,
+        # but ships its model under wn9l_heygigi. Prefer an exact match if
+        # a future component version aligns the directory with the option.
+        if not os.path.isdir(wakenet_model_path) and model_name == 'wn9l_heygigi_tts3':
+            wakenet_model_path = os.path.join(esp_sr_model_path, 'wakenet_model', 'wn9l_heygigi')
+        if os.path.isdir(wakenet_model_path):
             valid_paths.append(wakenet_model_path)
         else:
             print(f"Warning: Wakenet model directory not found: {wakenet_model_path}")

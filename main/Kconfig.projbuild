@@ -358,11 +358,17 @@ choice BOARD_TYPE
     config BOARD_TYPE_M5STACK_ATOM_S3R_CAM_M12_ECHO_BASE
         bool "M5Stack AtomS3R CAM/M12 + Echo Base"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_CARDPUTER
+        bool "M5Stack Cardputer"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_M5STACK_CARDPUTER_ADV
         bool "M5Stack Cardputer Adv"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_M5STACK_CORE_P4
-        bool "M5Stack CoreP4"
+    config BOARD_TYPE_M5STACK_CHAIN_CAPTAIN
+        bool "M5Stack Chain Captain"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_M5STACK_CORE_P4X
+        bool "M5Stack CoreP4X"
         depends on IDF_TARGET_ESP32P4
     config BOARD_TYPE_M5STACK_CORE_S3
         bool "M5Stack CoreS3"
@@ -475,6 +481,12 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_1_69
         bool "Waveshare ESP32-C5-Touch-LCD-1.69"
         depends on IDF_TARGET_ESP32C5
+    config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_2_8
+        bool "Waveshare ESP32-C5-Touch-LCD-2.8"
+        depends on IDF_TARGET_ESP32C5
+    config BOARD_TYPE_WAVESHARE_ESP32_C5_TOUCH_LCD_3_5
+        bool "Waveshare ESP32-C5-Touch-LCD-3.5"
+        depends on IDF_TARGET_ESP32C5
     config BOARD_TYPE_WAVESHARE_ESP32_C6_EPAPER_1_54
         bool "Waveshare ESP32-C6-e-Paper-1.54"
         depends on IDF_TARGET_ESP32C6
@@ -493,6 +505,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8
         bool "Waveshare ESP32-C6-Touch-AMOLED-1.8"
         depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_1_8_V2
+        bool "Waveshare ESP32-C6-Touch-AMOLED-1.8 V2"
+        depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_AMOLED_2_06
         bool "Waveshare ESP32-C6-Touch-AMOLED-2.06"
         depends on IDF_TARGET_ESP32C6
@@ -504,6 +519,9 @@ choice BOARD_TYPE
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_1_83
         bool "Waveshare ESP32-C6-Touch-LCD-1.83"
+        depends on IDF_TARGET_ESP32C6
+    config BOARD_TYPE_WAVESHARE_ESP32_C6_TOUCH_LCD_2_8
+        bool "Waveshare ESP32-C6-Touch-LCD-2.8"
         depends on IDF_TARGET_ESP32C6
     config BOARD_TYPE_WAVESHARE_ESP32_P4_WIFI6_TOUCH_LCD_3_4C
         bool "Waveshare ESP32-P4 Wi-Fi 6 Touch LCD 3.4C"
@@ -801,6 +819,14 @@ choice DISPLAY_OLED_TYPE
         bool "SH1106 128*64"
 endchoice
 
+
+config BREAD_COMPACT_WIFI_CAM_DISABLE_LCD
+    bool "Disable LCD (frees GPIO19/20 for built-in USB-JTAG debugging)"
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    default n
+    help
+        The LCD SPI uses GPIO19/GPIO20, which are the ESP32-S3 USB D-/D+ pins.
+        Enable this to run without the LCD so USB-Serial/JTAG stays available.
 
 choice DISPLAY_LCD_TYPE
     depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_WDMOMO_CGC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM || (BOARD_TYPE_WK_ESP32S3_DEV && WK_ESP32S3_DEV_DISPLAY_LCD)

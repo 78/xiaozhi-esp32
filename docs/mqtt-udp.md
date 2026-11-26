@@ -2,6 +2,9 @@
 
 This document describes the MQTT + UDP hybrid protocol used between the device and the server, based on the current implementation: MQTT carries control messages, UDP carries real-time audio.
 
+For authenticated UDP reachability checks, see the [PING/PONG extension](mqtt-udp-probe.md).
+The client implements this opt-in extension; server implementation and end-to-end validation are pending.
+
 ---
 
 ## 1. Overview

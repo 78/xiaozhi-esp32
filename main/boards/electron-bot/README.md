@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="80%" align="center" src="../../../docs/V1/electron-bot.png" alt="electronBot">
+  <img width="80%" align="center" src="../../../docs/v1/electron-bot.png" alt="electronBot">
 </p>
 
 <h1 align="center">electronBot</h1>

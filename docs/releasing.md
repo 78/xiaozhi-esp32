@@ -5,6 +5,11 @@ manually. It builds every release variant supported by ESP-IDF 6.1 using
 `scripts/build.py <board> --name <variant> --zip`. It does not use the incremental
 CI selection or include CI-only option variants.
 
+The workflow uses `scripts/publish_firmware.py prepare` to generate the release
+manifest and `scripts/publish_firmware.py publish` to verify packages and upload
+the GitHub Release. The legacy `scripts/release.py` entry point forwards board
+build commands to `scripts/build.py` and prints a deprecation warning to stderr.
+
 The release version comes from `PROJECT_VER` in the root `CMakeLists.txt`.
 Update that value before publishing another version. The workflow fixes every
 checkout to the triggering commit and records the commit, SDK, board directories,

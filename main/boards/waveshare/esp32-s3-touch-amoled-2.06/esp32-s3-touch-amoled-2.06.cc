@@ -1,3 +1,5 @@
+#include "boards/waveshare/amoled_2_06_touch.h"
+
 #include "wifi_board.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_sh8601.h"
@@ -18,7 +20,6 @@
 #include <driver/spi_master.h>
 #include "settings.h"
 
-#include <esp_lcd_touch_ft5x06.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
 
@@ -254,46 +255,6 @@ private:
         backlight_->RestoreBrightness();
     }
 
-    void InitializeTouch() {
-        esp_lcd_touch_handle_t tp;
-        esp_lcd_touch_config_t tp_cfg = {
-            .x_max = DISPLAY_WIDTH - 1,
-            .y_max = DISPLAY_HEIGHT - 1,
-            .rst_gpio_num = GPIO_NUM_9,
-            .int_gpio_num = GPIO_NUM_38,
-            .levels = {
-                .reset = 0,
-                .interrupt = 0,
-            },
-            .flags = {
-                .swap_xy = 0,
-                .mirror_x = 0,
-                .mirror_y = 0,
-            },
-        };
-        esp_lcd_panel_io_handle_t tp_io_handle = NULL;
-        esp_lcd_panel_io_i2c_config_t tp_io_config = {
-            .dev_addr = ESP_LCD_TOUCH_IO_I2C_FT5x06_ADDRESS,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 0,
-            .lcd_cmd_bits = 8,
-            .flags =
-            {
-                .disable_control_phase = 1,
-            }
-        };
-        tp_io_config.scl_speed_hz = 400*  1000;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus_, &tp_io_config, &tp_io_handle));
-        ESP_LOGI(TAG, "Initialize touch controller");
-        ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp));
-        const lvgl_port_touch_cfg_t touch_cfg = {
-            .disp = lv_display_get_default(),
-            .handle = tp,
-        };
-        lvgl_port_add_touch(&touch_cfg);
-        ESP_LOGI(TAG, "Touch panel initialized successfully");
-    }
-
     // 初始化工具
     void InitializeTools() {
         auto &mcp_server = McpServer::GetInstance();
@@ -313,7 +274,7 @@ public:
         InitializeAxp2101();
         InitializeSpi();
         InitializeSH8601Display();
-        InitializeTouch();
+        ESP_ERROR_CHECK_WITHOUT_ABORT(AddAmoled206Touch(i2c_bus_, GPIO_NUM_9, GPIO_NUM_38));
         InitializeButtons();
         InitializeTools();
     }

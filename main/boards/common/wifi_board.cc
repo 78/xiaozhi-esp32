@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "portal_settings.h"
 
 #include "display.h"
 #include "application.h"
@@ -56,8 +57,7 @@ void WifiBoard::StartNetwork() {
     WifiManagerConfig config;
     config.ssid_prefix = "Xiaozhi";
     config.language = Lang::CODE;
-    config.show_ota_config = true;
-    config.show_sleep_config = true;
+    config.advanced_groups = MakeXiaozhiPortalSettings();
 
     // Set a DHCP hostname so the router shows a friendly name instead of "espressif".
     // Uses the same "<prefix>-<last 2 MAC bytes>" scheme as the config AP SSID.
@@ -346,6 +346,8 @@ std::string WifiBoard::GetDeviceStatusJson() {
         cJSON_AddNumberToObject(chip, "temperature", temp);
         cJSON_AddItemToObject(root, "chip", chip);
     }
+
+    AddSystemStatus(root);
 
     auto str = cJSON_PrintUnformatted(root);
     std::string result(str);

@@ -17,8 +17,13 @@ class OttoEmojiDisplay : public SpiLcdDisplay {
     virtual void SetStatus(const char* status) override;
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
     virtual void SetupUI() override;
+    void SetPreviewRotation(int rotation) { preview_rotation_ = rotation; }
 
    private:
     void InitializeOttoEmojis();
     void SetupPreviewImage();
+
+    // Otto camera previews are mounted 270 degrees relative to LVGL's default
+    // orientation. OV2640/OV3660 and GC2145 share the same preview path.
+    int preview_rotation_ = 2700;
 };

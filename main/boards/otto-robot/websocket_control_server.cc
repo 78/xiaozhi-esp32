@@ -147,6 +147,13 @@ void WebSocketControlServer::HandleMessage(httpd_req_t *req, const char* data, s
     int sock_fd = httpd_req_to_sockfd(req);
     uint64_t client_id = GetClientId(req);
     if (client_id == 0) {
+        // Some ESP-IDF HTTPD/WebSocket combinations expose a different session
+        // socket for the first data frame than for the handshake. Register the
+        // client here so the control channel does not silently drop commands.
+        AddClient(req);
+        client_id = GetClientId(req);
+    }
+    if (client_id == 0) {
         ESP_LOGW(TAG, "Ignoring message from unknown client: %d", sock_fd);
         cJSON_Delete(root);
         return;

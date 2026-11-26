@@ -1,7 +1,7 @@
 #ifndef WIFI_CONFIG_UI_H
 #define WIFI_CONFIG_UI_H
 
-#include "tca8418_keyboard.h"
+#include "cardputer_keyboard.h"
 #include "display/lcd_display.h"
 #include <string>
 #include <vector>
@@ -64,6 +64,9 @@ public:
 
 private:
     LcdDisplay* display_;
+    // The UI draws in a full-screen panel on LVGL's top layer, so the
+    // display's own screen stays active and its widgets are never deleted.
+    lv_obj_t* screen_ = nullptr;
     WifiConfigState state_;
     bool is_active_;
     ConnectCallback connect_callback_;
@@ -92,6 +95,11 @@ private:
     // Display constants
     static constexpr int MAX_VISIBLE_ITEMS = 4;
     static constexpr int MAX_INPUT_LENGTH = 64;
+
+    // Create this UI's top-layer panel (called once from Start*)
+    void OpenScreen();
+    // Delete all children of this UI's panel before redrawing it
+    lv_obj_t* ClearScreen();
 
     // State handlers
     void StartScanning();

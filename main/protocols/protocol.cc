@@ -5,22 +5,33 @@
 
 #define TAG "Protocol"
 
-void Protocol::AddTextFontCapabilities(cJSON* root) {
+void Protocol::AddClientCapabilities(cJSON* root, bool include_text_font) {
     auto capability = Assets::GetInstance().text_font_capability();
-    cJSON* features = cJSON_GetObjectItem(root, "features");
-    if (cJSON_IsObject(features)) {
-        cJSON_AddBoolToObject(features, "glyph_push", capability.glyph_push);
-    }
-
-    if (!capability.glyph_push) {
+    auto features = cJSON_AddObjectToObject(root, "features");
+    if (features == nullptr) {
         return;
     }
-    cJSON* font = cJSON_CreateObject();
+    cJSON_AddBoolToObject(features, "mcp", true);
+    cJSON_AddBoolToObject(features, "mcp_20260728", true);
+    cJSON_AddBoolToObject(features, "udp_probe", true);
+#if CONFIG_USE_SERVER_AEC
+    cJSON_AddBoolToObject(features, "aec", true);
+#else
+    cJSON_AddBoolToObject(features, "aec", false);
+#endif
+    cJSON_AddBoolToObject(features, "glyph_push", capability.glyph_push);
+
+    if (!include_text_font || !capability.glyph_push) {
+        return;
+    }
+    auto font = cJSON_AddObjectToObject(root, "text_font");
+    if (font == nullptr) {
+        return;
+    }
     cJSON_AddStringToObject(font, "bundle", capability.bundle.c_str());
     cJSON_AddStringToObject(font, "charset", capability.charset.c_str());
     cJSON_AddNumberToObject(font, "size", capability.size);
     cJSON_AddNumberToObject(font, "bpp", capability.bpp);
-    cJSON_AddItemToObject(root, "text_font", font);
 }
 
 void Protocol::OnIncomingJson(std::function<void(const cJSON* root)> callback) {

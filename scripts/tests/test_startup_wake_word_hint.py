@@ -240,6 +240,7 @@ class StartupWakeWordHintTests(unittest.TestCase):
             #include <cassert>
             #include <cstdint>
             #include <cstring>
+            #include <memory>
             #include <string>
             #include <vector>
             struct lv_obj_t {
@@ -252,6 +253,10 @@ class StartupWakeWordHintTests(unittest.TestCase):
             };
             constexpr int LV_OBJ_FLAG_HIDDEN = 1;
             struct DisplayLockGuard { explicit DisplayLockGuard(void*) {} };
+            struct LvglGif {
+                bool IsPlaying() const { return true; }
+                void Start() {}
+            };
             const char* lv_label_get_text(lv_obj_t* obj) { return obj->text.c_str(); }
             void lv_label_set_text(lv_obj_t* obj, const char* text) { obj->text = text; }
             void lv_anim_delete(lv_obj_t*, void*) {}
@@ -272,6 +277,10 @@ class StartupWakeWordHintTests(unittest.TestCase):
                 lv_obj_t* bottom_bar_ = nullptr;
                 lv_obj_t* content_ = nullptr;
                 lv_obj_t* emoji_label_ = nullptr;
+                lv_obj_t* emoji_image_ = nullptr;
+                bool emotion_uses_image_ = false;
+                std::unique_ptr<LvglGif> gif_controller_;
+                void ShowEmotion();
                 void RemoveChatMessage(const char* role, const char* content);
             };
         '''
@@ -352,4 +361,6 @@ class StartupWakeWordHintTests(unittest.TestCase):
                 signature = "void " + ("OledDisplay" if name == "oled" else "LcdDisplay") + "::RemoveChatMessage("
                 method = definition(source, signature, occurrence)
                 method = method.replace("OledDisplay::", "TestDisplay::").replace("LcdDisplay::", "TestDisplay::")
+                if name == "wechat_lcd":
+                    method += definition(source, "void LcdDisplay::ShowEmotion()").replace("LcdDisplay::", "TestDisplay::")
                 self.compile_and_run(textwrap.dedent(platform) + method + textwrap.dedent(checks))

@@ -446,8 +446,14 @@ void OledDisplay::SetTheme(Theme* theme) {
 
 void OledDisplay::SetPowerSaveMode(bool on) {
     if (panel_) {
+        // NVS key names are limited to 15 characters (NVS_KEY_NAME_MAX_SIZE
+        // includes the null terminator), so keep the key on a constant that
+        // refuses to compile if it ever outgrows the limit.
+        static constexpr char kPowerSaveDisplayOffKey[] = "ps_display_off";
+        static_assert(sizeof(kPowerSaveDisplayOffKey) <= NVS_KEY_NAME_MAX_SIZE,
+                      "NVS key name must fit in 15 characters");
         Settings settings("wifi", false);
-        if (settings.GetBool("power_save_display_off", false)) {
+        if (settings.GetBool(kPowerSaveDisplayOffKey, false)) {
             esp_lcd_panel_disp_on_off(panel_, !on);
         }
     }

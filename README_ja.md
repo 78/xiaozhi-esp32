@@ -4,6 +4,8 @@
 
 ## はじめに
 
+📖 シャオジーAIの公式ガイド：[English](https://docs.xiaozhi.me/en/) | [中文](https://docs.xiaozhi.me/zh/)
+
 👉 [人間：AIにカメラを装着 vs AI：その場で飼い主が3日間髪を洗っていないことを発見【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [手作りでAIガールフレンドを作る、初心者入門チュートリアル【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
@@ -39,9 +41,9 @@
 
 ### ブレッドボード手作り実践
 
-Feishuドキュメントチュートリアルをご覧ください：
+詳しい組み立て手順は、以下のガイドをご覧ください：
 
-👉 [「シャオジーAIチャットボット百科事典」](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
+👉 [ESP32-S3 ブレッドボードガイド（英語）](https://docs.xiaozhi.me/en/hardware/breadboard-esp32-s3.html)
 
 ブレッドボードのデモ：
 
@@ -109,7 +111,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 ファームウェアはデフォルトで公式 [xiaozhi.me](https://xiaozhi.me) サーバーに接続します。個人ユーザーはアカウント登録でQwenリアルタイムモデルを無料で利用できます。
 
-👉 [初心者向けファームウェア書き込みガイド](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
+👉 [初心者向けファームウェア書き込みガイド（英語）](https://docs.xiaozhi.me/en/firmware/flashing.html)
 
 ### 開発環境
 
@@ -157,7 +159,7 @@ Feishuドキュメントチュートリアルをご覧ください：
 
 このプロジェクトを通じて、AIハードウェア開発を理解し、急速に進化する大規模言語モデルを実際のハードウェアデバイスに応用できるようになることを目指しています。
 
-ご意見やご提案があれば、いつでもIssueを提出するか、[Discord](https://discord.gg/C759fGMBcZ) または QQグループ：1011329060 にご参加ください。
+ご意見やご提案があれば、いつでもIssueを提出するか、[Discord](https://discord.gg/C759fGMBcZ) または QQグループ：1034828326 にご参加ください。
 
 ## スター履歴
 

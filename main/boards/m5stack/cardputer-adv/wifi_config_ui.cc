@@ -21,10 +21,42 @@ WifiConfigUI::WifiConfigUI(LcdDisplay* display)
 }
 
 WifiConfigUI::~WifiConfigUI() {
+    if (screen_ == nullptr) {
+        return;
+    }
+    DisplayLockGuard lock(display_);
+    lv_obj_delete(screen_);
+}
+
+void WifiConfigUI::OpenScreen() {
+    // Key events arrive on the keyboard task, so every LVGL call in this UI
+    // must hold the display lock (it is recursive, nested draws are fine).
+    DisplayLockGuard lock(display_);
+    if (screen_ != nullptr) {
+        return;
+    }
+    // A panel on the top layer rather than a separate screen: the display
+    // keeps its own screen active, so theme/font refreshes that run while this
+    // UI is open (e.g. assets reloading after WiFi connects) still update the
+    // right objects. The built-in font is never unloaded by an assets reload.
+    screen_ = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(screen_);
+    lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(screen_, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(screen_, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_font(screen_, &lv_font_montserrat_14, 0);
+    lv_obj_remove_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+lv_obj_t* WifiConfigUI::ClearScreen() {
+    DisplayLockGuard lock(display_);
+    lv_obj_clean(screen_);
+    return screen_;
 }
 
 void WifiConfigUI::Start() {
     ESP_LOGI(TAG, "Starting WiFi config UI");
+    OpenScreen();
     is_active_ = true;
     state_ = WifiConfigState::Scanning;
     selected_index_ = 0;
@@ -42,6 +74,7 @@ void WifiConfigUI::Start() {
 
 void WifiConfigUI::StartWithSavedList() {
     ESP_LOGI(TAG, "Starting WiFi config UI with saved list");
+    OpenScreen();
     is_active_ = true;
     selected_index_ = 0;
     scroll_offset_ = 0;
@@ -56,17 +89,20 @@ void WifiConfigUI::StartWithSavedList() {
 void WifiConfigUI::StartScanning() {
     state_ = WifiConfigState::Scanning;
 
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
-    DrawHeader("扫描 WiFi 中...");
-    DrawFooter("请稍候...");
+    {
+        DisplayLockGuard lock(display_);
+        ClearScreen();
+        DrawHeader("扫描 WiFi 中...");
+        DrawFooter("请稍候...");
+    }
 
-    // Perform WiFi scan
+    // Perform WiFi scan (blocking; do not hold the display lock meanwhile)
     DoWifiScan();
 
     // Show results
     if (scan_results_.empty()) {
-        lv_obj_clean(canvas);
+        DisplayLockGuard lock(display_);
+        ClearScreen();
         DrawHeader("未找到 WiFi");
         DrawFooter("W:手动输入 Esc:退出");
     } else {
@@ -136,8 +172,8 @@ void WifiConfigUI::ShowPasswordInput() {
 }
 
 void WifiConfigUI::RedrawPasswordInput() {
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("输入密码");
 
@@ -175,8 +211,8 @@ void WifiConfigUI::ShowManualInput() {
 }
 
 void WifiConfigUI::RedrawManualInput() {
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("手动设置 WiFi");
 
@@ -221,8 +257,8 @@ void WifiConfigUI::ShowSavedList() {
 }
 
 void WifiConfigUI::DrawSavedWifiList() {
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     char title[48];
     snprintf(title, sizeof(title), "已保存的 WiFi (%d/10)", (int)saved_wifi_list_.size());
@@ -262,8 +298,8 @@ void WifiConfigUI::DrawSavedWifiList() {
 void WifiConfigUI::ShowConnecting() {
     state_ = WifiConfigState::Connecting;
 
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("连接中...");
 
@@ -278,8 +314,8 @@ void WifiConfigUI::ShowConnecting() {
 void WifiConfigUI::ShowSuccess() {
     state_ = WifiConfigState::Success;
 
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("连接成功!");
 
@@ -299,8 +335,8 @@ void WifiConfigUI::ShowSuccess() {
 void WifiConfigUI::ShowFailed() {
     state_ = WifiConfigState::Failed;
 
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("连接失败");
 
@@ -313,7 +349,8 @@ void WifiConfigUI::ShowFailed() {
 }
 
 void WifiConfigUI::DrawHeader(const char* title) {
-    lv_obj_t* canvas = lv_scr_act();
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = screen_;
 
     lv_obj_t* header = lv_label_create(canvas);
     lv_label_set_text(header, title);
@@ -322,7 +359,8 @@ void WifiConfigUI::DrawHeader(const char* title) {
 }
 
 void WifiConfigUI::DrawFooter(const char* hint) {
-    lv_obj_t* canvas = lv_scr_act();
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = screen_;
 
     lv_obj_t* footer = lv_label_create(canvas);
     lv_label_set_text(footer, hint);
@@ -332,8 +370,8 @@ void WifiConfigUI::DrawFooter(const char* hint) {
 }
 
 void WifiConfigUI::DrawWifiList(const std::vector<WifiScanResult>& list, int selected, int scroll) {
-    lv_obj_t* canvas = lv_scr_act();
-    lv_obj_clean(canvas);
+    DisplayLockGuard lock(display_);
+    lv_obj_t* canvas = ClearScreen();
 
     DrawHeader("选择 WiFi");
 

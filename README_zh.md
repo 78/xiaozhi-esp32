@@ -4,6 +4,8 @@
 
 ## 介绍
 
+📖 [小智 AI 教程与帮助](https://docs.xiaozhi.me/zh/)
+
 👉 [人类：给 AI 装摄像头 vs AI：当场发现主人三天没洗头【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
 
 👉 [手工打造你的 AI 女友，新手入门教程【bilibili】](https://www.bilibili.com/video/BV1XnmFYLEJN/)
@@ -39,9 +41,9 @@
 
 ### 面包板手工制作实践
 
-详见飞书文档教程：
+按步骤搭建请参考：
 
-👉 [《小智 AI 聊天机器人百科全书》](https://ccnphfhqs21z.feishu.cn/wiki/F5krwD16viZoF0kKkvDcrZNYnhb?from=from_copylink)
+👉 [ESP32-S3 面包板教程](https://docs.xiaozhi.me/zh/hardware/breadboard-esp32-s3.html)
 
 面包板效果图如下：
 
@@ -109,7 +111,7 @@
 
 固件默认接入 [xiaozhi.me](https://xiaozhi.me) 官方服务器，个人用户注册账号可以免费使用 Qwen 实时模型。
 
-👉 [新手烧录固件教程](https://ccnphfhqs21z.feishu.cn/wiki/Zpz4wXBtdimBrLk25WdcXzxcnNS)
+👉 [新手烧录固件教程](https://docs.xiaozhi.me/zh/firmware/flashing.html)
 
 ### 开发环境
 
@@ -123,6 +125,7 @@
 ### 开发者文档
 
 - [自定义开发板指南](docs/custom-board_zh.md) - 学习如何为小智 AI 创建自定义开发板
+- [OTA 配置、激活与固件升级接口](docs/ota_zh.md) - 设备引导 HTTP 接口及协议能力上报
 - [MCP 协议物联网控制用法说明](docs/mcp-usage_zh.md) - 了解如何通过 MCP 协议控制物联网设备
 - [MCP 协议交互流程](docs/mcp-protocol_zh.md) - 设备端 MCP 协议的实现方式
 - [MQTT + UDP 混合通信协议文档](docs/mqtt-udp_zh.md)
@@ -157,7 +160,7 @@
 
 我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
 
-如果你有任何想法或建议，请随时提出 Issues 或加入 [Discord](https://discord.gg/C759fGMBcZ) 或 QQ 群：1011329060
+如果你有任何想法或建议，请随时提出 Issues 或加入 [Discord](https://discord.gg/C759fGMBcZ) 或 QQ 群：1034828326
 
 ## Star History
 

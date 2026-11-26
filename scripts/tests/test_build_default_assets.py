@@ -171,7 +171,8 @@ class ConfiguredAssetsTest(unittest.TestCase):
         base.write_bytes(struct.pack("<III", len(files), sum(payload) & 0xFFFF, len(payload)) + payload)
         return base, files
 
-    def run_builder(self, root, model=None, name_length=32, max_size=None):
+    def run_builder(self, root, model=None, name_length=32, max_size=None,
+                    model_directory=None):
         sdkconfig = root / "sdkconfig"
         sdkconfig.write_text(
             'CONFIG_IDF_TARGET="esp32s3"\n' + (
@@ -180,7 +181,7 @@ class ConfiguredAssetsTest(unittest.TestCase):
             ), encoding="utf-8",
         )
         if model:
-            model_dir = root / "models/wakenet_model" / model
+            model_dir = root / "models/wakenet_model" / (model_directory or model)
             model_dir.mkdir(parents=True)
             (model_dir / "_MODEL_INFO_").write_bytes(b"model info")
             (model_dir / "weights").write_bytes(b"selected model weights")
@@ -194,13 +195,16 @@ class ConfiguredAssetsTest(unittest.TestCase):
         return subprocess.run(args, text=True, capture_output=True)
 
     def test_cli_replaces_models_and_preserves_custom_ui(self):
-        for name_length, model in ((16, "wn9s_hiesp"), (32, "wn9_hiesp"),
-                                   (64, "wn9s_nihaoxiaozhi")):
+        for name_length, model, model_directory in (
+            (16, "wn9s_hiesp", None), (32, "wn9_hiesp", None),
+            (64, "wn9s_nihaoxiaozhi", None),
+            (32, "wn9l_heygigi_tts3", "wn9l_heygigi"),
+        ):
             with self.subTest(name_length=name_length), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 base, original = self.base_pack(root, name_length)
                 before = base.read_bytes()
-                result = self.run_builder(root, model, name_length)
+                result = self.run_builder(root, model, name_length, model_directory=model_directory)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 files = BUILD.read_assets_entries(root / "configured.bin", name_length)
                 self.assertEqual(base.read_bytes(), before)
@@ -215,7 +219,7 @@ class ConfiguredAssetsTest(unittest.TestCase):
                 self.assertNotIn("multinet_model", index)
                 models = files[index["srmodels"]][0]
                 self.assertEqual(struct.unpack_from("<I", models)[0], 1)
-                self.assertEqual(models[4:36].rstrip(b"\0").decode(), model)
+                self.assertEqual(models[4:36].rstrip(b"\0").decode(), model_directory or model)
                 self.assertIn(b"selected model weights", models)
                 self.assertNotIn(b"old Chinese model", models)
 

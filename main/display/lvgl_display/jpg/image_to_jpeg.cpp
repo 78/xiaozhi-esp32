@@ -27,6 +27,16 @@ static void* malloc_psram(size_t size) {
 #endif
 }
 
+// A quality-80 4:2:0 JPEG is far smaller than the uncompressed 1.5 bytes/pixel
+// previously reserved as the upper bound. At 800x600 that bound asked for a
+// ~785KB contiguous PSRAM block, which fails once the frame, conversion and
+// preview buffers are already allocated. 3/8 byte/pixel keeps a wide margin
+// over measured output (~0.12 byte/pixel) while fitting in fragmented PSRAM.
+static size_t jpeg_output_capacity(uint16_t width, uint16_t height) {
+    size_t cap = (size_t)width * (size_t)height * 3 / 8 + 32 * 1024;
+    return cap < 64 * 1024 ? 64 * 1024 : cap;
+}
+
 static __always_inline uint8_t expand_5_to_8(uint8_t v) {
     return (uint8_t)((v << 3) | (v >> 2));
 }
@@ -303,9 +313,7 @@ static bool encode_with_hw_jpeg(const uint8_t* src, size_t src_len, uint16_t wid
     enc_cfg.image_quality = quality;
     enc_cfg.sub_sample = (enc_src_type == JPEG_ENCODE_IN_FORMAT_GRAY) ? JPEG_DOWN_SAMPLING_GRAY : JPEG_DOWN_SAMPLING_YUV422;
 
-    size_t out_cap = (size_t)width * (size_t)height * 3 / 2 + 64 * 1024;
-    if (out_cap < 128 * 1024)
-        out_cap = 128 * 1024;
+    size_t out_cap = jpeg_output_capacity(width, height);
     jpeg_encode_memory_alloc_cfg_t jpeg_enc_output_mem_cfg = { .buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER };
     size_t out_cap_aligned = 0;
     uint8_t* outbuf = (uint8_t*)jpeg_alloc_encoder_mem(out_cap, &jpeg_enc_output_mem_cfg, &out_cap_aligned);
@@ -380,10 +388,8 @@ static bool encode_with_esp_new_jpeg(const uint8_t* src, size_t src_len, uint16_
         return false;
     }
 
-    // 估算输出缓冲区：宽高的 1.5 倍 + 64KB
-    size_t out_cap = (size_t)width * (size_t)height * 3 / 2 + 64 * 1024;
-    if (out_cap < 128 * 1024)
-        out_cap = 128 * 1024;
+    // 输出缓冲按质量 80 的典型压缩比估算，避免 800x600 申请过大的连续块
+    size_t out_cap = jpeg_output_capacity(width, height);
     uint8_t* outbuf = (uint8_t*)malloc_psram(out_cap);
     if (!outbuf) {
         jpeg_enc_close(h);

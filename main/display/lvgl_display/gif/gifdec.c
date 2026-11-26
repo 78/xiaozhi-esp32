@@ -28,8 +28,7 @@ typedef struct Table {
 #define LZW_CACHE_SIZE              (LZW_TABLE_SIZE * 4)
 #endif
 
-static gd_GIF  * gif_open(gd_GIF * gif);
-static bool f_gif_open(gd_GIF * gif, const void * path, bool is_file);
+static gd_GIF* gif_open(const void* path, bool is_file);
 static inline void f_gif_read(gd_GIF * gif, void * buf, size_t len);
 static inline int f_gif_seek(gd_GIF * gif, size_t pos, int k);
 static void f_gif_close(gd_GIF * gif);
@@ -47,56 +46,45 @@ read_num(gd_GIF * gif)
     return bytes[0] + (((uint16_t) bytes[1]) << 8);
 }
 
-gd_GIF *
-gd_open_gif_file(const char * fname)
-{
-    gd_GIF gif_base;
-    memset(&gif_base, 0, sizeof(gif_base));
+gd_GIF* gd_open_gif_file(const char* fname) { return gif_open(fname, true); }
 
-    bool res = f_gif_open(&gif_base, fname, true);
-    if(!res) return NULL;
+gd_GIF* gd_open_gif_data(const void* data) { return gif_open(data, false); }
 
-    return gif_open(&gif_base);
-}
-
-gd_GIF *
-gd_open_gif_data(const void * data)
-{
-    gd_GIF gif_base;
-    memset(&gif_base, 0, sizeof(gif_base));
-
-    bool res = f_gif_open(&gif_base, data, false);
-    if(!res) return NULL;
-
-    return gif_open(&gif_base);
-}
-
-static gd_GIF * gif_open(gd_GIF * gif_base)
-{
-    uint8_t sigver[3];
+static gd_GIF* gif_open(const void* path, bool is_file) {
+    /* Read the small header before allocating the final decoder; no full gd_GIF on the stack. */
+    uint8_t header[13];
+    lv_fs_file_t fd;
     uint16_t width, height, depth;
-    uint8_t fdsz, bgidx, aspect;
+    uint8_t fdsz, bgidx;
     uint8_t * bgcolor;
     int gct_sz;
     gd_GIF * gif = NULL;
 
+    if (is_file) {
+        if (lv_fs_open(&fd, path, LV_FS_MODE_RD) != LV_FS_RES_OK)
+            return NULL;
+        uint32_t bytes_read = 0;
+        if (lv_fs_read(&fd, header, sizeof(header), &bytes_read) != LV_FS_RES_OK ||
+            bytes_read != sizeof(header))
+            goto fail;
+    } else {
+        memcpy(header, path, sizeof(header));
+    }
     /* Header */
-    f_gif_read(gif_base, sigver, 3);
-    if(memcmp(sigver, "GIF", 3) != 0) {
+    if (memcmp(header, "GIF", 3) != 0) {
         ESP_LOGW(TAG, "invalid signature");
         goto fail;
     }
     /* Version */
-    f_gif_read(gif_base, sigver, 3);
-    if(memcmp(sigver, "89a", 3) != 0 && memcmp(sigver, "87a", 3) != 0) {
+    if (memcmp(header + 3, "89a", 3) != 0 && memcmp(header + 3, "87a", 3) != 0) {
         ESP_LOGW(TAG, "invalid version");
         goto fail;
     }
     /* Width x Height */
-    width  = read_num(gif_base);
-    height = read_num(gif_base);
+    width = header[6] | ((uint16_t)header[7] << 8);
+    height = header[8] | ((uint16_t)header[9] << 8);
     /* FDSZ */
-    f_gif_read(gif_base, &fdsz, 1);
+    fdsz = header[10];
     /* Presence of GCT */
     if(!(fdsz & 0x80)) {
         ESP_LOGW(TAG, "no global color table");
@@ -108,9 +96,7 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     /* GCT Size */
     gct_sz = 1 << ((fdsz & 0x07) + 1);
     /* Background Color Index */
-    f_gif_read(gif_base, &bgidx, 1);
-    /* Aspect Ratio */
-    f_gif_read(gif_base, &aspect, 1);
+    bgidx = header[11];
     /* Create gd_GIF Structure. */
     if(0 == width || 0 == height){
         ESP_LOGW(TAG, "Zero size image");
@@ -130,7 +116,13 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     gif = lv_malloc(sizeof(gd_GIF) + 5 * width * height);
 #endif
     if(!gif) goto fail;
-    memcpy(gif, gif_base, sizeof(gd_GIF));
+    memset(gif, 0, sizeof(gd_GIF));
+    if (is_file)
+        gif->fd = fd;
+    else
+        gif->data = path;
+    gif->is_file = is_file;
+    gif->f_rw_p = sizeof(header);
     gif->width  = width;
     gif->height = height;
     gif->depth  = depth;
@@ -163,7 +155,8 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     gif->loop_count = -1;
     goto ok;
 fail:
-    f_gif_close(gif_base);
+    if (is_file)
+        lv_fs_close(&fd);
 ok:
     return gif;
 }
@@ -767,23 +760,6 @@ gd_close_gif(gd_GIF * gif)
 {
     f_gif_close(gif);
     lv_free(gif);
-}
-
-static bool f_gif_open(gd_GIF * gif, const void * path, bool is_file)
-{
-    gif->f_rw_p = 0;
-    gif->data = NULL;
-    gif->is_file = is_file;
-
-    if(is_file) {
-        lv_fs_res_t res = lv_fs_open(&gif->fd, path, LV_FS_MODE_RD);
-        if(res != LV_FS_RES_OK) return false;
-        else return true;
-    }
-    else {
-        gif->data = path;
-        return true;
-    }
 }
 
 static void f_gif_read(gd_GIF * gif, void * buf, size_t len)

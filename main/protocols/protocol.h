@@ -44,6 +44,9 @@ class Protocol {
 public:
     virtual ~Protocol() = default;
 
+    // Shared device capability source for transport hello and OTA protocol.features.
+    static void AddClientCapabilities(cJSON* root, bool include_text_font = true);
+
     inline int server_sample_rate() const { return server_sample_rate_; }
     inline int server_frame_duration() const { return server_frame_duration_; }
     inline const std::string& session_id() const { return session_id_; }
@@ -61,6 +64,8 @@ public:
     virtual void CloseAudioChannel(bool send_goodbye = true) = 0;
     virtual bool IsAudioChannelOpened() const = 0;
     virtual bool SendAudio(std::unique_ptr<AudioStreamPacket> packet) = 0;
+    // Called in the existing application/network-send context, never a timer callback.
+    virtual void ProcessPending() {}
     virtual void SendWakeWordDetected(const std::string& wake_word);
     virtual void SendStartListening(ListeningMode mode);
     virtual void SendStopListening();
@@ -86,7 +91,6 @@ protected:
     virtual void SetError(const std::string& message);
     void SetError(const std::string& message, const std::string& detail);
     virtual bool IsTimeout() const;
-    static void AddTextFontCapabilities(cJSON* root);
 };
 
 #endif  // PROTOCOL_H
