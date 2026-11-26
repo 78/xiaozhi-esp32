@@ -442,6 +442,39 @@ choice BOARD_TYPE
     config BOARD_TYPE_AI_VOX3
         bool "NullLab AI Vox V3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_E_PAPER_1_54_BW_XZ
+        bool "OLIGHKER ESP32-S3 E-Paper 1.54 BW XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_E_PAPER_2_9_BW_XZ
+        bool "OLIGHKER ESP32-S3 E-Paper 2.9 BW XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_E_PAPER_4_2_BW_XZ
+        bool "OLIGHKER ESP32-S3 E-Paper 4.2 BW XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_LCD_1_3_XZ
+        bool "OLIGHKER ESP32-S3 LCD 1.3 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_LCD_1_54_XZ
+        bool "OLIGHKER ESP32-S3 LCD 1.54 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_LCD_2_0_XZ
+        bool "OLIGHKER ESP32-S3 LCD 2.0 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_LCD_2_8_XZ
+        bool "OLIGHKER ESP32-S3 LCD 2.8 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_OLED_0_96_XZ
+        bool "OLIGHKER ESP32-S3 OLED 0.96 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_OLED_1_3_XZ
+        bool "OLIGHKER ESP32-S3 OLED 1.3 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_OLED_1_54_XZ
+        bool "OLIGHKER ESP32-S3 OLED 1.54 XZ"
+        depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_OLIGHKER_ESP32_S3_OLED_2_42_XZ
+        bool "OLIGHKER ESP32-S3 OLED 2.42 XZ"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_OTTO_ROBOT
         bool "Otto Robot"
         depends on IDF_TARGET_ESP32S3
