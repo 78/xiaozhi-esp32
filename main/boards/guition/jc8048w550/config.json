@@ -1,0 +1,19 @@
+{
+    "manufacturer": "guition",
+    "type": "guition-jc8048w550",
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "guition-jc8048w550",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\"",
+                "CONFIG_RGB_LCD_LVGL_TASK_STACK_SIZE=12288",
+                "CONFIG_LV_FONT_MONTSERRAT_16=y",
+                "CONFIG_LV_FONT_MONTSERRAT_20=y",
+                "CONFIG_LV_FONT_MONTSERRAT_28=y",
+                "CONFIG_LV_FONT_MONTSERRAT_40=y"
+            ]
+        }
+    ]
+}

@@ -271,6 +271,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_GUITION_JC4827W543
         bool "Guition JC4827W543 4.3-inch ESP32-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_GUITION_JC8048W550
+        bool "Guition JC8048W550 5-inch ESP32-S3"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_HU_087
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
@@ -986,6 +989,15 @@ config USE_MULTILINE_CHAT_MESSAGE
         with auto-adaptive height.
         When disabled (default), a single-line horizontally scrolling label
         is shown at the bottom of the screen.
+
+config RGB_LCD_LVGL_TASK_STACK_SIZE
+    int "LVGL task stack size for RGB LCD displays (bytes)"
+    default 7168
+    range 4096 32768
+    help
+        Stack size of the LVGL task created for RGB LCD displays. The default
+        is the esp_lvgl_port default. A board with a deep widget tree (many
+        nested containers) needs more: the stack is allocated from internal RAM.
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
