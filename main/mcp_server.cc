@@ -19,6 +19,13 @@
 #include "board.h"
 
 #define TAG "MCP"
+void RegisterAnimaBodyControl(McpServer* server);
+
+#define CAMERA_SERVO_PIN 21
+#define LEDC_TIMER_SERVO LEDC_TIMER_0
+#define LEDC_MODE_SERVO LEDC_LOW_SPEED_MODE
+#define LEDC_CHANNEL_SERVO LEDC_CHANNEL_0
+#define LEDC_FREQUENCY 50 // 50Hz for Servo Motor
 
 McpServer::McpServer() {}
 
