@@ -12,7 +12,7 @@ struct DashboardFonts {
     const lv_font_t* small;   // list rows, secondary text
     const lv_font_t* normal;  // detail title
     const lv_font_t* temp;    // current temperature
-    const lv_font_t* day;     // big solar day number (digits only)
+    const lv_font_t* day;     // big solar day number (bold digits only)
     const lv_font_t* solar;   // weekday name (Vietnamese letters, 20 px)
     const lv_font_t* lunar;   // lunar lines, solar term, event (Vietnamese letters, 16 px)
     const lv_font_t* icon;    // Material Symbols (star, location)
@@ -68,7 +68,8 @@ private:
 
     lv_obj_t* weekday_ = nullptr;       // "Thứ Sáu"
     lv_obj_t* day_ = nullptr;           // "27"
-    lv_obj_t* month_year_ = nullptr;    // "Tháng 11/2026"
+    lv_obj_t* month_ = nullptr;         // "Tháng 11"
+    lv_obj_t* year_ = nullptr;          // "2026"
     lv_obj_t* lunar_column_ = nullptr;  // the five lunar rows, hidden until the clock is set
     lv_obj_t* lunar_date_ = nullptr;    // "18/10", "15/6 nhuận"
     lv_obj_t* lunar_year_ = nullptr;    // "Bính Ngọ"

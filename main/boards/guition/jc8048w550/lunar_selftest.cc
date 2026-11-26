@@ -64,7 +64,7 @@ bool RunLunarSelfTest() {
     CHECK(!Has(EventsFor(25, 9, 2026), "Rằm"));
     CHECK(Has(EventsFor(6, 9, 2025), "Vu Lan"));
     CHECK(EventsFor(8, 8, 2025).empty());  // 15th of leap month 6: no Rằm
-    CHECK(Has(EventsFor(30, 4, 2026), "Giải phóng miền Nam"));
+    CHECK(Has(EventsFor(30, 4, 2026), "Ngày Thống nhất"));
     CHECK(Has(EventsFor(2, 9, 2026), "Quốc khánh"));
     CHECK(Has(EventsFor(1, 1, 2026), "Tết Dương lịch"));
     int first_days = 0;

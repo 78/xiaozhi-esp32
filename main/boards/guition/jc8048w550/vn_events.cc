@@ -25,7 +25,7 @@ constexpr LunarEvent kLunarEvents[] = {
 
 constexpr SolarEvent kSolarEvents[] = {
     {1, 1, "Tết Dương lịch"},
-    {30, 4, "Giải phóng miền Nam"},
+    {30, 4, "Ngày Thống nhất"},
     {1, 5, "Quốc tế Lao động"},
     {2, 9, "Quốc khánh"},
 };

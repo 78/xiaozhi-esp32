@@ -12,6 +12,9 @@ extern "C" {
 extern const lv_font_t font_vi_16;
 extern const lv_font_t font_vi_20;
 
+// Bold digits 0-9 only, 72 px, for the big solar day number.
+extern const lv_font_t font_day_72;
+
 #ifdef __cplusplus
 }
 #endif

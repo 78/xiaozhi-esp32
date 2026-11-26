@@ -31,10 +31,8 @@ const lv_color_t kDayName = lv_color_hex(0x4dd0e1);
 const lv_color_t kMonthName = lv_color_hex(0x81c784);
 const lv_color_t kTerm = lv_color_hex(0xba9cff);
 const lv_color_t kSolarDay = lv_color_hex(0xff6b6b);
-const lv_color_t kTile = lv_color_hex(0x2e2e3a);
-constexpr int32_t kSolarTileWidth = 124;
 constexpr int32_t kRightColumnWidth = 190;  // weather block and city
-constexpr int32_t kEventMaxWidth = 170;
+constexpr int32_t kEventMaxWidth = 150;
 
 constexpr int32_t kCardPadding = 8;
 constexpr int32_t kRowHeight = 33;
@@ -166,23 +164,26 @@ void IdleDashboard::BuildSummaryCard(lv_obj_t* parent, int32_t width) {
     lv_obj_set_style_pad_row(card, 4, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
 
-    // Top row, three blocks: the solar date tile, the lunar facts, and today's
+    // Top row, three blocks: the solar date, the lunar facts, and today's
     // weather with the city and the day's holiday under it.
     lv_obj_t* top = Box(card);
     lv_obj_set_size(top, lv_pct(100), LV_SIZE_CONTENT);
     Row(top, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER);
 
-    lv_obj_t* tile = Box(top);
-    lv_obj_set_size(tile, kSolarTileWidth, LV_SIZE_CONTENT);
-    Column(tile, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_bg_color(tile, kTile, 0);
-    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(tile, 10, 0);
-    lv_obj_set_style_pad_all(tile, 6, 0);
-    lv_obj_set_style_pad_row(tile, 0, 0);
-    weekday_ = Label(tile, fonts_.solar, kText);
-    day_ = Label(tile, fonts_.day, kSolarDay, "--");
-    month_year_ = Label(tile, fonts_.lunar, kText, "--/----");
+    // Solar date, no frame: the day number as large as the card allows, with
+    // the weekday, month and year stacked beside it.
+    lv_obj_t* solar = Box(top);
+    lv_obj_set_size(solar, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    Row(solar, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(solar, 6, 0);
+    day_ = Label(solar, fonts_.day, kSolarDay, "--");
+    lv_obj_t* solar_text = Box(solar);
+    lv_obj_set_size(solar_text, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    Column(solar_text, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_row(solar_text, 0, 0);
+    weekday_ = Label(solar_text, fonts_.solar, kText);
+    month_ = Label(solar_text, fonts_.lunar, kText, "--");
+    year_ = Label(solar_text, fonts_.lunar, kMuted);
 
     lunar_column_ = Box(top);
     lv_obj_set_size(lunar_column_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -462,7 +463,8 @@ void IdleDashboard::RefreshClock() {
     if (local.tm_year < 2025 - 1900) {
         SetText(weekday_, "");
         SetText(day_, "--");
-        SetText(month_year_, "--/----");
+        SetText(month_, "--");
+        SetText(year_, "");
         SetHidden(lunar_column_, true);
         SetHidden(event_, true);
         return;
@@ -478,8 +480,10 @@ void IdleDashboard::RefreshClock() {
     SetText(weekday_, kWeekdays[local.tm_wday]);
     snprintf(text, sizeof(text), "%d", day);
     SetText(day_, text);
-    snprintf(text, sizeof(text), "Tháng %d/%04d", month, year);
-    SetText(month_year_, text);
+    snprintf(text, sizeof(text), "Tháng %d", month);
+    SetText(month_, text);
+    snprintf(text, sizeof(text), "%d", year);
+    SetText(year_, text);
     snprintf(text, sizeof(text), "%d/%d%s", lunar_date.day, lunar_date.month,
              lunar_date.leap ? " nhuận" : "");
     SetText(lunar_date_, text);
