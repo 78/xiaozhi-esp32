@@ -18,6 +18,8 @@
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
+#include <esp_timer.h>
+#include <esp_wifi.h>
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -597,8 +599,39 @@ private:
         ESP_LOGE(TAG, "GT911 not found at 0x5D or 0x14, touch disabled");
     }
 
+    // Powered from USB, so modem sleep only costs latency and packet loss when
+    // the signal is weak. The default event loop does not exist yet when the
+    // board is constructed, so poll the AP info instead of hooking IP events.
+    static void WifiMonitorTick(void*) {
+        static bool power_save_off = false;
+        wifi_ap_record_t ap = {};
+        if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) {
+            return;
+        }
+        if (!power_save_off && esp_wifi_set_ps(WIFI_PS_NONE) == ESP_OK) {
+            power_save_off = true;
+            ESP_LOGI(TAG, "WiFi power save disabled");
+        }
+        ESP_LOGI(TAG, "WiFi RSSI %d dBm, channel %u", ap.rssi, ap.primary);
+    }
+
+    void InitializeWifiMonitor() {
+        const esp_timer_create_args_t args = {
+            .callback = WifiMonitorTick,
+            .arg = nullptr,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "wifi_monitor",
+            .skip_unhandled_events = true,
+        };
+        esp_timer_handle_t timer = nullptr;
+        if (esp_timer_create(&args, &timer) == ESP_OK) {
+            esp_timer_start_periodic(timer, 30 * 1000000ULL);
+        }
+    }
+
 public:
     JC8048W550Board() {
+        InitializeWifiMonitor();
         InitializeDisplay();
         InitializeTouchI2c();
         InitializeTouch();
