@@ -9,6 +9,7 @@
 #include "esp32_camera.h"
 #include "mcp_server.h"
 #include "press_to_talk_mcp_tool.h"
+#include "touch_mcp_tool.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -68,6 +69,10 @@ private:
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
+    TouchMcpTool* touch_tool_ = nullptr;
+    // Kept rather than dropped after lvgl_port_add_touch(): the LVGL port reads the panel
+    // for the UI, and the tool needs the same handle to answer where it is being touched.
+    esp_lcd_touch_handle_t touch_handle_ = nullptr;
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -177,7 +182,7 @@ private:
 
     void InitializeTouch()
     {
-        esp_lcd_touch_handle_t tp = nullptr;
+        esp_lcd_touch_handle_t& tp = touch_handle_;
         esp_lcd_touch_config_t tp_cfg = {
             .x_max = DISPLAY_HEIGHT,
             .y_max = DISPLAY_WIDTH,
@@ -277,6 +282,11 @@ private:
         // Allow switching between press-to-talk (长按说话) and click-to-talk (单击唤醒)
         press_to_talk_tool_ = new PressToTalkMcpTool();
         press_to_talk_tool_->Initialize();
+
+        // Report where the screen is being touched. No-op when the controller was not
+        // found, since InitializeTouch() returns early and leaves the handle null.
+        touch_tool_ = new TouchMcpTool(touch_handle_);
+        touch_tool_->Initialize();
     }
 
 public:
