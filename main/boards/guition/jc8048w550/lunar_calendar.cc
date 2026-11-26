@@ -159,8 +159,9 @@ std::string MonthCanChi(const LunarDate& date) {
 std::string DayCanChi(int jdn) { return CanChi(jdn + 9, jdn + 1); }
 
 const char* SolarTerm(int day, int month, int year) {
+    // Longitude at the end of the day, so the day a term begins is named after it.
     const int jd = JulianDay(day, month, year);
-    const double longitude = SunLongitude(jd - 0.5 - kTimeZone / 24.0);
+    const double longitude = SunLongitude(jd + 1 - 0.5 - kTimeZone / 24.0);
     return kTerms[Mod(Floor(longitude / kPi * 12), 24)];
 }
 

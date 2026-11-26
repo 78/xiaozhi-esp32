@@ -52,6 +52,9 @@ bool RunLunarSelfTest() {
     CHECK(MonthCanChi(LunarDate{1, 1, 2026, false}) == "Canh Dần");
     CHECK(std::string(SolarTerm(15, 7, 2026)) == "Tiểu thử");
     CHECK(std::string(SolarTerm(23, 12, 2026)) == "Đông chí");
+    // The term that begins on a day (winter solstice 2026 is 03:50 on 22/12) names that day.
+    CHECK(std::string(SolarTerm(22, 12, 2026)) == "Đông chí");
+    CHECK(std::string(SolarTerm(21, 12, 2026)) == "Đại tuyết");
 
     using dashboard::EventsFor;
     CHECK(Has(EventsFor(17, 2, 2026), "Tết Nguyên Đán"));
