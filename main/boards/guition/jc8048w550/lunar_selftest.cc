@@ -1,6 +1,12 @@
 #include "lunar_calendar.h"
 
+#include "vn_events.h"
+
 #include <esp_log.h>
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 // On-device checks for the lunar calendar. Call lunar::RunLunarSelfTest() once
 // from the board while working on it and read the serial log; production code
@@ -18,6 +24,10 @@ void Check(bool ok, const char* what) {
 }
 
 #define CHECK(cond) Check((cond), #cond)
+
+bool Has(const std::vector<std::string>& events, const char* name) {
+    return std::find(events.begin(), events.end(), name) != events.end();
+}
 
 }  // namespace
 
@@ -42,6 +52,30 @@ bool RunLunarSelfTest() {
     CHECK(MonthCanChi(LunarDate{1, 1, 2026, false}) == "Canh Dần");
     CHECK(std::string(SolarTerm(15, 7, 2026)) == "Tiểu thử");
     CHECK(std::string(SolarTerm(23, 12, 2026)) == "Đông chí");
+
+    using dashboard::EventsFor;
+    CHECK(Has(EventsFor(17, 2, 2026), "Tết Nguyên Đán"));
+    CHECK(Has(EventsFor(16, 2, 2026), "Giao thừa"));
+    CHECK(Has(EventsFor(26, 4, 2026), "Giỗ Tổ Hùng Vương"));
+    CHECK(Has(EventsFor(25, 9, 2026), "Tết Trung Thu"));
+    CHECK(!Has(EventsFor(25, 9, 2026), "Rằm"));
+    CHECK(Has(EventsFor(6, 9, 2025), "Vu Lan"));
+    CHECK(EventsFor(8, 8, 2025).empty());  // 15th of leap month 6: no Rằm
+    CHECK(Has(EventsFor(30, 4, 2026), "Giải phóng miền Nam"));
+    CHECK(Has(EventsFor(2, 9, 2026), "Quốc khánh"));
+    CHECK(Has(EventsFor(1, 1, 2026), "Tết Dương lịch"));
+    int first_days = 0;
+    int full_moons = 0;
+    const int kDaysIn2026[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    for (int month = 1; month <= 12; ++month) {
+        for (int day = 1; day <= kDaysIn2026[month - 1]; ++day) {
+            std::vector<std::string> events = EventsFor(day, month, 2026);
+            first_days += Has(events, "Mùng 1");
+            full_moons += Has(events, "Rằm");
+        }
+    }
+    CHECK(first_days >= 11 && first_days <= 13);
+    CHECK(full_moons >= 8 && full_moons <= 12);
 
     if (g_failures == 0) {
         ESP_LOGI("lunar-selftest", "lunar selftest OK");
