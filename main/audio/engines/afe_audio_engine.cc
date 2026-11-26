@@ -133,9 +133,9 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms,
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_FD_LOW_COST;
     afe_config->aec_nlp_level = AEC_NLP_LEVEL_VERYAGGR;
-    afe_config->ns_init = false;
+    afe_config->ns_init = true;
     afe_config->vad_init = kUseAfeForVoiceProcessing;
-    afe_config->vad_mode = VAD_MODE_0;
+    afe_config->vad_mode = VAD_MODE_3;
     afe_config->vad_min_noise_ms = 100;
     if (vad_model_name != nullptr) {
         afe_config->vad_model_name = vad_model_name;

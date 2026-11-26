@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hand Gestures</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --text:#e8eaf0; --muted:#8b92a3; --ok:#3ecf8e; --warn:#f5a524; --bad:#ff5c5c; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f4f5f8; --card:#fff; --text:#15171c; --muted:#5d6577; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, sans-serif; padding:16px; }
+  h1 { font-size:20px; margin:0 0 12px; }
+  /* The stage takes the camera's own aspect ratio and video + canvas fill it exactly (no cropping),
+     so the skeleton lands on the hand. Both are mirrored together so it feels like a mirror. */
+  .stage { position:relative; width:100%; max-width:480px; aspect-ratio:3/4; background:#000; border-radius:14px; overflow:hidden; }
+  video, canvas { position:absolute; left:0; top:0; width:100%; height:100%; object-fit:fill; transform:scaleX(-1); }
+  .row { display:flex; gap:8px; margin:12px 0; flex-wrap:wrap; align-items:center; }
+  button, select { font:inherit; padding:12px 18px; border:0; border-radius:10px; background:#4a7dff; color:#fff; }
+  button.alt, select { background:var(--card); color:var(--text); }
+  button:disabled { opacity:.5; }
+  .card { background:var(--card); border-radius:12px; padding:12px; margin:12px 0; max-width:480px; }
+  .muted { color:var(--muted); font-size:14px; }
+  #now { font-size:22px; font-weight:600; min-height:1.4em; }
+  #debug { font:13px/1.5 ui-monospace, monospace; color:var(--muted); min-height:1.5em; }
+  #log { font:13px/1.5 ui-monospace, monospace; max-height:180px; overflow:auto; white-space:pre-wrap; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+</style>
+</head>
+<body>
+<h1>Hand gestures</h1>
+<div class="stage" id="stage"><video id="video" playsinline muted></video><canvas id="overlay"></canvas></div>
+<div class="row">
+  <button id="start">Start camera</button>
+  <button id="stop" class="alt" disabled>Stop</button>
+  <select id="delegate" aria-label="Processor">
+    <option value="GPU">GPU (fast)</option>
+    <option value="CPU">CPU (steadier on some phones)</option>
+  </select>
+</div>
+<div class="card">
+  <div id="now">Not started</div>
+  <div id="debug"></div>
+  <div class="muted" id="status">Press Start camera. Everything stays on this phone.</div>
+</div>
+<div class="card"><div class="muted">Recent</div><div id="log"></div></div>
+
+<script type="module">
+import { GestureEngine, LandmarkSmoother, resolvePose } from "./gesture_logic.mjs";
+
+// Pinned versions. These load from the internet the first time; the browser caches them afterwards.
+const MP_VERSION = "0.10.21";
+const MP_BUNDLE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/vision_bundle.mjs`;
+const MP_WASM = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
+const MODEL = "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task";
+const KEY = "__GESTURE_KEY__";   // filled in by gesture_bridge.py when it serves this page
+
+const $ = (id) => document.getElementById(id);
+const video = $("video"), overlay = $("overlay"), ctx = overlay.getContext("2d");
+const engine = new GestureEngine();
+const smoother = new LandmarkSmoother(1.5, 5);
+let mp = null, recognizer = null, recognizerDelegate = null, drawing = null;
+let stream = null, running = false, wakeLock = null, lastTs = 0, frames = 0, fpsSince = 0, fps = 0, inferMs = 0;
+
+function store(key, value) { try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; } }
+function say(text, cls = "") { $("status").className = "muted " + cls; $("status").textContent = text; }
+function log(text, cls = "") {
+  const line = document.createElement("div");
+  line.className = cls;
+  line.textContent = new Date().toLocaleTimeString() + "  " + text;
+  $("log").prepend(line);
+  while ($("log").childElementCount > 60) $("log").lastChild.remove();
+}
+
+async function send(event) {
+  try {
+    const res = await fetch("/gesture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Gesture-Key": KEY },
+      body: JSON.stringify(event),
+    });
+    const data = await res.json().catch(() => ({}));
+    const msg = data.message || (res.ok ? "ok" : "HTTP " + res.status);
+    log(event.gesture + (event.repeat ? " (repeat)" : "") + "  ->  " + msg, res.ok && data.ok !== false ? "ok" : "warn");
+  } catch (err) {
+    log(event.gesture + "  ->  server not reachable", "bad");
+  }
+}
+
+async function loadRecognizer(delegate) {
+  say("Loading hand model (first time needs internet)...");
+  if (!mp) mp = await import(MP_BUNDLE);
+  if (recognizer) { try { recognizer.close(); } catch (e) { /* ignore */ } recognizer = null; }
+  const files = await mp.FilesetResolver.forVisionTasks(MP_WASM);
+  const make = (d) => mp.GestureRecognizer.createFromOptions(files, {
+    baseOptions: { modelAssetPath: MODEL, delegate: d },
+    runningMode: "VIDEO",
+    numHands: 1,
+    // lower than the defaults (0.5) so a hand is picked up sooner and kept through awkward angles
+    minHandDetectionConfidence: 0.4,
+    minHandPresenceConfidence: 0.4,
+    minTrackingConfidence: 0.4,
+  });
+  try {
+    recognizer = await make(delegate);
+    recognizerDelegate = delegate;
+  } catch (e) {
+    if (delegate === "CPU") throw e;
+    log("GPU not available, using CPU", "warn");
+    recognizer = await make("CPU");
+    recognizerDelegate = "CPU";
+    $("delegate").value = "CPU";
+  }
+  drawing = new mp.DrawingUtils(ctx);
+}
+
+/** Make the stage the same shape as the camera picture so video and skeleton line up exactly. */
+function fitStage() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return;
+  overlay.width = w; overlay.height = h;
+  $("stage").style.aspectRatio = w + " / " + h;
+}
+
+async function start() {
+  $("start").disabled = true;
+  $("delegate").disabled = true;
+  try {
+    const wanted = $("delegate").value;
+    store("delegate", wanted);
+    if (!recognizer || recognizerDelegate !== wanted) await loadRecognizer(wanted);
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } }, audio: false,
+    });
+    video.srcObject = stream;
+    await video.play();
+    fitStage();
+    try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { /* optional */ }
+    engine.reset(); smoother.reset();
+    running = true; lastTs = 0; frames = 0; fpsSince = performance.now();
+    $("stop").disabled = false;
+    $("now").textContent = "Show your hand";
+    say("Watching. Keep this tab open and the screen on.", "ok");
+    schedule();
+  } catch (err) {
+    $("start").disabled = false; $("delegate").disabled = false;
+    say("Could not start: " + (err && err.message ? err.message : err), "bad");
+  }
+}
+
+function stop() {
+  running = false;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null;
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  $("start").disabled = false; $("stop").disabled = true; $("delegate").disabled = false;
+  $("now").textContent = "Stopped";
+  $("debug").textContent = "";
+  say("Camera is off.");
+}
+
+// Process every new camera frame (not a fixed timer): the tracker follows the hand best when
+// frames arrive close together, and this never processes the same picture twice.
+function schedule() {
+  if (!running) return;
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(tick);
+  else requestAnimationFrame(tick);
+}
+
+function tick() {
+  if (!running) return;
+  schedule();
+  if (video.readyState < 2) return;
+  if (video.videoWidth !== overlay.width || video.videoHeight !== overlay.height) fitStage();
+
+  const now = performance.now();
+  lastTs = Math.max(now, lastTs + 1);  // MediaPipe needs strictly increasing timestamps
+  const t0 = performance.now();
+  let result;
+  try { result = recognizer.recognizeForVideo(video, lastTs); } catch (e) { return; }
+  inferMs = inferMs * 0.9 + (performance.now() - t0) * 0.1;
+
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  let sample = null;
+  let readout = "no hand";
+  if (result.landmarks && result.landmarks.length) {
+    const lm = result.landmarks[0];
+    const top = result.gestures && result.gestures[0] && result.gestures[0][0];
+    const pose = resolvePose(top ? top.categoryName : "None", top ? top.score : 0, lm);
+    sample = { t: now, name: pose.name, score: pose.score, x: lm[0].x, y: lm[0].y };  // raw wrist: no smoothing lag for swipes
+    $("now").textContent = pose.name === "None" ? "Hand seen" : pose.name.replace("_", " ");
+    readout = (top ? top.categoryName + " " + top.score.toFixed(2) : "none") +
+      " | fingers " + (pose.fingers ? pose.fingers.count + (pose.fingers.thumb ? "+thumb" : "") : "?");
+    const smooth = smoother.smooth(lm, now);                       // smoothed copy, drawing only
+    drawing.drawConnectors(smooth, mp.GestureRecognizer.HAND_CONNECTIONS, { color: "#3ecf8e", lineWidth: 3 });
+    drawing.drawLandmarks(smooth, { color: "#ffffff", radius: 2 });
+  } else {
+    smoother.reset();
+    $("now").textContent = "No hand";
+  }
+
+  frames++;
+  if (now - fpsSince >= 1000) { fps = (frames * 1000) / (now - fpsSince); frames = 0; fpsSince = now; }
+  $("debug").textContent = readout + " | " + fps.toFixed(0) + " fps, " + inferMs.toFixed(0) + " ms (" + recognizerDelegate + ")";
+
+  for (const event of engine.feed(sample, now)) send(event);
+}
+
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && running) {
+    try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { /* optional */ }
+  }
+});
+const savedDelegate = store("delegate");
+if (savedDelegate === "GPU" || savedDelegate === "CPU") $("delegate").value = savedDelegate;
+$("start").addEventListener("click", start);
+$("stop").addEventListener("click", stop);
+</script>
+</body>
+</html>
