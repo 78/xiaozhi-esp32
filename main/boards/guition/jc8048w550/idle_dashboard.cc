@@ -24,6 +24,12 @@ const lv_color_t kText = lv_color_hex(0xe8e8ec);
 const lv_color_t kMuted = lv_color_hex(0x8f8fa0);
 const lv_color_t kStar = lv_color_hex(0xf5c542);
 const lv_color_t kWarning = lv_color_hex(0xff9f43);
+// One colour per lunar fact; the words around them stay muted.
+const lv_color_t kLunarDate = lv_color_hex(0xf5c542);
+const lv_color_t kLunarYear = lv_color_hex(0xff8a65);
+const lv_color_t kDayName = lv_color_hex(0x4dd0e1);
+const lv_color_t kMonthName = lv_color_hex(0x81c784);
+const lv_color_t kTerm = lv_color_hex(0xba9cff);
 
 constexpr int32_t kCardPadding = 8;
 constexpr int32_t kRowHeight = 34;
@@ -72,6 +78,16 @@ lv_obj_t* Box(lv_obj_t* parent) {
     lv_obj_set_style_pad_all(box, 0, 0);
     lv_obj_set_style_radius(box, 0, 0);
     return box;
+}
+
+// A row of inline labels with a small gap, for "word value word value" lines.
+lv_obj_t* InlineRow(lv_obj_t* parent) {
+    lv_obj_t* row = Box(parent);
+    lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 5, 0);
+    return row;
 }
 
 lv_obj_t* Label(lv_obj_t* parent, const lv_font_t* font, lv_color_t color, const char* text = "") {
@@ -154,8 +170,16 @@ void IdleDashboard::BuildSummaryCard(lv_obj_t* parent, int32_t width) {
     lv_obj_set_size(left, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     Column(left, LV_FLEX_ALIGN_START);
     solar_ = Label(left, fonts_.solar, kText, "--/--/----");
-    lunar_line1_ = Label(left, fonts_.lunar, kText);
-    lunar_line2_ = Label(left, fonts_.lunar, kMuted);
+    lunar_row1_ = InlineRow(left);
+    Label(lunar_row1_, fonts_.lunar, kMuted, "Âm lịch:");
+    lunar_date_ = Label(lunar_row1_, fonts_.lunar, kLunarDate);
+    Label(lunar_row1_, fonts_.lunar, kMuted, "năm");
+    lunar_year_ = Label(lunar_row1_, fonts_.lunar, kLunarYear);
+    lunar_row2_ = InlineRow(left);
+    Label(lunar_row2_, fonts_.lunar, kMuted, "Ngày");
+    day_name_ = Label(lunar_row2_, fonts_.lunar, kDayName);
+    Label(lunar_row2_, fonts_.lunar, kMuted, "· Tháng");
+    month_name_ = Label(lunar_row2_, fonts_.lunar, kMonthName);
 
     lv_obj_t* right = Box(top);
     lv_obj_set_size(right, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -178,7 +202,9 @@ void IdleDashboard::BuildSummaryCard(lv_obj_t* parent, int32_t width) {
     lv_obj_set_size(meta, lv_pct(100), LV_SIZE_CONTENT);
     Row(meta, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(meta, 8, 0);
-    term_ = Label(meta, fonts_.lunar, kMuted);
+    term_row_ = InlineRow(meta);
+    Label(term_row_, fonts_.lunar, kMuted, "Tiết");
+    term_ = Label(term_row_, fonts_.lunar, kTerm);
     city_icon_ = Label(meta, fonts_.icon, kMuted, MATERIAL_SYMBOLS_LOCATION_ON);
     city_ = Label(meta, fonts_.text, kMuted, "--");
     event_ = Label(meta, fonts_.lunar, kWarning);
@@ -412,9 +438,9 @@ void IdleDashboard::RefreshClock() {
     localtime_r(&now, &local);
     if (local.tm_year < 2025 - 1900) {
         SetText(solar_, "--/--/----");
-        SetText(lunar_line1_, "");
-        SetText(lunar_line2_, "");
-        SetText(term_, "");
+        SetHidden(lunar_row1_, true);
+        SetHidden(lunar_row2_, true);
+        SetHidden(term_row_, true);
         SetHidden(event_, true);
         return;
     }
@@ -428,15 +454,16 @@ void IdleDashboard::RefreshClock() {
     char text[128];
     snprintf(text, sizeof(text), "%s, %02d/%02d/%04d", kWeekdays[local.tm_wday], day, month, year);
     SetText(solar_, text);
-    snprintf(text, sizeof(text), "Âm lịch: %d/%d%s năm %s", lunar_date.day, lunar_date.month,
-             lunar_date.leap ? " nhuận" : "", lunar::YearCanChi(lunar_date.year).c_str());
-    SetText(lunar_line1_, text);
-    snprintf(text, sizeof(text), "Ngày %s · Tháng %s",
-             lunar::DayCanChi(lunar::JulianDay(day, month, year)).c_str(),
-             lunar::MonthCanChi(lunar_date).c_str());
-    SetText(lunar_line2_, text);
-    snprintf(text, sizeof(text), "Tiết %s", lunar::SolarTerm(day, month, year));
-    SetText(term_, text);
+    snprintf(text, sizeof(text), "%d/%d%s", lunar_date.day, lunar_date.month,
+             lunar_date.leap ? " nhuận" : "");
+    SetText(lunar_date_, text);
+    SetText(lunar_year_, lunar::YearCanChi(lunar_date.year).c_str());
+    SetText(day_name_, lunar::DayCanChi(lunar::JulianDay(day, month, year)).c_str());
+    SetText(month_name_, lunar::MonthCanChi(lunar_date).c_str());
+    SetText(term_, lunar::SolarTerm(day, month, year));
+    SetHidden(lunar_row1_, false);
+    SetHidden(lunar_row2_, false);
+    SetHidden(term_row_, false);
 
     std::string events;
     for (const std::string& event : dashboard::EventsFor(day, month, year)) {
