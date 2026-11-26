@@ -39,8 +39,42 @@ The three physical keys map to XiaoZhi's voice-assistant actions:
 - **UP** — single click: volume +10; long press: max volume
 - **DOWN** — single click: volume -10; long press: mute
 
+With the reading message style (`CONFIG_USE_READING_MESSAGE_STYLE`) the
+transcript on screen can be paged, so UP and DOWN change roles:
+
+- **UP** — single click: page back through the conversation; hold: volume up
+  in steps of 5 every 150 ms until the key is released
+- **DOWN** — single click: page forward (the view follows new text again once
+  it is back at the end); hold: volume down the same way, down to mute
+
 Because the ladder shares one ADC pin, XiaoZhi reads it as three
 independent ADC buttons (the same pattern as the ESP-BOX-Lite).
+
+### Key hints at start-up
+
+With the reading message style the board labels its keys along the screen
+edges every time the firmware starts: a power-on, a reset, or a wake from the
+deep-sleep fallback (a wake from soft sleep is not a start-up and shows
+nothing).
+
+| Key | Label, next to the key |
+| --- | --- |
+| Power (left side; hardware only, hold 0.5 s to switch on, ~2 s to switch off) | ◀ Power |
+| UP (right side, top) | Hold: volume + / Tap: page up ▶ |
+| DOWN (right side, middle) | Hold: volume - / Tap: page down ▶ |
+| OK (right side, bottom) | Tap: start/end chat ▶ (Tap: Wi-Fi setup ▶ until the device is online) |
+
+Until Wi-Fi connects, a tap on OK enters Wi-Fi setup (see Controls), so the OK
+label says so and changes when start-up is over. The labels stay for 3 s, turn grey for 1 s and are then removed. Text that
+appears in the transcript - the listening line, a question or an answer, or a
+system message such as the Wi-Fi setup instructions, an activation code or an
+error - removes them at once. Status row text does not, and the firmware version
+line printed at start-up is held back while they are up. The two top labels sit
+under the status row so the start-up progress stays readable.
+
+The key positions (`k*KeyCenterY` in `passport_display.cc`) were measured on the
+FoloToy product drawings. The strings are `KEY_HINT_*` in the en-US, zh-CN and
+zh-TW language files; other languages fall back to English.
 
 ## Power management
 
