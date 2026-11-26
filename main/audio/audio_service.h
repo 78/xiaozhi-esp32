@@ -149,6 +149,53 @@ public:
     void ResetDecoder();
     void SetModelsList(srmodel_list_t* models_list);
 
+    // What the microphone actually delivers, measured on the frames handed to the engine -
+    // before the AFE, so it is the signal the wake word has to work with rather than whatever
+    // survived processing. Held as a peak and cleared when read, the way an IMU peak is held:
+    // a shout between two reads is still reported instead of being lost to whoever happened
+    // to poll during the silence after it.
+    //
+    // It exists because the AFE's own level field is not usable in this configuration - it
+    // reports 0 dB forever, which reads as silence rather than as never filled in. Without a
+    // number from somewhere, a wake word threshold can only be guessed at.
+    static constexpr float kSilenceDbfs = -100.0f;
+    struct InputLevel {
+        uint32_t frames = 0;       // 10 ms frames measured in this window
+        int32_t peak = 0;          // loudest absolute sample in the window, 0 to 32768
+        int32_t loudest_frame_rms = 0;  // the same, as the loudest frame's RMS
+        float peak_dbfs = kSilenceDbfs;
+        float loudest_frame_rms_dbfs = kSilenceDbfs;
+        uint32_t window_ms = 0;    // how long this window was open
+        uint32_t age_ms = 0;       // how long ago it closed; 0 from TakeInputLevel
+    };
+
+    // Closes the current window and keeps it as the last one. There is exactly one caller, the
+    // ten-second log line: two read-and-clear consumers would starve each other, each seeing
+    // only what arrived since the other looked.
+    InputLevel TakeInputLevel();
+    // The last closed window, with no side effects. This is what a status reader gets, and
+    // age_ms is part of it: a window from three minutes ago must not be read as current.
+    InputLevel LastInputLevel() const;
+
+    // One line beside the free-sram heartbeat, every ten seconds.
+    //
+    // This exists because of a fault that is invisible from every other angle: after a
+    // conversation the robot sometimes stops answering its wake word until something else wakes
+    // it, and nothing anywhere says so. EnableWakeWordDetection logs nothing at either end, the
+    // state machine re-enables it on entering idle so its own trace looks correct, and
+    // AudioInputTask swallows a failed read without a word - so a dead microphone and a healthy
+    // idle robot produce byte-identical logs. Measured: 3 h 31 m of one and 9 min of the other,
+    // line for line the same.
+    //
+    // It has to log rather than answer. While the robot is deaf it cannot be asked anything -
+    // the voice path is the broken one - so the serial console is the only channel left.
+    void LogInputWatch();
+
+    // 0.4 (easiest to trigger) to 0.9999 (hardest); 0 restores the model's own default.
+    // Held here as well as in the engine so it survives an engine re-initialisation.
+    bool SetWakeWordThreshold(float threshold);
+    float GetWakeWordThreshold() const { return wake_word_threshold_; }
+
 private:
     AudioCodec* codec_ = nullptr;
     AudioServiceCallbacks callbacks_;
@@ -200,6 +247,20 @@ private:
 
     bool audio_engine_initialized_ = false;
     bool voice_detected_ = false;
+
+    // One writer (AudioInputTask), one reader (TakeInputLevel). Relaxed ordering is enough:
+    // the reader's exchange can race a single frame's store and drop that frame, which is
+    // nothing a peak held over hundreds of frames would notice.
+    std::atomic<uint32_t> input_level_frames_{0};
+    std::atomic<int32_t> input_level_peak_{0};
+    std::atomic<int32_t> input_level_peak_rms_{0};
+    std::atomic<int64_t> input_level_window_start_ms_{0};
+    // Written by the ten-second logger, read by whatever task serves a status request, so it is
+    // not a plain struct copy across tasks.
+    mutable std::mutex input_level_mutex_;
+    InputLevel last_input_level_;
+    int64_t last_input_level_closed_ms_ = 0;
+    float wake_word_threshold_ = 0.0f;
 #if CONFIG_USE_DEVICE_AEC
     bool device_aec_enabled_ = true;
 #else
@@ -212,6 +273,7 @@ private:
     std::chrono::steady_clock::time_point last_input_time_;
     std::chrono::steady_clock::time_point last_output_time_;
 
+    void AccumulateInputLevel(const std::vector<int16_t>& data);
     void AudioInputTask();
     void AudioOutputTask();
     void OpusCodecTask();
