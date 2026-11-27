@@ -9,12 +9,20 @@
 
 class NoAudioCodec : public AudioCodec {
 protected:
+    // Anti-pop: silence lead after enable and flush before disable, so the DAC
+    // latches zero level across output transitions. The flush covers the whole
+    // TX DMA ring (AUDIO_CODEC_DMA_DESC_NUM * AUDIO_CODEC_DMA_FRAME_NUM frames).
+    static constexpr int kAntiPopLeadSamples = 240;
+    static constexpr int kAntiPopFlushSamples =
+        2 * AUDIO_CODEC_DMA_DESC_NUM * AUDIO_CODEC_DMA_FRAME_NUM;
+
     std::mutex data_if_mutex_;
 
     virtual int Write(const int16_t* data, int samples) override;
     virtual int Read(int16_t* dest, int samples) override;
     virtual void EnableInput(bool enable) override;
     virtual void EnableOutput(bool enable) override;
+    void WriteSilenceLocked(int samples);
 
 public:
     virtual ~NoAudioCodec();

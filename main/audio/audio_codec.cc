@@ -50,6 +50,19 @@ void AudioCodec::SetInputGain(float gain) {
     ESP_LOGI(TAG, "Set input gain to %.1f", input_gain_);
 }
 
+void AudioCodec::SetPaEnablePin(gpio_num_t pin) {
+    pa_pin_ = pin;
+    gpio_config_t io_conf = {};
+    io_conf.pin_bit_mask = (1ULL << pin);
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
+    // Hold the amplifier muted until the first output; see NoAudioCodec::EnableOutput.
+    ESP_ERROR_CHECK(gpio_set_level(pin, 0));
+}
+
 void AudioCodec::EnableInput(bool enable) {
     if (enable == input_enabled_) {
         return;

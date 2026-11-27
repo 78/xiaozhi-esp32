@@ -275,10 +275,30 @@ void NoAudioCodec::EnableOutput(bool enable) {
     }
     if (enable) {
         ESP_ERROR_CHECK(i2s_channel_enable(tx_handle_));
+        // Anti-pop: lead with silence so the DAC starts at zero level instead
+        // of latching stale DMA contents (speaker click at every sound start).
+        WriteSilenceLocked(kAntiPopLeadSamples);
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 1);
+        }
     } else {
+        if (pa_pin_ != GPIO_NUM_NC) {
+            gpio_set_level(pa_pin_, 0);
+        }
+        // Anti-pop: overwrite the DMA ring with silence before stopping the
+        // clocks, so the DAC latches zero level and the next start stays quiet.
+        WriteSilenceLocked(kAntiPopFlushSamples);
         ESP_ERROR_CHECK(i2s_channel_disable(tx_handle_));
     }
     AudioCodec::EnableOutput(enable);
+}
+
+void NoAudioCodec::WriteSilenceLocked(int samples) {
+    std::vector<int32_t> zeros(samples, 0);
+    size_t bytes_written;
+    // Bounded timeout: this can run from the audio power timer task.
+    ESP_ERROR_CHECK(i2s_channel_write(tx_handle_, zeros.data(), samples * sizeof(int32_t),
+                                      &bytes_written, pdMS_TO_TICKS(500)));
 }
 
 // Delegating constructor: calls the main constructor with default slot mask
