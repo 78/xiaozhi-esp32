@@ -3,6 +3,8 @@
         "type": "en-US"
     },
     "strings": {
+        "AUDIO_TEST_PLAYBACK": "Playing back recording...",
+        "AUDIO_TEST_RECORDING": "Audio test - %d s",
         "WARNING": "Warning",
         "INFO": "Information",
         "ERROR": "Error",
