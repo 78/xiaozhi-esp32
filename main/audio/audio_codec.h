@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <driver/i2s_std.h>
+#include <driver/gpio.h>
 #include <esp_idf_version.h>
 
 #include <vector>
@@ -33,6 +34,10 @@ public:
     virtual void SetInputGain(float gain);
     virtual void EnableInput(bool enable);
     virtual void EnableOutput(bool enable);
+    // Optional power-amplifier enable pin (active high). While set, the
+    // amplifier is held muted at boot and sequenced around output transitions
+    // to avoid speaker pops (see NoAudioCodec::EnableOutput).
+    void SetPaEnablePin(gpio_num_t pin);
 
     virtual void OutputData(std::vector<int16_t>& data);
     virtual bool InputData(std::vector<int16_t>& data);
@@ -52,6 +57,7 @@ public:
 protected:
     i2s_chan_handle_t tx_handle_ = nullptr;
     i2s_chan_handle_t rx_handle_ = nullptr;
+    gpio_num_t pa_pin_ = GPIO_NUM_NC;
 
     bool duplex_ = false;
     bool input_reference_ = false;
