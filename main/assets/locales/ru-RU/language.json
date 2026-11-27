@@ -3,6 +3,8 @@
         "type": "ru-RU"
     },
     "strings": {
+        "AUDIO_TEST_PLAYBACK": "Воспроизведение записи...",
+        "AUDIO_TEST_RECORDING": "Тест звука — %d с",
         "WARNING": "Предупреждение",
         "INFO": "Информация",
         "ERROR": "Ошибка",

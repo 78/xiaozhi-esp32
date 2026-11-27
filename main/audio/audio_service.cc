@@ -738,18 +738,34 @@ void AudioService::EnableVoiceProcessing(bool enable) {
 void AudioService::EnableAudioTesting(bool enable) {
     ESP_LOGI(TAG, "%s audio testing", enable ? "Enabling" : "Disabling");
     if (enable) {
+        audio_testing_start_ms_ = esp_timer_get_time() / 1000;
         xEventGroupSetBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING);
-    } else {
-        xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING);
-        /* Copy audio_testing_queue_ to audio_decode_queue_ */
-        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-        audio_decode_queue_.clear();
-        audio_decode_queue_.swap(audio_testing_queue_);
-        if (!audio_decode_queue_.empty()) {
-            playback_drained_notified_ = false;
-        }
-        audio_queue_cv_.notify_all();
+        return;
     }
+    const EventBits_t previous_bits =
+        xEventGroupClearBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING);
+    if ((previous_bits & AS_EVENT_AUDIO_TESTING_RUNNING) == 0) {
+        // Already stopped; do not disturb playback queued by the last session.
+        return;
+    }
+    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+    /* Accidental sessions (button bounce, noisy touch sensors) record only
+     * ambient noise; replaying it startles users. Drop short recordings. */
+    const int64_t duration_ms = esp_timer_get_time() / 1000 - audio_testing_start_ms_;
+    if (duration_ms < AUDIO_TESTING_MIN_DURATION_MS) {
+        ESP_LOGI(TAG, "Audio testing session too short (%lld ms), discarding recording",
+                 duration_ms);
+        audio_testing_queue_.clear();
+        audio_queue_cv_.notify_all();
+        return;
+    }
+    /* Copy audio_testing_queue_ to audio_decode_queue_ */
+    audio_decode_queue_.clear();
+    audio_decode_queue_.swap(audio_testing_queue_);
+    if (!audio_decode_queue_.empty()) {
+        playback_drained_notified_ = false;
+    }
+    audio_queue_cv_.notify_all();
 }
 
 void AudioService::EnableDeviceAec(bool enable) {

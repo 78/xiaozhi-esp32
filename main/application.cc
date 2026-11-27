@@ -46,6 +46,18 @@ Application::Application() : notify_player_(audio_service_) {
                                                 .name = "clock_timer",
                                                 .skip_unhandled_events = true};
     esp_timer_create(&clock_timer_args, &clock_timer_handle_);
+
+    esp_timer_create_args_t audio_testing_timer_args = {
+        .callback =
+            [](void* arg) {
+                Application* app = (Application*)arg;
+                app->Schedule([app]() { app->OnAudioTestingTick(); });
+            },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "audio_test_tick",
+        .skip_unhandled_events = true};
+    esp_timer_create(&audio_testing_timer_args, &audio_testing_timer_handle_);
 }
 
 Application::~Application() {
@@ -57,6 +69,10 @@ Application::~Application() {
     if (startup_wake_word_hint_timer_ != nullptr) {
         esp_timer_stop(startup_wake_word_hint_timer_);
         esp_timer_delete(startup_wake_word_hint_timer_);
+    }
+    if (audio_testing_timer_handle_ != nullptr) {
+        esp_timer_stop(audio_testing_timer_handle_);
+        esp_timer_delete(audio_testing_timer_handle_);
     }
     vEventGroupDelete(event_group_);
 }
@@ -242,6 +258,13 @@ void Application::Run() {
                 audio_service_.IsPlaybackIdle()) {
                 pending_listening_start_ = false;
                 StartListeningAudio();
+            }
+            // Deferred audio testing start: the cue sound has drained, so the
+            // recording will not capture the cue itself.
+            if (pending_audio_testing_start_ && GetDeviceState() == kDeviceStateAudioTesting &&
+                audio_service_.IsPlaybackIdle()) {
+                pending_audio_testing_start_ = false;
+                BeginAudioTestingRecording();
             }
         }
 
@@ -827,12 +850,10 @@ void Application::HandleToggleChatEvent() {
         SetDeviceState(kDeviceStateIdle);
         return;
     } else if (state == kDeviceStateWifiConfiguring) {
-        audio_service_.EnableAudioTesting(true);
-        SetDeviceState(kDeviceStateAudioTesting);
+        StartAudioTesting();
         return;
     } else if (state == kDeviceStateAudioTesting) {
-        audio_service_.EnableAudioTesting(false);
-        SetDeviceState(kDeviceStateWifiConfiguring);
+        StopAudioTesting();
         return;
     }
 
@@ -891,8 +912,7 @@ void Application::HandleStartListeningEvent() {
         SetDeviceState(kDeviceStateIdle);
         return;
     } else if (state == kDeviceStateWifiConfiguring) {
-        audio_service_.EnableAudioTesting(true);
-        SetDeviceState(kDeviceStateAudioTesting);
+        StartAudioTesting();
         return;
     }
 
@@ -921,8 +941,7 @@ void Application::HandleStopListeningEvent() {
     if (state == kDeviceStateNotifying) {
         StopNotification();
     } else if (state == kDeviceStateAudioTesting) {
-        audio_service_.EnableAudioTesting(false);
-        SetDeviceState(kDeviceStateWifiConfiguring);
+        StopAudioTesting();
         return;
     } else if (state == kDeviceStateListening) {
         if (protocol_) {
@@ -930,6 +949,56 @@ void Application::HandleStopListeningEvent() {
         }
         SetDeviceState(kDeviceStateIdle);
     }
+}
+
+void Application::StartAudioTesting() {
+    // The cue sound must drain before recording starts (see the
+    // MAIN_EVENT_PLAYBACK_DRAINED handler), otherwise the replay would
+    // contain the cue itself.
+    pending_audio_testing_start_ = true;
+    audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+    SetDeviceState(kDeviceStateAudioTesting);
+}
+
+void Application::BeginAudioTestingRecording() {
+    audio_testing_start_ms_ = esp_timer_get_time() / 1000;
+    audio_service_.EnableAudioTesting(true);
+    OnAudioTestingTick();
+    esp_timer_start_periodic(audio_testing_timer_handle_, 1000 * 1000);
+}
+
+void Application::StopAudioTesting() {
+    esp_timer_stop(audio_testing_timer_handle_);
+    const bool recording_started = !pending_audio_testing_start_ && audio_testing_start_ms_ > 0;
+    pending_audio_testing_start_ = false;
+    audio_service_.EnableAudioTesting(false);
+    SetDeviceState(kDeviceStateWifiConfiguring);
+    auto display = Board::GetInstance().GetDisplay();
+    display->SetStatus(Lang::Strings::WIFI_CONFIG_MODE);
+    const int64_t session_ms = esp_timer_get_time() / 1000 - audio_testing_start_ms_;
+    audio_testing_start_ms_ = 0;
+    if (recording_started && session_ms >= AUDIO_TESTING_MIN_DURATION_MS) {
+        display->ShowNotification(Lang::Strings::AUDIO_TEST_PLAYBACK,
+                                  static_cast<int>(session_ms) + 1500);
+    }
+}
+
+void Application::OnAudioTestingTick() {
+    if (GetDeviceState() != kDeviceStateAudioTesting) {
+        esp_timer_stop(audio_testing_timer_handle_);
+        return;
+    }
+    const int64_t elapsed_ms = esp_timer_get_time() / 1000 - audio_testing_start_ms_;
+    const int remaining_s =
+        static_cast<int>((AUDIO_TESTING_MAX_DURATION_MS - elapsed_ms + 999) / 1000);
+    if (remaining_s <= 0) {
+        // Recording limit reached: the audio service auto-stopped the session.
+        StopAudioTesting();
+        return;
+    }
+    char buf[48];
+    snprintf(buf, sizeof(buf), Lang::Strings::AUDIO_TEST_RECORDING, remaining_s);
+    Board::GetInstance().GetDisplay()->SetStatus(buf);
 }
 
 void Application::HandleWakeWordDetectedEvent() {
