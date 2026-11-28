@@ -1,8 +1,10 @@
 #include "cores3_audio_codec.h"
 
-#include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/i2s_tdm.h>
+#include <esp_log.h>
+#include <algorithm>
+#include <array>
 
 #define TAG "CoreS3AudioCodec"
 
@@ -106,6 +108,7 @@ void CoreS3AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     };
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
 
+    // Match the four 16-bit RX slots on the shared BCLK and WS.
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
@@ -114,11 +117,11 @@ void CoreS3AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
             .mclk_multiple = I2S_MCLK_MULTIPLE_256
         },
         .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+            .data_bit_width = I2S_DATA_BIT_WIDTH_32BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
             .slot_mode = I2S_SLOT_MODE_STEREO,
             .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+            .ws_width = I2S_DATA_BIT_WIDTH_32BIT,
             .ws_pol = false,
             .bit_shift = true,
             .left_align = true,
@@ -194,7 +197,7 @@ void CoreS3AudioCodec::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = 2,
+            .channel = 4,
             .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
             .sample_rate = (uint32_t)output_sample_rate_,
             .mclk_multiple = 0,
@@ -215,9 +218,9 @@ void CoreS3AudioCodec::EnableOutput(bool enable) {
         return;
     }
     if (enable) {
-        // Play 16bit 1 channel
+        // Standard I2S uses two 32-bit slots per frame for mono playback.
         esp_codec_dev_sample_info_t fs = {
-            .bits_per_sample = 16,
+            .bits_per_sample = 32,
             .channel = 1,
             .channel_mask = 0,
             .sample_rate = (uint32_t)output_sample_rate_,
@@ -239,8 +242,24 @@ int CoreS3AudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int CoreS3AudioCodec::Write(const int16_t* data, int samples) {
-    if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+    if (!output_enabled_) {
+        return 0;
     }
-    return samples;
+
+    // Put signed PCM16 in the high 16 bits without shifting a negative value.
+    std::array<int32_t, AUDIO_CODEC_DMA_FRAME_NUM> output;
+    int written = 0;
+    while (written < samples) {
+        const int count = std::min(samples - written, static_cast<int>(output.size()));
+        for (int i = 0; i < count; ++i) {
+            output[i] = static_cast<int32_t>(data[written + i]) * 65536;
+        }
+        const int result = esp_codec_dev_write(output_dev_, output.data(), count * sizeof(int32_t));
+        if (result != ESP_CODEC_DEV_OK) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+            break;
+        }
+        written += count;
+    }
+    return written;
 }
